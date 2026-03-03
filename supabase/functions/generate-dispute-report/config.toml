@@ -1,0 +1,20 @@
+# Supabase Edge Function Configuration
+# This file configures the Deno runtime environment for the function
+
+# Function metadata
+name = "generate-dispute-report"
+version = "1.0.0"
+
+# Runtime configuration
+[env]
+SUPABASE_URL = { from_env = "SUPABASE_URL" }
+SUPABASE_SERVICE_ROLE_KEY = { from_env = "SUPABASE_SERVICE_ROLE_KEY" }
+
+# Import map for external dependencies
+[import_map]
+url = "import_map.json"
+
+# Permissions (Deno-specific)
+[permissions]
+net = true
+env = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]

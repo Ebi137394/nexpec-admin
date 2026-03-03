@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "https://esm.sh/jspdf@2.5.1": "https://esm.sh/jspdf@2.5.1",
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2"
+  }
+}

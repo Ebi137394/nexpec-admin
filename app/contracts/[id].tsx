@@ -1,0 +1,237 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  Dimensions,
+} from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
+import PdfViewer from '../../src/components/PdfViewer';
+
+// Match your app's theme colors
+const COLORS = {
+  background: '#020420',
+  card: '#1e293b',
+  border: '#334155',
+  primary: '#7C3AED', // Purple to match your branding
+  text: '#FFFFFF',
+  textDim: '#9CA3AF',
+  success: '#10B981',
+  warning: '#F59E0B',
+};
+
+export default function ContractDetailsScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const [contract, setContract] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [signing, setSigning] = useState(false);
+  const [showPdf, setShowPdf] = useState(false);
+
+  useEffect(() => {
+    if (id) fetchContractDetails();
+  }, [id]);
+
+  const fetchContractDetails = async () => {
+    try {
+      setLoading(true);
+
+      // 1. Fetch contract linked to job (NO company_name here to avoid crash)
+      const { data: contractData, error } = await supabase
+        .from('contracts')
+        .select(`*, jobs:job_id (id, title, location, client_id)`)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      // 2. Safe Fetch: Get Client Name from Profiles
+      let clientName = 'Unknown Client';
+      if (contractData?.jobs?.client_id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_name, full_name')
+          .eq('id', contractData.jobs.client_id)
+          .single();
+
+        if (profile) clientName = profile.company_name || profile.full_name || 'Unknown';
+      }
+
+      setContract({ ...contractData, client_name: clientName });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load contract');
+      router.back();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSign = async () => {
+    Alert.alert('Sign Contract', 'Confirm your digital signature?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Now',
+        onPress: async () => {
+          setSigning(true);
+          const { error } = await supabase
+            .from('contracts')
+            .update({ status: 'signed', signed_at: new Date().toISOString() })
+            .eq('id', id);
+
+          if (!error) {
+            setContract({ ...contract, status: 'signed', signed_at: new Date().toISOString() });
+            Alert.alert('Success', 'Contract Signed Successfully!');
+          }
+          setSigning(false);
+        }
+      }
+    ]);
+  };
+
+  if (loading) return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+    </SafeAreaView>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Contract Agreement</Text>
+        <View style={{width: 40}} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Status Banner */}
+        <View style={[styles.statusCard, { borderColor: contract.status === 'signed' ? COLORS.success : COLORS.warning }]}>
+          <Ionicons name={contract.status === 'signed' ? "checkmark-circle" : "time"} size={24} color={contract.status === 'signed' ? COLORS.success : COLORS.warning} />
+          <Text style={[styles.statusText, { color: contract.status === 'signed' ? COLORS.success : COLORS.warning }]}>
+            Status: {contract.status.toUpperCase()}
+          </Text>
+        </View>
+
+        {/* Details Card */}
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.label}>Client:</Text>
+            <Text style={styles.value}>{contract.client_name}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Project:</Text>
+            <Text style={styles.value}>{contract.jobs?.title}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Location:</Text>
+            <Text style={styles.value}>{contract.jobs?.location}</Text>
+          </View>
+        </View>
+
+        {/* Contract Text */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+          <Text style={styles.contractText}>
+            {contract.contract_text || "1. Services: The Inspector agrees to perform the services described...\n\n2. Payment: Payment will be released upon approval...\n\n3. Confidentiality: All data remains the property of the client..."}
+          </Text>
+        </View>
+
+        {/* PDF Viewer */}
+        {contract.pdf_file_name && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Contract PDF</Text>
+            <TouchableOpacity 
+              style={styles.pdfToggleBtn} 
+              onPress={() => setShowPdf(!showPdf)}
+            >
+              <Ionicons name={showPdf ? "document-text-outline" : "document-text-outline"} size={20} color="#FFF" />
+              <Text style={styles.pdfToggleText}>
+                {showPdf ? "Hide PDF" : "View PDF Contract"}
+              </Text>
+              <Ionicons name={showPdf ? "chevron-up" : "chevron-down"} size={20} color="#FFF" />
+            </TouchableOpacity>
+            
+            {showPdf && (
+              <View style={styles.pdfContainer}>
+                <PdfViewer uri={contract.pdf_file_name} />
+              </View>
+            )}
+            
+            {/* Full Screen PDF View Button */}
+            <TouchableOpacity 
+              style={styles.fullScreenBtn} 
+              onPress={() => {
+                // Get the public URL for the PDF
+                const { data: publicUrlData } = supabase.storage
+                  .from('contracts')
+                  .getPublicUrl(contract.pdf_file_name);
+                
+                router.push({
+                  pathname: '/contracts/view',
+                  params: {
+                    pdfUrl: publicUrlData.publicUrl,
+                    contractNumber: contract.jobs?.title || 'Contract'
+                  }
+                });
+              }}
+            >
+              <Ionicons name="expand" size={20} color="#FFF" />
+              <Text style={styles.fullScreenText}>Full Screen View</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Signature Box */}
+        {contract.status === 'signed' ? (
+          <View style={styles.signedBox}>
+            <Ionicons name="ribbon" size={24} color={COLORS.success} />
+            <Text style={styles.signedMsg}>Digitally Signed on {new Date(contract.signed_at).toLocaleDateString()}</Text>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.signBtn} onPress={handleSign} disabled={signing}>
+            {signing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.signBtnText}>Sign Contract</Text>}
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  backBtn: { padding: 8 },
+  headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  content: { padding: 20 },
+  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  statusCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, gap: 10 },
+  statusText: { fontSize: 16, fontWeight: 'bold' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
+  label: { color: COLORS.textDim, fontSize: 14 },
+  value: { color: '#FFF', fontSize: 14, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 4 },
+  sectionTitle: { color: '#FFF', fontSize: 16, fontWeight: '700', marginBottom: 12 },
+  contractText: { color: '#CBD5E1', lineHeight: 22, fontSize: 14 },
+  signBtn: { backgroundColor: COLORS.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  signBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
+  signedBox: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, padding: 20, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 12 },
+  signedMsg: { color: COLORS.success, fontWeight: 'bold' },
+  pdfToggleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: COLORS.primary, borderRadius: 8, marginBottom: 12 },
+  pdfToggleText: { color: '#FFF', fontWeight: '600', flex: 1, marginLeft: 10 },
+  pdfContainer: { height: Dimensions.get('window').height * 0.6, backgroundColor: '#000', borderRadius: 8, overflow: 'hidden' },
+  pdfViewer: { flex: 1 },
+  fullScreenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: '#1C6BB1', borderRadius: 8, marginTop: 8 },
+  fullScreenText: { color: '#FFF', fontWeight: '600', flex: 1, marginLeft: 10, textAlign: 'center' },
+});

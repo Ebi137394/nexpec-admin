@@ -63,8 +63,12 @@ function AuthGate() {
       try {
         if (role === 'admin') {
           router.replace('/(senior)/inbox');
+        } else if (role === 'agency' || role === 'enterprise') {
+          router.replace('/(tabs)/agency-dashboard');
+        } else if (role === 'client') {
+          router.replace('/(tabs)/client-dashboard');
         } else {
-          router.replace('/(tabs)/dashboard');
+          router.replace('/(tabs)');
         }
       } catch (error) {
         console.warn('Navigation error:', error);
@@ -85,13 +89,24 @@ function AuthGate() {
     // Profile routes are allowed for all authenticated users
     if (inProfileGroup) return;
 
+    // 🔴 Define allowed routes that should bypass default dashboard routing
+    const isAllowedRoute = segments[0] === 'chat' || segments[0] === 'submit-report' || segments[0] === 'payment-screen';
+
     // Default to tabs dashboard for authenticated users
-    if (isAuthenticated && !inTabsGroup && !inSeniorGroup && !inProfileGroup) {
+    // 🔴 Add !isAllowedRoute condition to prevent routing away from allowed routes
+    if (isAuthenticated && !inTabsGroup && !inSeniorGroup && !inProfileGroup && !isAllowedRoute) {
       try {
         if (role === 'admin') {
           router.replace('/(senior)/inbox');
+        } else if (role === 'agency' || role === 'enterprise') {
+          // Route agency and enterprise users to agency dashboard
+          router.replace('/(tabs)/agency-dashboard');
+        } else if (role === 'client') {
+          // Route client users to client dashboard
+          router.replace('/(tabs)/client-dashboard');
         } else {
-          router.replace('/(tabs)/dashboard');
+          // Default fallback for other roles
+          router.replace('/(tabs)');
         }
       } catch (error) {
         console.warn('Navigation error:', error);
@@ -122,7 +137,7 @@ export default function RootLayout() {
       <LanguageProvider>
         <AuthProvider>
           <StripeProvider
-            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!}
+            publishableKey="pk_test_51SkICRL9uHtRspTiLLEeg3YLMBY9MTMIR5BbylbYFBzu7UmjoVs1BLoFUkik0DRjIPh7k7t52aXPjqwVWN2vyvWO00h8sfZE9h"
             merchantIdentifier="com.nexpec.app"
             urlScheme="nexpec"
           >

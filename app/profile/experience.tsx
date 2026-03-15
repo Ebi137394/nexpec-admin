@@ -56,10 +56,36 @@ export default function ExperienceScreen() {
 
   useEffect(() => {
     if (user) {
-      fetchExperiences();
-      fetchResumeUrl();
+      checkUserTypeAndRedirect();
     }
   }, [user]);
+
+  const checkUserTypeAndRedirect = async () => {
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (error) throw error;
+
+      // Redirect agencies to company overview instead of experience
+      if (data?.user_type === 'agency') {
+        router.replace('/profile/edit');
+        return;
+      }
+
+      fetchExperiences();
+      fetchResumeUrl();
+    } catch (error) {
+      console.error('Error checking user type:', error);
+      setLoading(false);
+    }
+  };
 
   const fetchExperiences = async () => {
     try {

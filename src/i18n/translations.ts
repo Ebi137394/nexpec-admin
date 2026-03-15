@@ -58,6 +58,12 @@ export interface Translation {
     'Years': string;
     'Rating': string;
     'Company Rating': string;
+    'Active Contracts': string;
+    'Agency Rating': string;
+    'Company Overview': string;
+    'Manage your agency profile and team': string;
+    'Location not set': string;
+    'Phone not set': string;
     'NEXPEC v1.0.0': string;
     'Focus on Excellence': string;
     'Failed to load skills': string;
@@ -215,6 +221,12 @@ const en: Translation = {
     'Years': 'Years',
     'Rating': 'Rating',
     'Company Rating': 'Company Rating',
+    'Active Contracts': 'Active Contracts',
+    'Agency Rating': 'Agency Rating',
+    'Company Overview': 'Company Overview',
+    'Manage your agency profile and team': 'Manage your agency profile and team',
+    'Location not set': 'Location not set',
+    'Phone not set': 'Phone not set',
     'NEXPEC v1.0.0': 'NEXPEC v1.0.0',
     'Focus on Excellence': 'Focus on Excellence',
     'Failed to load skills': 'Failed to load skills',
@@ -372,6 +384,12 @@ const it: Translation = {
     'Years': 'Anni',
     'Rating': 'Valutazione',
     'Company Rating': 'Valutazione Azienda',
+    'Active Contracts': 'Contratti Attivi',
+    'Agency Rating': 'Valutazione Agenzia',
+    'Company Overview': 'Panoramica Azienda',
+    'Manage your agency profile and team': 'Gestisci il tuo profilo agenzia e il team',
+    'Location not set': 'Posizione non impostata',
+    'Phone not set': 'Telefono non impostato',
     'NEXPEC v1.0.0': 'NEXPEC v1.0.0',
     'Focus on Excellence': 'Focus sull\'Eccellenza',
     'Failed to load skills': 'Caricamento competenze fallito',
@@ -529,6 +547,12 @@ const tr: Translation = {
     'Years': 'Yıl',
     'Rating': 'Puan',
     'Company Rating': 'Şirket Puanı',
+    'Active Contracts': 'Aktif Sözleşmeler',
+    'Agency Rating': 'Acente Puanı',
+    'Company Overview': 'Şirket Genel Bakışı',
+    'Manage your agency profile and team': 'Acente profilinizi ve takımınızı yönetin',
+    'Location not set': 'Konum ayarlanmadı',
+    'Phone not set': 'Telefon ayarlanmadı',
     'NEXPEC v1.0.0': 'NEXPEC v1.0.0',
     'Focus on Excellence': 'Mükemmelliğe Odaklanın',
     'Failed to load skills': 'Beceriler yüklenemedi',

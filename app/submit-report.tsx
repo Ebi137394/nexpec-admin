@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons'; // Added for icons
+import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '../lib/supabase';
 
 type InspectionType = 'Visual' | 'Welding' | 'NDT';
@@ -28,6 +29,11 @@ export default function SubmitReport() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // ── NEW: Signature state ──────────────────────────────────
+  const [signature, setSignature] = useState<string | null>(null);
+  const signatureRef = useRef<SignatureViewRef>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const getUserSession = async () => {
@@ -74,9 +80,41 @@ export default function SubmitReport() {
     }
   };
 
+  // ── NEW: Signature handlers ───────────────────────────────
+  const handleSignatureOK = (sig: string) => {
+    // sig is a base64 data URI like "data:image/png;base64,iVBOR..."
+    setSignature(sig);
+  };
+
+  const handleSignatureEmpty = () => {
+    setSignature(null);
+  };
+
+  const handleClearSignature = () => {
+    signatureRef.current?.clearSignature();
+    setSignature(null);
+  };
+
+  const handleSignatureEnd = () => {
+    // Re-enable parent ScrollView
+    scrollViewRef.current?.setNativeProps({ scrollEnabled: true });
+    // Trigger read after the user lifts their finger
+    signatureRef.current?.readSignature();
+  };
+
+  const handleSignatureBegin = () => {
+    // Disable parent ScrollView while user is drawing
+    scrollViewRef.current?.setNativeProps({ scrollEnabled: false });
+  };
+
   const handleSubmit = async () => {
     if (!description.trim()) {
       Alert.alert('Validation Error', 'Description cannot be empty');
+      return;
+    }
+
+    if (!signature) {
+      Alert.alert('Validation Error', 'Signature is required to submit the report');
       return;
     }
 
@@ -98,6 +136,7 @@ export default function SubmitReport() {
             inspection_type: inspectionType,
             description: description.trim(),
             image_url: imageUri || null, 
+            signature: signature, // Save signature as base64 data URI
             status: 'Submitted',
           },
         ]);
@@ -114,7 +153,7 @@ export default function SubmitReport() {
       const errorMessage = error.message || 'Unknown error occurred';
       Alert.alert(
         'Submission Failed',
-        `Message: ${errorMessage}\n\nEnsure you ran the SQL script to add 'description' and 'inspection_type' columns.`
+        `Message: ${errorMessage}\n\nEnsure you ran the SQL script to add 'description', 'inspection_type', and 'signature_url' columns.`
       );
       console.error('Supabase Insert Error:', error);
     } finally {
@@ -136,6 +175,9 @@ export default function SubmitReport() {
       </TouchableOpacity>
     );
   };
+
+  // ── NEW: Form validation ──────────────────────────────────
+  const isFormValid = description.trim().length > 0 && !!signature;
 
   return (
     <KeyboardAvoidingView 
@@ -192,21 +234,112 @@ export default function SubmitReport() {
           </TouchableOpacity>
         </View>
 
+        {/* ── NEW: Inspector Signature ────────────────────── */}
+        <Text style={styles.sectionLabel}>4. Inspector Signature</Text>
+        
+        {/* Signature Canvas Container */}
+        <View style={styles.signatureContainer}>
+          <View style={styles.signatureCanvasWrapper}>
+            <SignatureScreen
+              ref={signatureRef}
+              onOK={handleSignatureOK}
+              onEmpty={handleSignatureEmpty}
+              onEnd={handleSignatureEnd}
+              onBegin={handleSignatureBegin}
+              autoClear={false}
+              descriptionText=""
+              webStyle={signatureWebStyle}
+              backgroundColor="#FFFFFF"
+              penColor="#020617"
+              dotSize={2}
+              minWidth={1.5}
+              maxWidth={3}
+              trimWhitespace
+              imageType="image/png"
+              style={styles.signatureCanvas}
+            />
+
+            {/* Hint overlay — shown only before first stroke */}
+            {!signature && (
+              <View style={styles.signatureHintOverlay} pointerEvents="none">
+                <Ionicons name="pencil-outline" size={24} color="#CBD5E1" />
+                <Text style={styles.signatureHintText}>
+                  Sign here with your finger
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Clear Button */}
+          <TouchableOpacity
+            style={styles.clearSignatureButton}
+            onPress={handleClearSignature}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            <Text style={styles.clearSignatureText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Signature Preview (after signing) */}
+        {signature && (
+          <View style={styles.signaturePreviewContainer}>
+            <Text style={styles.signaturePreviewLabel}>Preview</Text>
+            <View style={styles.signaturePreviewBox}>
+              <Image
+                source={{ uri: signature }}
+                style={styles.signaturePreviewImage}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+        )}
+
+        {/* ── Submit Button (disabled until signed) ───────── */}
         <TouchableOpacity
-          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          style={[
+            styles.submitButton,
+            (!isFormValid || loading) && styles.submitButtonDisabled,
+          ]}
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || !isFormValid}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitButtonText}>Submit Report</Text>
-          )}
+          {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>Submit Report</Text>}
         </TouchableOpacity>
+
+        {/* Validation hint */}
+        {!isFormValid && (
+          <Text style={styles.validationHint}>
+            {!description.trim()
+              ? '⚠ Description is required'
+              : !signature
+              ? '⚠ Signature is required to submit'
+              : ''}
+          </Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
+
+// ── NEW: Signature web style for web platform ────────────────
+const signatureWebStyle = `.m-signature-pad {
+  box-shadow: none;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background-color: #FFFFFF;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+}
+
+.m-signature-pad--body {
+  border: none;
+}
+
+.m-signature-pad--footer {
+  display: none;
+}`;
 
 const styles = StyleSheet.create({
   container: {
@@ -300,6 +433,91 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 10,
   },
+  // ── NEW: Signature styles ────────────────────────────────
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  signatureContainer: {
+    marginBottom: 24,
+  },
+  signatureCanvasWrapper: {
+    position: 'relative',
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  signatureCanvas: {
+    width: '100%',
+    height: '100%',
+  },
+  signatureHintOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+  },
+  signatureHintText: {
+    fontSize: 16,
+    color: '#64748B',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  clearSignatureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    marginTop: 12,
+  },
+  clearSignatureText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginLeft: 8,
+  },
+  signaturePreviewContainer: {
+    marginBottom: 24,
+  },
+  signaturePreviewLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 8,
+  },
+  signaturePreviewBox: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  signaturePreviewImage: {
+    width: '100%',
+    height: '100%',
+    tintColor: '#020617', // Dark ink color on light preview box
+  },
   submitButton: {
     backgroundColor: '#10B981', // Green for success action
     paddingVertical: 18,
@@ -318,5 +536,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  validationHint: {
+    fontSize: 12,
+    color: '#F59E0B',
+    marginTop: 8,
+    textAlign: 'center',
   },
 });

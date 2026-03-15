@@ -1,0 +1,59 @@
+import { Tabs } from 'expo-router';
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, Platform, StyleSheet, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../src/contexts/AuthContext';
+
+const COLORS = { background: '#020420', surface: '#0F172A', border: '#1E293B', primary: '#7C3AED', textSecondary: '#94A3B8', textMuted: '#64748B', };
+
+type UserRole = 'inspector' | 'client' | 'agency';
+
+const TabIcon = ({ name, nameOutline, color, focused }: { name: keyof typeof Ionicons.glyphMap; nameOutline: keyof typeof Ionicons.glyphMap; color: string; focused: boolean; }) => (
+  <View style={styles.iconWrap}><Ionicons name={focused ? name : nameOutline} size={22} color={color} />{focused && <View style={styles.activeDot} />}</View>
+);
+
+export default function TabLayout() {
+  const { user } = useAuth();
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUserRole = useCallback(async () => {
+    if (!user?.id) { setLoading(false); return; }
+    try {
+      const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      if (error && error.code !== 'PGRST116') { setUserRole('inspector'); } 
+      else { const fetchedRole = (data as any)?.role || 'inspector'; setUserRole(fetchedRole === 'enterprise' ? 'agency' : fetchedRole); }
+    } catch (error) { setUserRole('inspector'); } finally { setLoading(false); }
+  }, [user?.id]);
+
+  useEffect(() => { fetchUserRole(); }, [fetchUserRole]);
+
+  if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={styles.loadingText}>Loading NEXPEC…</Text></View>;
+
+  const role: UserRole = userRole ?? 'inspector';
+
+  return (
+    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: COLORS.primary, tabBarInactiveTintColor: COLORS.textMuted, tabBarStyle: { backgroundColor: COLORS.surface, borderTopColor: COLORS.border, borderTopWidth: 1, height: Platform.OS === 'ios' ? 88 : 68, paddingBottom: Platform.OS === 'ios' ? 28 : 8, paddingTop: 8, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 }, tabBarIconStyle: { marginBottom: -2 } }}>
+      <Tabs.Screen name="index" options={{ title: 'Dashboard', href: role === 'inspector' ? '/' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="client-dashboard" options={{ title: 'Dashboard', href: role === 'client' ? '/client-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="agency-dashboard" options={{ title: 'Dashboard', href: role === 'agency' ? '/agency-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      
+      <Tabs.Screen name="jobs" options={{ title: 'Jobs', tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="resources" options={{ title: 'Docs', tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, focused }) => <TabIcon name="person" nameOutline="person-outline" color={color} focused={focused} /> }} />
+      
+      {/* Hidden Routes */}
+      <Tabs.Screen name="dashboard" options={{ href: null }} />
+      <Tabs.Screen name="map-screen" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ href: null }} />
+      <Tabs.Screen name="earnings" options={{ href: null }} />
+      <Tabs.Screen name="my-jobs" options={{ href: null }} />
+      <Tabs.Screen name="inspections" options={{ href: null }} />
+      <Tabs.Screen name="inspector-dashboard" options={{ href: null }} />
+      <Tabs.Screen name="job-details-example" options={{ href: null }} />
+    </Tabs>
+  );
+}
+const styles = StyleSheet.create({ loadingContainer: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', gap: 14 }, loadingText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '500' }, iconWrap: { alignItems: 'center', justifyContent: 'center', minWidth: 28 }, activeDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.primary, marginTop: 3 }});

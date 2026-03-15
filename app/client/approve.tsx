@@ -84,33 +84,16 @@ export default function ApproveScreen() {
     if (!job) return;
 
     Alert.alert(
-      'Confirm Payment',
-      `Release $${job.price} to the inspector? This cannot be undone.`,
+      'Proceed to Payment',
+      `Navigate to payment screen for $${job.price}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Pay Now',
+          text: 'Continue',
           style: 'default',
-          onPress: async () => {
-            setProcessing(true);
-            try {
-              // Call the Secure Database Function
-              const { data, error } = await supabase.rpc('approve_job_and_pay', {
-                p_job_id: job.id,
-                p_inspector_id: job.contractor_id,
-                p_amount: job.price
-              });
-
-              if (error) throw error;
-
-              Alert.alert('Success', 'Payment released! Job completed.', [
-                { text: 'OK', onPress: () => router.replace('/(tabs)/my-jobs') }
-              ]);
-            } catch (err: any) {
-              Alert.alert('Payment Failed', err.message);
-            } finally {
-              setProcessing(false);
-            }
+          onPress: () => {
+            // Navigate to payment screen with URL parameters
+            router.push(`/payment-screen?projectId=${job.id}&amount=${job.price}`);
           }
         }
       ]

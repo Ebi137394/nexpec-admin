@@ -28,6 +28,7 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
   refreshOrganization: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, role: string) => Promise<{success: boolean; error?: string}>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -119,8 +120,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
+  // Add signUp function
+  const signUp = async (email: string, password: string, role: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            role: role // Critical: Pass the role to user metadata so the DB trigger catches it
+          }
+        }
+      });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error('Signup error:', err.message);
+      return { success: false, error: err.message || 'Signup failed' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ ...state, signOut, refreshOrganization, signIn }}>
+    <AuthContext.Provider value={{ ...state, signOut, refreshOrganization, signIn, signUp }}>
       {children}
     </AuthContext.Provider>
   );

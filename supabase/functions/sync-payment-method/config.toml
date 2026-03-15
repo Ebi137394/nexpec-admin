@@ -1,0 +1,4 @@
+[options]
+memory = 512
+concurrency = 100
+timeout = 30

@@ -34,8 +34,12 @@ export default function EditProfileScreen() {
   // Load initial data
   useEffect(() => {
     async function loadData() {
-      if (!user) return;
       try {
+        if (!user) {
+          console.log('No user available');
+          return;
+        }
+        
         const { data, error } = await supabase
           .from('profiles')
           .select('*')

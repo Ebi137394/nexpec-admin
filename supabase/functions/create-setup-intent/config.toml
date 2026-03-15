@@ -1,0 +1,5 @@
+[options]
+runtime = "deno1.x"
+include = []
+exclude = []
+entry = "index.ts"

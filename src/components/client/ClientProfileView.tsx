@@ -72,7 +72,7 @@ interface QuickAction {
   bg: string;
 }
 
-const QUICK_ACTIONS: QuickAction[] = [
+const CLIENT_QUICK_ACTIONS: QuickAction[] = [
   {
     id: "team",
     icon: "people-outline",
@@ -102,6 +102,41 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: "document-text-outline",
     label: "Audit Log",
     subtitle: "Last 30 days",
+    color: COLORS.cyan,
+    bg: COLORS.cyanMuted,
+  },
+];
+
+const AGENCY_QUICK_ACTIONS: QuickAction[] = [
+  {
+    id: "post-job",
+    icon: "briefcase-outline",
+    label: "Post New Job",
+    subtitle: "Hire inspectors",
+    color: COLORS.accent,
+    bg: COLORS.accentMuted,
+  },
+  {
+    id: "manage-team",
+    icon: "people-outline",
+    label: "Manage Team",
+    subtitle: "Agency members",
+    color: COLORS.success,
+    bg: COLORS.successMuted,
+  },
+  {
+    id: "dashboard",
+    icon: "dashboard-outline",
+    label: "Agency Dashboard",
+    subtitle: "Overview",
+    color: COLORS.purple,
+    bg: COLORS.purpleMuted,
+  },
+  {
+    id: "contracts",
+    icon: "document-text-outline",
+    label: "Active Contracts",
+    subtitle: "8 contracts",
     color: COLORS.cyan,
     bg: COLORS.cyanMuted,
   },
@@ -439,6 +474,10 @@ function OverviewSection({
   onQuickAction: (id: string) => void;
   onSettingsAction: (item: SettingsItem) => void;
 }) {
+  // For now, use client actions. In a real implementation, you would determine
+  // the user type (client vs agency) and use the appropriate actions
+  const currentQuickActions = CLIENT_QUICK_ACTIONS;
+
   return (
     <View style={styles.sectionContent}>
       {/* Account Stats Grid */}
@@ -488,7 +527,7 @@ function OverviewSection({
           <Text style={styles.cardSectionTitle}>Quick Actions</Text>
         </View>
         <View style={styles.quickActionsGrid}>
-          {QUICK_ACTIONS.map((action) => (
+          {currentQuickActions.map((action) => (
             <Pressable
               key={action.id}
               style={styles.quickActionItem}

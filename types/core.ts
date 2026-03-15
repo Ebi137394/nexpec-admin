@@ -11,9 +11,10 @@
  * UserRole - Defines the type of user in the system
  * @type 'client' - Users who request and manage inspections
  * @type 'inspector' - Users who conduct safety inspections
+ * @type 'agency' - Enterprise/Agency users who manage inspection teams
  * @type 'admin' - System administrators (optional)
  */
-export type UserRole = 'client' | 'inspector' | 'admin';
+export type UserRole = 'client' | 'inspector' | 'agency' | 'admin';
 
 /**
  * @deprecated Use UserRole instead

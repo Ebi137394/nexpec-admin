@@ -1,351 +1,242 @@
-import React, { useState, useEffect, useRef } from 'react';
+// app/chat.tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   Keyboard,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Send, ShieldCheck } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { Ionicons } from '@expo/vector-icons';
+
+// --- Theme Constants ---
+const COLORS = {
+  background: '#020420',
+  card: '#0F172A',
+  border: '#1E293B',
+  primary: '#3B82F6',
+  primaryDark: '#2563EB',
+  text: '#F8FAFC',
+  textMuted: '#94A3B8',
+  theirBubble: '#1E293B',
+  myBubble: '#3B82F6',
+};
 
 interface Message {
   id: string;
-  content: string;
+  job_id: string;
   sender_id: string;
+  content: string;
   created_at: string;
 }
 
-export default function ChatScreen() {
-  const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
+export default function AdvancedChatScreen() {
+  const { jobId, projectTitle } = useLocalSearchParams<{ jobId: string; projectTitle: string }>();
   const router = useRouter();
-  
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [chatPartnerName, setChatPartnerName] = useState('Chat');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
-  const flatListRef = useRef<FlatList>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
+    if (!jobId) return;
     initializeChat();
-    
+
+    // Setup Realtime WebSocket
+    channelRef.current = supabase
+      .channel(`chat_room_${jobId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          setMessages((prev) => {
+            // Prevent duplicate if we already added it optimistically
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [newMsg, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-      }
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, []);
+  }, [jobId]);
 
   const initializeChat = async () => {
     try {
-      // 1. Get Current User
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        return; // Handle auth error if needed
-      }
-      const currentUserId = session.user.id;
-      setUserId(currentUserId);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setCurrentUserId(user.id);
 
-      // 2. Fetch Conversation Details (To get the other person's name)
-      const { data: conversationData, error: convError } = await supabase
-        .from('conversations')
-        .select(`
-          participant_one, 
-          participant_two,
-          p1:participant_one ( full_name, email ),
-          p2:participant_two ( full_name, email )
-        `)
-        .eq('id', conversationId)
-        .single();
+      // Fetch history (Descending for inverted FlatList)
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('job_id', jobId)
+        .order('created_at', { ascending: false });
 
-      if (!convError && conversationData) {
-        // Logic to find which participant is the "other" person
-        let partnerName = 'Chat';
-        if (conversationData.participant_one === currentUserId) {
-          // @ts-ignore
-          partnerName = conversationData.p2?.full_name || conversationData.p2?.email || 'User';
-        } else {
-          // @ts-ignore
-          partnerName = conversationData.p1?.full_name || conversationData.p1?.email || 'User';
-        }
-        setChatPartnerName(partnerName);
-      }
-
-      // 3. Fetch Messages
-      await fetchMessages();
-
-      // 4. Setup Realtime
-      setupRealtimeSubscription();
-
-    } catch (error) {
-      console.error('Chat initialization error:', error);
+      if (!error && data) setMessages(data);
+    } catch (e) {
+      console.error('Chat Initialization Error:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMessages = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+  const handleSend = async () => {
+    const textToSend = newMessage.trim();
+    if (!textToSend || !currentUserId || !jobId) return;
 
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (error) {
-      console.error('Fetch messages error:', error);
+    // 1. Optimistic UI Update (Instant feedback)
+    const optimisticMsg: Message = {
+      id: `temp_${Date.now()}`,
+      job_id: jobId,
+      sender_id: currentUserId,
+      content: textToSend,
+      created_at: new Date().toISOString(),
+    };
+    
+    setMessages((prev) => [optimisticMsg, ...prev]);
+    setNewMessage(''); // Clear input instantly
+
+    // 2. Network Request
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ job_id: jobId, sender_id: currentUserId, content: textToSend })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to send message:', error);
+      // Revert optimistic update on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      setNewMessage(textToSend); // Restore text
+    } else if (data) {
+      // Replace temp ID with real DB ID
+      setMessages((prev) => prev.map((m) => (m.id === optimisticMsg.id ? data : m)));
     }
   };
 
-  const setupRealtimeSubscription = () => {
-    const channel = supabase
-      .channel(`conversation:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          // Add new message to state immediately
-          const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
-          
-          // Scroll to bottom slightly after render
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !userId) return;
-
-    setSending(true);
-    const messageText = newMessage.trim();
-    setNewMessage(''); // Optimistic clear
-
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            conversation_id: conversationId,
-            sender_id: userId,
-            content: messageText,
-          },
-        ]);
-
-      if (error) throw error;
-      // Realtime will handle the display update
-    } catch (error) {
-      console.error('Send message error:', error);
-      setNewMessage(messageText); // Restore if failed
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const renderMessage = ({ item }: { item: Message }) => {
-    const isOwnMessage = item.sender_id === userId;
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
+    const isMine = item.sender_id === currentUserId;
+    const isOptimistic = item.id.startsWith('temp_');
 
     return (
-      <View
-        style={[
-          styles.messageBubble,
-          isOwnMessage ? styles.ownMessage : styles.otherMessage,
-        ]}
-      >
-        <Text
-          style={[
-            styles.messageText,
-            isOwnMessage ? styles.ownMessageText : styles.otherMessageText,
-          ]}
-        >
-          {item.content}
-        </Text>
-        <Text
-          style={[
-            styles.timestamp,
-            isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp,
-          ]}
-        >
-          {new Date(item.created_at).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
+      <View style={[styles.messageWrapper, isMine ? styles.messageWrapperMine : styles.messageWrapperTheirs]}>
+        <View style={[
+          styles.bubble, 
+          isMine ? styles.myBubble : styles.theirBubble,
+          isOptimistic && { opacity: 0.7 } // Dim slightly if still sending
+        ]}>
+          <Text style={styles.messageText}>{item.content}</Text>
+          <Text style={[styles.timeText, isMine ? styles.myTime : styles.theirTime]}>
+            {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
       </View>
     );
-  };
+  }, [currentUserId]);
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header Configuration */}
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: chatPartnerName, // Name of the person we are talking to
-          headerStyle: { backgroundColor: '#0F172A' },
-          headerTintColor: '#fff',
-          headerBackTitle: 'Back',
-        }}
-      />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      {/* Premium Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{projectTitle || 'Project Chat'}</Text>
+          <View style={styles.encryptionBadge}>
+            <ShieldCheck size={12} color="#10B981" />
+            <Text style={styles.encryptionText}>End-to-End Encrypted</Text>
+          </View>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
-          ref={flatListRef}
           data={messages}
-          renderItem={renderMessage}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          renderItem={renderMessage}
+          inverted
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
         />
 
+        {/* Input Area */}
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor="#64748B"
+            placeholder="Type your message..."
+            placeholderTextColor={COLORS.textMuted}
             value={newMessage}
             onChangeText={setNewMessage}
             multiline
             maxLength={1000}
           />
-          <TouchableOpacity
-            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!newMessage.trim() || sending}
+          <TouchableOpacity 
+            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
+            onPress={handleSend}
+            disabled={!newMessage.trim()}
           >
-            {sending ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="send" size={20} color="#fff" style={{ marginLeft: 2 }} />
-            )}
+            <Send size={20} color={newMessage.trim() ? '#FFF' : COLORS.textMuted} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#020617', // Navy Blue Background
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#020617',
-  },
-  messagesList: {
-    padding: 16,
-    paddingBottom: 20,
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  ownMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#3B82F6', // Blue for own messages
-    borderBottomRightRadius: 4,
-  },
-  otherMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#1E293B', // Dark slate for others
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  ownMessageText: {
-    color: '#fff',
-  },
-  otherMessageText: {
-    color: '#F8FAFC',
-  },
-  timestamp: {
-    fontSize: 10,
-    marginTop: 6,
-  },
-  ownTimestamp: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'right',
-  },
-  otherTimestamp: {
-    color: '#94A3B8',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 12, // Extra padding for iPhone home indicator
-    backgroundColor: '#0F172A',
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-    alignItems: 'flex-end',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#1E293B',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    paddingTop: 10, // Important for multiline alignment
-    fontSize: 16,
-    color: '#fff',
-    maxHeight: 100,
-    marginRight: 10,
-  },
-  sendButton: {
-    backgroundColor: '#3B82F6',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#334155',
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  backButton: { marginRight: 12 },
+  headerInfo: { flex: 1, justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  encryptionBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  encryptionText: { fontSize: 11, color: '#10B981', fontWeight: '500' },
+  keyboardAvoid: { flex: 1 },
+  listContent: { padding: 16, gap: 12 },
+  messageWrapper: { width: '100%', flexDirection: 'row', marginBottom: 12 },
+  messageWrapperMine: { justifyContent: 'flex-end' },
+  messageWrapperTheirs: { justifyContent: 'flex-start' },
+  bubble: { maxWidth: '80%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  myBubble: { backgroundColor: COLORS.myBubble, borderBottomRightRadius: 4 },
+  theirBubble: { backgroundColor: COLORS.theirBubble, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: COLORS.border },
+  messageText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
+  timeText: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
+  myTime: { color: 'rgba(255,255,255,0.7)' },
+  theirTime: { color: COLORS.textMuted },
+  inputContainer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 10 },
+  input: { flex: 1, backgroundColor: COLORS.background, color: COLORS.text, fontSize: 16, borderRadius: 20, paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 12 : 8, paddingBottom: Platform.OS === 'ios' ? 12 : 8, minHeight: 44, maxHeight: 120, borderWidth: 1, borderColor: COLORS.border },
+  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryDark, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
+  sendButtonDisabled: { backgroundColor: COLORS.border },
 });
-

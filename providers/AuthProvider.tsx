@@ -20,6 +20,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  // 🔴 این خط رو اضافه کن:
+  signUp: (email: string, password: string, role: string) => Promise<{success: boolean; error?: string}>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,6 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
+  signUp: async () => ({ success: false, error: 'Not implemented' }),
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -133,6 +136,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchProfile]);
 
+  const signUp = useCallback(async (email: string, password: string, role: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            role: role // Critical: Pass the role to user metadata so the DB trigger catches it
+          }
+        }
+      });
+
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      console.error('Signup error:', err.message);
+      return { success: false, error: err.message || 'Signup failed' };
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       const { error } = await supabase.auth.signOut();
@@ -178,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, user, profile, loading, signIn, signOut, refreshProfile }}
+      value={{ session, user, profile, loading, signIn, signOut, refreshProfile, signUp }}
     >
       {children}
     </AuthContext.Provider>

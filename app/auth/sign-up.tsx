@@ -14,8 +14,8 @@ import {
   Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/providers/AuthProvider'; // ✅ اتصال به مغز متفکر
-import { UserRole } from '@/types/core';
+import { useAuth } from '../../src/contexts/AuthContext'; // ✅ اتصال به مغز متفکر
+import { UserRole } from '../../types/core';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS } from '../../src/constants/theme';
 
@@ -173,6 +173,39 @@ export default function SignUpScreen(): JSX.Element {
                 )}
               </TouchableOpacity>
             </View>
+
+            {/* 🔴 دکمه اصلاح‌شده‌ی Agency — با ظاهر بی‌نقص */}
+            <TouchableOpacity
+              style={[
+                styles.roleButton,
+                styles.roleButtonFullWidth,
+                role === 'agency' && styles.roleButtonSelected,
+              ]}
+              onPress={() => setRole('agency' as UserRole)}
+              activeOpacity={0.7}
+              disabled={loading}
+            >
+              <Text style={{ fontSize: 28 }}>🏢</Text>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text
+                  style={[
+                    styles.roleTitle,
+                    role === 'agency' && styles.roleTitleSelected,
+                    { textAlign: 'left' }
+                  ]}
+                >
+                  Enterprise / Agency
+                </Text>
+                <Text style={[styles.roleDescription, { textAlign: 'left' }]}>
+                  Manage inspection teams
+                </Text>
+              </View>
+              {role === 'agency' && (
+                <View style={styles.selectedBadge}>
+                  <Text style={styles.selectedBadgeText}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* INPUTS */}
@@ -311,7 +344,7 @@ const THEME_COLORS = {
   textSecondary: COLORS.textSecondary,
   textMuted: COLORS.textSecondary,
   border: COLORS.border,
-  error: COLORS.danger,
+  error: COLORS.error,
   success: COLORS.success,
   warning: COLORS.warning,
 };
@@ -333,6 +366,7 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 15, fontWeight: '600', color: THEME_COLORS.text, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
   roleContainer: { flexDirection: 'row', gap: 12 },
   roleButton: { flex: 1, backgroundColor: THEME_COLORS.surface, borderRadius: 16, padding: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: THEME_COLORS.border, position: 'relative', minHeight: 140, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 2 },
+  roleButtonFullWidth: { flex: undefined, width: '100%', marginTop: 12, flexDirection: 'row', justifyContent: 'flex-start', paddingHorizontal: 24, gap: 16 },
   roleButtonSelected: { borderColor: THEME_COLORS.primary, backgroundColor: THEME_COLORS.primaryLight, shadowColor: THEME_COLORS.primary, shadowOpacity: 0.3 },
   roleEmoji: { fontSize: 40, marginBottom: 12 },
   roleTitle: { fontSize: 18, fontWeight: '700', color: THEME_COLORS.textSecondary, marginBottom: 4 },

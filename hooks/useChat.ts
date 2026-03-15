@@ -1,18 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Message, MessageWithSender } from '@/types/message';
+import type { SafeProfile, ChatMessage as ChatMessageType, RoomContext } from '@/types/chat';
 import type { GiftedChatMessage, Profile } from '@/types/core';
 import { useAuth } from '@/providers/AuthProvider';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { getSenderName } from '@/types/message';
-import type { ChatMessage } from '@/types/database';
+import { buildRoomId } from '@/types/chat';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface UseChatOptions {
-  jobId: string;
+  roomId: string;
 }
 
 interface UseChatReturn {
@@ -33,7 +32,7 @@ const MESSAGES_PER_PAGE = 50;
 // HOOK
 // ============================================================================
 
-export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
+export const useChat = ({ roomId }: UseChatOptions): UseChatReturn => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<GiftedChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,13 +48,8 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
   // ========================================
 
   // Transform database message to GiftedChat format
-  const transformMessage = useCallback((message: MessageWithSender): GiftedChatMessage => {
-    const senderName = message.sender
-      ? getSenderName({
-          first_name: message.sender.first_name,
-          last_name: message.sender.last_name,
-        })
-      : 'Unknown';
+  const transformMessage = useCallback((message: ChatMessageType): GiftedChatMessage => {
+    const senderName = message.sender.full_name || 'Unknown';
 
     return {
       _id: message.id,
@@ -64,14 +58,10 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
       user: {
         _id: message.sender_id,
         name: senderName,
-        avatar: message.sender?.avatar_url || undefined,
+        avatar: message.sender.avatar_url || undefined,
       },
-      // Add image if attachment exists
-      ...(message.attachment_url && message.attachment_type === 'image'
-        ? { image: message.attachment_url }
-        : {}),
       sent: true,
-      received: message.is_read,
+      received: false, // We'll handle read status separately if needed
     };
   }, []);
 
@@ -82,28 +72,31 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
   // Fetch messages
   const fetchMessages = useCallback(
     async (offset: number = 0) => {
-      if (!jobId) return;
+      if (!roomId) return;
 
       try {
         setError(null);
         const { data, error: fetchError } = await supabase
           .from('messages')
           .select(`
-            *,
-            sender:profiles!messages_sender_id_fkey (
+            id,
+            room_id,
+            sender_id,
+            content,
+            created_at,
+            sender:safe_profiles!messages_sender_id_fkey (
               id,
-              first_name,
-              last_name,
+              full_name,
               avatar_url
             )
           `)
-          .eq('job_id', jobId)
+          .eq('room_id', roomId)
           .order('created_at', { ascending: false })
           .range(offset, offset + MESSAGES_PER_PAGE - 1);
 
         if (fetchError) throw fetchError;
 
-        const transformedMessages = ((data || []) as MessageWithSender[])
+        const transformedMessages = ((data || []) as ChatMessageType[])
           .map(transformMessage)
           .reverse(); // Reverse to get chronological order
 
@@ -121,46 +114,64 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
         console.error('❌ Error fetching messages:', err);
       }
     },
-    [jobId, transformMessage]
+    [roomId, transformMessage]
   );
 
   // Fetch other participant info
   const fetchOtherParticipant = useCallback(async () => {
-    if (!jobId || !user) return;
+    if (!roomId || !user) return;
 
     try {
-      const { data: job, error: jobError } = await supabase
-        .from('jobs')
-        .select('client_id, hired_inspector_id')
-        .eq('id', jobId)
-        .single();
-
-      if (jobError || !job) {
-        console.warn('⚠️ Could not fetch job for participant:', jobError?.message);
-        return;
-      }
-
-      const otherUserId =
-        job.client_id === user.id ? job.hired_inspector_id : job.client_id;
-
-      if (otherUserId) {
-        const { data: participant, error: participantError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', otherUserId)
+      // Extract context and ID from roomId
+      const [context, contextId] = roomId.split('_');
+      
+      if (context === 'job') {
+        const { data: job, error: jobError } = await supabase
+          .from('jobs')
+          .select('client_id, hired_inspector_id')
+          .eq('id', contextId)
           .single();
 
-        if (participantError) {
-          console.warn('⚠️ Could not fetch participant:', participantError.message);
+        if (jobError || !job) {
+          console.warn('⚠️ Could not fetch job for participant:', jobError?.message);
           return;
         }
 
-        setOtherParticipant(participant as Profile);
+        const otherUserId =
+          job.client_id === user.id ? job.hired_inspector_id : job.client_id;
+
+        if (otherUserId) {
+          const { data: participant, error: participantError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', otherUserId)
+            .single();
+
+          if (participantError) {
+            console.warn('⚠️ Could not fetch participant:', participantError.message);
+            return;
+          }
+
+          setOtherParticipant(participant as Profile);
+        }
+      } else if (context === 'certificate') {
+        // For certificates, we might need different logic
+        // For now, just set a generic participant
+        setOtherParticipant({
+          id: 'system',
+          first_name: 'System',
+          last_name: '',
+          avatar_url: undefined,
+          title: 'Certificate System',
+          role: 'inspector',
+          email: '',
+          created_at: new Date().toISOString()
+        } as Profile);
       }
     } catch (err) {
       console.error('❌ Error fetching other participant:', err);
     }
-  }, [jobId, user]);
+  }, [roomId, user]);
 
   // ========================================
   // INITIAL LOAD
@@ -181,7 +192,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
   // ========================================
 
   useEffect(() => {
-    if (!jobId) return;
+    if (!roomId) return;
 
     // Cleanup previous subscription
     if (channelRef.current) {
@@ -189,41 +200,20 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
     }
 
     channelRef.current = supabase
-      .channel(`messages:${jobId}`)
+      .channel(`messages:${roomId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `job_id=eq.${jobId}`,
+          filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
-          const newMessage = payload.new as Message;
+          const newMessage = payload.new as ChatMessageType;
 
-          // Fetch sender info
-          const { data: sender, error: senderError } = await supabase
-            .from('profiles')
-            .select('id, first_name, last_name, avatar_url')
-            .eq('id', newMessage.sender_id)
-            .single();
-
-          if (senderError) {
-            console.error('❌ Error fetching sender:', senderError);
-            return;
-          }
-
-          const messageWithSender: MessageWithSender = {
-            ...newMessage,
-            sender: sender as {
-              id: string;
-              first_name: string | null;
-              last_name: string | null;
-              avatar_url: string | null;
-            },
-          };
-
-          const transformedMessage = transformMessage(messageWithSender);
+          // The message should already include sender info from the safe_profiles view
+          const transformedMessage = transformMessage(newMessage);
 
           setMessages((prev) => {
             // Check if message already exists
@@ -233,26 +223,6 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
             // Add to end (newest messages at bottom)
             return [...prev, transformedMessage];
           });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `job_id=eq.${jobId}`,
-        },
-        (payload) => {
-          const updatedMessage = payload.new as Message;
-
-          setMessages((prev) =>
-            prev.map((m) =>
-              m._id === updatedMessage.id
-                ? { ...m, received: updatedMessage.is_read }
-                : m
-            )
-          );
         }
       )
       .subscribe((status) => {
@@ -269,7 +239,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
         channelRef.current = null;
       }
     };
-  }, [jobId, transformMessage]);
+  }, [roomId, transformMessage]);
 
   // ========================================
   // MESSAGE ACTIONS
@@ -291,7 +261,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
 
         try {
           const { error: rpcError } = await supabase.rpc('send_message', {
-            p_job_id: jobId,
+            p_room_id: roomId,
             p_content: text.trim(),
             p_message_type: 'text',
           });
@@ -305,7 +275,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
         } catch (rpcErr) {
           // Fallback to direct insert
           const { error: insertError } = await supabase.from('messages').insert({
-            job_id: jobId,
+            room_id: roomId,
             sender_id: user.id,
             content: text.trim(),
             is_read: false,
@@ -332,7 +302,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
         setIsSending(false);
       }
     },
-    [jobId, user]
+    [roomId, user]
   );
 
   // Load more messages
@@ -343,13 +313,13 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
 
   // Mark messages as read
   const markAsRead = useCallback(async () => {
-    if (!jobId || !user) return;
+    if (!roomId || !user) return;
 
     try {
       // Try RPC function first, fallback to direct update
       try {
         const { error: rpcError } = await supabase.rpc('mark_messages_read', {
-          p_job_id: jobId,
+          p_room_id: roomId,
         });
 
         if (!rpcError) return;
@@ -358,7 +328,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
         const { error: updateError } = await supabase
           .from('messages')
           .update({ is_read: true, read_at: new Date().toISOString() })
-          .eq('job_id', jobId)
+          .eq('room_id', roomId)
           .eq('is_read', false)
           .neq('sender_id', user.id);
 
@@ -369,7 +339,7 @@ export const useChat = ({ jobId }: UseChatOptions): UseChatReturn => {
     } catch (err) {
       console.error('❌ Error in markAsRead:', err);
     }
-  }, [jobId, user]);
+  }, [roomId, user]);
 
   // ========================================
   // RETURN

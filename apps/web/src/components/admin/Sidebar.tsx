@@ -41,7 +41,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-      { label: 'Audit Trail', href: '/admin/audit', icon: ScrollText, badge: 'soon' },
+      { label: 'Audit Trail', href: '/admin/audit', icon: ScrollText },
     ],
   },
   {
@@ -64,7 +64,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'System',
     items: [
-      { label: 'Settings', href: '/admin/settings', icon: Settings, badge: 'soon' },
+      { label: 'Settings', href: '/admin/settings', icon: Settings },
     ],
   },
 ];

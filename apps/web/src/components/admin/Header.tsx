@@ -40,8 +40,8 @@ export function Header({
               {(activeOrg?.name ?? 'NX').slice(0, 2).toUpperCase()}
             </span>
             <span>{activeOrg?.name ?? 'NEXPEC · Platform'}</span>
-            <span className="rounded-full bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
-              soon
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-emerald-400">
+              live
             </span>
           </button>
           <span className="hidden font-mono text-[10px] uppercase tracking-industrial text-zinc-600 md:inline">

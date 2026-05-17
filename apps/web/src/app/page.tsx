@@ -11,7 +11,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
-import { Nav } from '@/components/marketing/Nav';
+import { Nav, type NavViewer } from '@/components/marketing/Nav';
 import { Hero } from '@/components/marketing/Hero';
 import { LiveTicker } from '@/components/marketing/LiveTicker';
 import { HowItWorks } from '@/components/marketing/HowItWorks';
@@ -20,6 +20,7 @@ import { Industries } from '@/components/marketing/Industries';
 import { CTASection } from '@/components/marketing/CTASection';
 import { Footer } from '@/components/marketing/Footer';
 import { fetchPublicStats } from '@/lib/data/publicStats';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 // ── Render policy ─────────────────────────────────────────────────────
 // Forced dynamic to bypass Next.js's static-export step entirely. The
@@ -45,9 +46,16 @@ export default async function LandingPage() {
   // Server-side fetch. Runs once per ISR window, not per request.
   const stats = await fetchPublicStats();
 
+  // Session-aware Nav: detect whether the visitor is authenticated, and if
+  // so resolve their role + display label so the Nav can swap the public
+  // "Sign in / Get started" CTAs for a contextual "Console" affordance.
+  // Without this, a signed-in user clicking "Sign in" gets silently
+  // bounced by middleware (correct behavior, confusing UX).
+  const viewer = await resolveViewer();
+
   return (
     <>
-      <Nav />
+      <Nav viewer={viewer} />
       <main id="top">
         <Hero />
         <LiveTicker stats={stats} />
@@ -59,4 +67,35 @@ export default async function LandingPage() {
       <Footer />
     </>
   );
+}
+
+async function resolveViewer(): Promise<NavViewer | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, full_name, email')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const label =
+      profile?.full_name?.trim() ||
+      profile?.email?.split('@')[0] ||
+      user.email?.split('@')[0] ||
+      'You';
+
+    return {
+      role: (profile?.role as string | null | undefined) ?? null,
+      label,
+    };
+  } catch {
+    // Marketing surface degrades gracefully — never block first paint on
+    // an auth lookup failure.
+    return null;
+  }
 }

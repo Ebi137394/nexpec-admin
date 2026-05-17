@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, LogOut } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { signOut } from '@/lib/auth/actions';
 import { cn } from '@/lib/cn';
 
 /**
@@ -59,7 +60,19 @@ export function Nav({ viewer = null }: NavProps) {
 
         <div className="flex items-center gap-3">
           {viewer ? (
-            <ViewerPill viewer={viewer} />
+            <>
+              <ViewerPill viewer={viewer} />
+              <form action={signOut} className="contents">
+                <button
+                  type="submit"
+                  title="Sign out"
+                  aria-label="Sign out"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-400 transition-colors hover:border-accent-red/40 hover:bg-accent-red/10 hover:text-accent-red"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </form>
+            </>
           ) : (
             <>
               <Link

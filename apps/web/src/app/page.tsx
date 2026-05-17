@@ -77,22 +77,12 @@ async function resolveViewer(): Promise<NavViewer | null> {
     } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, full_name, email')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const label =
-      profile?.full_name?.trim() ||
-      profile?.email?.split('@')[0] ||
-      user.email?.split('@')[0] ||
-      'You';
-
-    return {
-      role: (profile?.role as string | null | undefined) ?? null,
-      label,
-    };
+    // Skip the profile lookup. The marketing route doesn't always see the
+    // freshest auth cookie state, and a stale lookup gives a misleading
+    // role. Middleware does the real access check on /admin/* anyway.
+    // We just need a label for the avatar pill.
+    const label = user.email?.split('@')[0] || 'You';
+    return { label };
   } catch {
     // Marketing surface degrades gracefully — never block first paint on
     // an auth lookup failure.

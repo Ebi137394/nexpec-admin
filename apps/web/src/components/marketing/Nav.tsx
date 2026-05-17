@@ -11,10 +11,15 @@ import { cn } from '@/lib/cn';
  * the request has no session — show the public Sign in / Get started CTAs.
  * Anything else means the visitor is authenticated; render a contextual
  * "Console" affordance instead of bounce-prone auth links.
+ *
+ * Role intentionally not on this type. Role detection straddles the
+ * marketing/admin context boundary unreliably (the marketing route doesn't
+ * always see the freshest auth cookie state), so we link every authenticated
+ * viewer to /admin/dashboard and let middleware do the actual access check.
+ * For super_admin that's a direct route; for any other role middleware
+ * redirects to / cleanly. Either way the click does *something*.
  */
 export interface NavViewer {
-  /** profiles.role — drives the destination of the "Console" link. */
-  role: string | null;
   /** Display label (full_name or email handle). Used for the avatar pill. */
   label: string;
 }
@@ -75,19 +80,16 @@ export function Nav({ viewer = null }: NavProps) {
 }
 
 /**
- * Signed-in affordance. Avatar circle with initials + a "Console" link that
- * routes to the role-appropriate destination (super_admin → /admin/dashboard,
- * everyone else → / since the non-admin web surfaces aren't built yet).
+ * Signed-in affordance. Avatar circle with initials + a "Console" link
+ * that always routes to /admin/dashboard. Middleware enforces access:
+ * super_admin lands on the dashboard, every other role gets redirected
+ * back to / (no client/inspector web surfaces yet).
  */
 function ViewerPill({ viewer }: { viewer: NavViewer }) {
-  const consoleHref =
-    viewer.role === 'super_admin' ? '/admin/dashboard' : '/';
-  const consoleLabel =
-    viewer.role === 'super_admin' ? 'Open console' : 'Open dashboard';
-
   return (
     <Link
-      href={consoleHref}
+      href="/admin/dashboard"
+      prefetch={false}
       className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] py-1.5 pl-1.5 pr-3 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:text-white"
     >
       <span
@@ -96,7 +98,7 @@ function ViewerPill({ viewer }: { viewer: NavViewer }) {
       >
         {initials(viewer.label)}
       </span>
-      <span className="hidden sm:inline">{consoleLabel}</span>
+      <span className="hidden sm:inline">Open console</span>
       <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
     </Link>
   );

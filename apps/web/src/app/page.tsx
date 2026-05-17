@@ -36,10 +36,34 @@ export const dynamic = 'force-dynamic';
  * the static-export React #31. OpenGraph + Twitter cards re-added
  * post-launch once the build pipeline is stable.
  */
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nexpecapp.com';
+
 export const metadata: Metadata = {
   title: 'Industrial Inspection, Engineered for Trust',
   description:
     'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
+  openGraph: {
+    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    description:
+      'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
+    url: SITE_URL,
+    siteName: 'NEXPEC',
+    type: 'website',
+    images: [
+      {
+        url: '/og/landing.png',
+        width: 1200,
+        height: 630,
+        alt: 'NEXPEC — the industrial black box. Automated inspection, vetted inspectors, audited trust.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    description: 'Hire vetted industrial inspectors. Escrow holds every dollar.',
+    images: ['/og/landing.png'],
+  },
 };
 
 export default async function LandingPage() {

@@ -62,7 +62,7 @@ const RESOLUTION_OPTIONS: ResolutionOption[] = [
 
 export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!job;
 

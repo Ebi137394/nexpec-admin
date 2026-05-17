@@ -18,7 +18,7 @@ interface PaginationProps {
  */
 export function Pagination({ page, totalPages, total, pageSize }: PaginationProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
 
   function goto(p: number) {

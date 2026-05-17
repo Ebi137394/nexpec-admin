@@ -20,7 +20,10 @@ interface AuditDetailDrawerProps {
  */
 export function AuditDetailDrawer({ event }: AuditDetailDrawerProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  // Next 15.0.x types usePathname() as string | null. The ?? '/' fallback
+  // makes pathname always a string so it can be passed directly to
+  // router.replace() and used in template literals without coercion.
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!event;
 
@@ -190,9 +193,9 @@ function Section({
 }
 
 function CorrelationLink({ id }: { id: string }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const params = useSearchParams();
-  const next = new URLSearchParams(params.toString());
+  const next = new URLSearchParams(params?.toString() ?? '');
   next.set('correlationId', id);
   next.delete('page');
   next.delete('inspect');

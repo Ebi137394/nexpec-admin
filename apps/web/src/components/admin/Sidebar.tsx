@@ -70,7 +70,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
 ];
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-white/[0.06] bg-ink-900/60 backdrop-blur-xl lg:block">
@@ -93,7 +93,8 @@ export function Sidebar() {
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
                   const active =
-                    pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`);
                   return (
                     <li key={item.href}>
                       <Link

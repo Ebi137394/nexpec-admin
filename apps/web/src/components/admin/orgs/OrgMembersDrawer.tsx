@@ -47,7 +47,7 @@ type Tab = 'members' | 'invite';
 
 export function OrgMembersDrawer({ org, members, invitations }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!org;
 

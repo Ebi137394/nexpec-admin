@@ -15,7 +15,7 @@ import { cn } from '@/lib/cn';
  */
 export function JobsStatusFilter() {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 

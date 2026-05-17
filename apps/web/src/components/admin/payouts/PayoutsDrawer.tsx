@@ -28,7 +28,7 @@ interface PayoutsDrawerProps {
 
 export function PayoutsDrawer({ job }: PayoutsDrawerProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!job;
 

@@ -17,7 +17,7 @@ const SEVERITIES = ['', 'info', 'warning', 'critical'] as const;
  */
 export function AuditFilters({ eventTypes }: AuditFiltersProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 

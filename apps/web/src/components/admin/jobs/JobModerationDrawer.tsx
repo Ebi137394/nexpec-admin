@@ -66,7 +66,7 @@ const DECISIONS: DecisionOption[] = [
 
 export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!job;
 

@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
  */
 export function UsersFilters() {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 

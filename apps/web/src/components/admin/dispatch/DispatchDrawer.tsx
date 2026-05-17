@@ -31,7 +31,7 @@ interface DispatchDrawerProps {
 
 export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const open = !!job;
 

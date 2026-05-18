@@ -85,11 +85,18 @@ export async function fetchOpenJobs(
       return [];
     }
 
-    const jobIds = rawJobs.map((j) => (j as Record<string, unknown>).id as string);
+    const jobIds = rawJobs.map(
+      (j) => (j as unknown as Record<string, unknown>).id as string,
+    );
     const clientIds = Array.from(
       new Set(
         rawJobs
-          .map((j) => (j as Record<string, unknown>).client_id as string | null)
+          .map(
+            (j) =>
+              (j as unknown as Record<string, unknown>).client_id as
+                | string
+                | null,
+          )
           .filter((v): v is string => !!v),
       ),
     );
@@ -107,7 +114,7 @@ export async function fetchOpenJobs(
         console.warn('[openJobs] profile lookup failed:', profsErr.message);
       } else {
         for (const p of rawProfs ?? []) {
-          const r = p as Record<string, unknown>;
+          const r = p as unknown as Record<string, unknown>;
           companyNameById.set(
             r.id as string,
             (r.company_name as string | null) ?? null,
@@ -138,7 +145,7 @@ export async function fetchOpenJobs(
         );
       } else {
         for (const a of rawApps ?? []) {
-          const r = a as Record<string, unknown>;
+          const r = a as unknown as Record<string, unknown>;
           applicationStatusByJobId.set(
             r.job_id as string,
             r.status as InspectorApplicationStatus,

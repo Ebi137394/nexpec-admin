@@ -69,15 +69,24 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <Link
-            href={`/client/jobs/${job.id}/applications`}
-            className="btn-primary inline-flex items-center gap-2 self-start sm:self-auto"
-          >
-            <Users className="h-4 w-4" strokeWidth={2} />
-            Review {job.applicationsCount} application
-            {job.applicationsCount === 1 ? '' : 's'}
-            <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-          </Link>
+          <div className="flex flex-col gap-2 self-start sm:flex-row sm:self-auto">
+            <Link
+              href={`/client/jobs/${job.id}/applications`}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+            >
+              <Users className="h-4 w-4" strokeWidth={2} />
+              Review {job.applicationsCount} application
+              {job.applicationsCount === 1 ? '' : 's'}
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+            </Link>
+            <Link
+              href={`/client/jobs/${job.id}/release`}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              Report &amp; payout
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+            </Link>
+          </div>
         </div>
       </header>
 

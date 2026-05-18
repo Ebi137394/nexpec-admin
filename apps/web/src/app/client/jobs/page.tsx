@@ -144,12 +144,17 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 function Row({ job, highlight }: { job: ClientJobRow; highlight: boolean }) {
   return (
     <tr
-      className={`border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.02] ${
+      className={`group border-b border-white/[0.04] transition-colors last:border-0 hover:bg-white/[0.02] ${
         highlight ? 'bg-violet/[0.04]' : ''
       }`}
     >
       <td className="px-5 py-4">
-        <p className="text-sm font-medium text-white">{job.title}</p>
+        <Link
+          href={`/client/jobs/${job.id}`}
+          className="block text-sm font-medium text-white transition-colors hover:text-violet-glow"
+        >
+          {job.title}
+        </Link>
         {job.locationCity && (
           <p className="mt-0.5 text-xs text-zinc-500">{job.locationCity}</p>
         )}
@@ -170,7 +175,13 @@ function Row({ job, highlight }: { job: ClientJobRow; highlight: boolean }) {
         {formatRelative(job.createdAt)}
       </td>
       <td className="px-5 py-4 text-right">
-        <ChevronRight className="ml-auto h-4 w-4 text-zinc-600" />
+        <Link
+          href={`/client/jobs/${job.id}`}
+          aria-label={`Open ${job.title}`}
+          className="inline-flex text-zinc-600 transition-colors group-hover:text-violet-glow"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Link>
       </td>
     </tr>
   );

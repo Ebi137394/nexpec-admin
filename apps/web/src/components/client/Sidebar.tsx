@@ -47,13 +47,13 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Deliverables',
     items: [
-      { label: 'Completed reports', href: '/client/reports', icon: FileCheck2, badge: 'soon' },
+      { label: 'Completed reports', href: '/client/reports', icon: FileCheck2 },
     ],
   },
   {
     title: 'System',
     items: [
-      { label: 'Settings', href: '/client/settings', icon: Settings, badge: 'soon' },
+      { label: 'Settings', href: '/client/settings', icon: Settings },
     ],
   },
 ];

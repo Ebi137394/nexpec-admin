@@ -45,7 +45,7 @@ const NEXT_ACTIONS = [
     href: '/client/reports',
     icon: FileCheck2,
     helper: 'Signed PDFs, photos, audit hash.',
-    state: 'soon' as const,
+    state: 'live' as const,
   },
 ];
 

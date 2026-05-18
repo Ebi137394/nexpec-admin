@@ -46,6 +46,18 @@ const CreateJobSchema = z.object({
   jobType: z.enum(JOB_TYPES).default('on_site'),
   // Specialties arrive as an array of slugs via repeated form fields.
   specialties: z.array(z.string().trim().min(1)).default([]),
+
+  // ── CCI flag (Sprint 12 hotfix) ─────────────────────────────────────
+  // Single boolean — when true, this job needs a CCI-certified inspector.
+  // Admin can override during moderation. Replaces the heavier
+  // inspection_type / scope_template_id contract that proved too much
+  // for the current schema.
+  requiresCci: z
+    .preprocess(
+      (v) => v === 'on' || v === 'true' || v === true,
+      z.boolean(),
+    )
+    .default(false),
 });
 
 function buildErrorRedirect(
@@ -75,6 +87,8 @@ export async function createJob(formData: FormData): Promise<void> {
     urgency: formData.get('urgency') ?? 'normal',
     jobType: formData.get('jobType') ?? 'on_site',
     specialties: rawSpecialties,
+    // Checkbox: present in formData as "on" when checked, absent when not.
+    requiresCci: formData.get('requiresCci'),
   });
 
   if (!parsed.success) {
@@ -91,7 +105,7 @@ export async function createJob(formData: FormData): Promise<void> {
     redirect('/sign-in?next=' + encodeURIComponent('/client/jobs/new'));
   }
 
-  const insert = {
+  const insert: Record<string, unknown> = {
     client_id: user.id,
     title: parsed.data.title,
     description: parsed.data.description,
@@ -102,6 +116,10 @@ export async function createJob(formData: FormData): Promise<void> {
     specialty_slugs: parsed.data.specialties,
     // Explicit so we don't trip the jobs_status_check vs DEFAULT mismatch.
     status: 'open' as const,
+    // ── CCI flag (Sprint 12 hotfix) ────────────────────────────────────
+    // Backed by jobs.requires_cci BOOLEAN NOT NULL DEFAULT false
+    // (20260518150000_add_requires_cci_to_jobs.sql).
+    requires_cci: parsed.data.requiresCci,
     // moderation_status, sponsorship_offered, accepts_remote_inspectors,
     // is_senior_review, applications_count — all fall through to their
     // schema defaults.

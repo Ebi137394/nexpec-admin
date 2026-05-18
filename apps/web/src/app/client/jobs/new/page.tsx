@@ -13,7 +13,7 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, ShieldCheck } from 'lucide-react';
 import { createJob } from '@/lib/actions/jobs';
 import { COMMON_SPECIALTIES } from '@/lib/data/clientJobs.types';
 
@@ -153,6 +153,34 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
               ))}
             </div>
           </fieldset>
+        </Section>
+
+        {/* Section: requirements (CCI flag) */}
+        <Section
+          title="Requirements"
+          subtitle="Flag any credential gates the inspector must clear before they can apply."
+        >
+          <label className="group flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4 transition-colors hover:border-violet/40 hover:bg-white/[0.04] has-[:checked]:border-violet/50 has-[:checked]:bg-violet/10 has-[:checked]:ring-1 has-[:checked]:ring-violet/30">
+            <input
+              type="checkbox"
+              name="requiresCci"
+              value="on"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-transparent text-violet focus:ring-violet/40 focus:ring-offset-0"
+            />
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
+              <ShieldCheck className="h-4 w-4" strokeWidth={1.75} />
+            </span>
+            <span className="flex-1">
+              <span className="block text-sm font-semibold text-white">
+                Requires CCI-certified inspector
+              </span>
+              <span className="mt-1 block text-[12px] leading-relaxed text-zinc-400">
+                Only inspectors with a verified CCI credential will be eligible
+                to apply. Admin can adjust this during moderation if the scope
+                doesn&apos;t actually require it.
+              </span>
+            </span>
+          </label>
         </Section>
 
         {/* Submit */}

@@ -28,7 +28,19 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware';
 
 const ADMIN_PREFIX = '/admin';
+const CLIENT_PREFIX = '/client';
+const INSPECTOR_PREFIX = '/inspector';
 const AUTH_ROUTES = ['/sign-in', '/sign-up'];
+
+/**
+ * Roles allowed to enter each portal shell. super_admin + admin can drop
+ * into any portal for support; otherwise only the matching role passes.
+ */
+const PORTAL_ROLES: Record<string, ReadonlyArray<string>> = {
+  [ADMIN_PREFIX]: ['super_admin'],
+  [CLIENT_PREFIX]: ['client', 'admin', 'super_admin'],
+  [INSPECTOR_PREFIX]: ['inspector', 'admin', 'super_admin'],
+};
 
 /**
  * Comma-separated list of emails that always have super_admin access,
@@ -68,12 +80,25 @@ export async function middleware(request: NextRequest) {
 
   const isAdminRoute =
     pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`);
+  const isClientRoute =
+    pathname === CLIENT_PREFIX || pathname.startsWith(`${CLIENT_PREFIX}/`);
+  const isInspectorRoute =
+    pathname === INSPECTOR_PREFIX ||
+    pathname.startsWith(`${INSPECTOR_PREFIX}/`);
+  const isPortalRoute = isAdminRoute || isClientRoute || isInspectorRoute;
+  const portalPrefix = isAdminRoute
+    ? ADMIN_PREFIX
+    : isClientRoute
+      ? CLIENT_PREFIX
+      : isInspectorRoute
+        ? INSPECTOR_PREFIX
+        : null;
   const isAuthRoute = AUTH_ROUTES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
-  // 2. Admin gate.
-  if (isAdminRoute) {
+  // 2. Portal gate (admin / client / inspector).
+  if (isPortalRoute && portalPrefix) {
     if (!user) {
       logMiddleware('info', 'admin gate: no session, redirecting to /sign-in', {
         pathname,
@@ -124,11 +149,14 @@ export async function middleware(request: NextRequest) {
     // Normalise the role string so accidental whitespace or case drift
     // (e.g. `Super_Admin`, ` super_admin `) doesn't lock out the owner.
     const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
-    const isSuperAdmin = normalisedRole === 'super_admin';
+    const allowedRoles = PORTAL_ROLES[portalPrefix] ?? [];
+    const hasPortalAccess = allowedRoles.includes(normalisedRole);
 
-    if (!isSuperAdmin) {
-      logMiddleware('warn', 'admin gate: role check failed, redirecting', {
+    if (!hasPortalAccess) {
+      logMiddleware('warn', 'portal gate: role check failed, redirecting', {
         pathname,
+        portalPrefix,
+        allowedRoles,
         userId: user.id,
         userEmail,
         roleFromDb: profile?.role ?? null,
@@ -141,10 +169,12 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    logMiddleware('info', 'admin gate: passed', {
+    logMiddleware('info', 'portal gate: passed', {
       pathname,
+      portalPrefix,
       userId: user.id,
       userEmail,
+      normalisedRole,
     });
   }
 
@@ -167,7 +197,16 @@ export async function middleware(request: NextRequest) {
         .toString()
         .trim()
         .toLowerCase();
-      dest = normalisedRole === 'super_admin' ? '/admin/dashboard' : '/';
+      // Role-aware post-sign-in destination. Inspector / client land in
+      // their respective portals; super_admin in /admin; everyone else
+      // falls back to marketing root.
+      if (normalisedRole === 'super_admin' || normalisedRole === 'admin') {
+        dest = '/admin/dashboard';
+      } else if (normalisedRole === 'inspector') {
+        dest = '/inspector/dashboard';
+      } else if (normalisedRole === 'client') {
+        dest = '/client/dashboard';
+      }
     }
 
     const url = request.nextUrl.clone();

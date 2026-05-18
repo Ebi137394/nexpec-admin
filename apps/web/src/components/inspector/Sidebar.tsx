@@ -44,7 +44,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'My work',
     items: [
-      { label: 'Active assignments', href: '/inspector/jobs?status=assigned', icon: ClipboardList, badge: 'soon' },
+      { label: 'Active assignments', href: '/inspector/assignments', icon: ClipboardList },
     ],
   },
   {

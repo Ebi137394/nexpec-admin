@@ -40,8 +40,8 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Jobs',
     items: [
-      { label: 'My jobs', href: '/client/jobs', icon: Briefcase, badge: 'soon' },
-      { label: 'Post a job', href: '/client/jobs/new', icon: PlusCircle, badge: 'soon' },
+      { label: 'My jobs', href: '/client/jobs', icon: Briefcase },
+      { label: 'Post a job', href: '/client/jobs/new', icon: PlusCircle },
     ],
   },
   {

@@ -31,14 +31,14 @@ const NEXT_ACTIONS = [
     href: '/client/jobs/new',
     icon: PlusCircle,
     helper: 'Define scope, location, budget. Funds land in escrow.',
-    state: 'soon' as const,
+    state: 'live' as const,
   },
   {
     label: 'My active jobs',
     href: '/client/jobs',
     icon: Briefcase,
     helper: 'Track applications, in-progress work, scheduled visits.',
-    state: 'soon' as const,
+    state: 'live' as const,
   },
   {
     label: 'Download a completed report',
@@ -124,7 +124,11 @@ export default function ClientDashboardPage() {
                     <span className="text-sm font-medium text-zinc-200 group-hover:text-white">
                       {item.label}
                     </span>
-                    {item.state === 'soon' && (
+                    {item.state === 'live' ? (
+                      <span className="rounded-full border border-accent-green/40 bg-accent-green/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-accent-green">
+                        live
+                      </span>
+                    ) : (
                       <span className="rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
                         soon
                       </span>

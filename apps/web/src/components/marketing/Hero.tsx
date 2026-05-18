@@ -111,7 +111,7 @@ export function Hero() {
           />
           <div className="relative aspect-[1200/630] overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_50px_120px_-30px_rgba(124,58,237,0.5)] ring-1 ring-white/[0.08]">
             <Image
-              src="/hero-wide.jpg"
+              src="/hero/hero-wide.jpg"
               alt="Industrial inspection at dusk — refinery silhouette under deep indigo sky with violet rim-lighting."
               fill
               priority

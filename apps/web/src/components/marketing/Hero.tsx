@@ -1,10 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { ArrowRight, ShieldCheck, ScanLine, FileCheck2 } from 'lucide-react';
 import { MagneticButton } from '@/components/ui/MagneticButton';
-import { ImagePlaceholder } from '@/components/ImagePlaceholder';
-import { HERO_WIDE } from '@/lib/assets-manifest';
 
 /**
  * Hero — the visual centerpiece. Composed of:
@@ -93,12 +92,11 @@ export function Hero() {
         </motion.ul>
 
         {/* ── Wide hero feature image ─────────────────────────────────
-            Slot manifest: HERO_WIDE. Renders /og/landing.png in production.
-            The placeholder chrome (asset-slot caption, AI prompt, dashed
-            border, L-bracket marks) is pinned to its own stacking context
-            via `isolate` in ImagePlaceholder.tsx and the real Image is
-            promoted to z-10 — so when the file exists, the image paints
-            cleanly over the placeholder with zero bleed-through.
+            Direct next/image render of /og/landing.png. Aspect ratio
+            1200/630 matches the asset. Explicit z-20 puts the image firmly
+            above the section's topo-grid backdrop (which sits at z-auto)
+            and any future overlay. No ImagePlaceholder, no caption chrome,
+            no bleed-through possible.
             ──────────────────────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -111,11 +109,16 @@ export function Hero() {
             aria-hidden
             className="pointer-events-none absolute -inset-x-4 -inset-y-6 -z-10 rounded-[2rem] bg-gradient-to-b from-violet/20 via-violet/10 to-cyan-glow/10 blur-2xl"
           />
-          <ImagePlaceholder
-            slot={HERO_WIDE}
-            priority
-            className="shadow-[0_50px_120px_-30px_rgba(124,58,237,0.5)] ring-1 ring-white/[0.08]"
-          />
+          <div className="relative aspect-[1200/630] overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_50px_120px_-30px_rgba(124,58,237,0.5)] ring-1 ring-white/[0.08]">
+            <Image
+              src="/og/landing.png"
+              alt="NEXPEC — the industrial black box. Automated inspection, vetted inspectors, audited trust."
+              fill
+              priority
+              sizes="(min-width: 1280px) 1200px, (min-width: 768px) 90vw, 100vw"
+              className="z-20 object-cover"
+            />
+          </div>
         </motion.div>
       </div>
     </section>

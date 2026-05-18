@@ -12,6 +12,8 @@ export interface ClientProfileSettings {
   fullName: string | null;
   companyName: string | null;
   phone: string | null;
+  /** Public URL from the 'avatars' bucket. Falls back to initials. */
+  avatarUrl: string | null;
   /** Marketing / transactional notifications preference. */
   unreadNotificationsCount: number;
   /** Last-active timestamp shown as relative time. */

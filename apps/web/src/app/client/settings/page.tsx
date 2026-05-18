@@ -8,9 +8,11 @@
 
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
-import { AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Lock, Camera } from 'lucide-react';
+import Image from 'next/image';
 import { fetchClientSettings } from '@/lib/data/clientSettings';
 import { updateClientSettings } from '@/lib/actions/clientSettings';
+import { uploadAvatar } from '@/lib/actions/uploadAvatar';
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -58,6 +60,75 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
           Profile saved.
         </Banner>
       )}
+
+      {/* Avatar upload — separate <form> from the profile form so the
+          multipart file submit doesn't collide with text-field submission. */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <header className="mb-6">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+            Avatar
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Profile picture that appears on your jobs and on the admin
+            queue. Stored in the public{' '}
+            <span className="font-mono">avatars</span> bucket.
+          </p>
+        </header>
+        <form
+          action={uploadAvatar}
+          encType="multipart/form-data"
+          className="flex flex-col items-start gap-4 sm:flex-row sm:items-center"
+        >
+          <input type="hidden" name="returnTo" value="/client/settings" />
+          <div
+            className="relative inline-flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-cyan-glow ring-2 ring-white/[0.06]"
+            aria-hidden
+          >
+            {profile.avatarUrl ? (
+              <Image
+                src={profile.avatarUrl}
+                alt={profile.fullName ?? 'Avatar'}
+                width={80}
+                height={80}
+                className="h-full w-full object-cover"
+                unoptimized
+              />
+            ) : (
+              <span className="font-display text-2xl font-semibold text-white">
+                {(profile.companyName || profile.fullName || profile.email || '?')
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-1 flex-col gap-2">
+            <label
+              htmlFor="avatar"
+              className="group inline-flex w-fit cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+            >
+              <Camera className="h-4 w-4" strokeWidth={1.75} />
+              Choose new avatar
+            </label>
+            <input
+              id="avatar"
+              name="avatar"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+            />
+            <p className="text-[11px] text-zinc-500">
+              JPEG, PNG, WebP, or GIF · max 5 MB · square crops look best.
+            </p>
+            <button
+              type="submit"
+              className="btn-primary mt-2 inline-flex w-fit items-center gap-2"
+            >
+              Upload avatar
+              <span aria-hidden>→</span>
+            </button>
+          </div>
+        </form>
+      </section>
 
       {/* Editable section */}
       <form

@@ -18,6 +18,7 @@ import {
   FileCheck2,
   ArrowUpRight,
 } from 'lucide-react';
+import { fetchClientDashboardMetrics } from '@/lib/data/clientDashboardMetrics';
 
 export const metadata: Metadata = {
   title: 'Client Dashboard',
@@ -49,7 +50,9 @@ const NEXT_ACTIONS = [
   },
 ];
 
-export default function ClientDashboardPage() {
+export default async function ClientDashboardPage() {
+  const metrics = await fetchClientDashboardMetrics();
+
   return (
     <div className="space-y-10">
       {/* Heading */}
@@ -74,25 +77,25 @@ export default function ClientDashboardPage() {
       >
         <MetricTile
           label="Active jobs"
-          value="—"
-          sub="assigned + in_progress"
+          value={formatCount(metrics.activeJobs)}
+          sub="open + assigned + in_progress"
         />
         <MetricTile
           label="Held in escrow"
-          value="—"
+          value={formatCurrency(metrics.escrowHeldCents)}
           sub="across your active jobs"
           tone="violet"
         />
         <MetricTile
           label="Pending review"
-          value="—"
+          value={formatCount(metrics.pendingApplications)}
           sub="applications awaiting your decision"
           tone="cyan"
         />
         <MetricTile
           label="Reports · last 30d"
-          value="—"
-          sub="signed + delivered"
+          value={formatCount(metrics.reportsLast30d)}
+          sub="admin-approved + handed off"
         />
       </section>
 
@@ -154,6 +157,25 @@ export default function ClientDashboardPage() {
 /* ─── helpers (inlined to keep this file self-contained) ─────────────── */
 
 type Tone = 'default' | 'violet' | 'cyan' | 'amber' | 'red';
+
+function formatCount(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '—';
+  if (n >= 10_000) return `${(n / 1000).toFixed(0)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatCurrency(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return '—';
+  const dollars = cents / 100;
+  if (dollars >= 1_000_000) return `$${(dollars / 1_000_000).toFixed(1)}M`;
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(dollars >= 10_000 ? 0 : 1)}k`;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(dollars);
+}
 
 function MetricTile({
   label,

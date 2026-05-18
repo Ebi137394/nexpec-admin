@@ -24,7 +24,7 @@ export async function fetchClientSettings(): Promise<ClientProfileSettings | nul
       .from('profiles')
       .select(
         // GOLDEN_RULE_2 — explicit projection. Do NOT add payout fields.
-        'id, email, full_name, company_name, phone, unread_notifications_count, last_active, created_at',
+        'id, email, full_name, company_name, phone, avatar_url, unread_notifications_count, last_active, created_at',
       )
       .eq('id', user.id)
       .maybeSingle();
@@ -43,6 +43,7 @@ export async function fetchClientSettings(): Promise<ClientProfileSettings | nul
       fullName: (r.full_name as string | null) ?? null,
       companyName: (r.company_name as string | null) ?? null,
       phone: (r.phone as string | null) ?? null,
+      avatarUrl: (r.avatar_url as string | null) ?? null,
       unreadNotificationsCount:
         typeof r.unread_notifications_count === 'number'
           ? r.unread_notifications_count

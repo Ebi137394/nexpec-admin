@@ -1,5 +1,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  app/notifications/page.tsx — full notification feed (all roles)
+//
+//  Enhancements:
+//    • Filter pills (All / Unread / Messages / Jobs / Payouts / Reviews /
+//      Disputes / Contracts / System)
+//    • Date grouping (Today / Yesterday / This week / Earlier)
+//    • Per-kind icon + colored kind chip
+//    • Inline mark-read; preserved "Mark all read"
+//    • Live updates piggyback off NotificationBellLive's realtime channel.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
@@ -24,20 +32,96 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from '@/lib/actions/notifications';
-import type { NotificationKind } from '@/lib/data/notifications.types';
+import type {
+  NotificationKind,
+  NotificationRow,
+} from '@/lib/data/notifications.types';
 
 export const metadata: Metadata = { title: 'Notifications' };
 export const dynamic = 'force-dynamic';
 
-export default async function NotificationsPage() {
+type FilterKey =
+  | 'all'
+  | 'unread'
+  | 'messages'
+  | 'jobs'
+  | 'payouts'
+  | 'reviews'
+  | 'disputes'
+  | 'contracts'
+  | 'system';
+
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
+  { key: 'all',       label: 'All' },
+  { key: 'unread',    label: 'Unread' },
+  { key: 'messages',  label: 'Messages' },
+  { key: 'jobs',      label: 'Jobs' },
+  { key: 'payouts',   label: 'Payouts' },
+  { key: 'reviews',   label: 'Reviews' },
+  { key: 'disputes',  label: 'Disputes' },
+  { key: 'contracts', label: 'Contracts' },
+  { key: 'system',    label: 'System' },
+];
+
+function matchesFilter(n: NotificationRow, f: FilterKey): boolean {
+  if (f === 'all') return true;
+  if (f === 'unread') return !n.isRead;
+  if (f === 'messages')  return n.kind === 'message';
+  if (f === 'jobs')      return ['assignment', 'application_status', 'job_moderated'].includes(n.kind);
+  if (f === 'payouts')   return n.kind === 'payout_released';
+  if (f === 'reviews')   return n.kind === 'review_received';
+  if (f === 'disputes')  return n.kind === 'dispute_filed' || n.kind === 'dispute_update';
+  if (f === 'contracts') return n.kind === 'contract_assigned';
+  if (f === 'system')    return n.kind === 'system' || n.kind === 'document_uploaded';
+  return true;
+}
+
+function groupBucket(iso: string): 'Today' | 'Yesterday' | 'This week' | 'Earlier' {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Earlier';
+  const now = new Date();
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(d, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  const weekAgo = new Date(now);
+  weekAgo.setDate(now.getDate() - 7);
+  if (d > weekAgo) return 'This week';
+  return 'Earlier';
+}
+
+interface PageProps {
+  searchParams?: Promise<{ filter?: string }>;
+}
+
+export default async function NotificationsPage({ searchParams }: PageProps) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent('/notifications'));
 
-  const items = await fetchMyNotifications(100);
+  const sp = (await searchParams) ?? {};
+  const activeFilter: FilterKey = (() => {
+    const v = (sp.filter ?? 'all') as FilterKey;
+    return FILTERS.some((f) => f.key === v) ? v : 'all';
+  })();
+
+  const items = await fetchMyNotifications(200);
   const unread = items.filter((n) => !n.isRead).length;
+  const visible = items.filter((n) => matchesFilter(n, activeFilter));
+
+  const buckets: Record<string, NotificationRow[]> = {
+    Today: [], Yesterday: [], 'This week': [], Earlier: [],
+  };
+  for (const n of visible) {
+    buckets[groupBucket(n.createdAt)].push(n);
+  }
+  const orderedBuckets: Array<'Today' | 'Yesterday' | 'This week' | 'Earlier'> = [
+    'Today', 'Yesterday', 'This week', 'Earlier',
+  ];
 
   return (
     <main className="container-narrow py-10">
@@ -61,7 +145,11 @@ export default async function NotificationsPage() {
         </div>
         {unread > 0 && (
           <form action={markAllNotificationsRead}>
-            <input type="hidden" name="returnTo" value="/notifications" />
+            <input
+              type="hidden"
+              name="returnTo"
+              value={`/notifications${activeFilter !== 'all' ? `?filter=${activeFilter}` : ''}`}
+            />
             <button
               type="submit"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-zinc-200 hover:border-violet/40 hover:text-white"
@@ -73,67 +161,129 @@ export default async function NotificationsPage() {
         )}
       </header>
 
-      <section className="mt-8">
-        {items.length === 0 ? (
+      {/* Filter pills */}
+      <nav className="mt-6 flex flex-wrap gap-2" aria-label="Filter notifications">
+        {FILTERS.map((f) => {
+          const isActive = f.key === activeFilter;
+          const href = f.key === 'all' ? '/notifications' : `/notifications?filter=${f.key}`;
+          const count =
+            f.key === 'all'
+              ? items.length
+              : items.filter((n) => matchesFilter(n, f.key)).length;
+          return (
+            <Link
+              key={f.key}
+              href={href}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                isActive
+                  ? 'border-violet/40 bg-violet/10 text-violet-glow'
+                  : 'border-white/10 bg-white/[0.02] text-zinc-400 hover:border-violet/30 hover:text-white'
+              }`}
+            >
+              {f.label}
+              <span
+                className={`inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] ${
+                  isActive ? 'bg-violet text-white' : 'bg-white/[0.06] text-zinc-400'
+                }`}
+              >
+                {count}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <section className="mt-6 space-y-6">
+        {visible.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.01] p-12 text-center">
             <Bell className="mx-auto h-8 w-8 text-zinc-600" strokeWidth={1.5} />
-            <p className="mt-3 text-sm text-zinc-400">No notifications yet.</p>
+            <p className="mt-3 text-sm text-zinc-400">
+              {activeFilter === 'all' || activeFilter === 'unread'
+                ? 'No notifications yet.'
+                : `No ${FILTERS.find((f) => f.key === activeFilter)?.label.toLowerCase() ?? ''} notifications.`}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-600">
+              Activity will appear here in real time — no refresh needed.
+            </p>
           </div>
         ) : (
-          <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.01]">
-            {items.map((n) => (
-              <li key={n.id} className="flex items-start gap-3 px-4 py-4 sm:px-5">
-                <span
-                  className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${
-                    n.isRead
-                      ? 'bg-white/[0.03] text-zinc-500 ring-white/10'
-                      : 'bg-violet/15 text-violet-glow ring-violet/30'
-                  }`}
-                >
-                  <KindIcon kind={n.kind} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className={`truncate text-sm font-semibold ${n.isRead ? 'text-zinc-400' : 'text-white'}`}>
-                      {n.title}
-                    </p>
-                    <time className="shrink-0 text-[11px] text-zinc-500">
-                      {formatRelative(n.createdAt)}
-                    </time>
-                  </div>
-                  {n.body && (
-                    <p className="mt-1 text-xs text-zinc-500">{n.body}</p>
-                  )}
-                  <div className="mt-2 flex items-center gap-2">
-                    {n.linkHref && (
-                      <Link
-                        href={n.linkHref}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
-                      >
-                        Open
-                      </Link>
-                    )}
-                    {!n.isRead && (
-                      <form action={markNotificationRead}>
-                        <input type="hidden" name="id" value={n.id} />
-                        <input type="hidden" name="returnTo" value="/notifications" />
-                        <button
-                          type="submit"
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:border-violet/40 hover:text-white"
-                        >
-                          <Check className="h-3 w-3" strokeWidth={1.75} />
-                          Mark read
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          orderedBuckets.map((b) =>
+            buckets[b].length === 0 ? null : (
+              <div key={b}>
+                <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-industrial text-zinc-500">
+                  {b}
+                </h2>
+                <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.01]">
+                  {buckets[b].map((n) => (
+                    <NotificationItem key={n.id} n={n} activeFilter={activeFilter} />
+                  ))}
+                </ul>
+              </div>
+            ),
+          )
         )}
       </section>
     </main>
+  );
+}
+
+function NotificationItem({
+  n,
+  activeFilter,
+}: {
+  n: NotificationRow;
+  activeFilter: FilterKey;
+}) {
+  const returnTo = `/notifications${activeFilter !== 'all' ? `?filter=${activeFilter}` : ''}`;
+  return (
+    <li className="flex items-start gap-3 px-4 py-4 sm:px-5">
+      <span
+        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset ${
+          n.isRead
+            ? 'bg-white/[0.03] text-zinc-500 ring-white/10'
+            : 'bg-violet/15 text-violet-glow ring-violet/30'
+        }`}
+      >
+        <KindIcon kind={n.kind} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className={`truncate text-sm font-semibold ${n.isRead ? 'text-zinc-400' : 'text-white'}`}>
+              {n.title}
+            </p>
+            <KindChip kind={n.kind} />
+          </div>
+          <time className="shrink-0 text-[11px] text-zinc-500">
+            {formatRelative(n.createdAt)}
+          </time>
+        </div>
+        {n.body && <p className="mt-1 text-xs text-zinc-500">{n.body}</p>}
+        <div className="mt-2 flex items-center gap-2">
+          {n.linkHref && (
+            <Link
+              href={n.linkHref}
+              className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
+            >
+              Open
+            </Link>
+          )}
+          {!n.isRead && (
+            <form action={markNotificationRead}>
+              <input type="hidden" name="id" value={n.id} />
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:border-violet/40 hover:text-white"
+              >
+                <Check className="h-3 w-3" strokeWidth={1.75} />
+                Mark read
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -155,6 +305,31 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
     case 'contract_assigned': return <FileCheck2 className={cls} strokeWidth={stroke} />;
     default:                  return <Settings className={cls} strokeWidth={stroke} />;
   }
+}
+
+function KindChip({ kind }: { kind: NotificationKind }) {
+  const label = (() => {
+    switch (kind) {
+      case 'message': return 'Message';
+      case 'assignment': return 'Job';
+      case 'application_status': return 'Application';
+      case 'job_moderated': return 'Moderation';
+      case 'payout_released': return 'Payout';
+      case 'review_received': return 'Review';
+      case 'dispute_filed':
+      case 'dispute_update':   return 'Dispute';
+      case 'contract_assigned': return 'Contract';
+      case 'document_uploaded': return 'Document';
+      case 'report_submitted':
+      case 'report_approved':   return 'Report';
+      default: return 'System';
+    }
+  })();
+  return (
+    <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500 sm:inline">
+      {label}
+    </span>
+  );
 }
 
 function formatRelative(iso: string): string {

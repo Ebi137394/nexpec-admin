@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/client/Sidebar';
 import { Header } from '@/components/admin/Header';
+import { NotificationToasterGate } from '@/components/notifications/NotificationToasterGate';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,9 @@ export default async function ClientLayout({
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>
       </div>
+
+      {/* Live notification toaster (fixed bottom-right) */}
+      <NotificationToasterGate />
     </div>
   );
 }

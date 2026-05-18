@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { SignOutButton } from './SignOutButton';
-import { NotificationBell } from '@/components/NotificationBell';
+import { NotificationBellGate } from '@/components/notifications/NotificationBellGate';
 
 interface HeaderProps {
   /** Display name from profiles.full_name or email fallback. */
@@ -71,7 +71,7 @@ export function Header({
               </span>
             }
           >
-            <NotificationBell />
+            <NotificationBellGate />
           </Suspense>
           <div className="hidden items-center gap-2 sm:flex">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-[11px] font-semibold text-white">

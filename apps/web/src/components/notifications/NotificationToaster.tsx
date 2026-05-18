@@ -222,17 +222,21 @@ export function NotificationToaster({ userId }: Props) {
         </div>
       ))}
 
-      {/* Keyframes — scoped inline so we don't fight Tailwind config */}
-      <style jsx global>{`
-        @keyframes toast-slide-in {
-          from { transform: translateY(20px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
-        }
-        @keyframes toast-progress {
-          from { transform: scaleX(1); }
-          to   { transform: scaleX(0); }
-        }
-      `}</style>
+      {/* Keyframes — inline plain <style> avoids styled-jsx coupling */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @keyframes toast-slide-in {
+              from { transform: translateY(20px); opacity: 0; }
+              to   { transform: translateY(0);    opacity: 1; }
+            }
+            @keyframes toast-progress {
+              from { transform: scaleX(1); }
+              to   { transform: scaleX(0); }
+            }
+          `,
+        }}
+      />
       {/* Hidden accessible alias used by screen readers as a sentinel. */}
       <span className="sr-only">
         <Bell aria-hidden />

@@ -121,7 +121,8 @@ export function VoiceRecorder({ conversationId, returnTo }: Props) {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeRef.current.mime.split(';')[0] });
+        const baseType = mimeRef.current.mime.split(';')[0] ?? 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: baseType });
         finalBlobRef.current = blob;
         const url = URL.createObjectURL(blob);
         setBlobUrl(url);

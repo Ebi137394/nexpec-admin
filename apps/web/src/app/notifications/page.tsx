@@ -113,14 +113,23 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
   const unread = items.filter((n) => !n.isRead).length;
   const visible = items.filter((n) => matchesFilter(n, activeFilter));
 
-  const buckets: Record<string, NotificationRow[]> = {
-    Today: [], Yesterday: [], 'This week': [], Earlier: [],
-  };
+  type BucketKey = 'Today' | 'Yesterday' | 'This week' | 'Earlier';
+  const todayList: NotificationRow[] = [];
+  const yesterdayList: NotificationRow[] = [];
+  const thisWeekList: NotificationRow[] = [];
+  const earlierList: NotificationRow[] = [];
   for (const n of visible) {
-    buckets[groupBucket(n.createdAt)].push(n);
+    const key = groupBucket(n.createdAt);
+    if (key === 'Today') todayList.push(n);
+    else if (key === 'Yesterday') yesterdayList.push(n);
+    else if (key === 'This week') thisWeekList.push(n);
+    else earlierList.push(n);
   }
-  const orderedBuckets: Array<'Today' | 'Yesterday' | 'This week' | 'Earlier'> = [
-    'Today', 'Yesterday', 'This week', 'Earlier',
+  const orderedBuckets: Array<[BucketKey, NotificationRow[]]> = [
+    ['Today', todayList],
+    ['Yesterday', yesterdayList],
+    ['This week', thisWeekList],
+    ['Earlier', earlierList],
   ];
 
   return (
@@ -207,14 +216,14 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
             </p>
           </div>
         ) : (
-          orderedBuckets.map((b) =>
-            buckets[b].length === 0 ? null : (
-              <div key={b}>
+          orderedBuckets.map(([label, list]) =>
+            list.length === 0 ? null : (
+              <div key={label}>
                 <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-industrial text-zinc-500">
-                  {b}
+                  {label}
                 </h2>
                 <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.01]">
-                  {buckets[b].map((n) => (
+                  {list.map((n) => (
                     <NotificationItem key={n.id} n={n} activeFilter={activeFilter} />
                   ))}
                 </ul>

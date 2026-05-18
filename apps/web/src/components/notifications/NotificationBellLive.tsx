@@ -179,7 +179,8 @@ export function NotificationBellLive({
               setRecent((prev) =>
                 prev.map((n) => (n.id === id ? { ...n, isRead } : n)),
               );
-              if (isRead && (payload.old as Record<string, unknown>)?.is_read === false) {
+              const oldRow = (payload.old ?? {}) as Record<string, unknown>;
+              if (isRead && oldRow.is_read === false) {
                 setCount((c) => Math.max(0, c - 1));
               }
             } catch {

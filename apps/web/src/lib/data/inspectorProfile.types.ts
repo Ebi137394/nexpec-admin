@@ -29,6 +29,36 @@ export type AvailabilityStatus =
   | 'busy'
   | (string & {});
 
+export const PAYMENT_TERMS = [
+  'net7',
+  'net15',
+  'net30',
+  'net45',
+  'net60',
+  'on_completion',
+] as const;
+export type PaymentTerm = (typeof PAYMENT_TERMS)[number];
+
+export const PAYMENT_TERM_LABELS: Record<PaymentTerm, string> = {
+  net7: 'Net 7 days',
+  net15: 'Net 15 days',
+  net30: 'Net 30 days',
+  net45: 'Net 45 days',
+  net60: 'Net 60 days',
+  on_completion: 'On completion',
+};
+
+/** Common ISO 4217 currency codes surfaced in the rates form. */
+export const CURRENCY_CHOICES = [
+  'USD',
+  'CAD',
+  'EUR',
+  'GBP',
+  'AUD',
+  'SAR',
+  'AED',
+] as const;
+
 export interface InspectorProfile {
   // ── Identity (inspector-editable) ─────────────────────────────────────
   id: string;
@@ -44,6 +74,19 @@ export interface InspectorProfile {
   yearsOfExperience: string | null;
   hourlyRateCents: number | null;
   responseTimeHours: number | null;
+
+  // ── Rich rates (Sprint 11 — inspector-editable) ──────────────────────
+  currency: string;                           // ISO 4217, default 'USD'
+  travelRateCents: number | null;             // per-hour while travelling
+  overtimeMultiplier: number | null;          // e.g. 1.50
+  weekendMultiplier: number | null;
+  holidayMultiplier: number | null;
+  paymentTerms: PaymentTerm | null;
+  minimumEngagementHours: number | null;
+
+  // ── Resume / CV (inspector-editable) ─────────────────────────────────
+  resumeUrl: string | null;                   // signed URL (10-min TTL)
+  resumePath: string | null;                  // object key in resumes bucket
 
   // ── Skills + specialties (inspector-editable arrays) ─────────────────
   specialtySlugs: string[];
@@ -109,7 +152,15 @@ export type InspectorEditableFields =
   | 'locationProvince'
   | 'travelRadiusKm'
   | 'isAvailable'
-  | 'availabilityStatus';
+  | 'availabilityStatus'
+  // Sprint 11 — rich rates
+  | 'currency'
+  | 'travelRateCents'
+  | 'overtimeMultiplier'
+  | 'weekendMultiplier'
+  | 'holidayMultiplier'
+  | 'paymentTerms'
+  | 'minimumEngagementHours';
 
 /**
  * NDT method choices the settings form exposes as chip selectors.

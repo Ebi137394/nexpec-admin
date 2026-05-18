@@ -17,8 +17,38 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { PAYMENT_TERMS } from '@/lib/data/inspectorProfile.types';
 
 const AVAILABILITY_VALUES = ['offline', 'available', 'busy'] as const;
+
+// ── Rich rates (Sprint 11) ────────────────────────────────────────────────
+// Multipliers are NUMERIC(4,2) in DB, banded 1.00–5.00 by CHECK.
+// payment_terms enum mirrors the DB-side CHECK.
+const optionalDecimal = (min: number, max: number) =>
+  z
+    .preprocess(
+      (v) => (v === '' || v === null || v === undefined ? undefined : v),
+      z.coerce
+        .number({ message: 'Must be a number.' })
+        .finite()
+        .min(min)
+        .max(max)
+        .optional(),
+    )
+    .optional();
+
+const optionalInt = (min: number, max: number) =>
+  z
+    .preprocess(
+      (v) => (v === '' || v === null || v === undefined ? undefined : v),
+      z.coerce
+        .number({ message: 'Must be a whole number.' })
+        .int()
+        .min(min)
+        .max(max)
+        .optional(),
+    )
+    .optional();
 
 const UpdateInspectorSchema = z.object({
   fullName: z
@@ -102,6 +132,21 @@ const UpdateInspectorSchema = z.object({
     .array(z.string().trim().toUpperCase().length(2))
     .max(60)
     .default([]),
+
+  // ── Rich rates (Sprint 11) ─────────────────────────────────────────
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{3}$/, { message: 'Use 3-letter ISO currency code.' })
+    .optional()
+    .or(z.literal('')),
+  travelRateDollars: optionalInt(0, 10_000),
+  overtimeMultiplier: optionalDecimal(1, 5),
+  weekendMultiplier: optionalDecimal(1, 5),
+  holidayMultiplier: optionalDecimal(1, 5),
+  paymentTerms: z.enum(PAYMENT_TERMS).optional(),
+  minimumEngagementHours: optionalInt(1, 240),
 });
 
 function buildRedirect(params: Record<string, string>): string {
@@ -146,6 +191,14 @@ export async function updateInspectorSettings(
     workAuthorizedCountries,
     openToSponsoredWork: formData.get('openToSponsoredWork'),
     sponsoredCountries,
+    // Sprint 11 — rich rates
+    currency: formData.get('currency') ?? '',
+    travelRateDollars: formData.get('travelRateDollars'),
+    overtimeMultiplier: formData.get('overtimeMultiplier'),
+    weekendMultiplier: formData.get('weekendMultiplier'),
+    holidayMultiplier: formData.get('holidayMultiplier'),
+    paymentTerms: formData.get('paymentTerms') ?? undefined,
+    minimumEngagementHours: formData.get('minimumEngagementHours'),
   });
 
   if (!parsed.success) {
@@ -203,6 +256,17 @@ export async function updateInspectorSettings(
     work_authorized_countries: dedupedAuth,
     open_to_sponsored_work: parsed.data.openToSponsoredWork,
     sponsored_countries: dedupedSponsored,
+    // ── Rich rates (Sprint 11) ──────────────────────────────────────────
+    currency: parsed.data.currency?.trim() || 'USD',
+    travel_rate_cents:
+      parsed.data.travelRateDollars !== undefined
+        ? parsed.data.travelRateDollars * 100
+        : null,
+    overtime_multiplier: parsed.data.overtimeMultiplier ?? null,
+    weekend_multiplier: parsed.data.weekendMultiplier ?? null,
+    holiday_multiplier: parsed.data.holidayMultiplier ?? null,
+    payment_terms: parsed.data.paymentTerms ?? null,
+    minimum_engagement_hours: parsed.data.minimumEngagementHours ?? null,
     updated_at: new Date().toISOString(),
   };
 

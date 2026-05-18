@@ -9,11 +9,15 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type {
   AvailabilityStatus,
   InspectorProfile,
+  PaymentTerm,
   StripeConnectStatus,
   VerificationStatus,
 } from './inspectorProfile.types';
 
 export type { InspectorProfile };
+
+const RESUME_BUCKET = 'resumes';
+const RESUME_URL_TTL_SECONDS = 60 * 10;
 
 export async function fetchInspectorProfile(): Promise<InspectorProfile | null> {
   try {
@@ -30,8 +34,13 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
           // Identity
           'id', 'email', 'full_name', 'headline', 'bio',
           'professional_title', 'phone', 'avatar_url',
-          // Experience + rates
+          // Experience + rates (legacy + sprint 11 rich rates)
           'years_of_experience', 'hourly_rate_cents', 'response_time_hours',
+          'currency', 'travel_rate_cents', 'overtime_multiplier',
+          'weekend_multiplier', 'holiday_multiplier', 'payment_terms',
+          'minimum_engagement_hours',
+          // Resume / CV
+          'resume_url', 'resume_path',
           // Skills + specialties
           'specialty_slugs', 'ndt_methods', 'certifications',
           // Geography
@@ -63,6 +72,20 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
     }
 
     const r = data as unknown as Record<string, unknown>;
+
+    // Sign the resume URL if a private bucket path is stored.
+    const resumePath = (r.resume_path as string | null) ?? null;
+    let signedResumeUrl: string | null = null;
+    if (resumePath) {
+      const { data: signed } = await supabase.storage
+        .from(RESUME_BUCKET)
+        .createSignedUrl(resumePath, RESUME_URL_TTL_SECONDS);
+      signedResumeUrl = signed?.signedUrl ?? null;
+    }
+    // Fall back to the legacy resume_url public column when no signed URL
+    // is available — back-compat for inspectors who haven't re-uploaded.
+    const resumeUrl = signedResumeUrl ?? (r.resume_url as string | null) ?? null;
+
     return {
       id: String(r.id),
       email: String(r.email ?? user.email ?? ''),
@@ -79,6 +102,22 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
         typeof r.response_time_hours === 'number'
           ? (r.response_time_hours as number)
           : null,
+
+      // ── Rich rates (sprint 11) ───────────────────────────────────────
+      currency: ((r.currency as string | null) ?? 'USD').toUpperCase(),
+      travelRateCents: parseBigint(r.travel_rate_cents),
+      overtimeMultiplier: parseNumeric(r.overtime_multiplier),
+      weekendMultiplier: parseNumeric(r.weekend_multiplier),
+      holidayMultiplier: parseNumeric(r.holiday_multiplier),
+      paymentTerms: ((r.payment_terms as string | null) ?? null) as PaymentTerm | null,
+      minimumEngagementHours:
+        typeof r.minimum_engagement_hours === 'number'
+          ? (r.minimum_engagement_hours as number)
+          : null,
+
+      // ── Resume / CV (sprint 11) ──────────────────────────────────────
+      resumeUrl,
+      resumePath,
 
       specialtySlugs: arr(r.specialty_slugs),
       ndtMethods: arr(r.ndt_methods),

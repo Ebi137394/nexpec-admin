@@ -18,11 +18,25 @@ import { fetchInspectorProfile } from '@/lib/data/inspectorProfile';
 import { NDT_METHOD_CHOICES } from '@/lib/data/inspectorProfile.types';
 import { updateInspectorSettings } from '@/lib/actions/inspectorSettings';
 import { uploadAvatar } from '@/lib/actions/uploadAvatar';
+import { uploadResume, deleteResume } from '@/lib/actions/uploadResume';
 import { COMMON_SPECIALTIES } from '@/lib/data/clientJobs.types';
 import { fetchCountries } from '@/lib/data/countries';
 import { CountryMultiSelect } from '@/components/forms/CountryMultiSelect';
 import Image from 'next/image';
-import { Camera, Globe2 } from 'lucide-react';
+import Link from 'next/link';
+import {
+  Camera,
+  Globe2,
+  FileText,
+  Trash2,
+  Briefcase,
+  ExternalLink,
+} from 'lucide-react';
+import {
+  CURRENCY_CHOICES,
+  PAYMENT_TERMS,
+  PAYMENT_TERM_LABELS,
+} from '@/lib/data/inspectorProfile.types';
 
 export const metadata: Metadata = {
   title: 'Inspector settings',
@@ -141,6 +155,95 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         </form>
       </section>
 
+      {/* Resume / CV — private bucket. Separate <form> because it's a file upload. */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <header className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+              Resume / CV
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">
+              Stored privately in <span className="font-mono">resumes</span>.
+              Only you and our ops team can read it; we sign a temporary URL
+              when you view.
+            </p>
+          </div>
+          <Link
+            href="/inspector/experience"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+          >
+            <Briefcase className="h-3 w-3" strokeWidth={1.75} />
+            Manage work history
+          </Link>
+        </header>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet/10 text-violet-glow ring-1 ring-inset ring-violet/30">
+              <FileText className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div className="min-w-0">
+              {profile.resumeUrl ? (
+                <a
+                  href={profile.resumeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-violet-glow"
+                >
+                  View current resume
+                  <ExternalLink className="h-3 w-3" strokeWidth={1.75} />
+                </a>
+              ) : (
+                <p className="text-sm font-medium text-zinc-300">
+                  No resume uploaded yet.
+                </p>
+              )}
+              <p className="text-[11px] text-zinc-500">
+                PDF or Word doc · max 10 MB.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <form
+              action={uploadResume}
+              encType="multipart/form-data"
+              className="flex items-center gap-2"
+            >
+              <label
+                htmlFor="resume"
+                className="group inline-flex w-fit cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+              >
+                <FileText className="h-4 w-4" strokeWidth={1.75} />
+                Choose file
+              </label>
+              <input
+                id="resume"
+                name="resume"
+                type="file"
+                accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="sr-only"
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-full bg-violet px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm transition-colors hover:bg-violet/90"
+              >
+                Upload
+              </button>
+            </form>
+            {profile.resumePath && (
+              <form action={deleteResume}>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-400 transition-colors hover:border-accent-red/40 hover:bg-accent-red/10 hover:text-accent-red"
+                >
+                  <Trash2 className="h-3 w-3" strokeWidth={1.75} />
+                  Remove
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </section>
+
       <form action={updateInspectorSettings} className="space-y-6">
         {/* Identity */}
         <Section
@@ -198,11 +301,34 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         {/* Rates + experience */}
         <Section
           title="Rates & experience"
-          subtitle="Reference rate only. Per-job payout is set by admin during dispatch."
+          subtitle="Reference rates only. Per-job payout is set by admin during dispatch; clients NEVER see these."
         >
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <div>
+              <label
+                htmlFor="currency"
+                className="block text-[11px] font-semibold uppercase tracking-industrial text-zinc-500"
+              >
+                Currency
+              </label>
+              <select
+                id="currency"
+                name="currency"
+                defaultValue={profile.currency || 'USD'}
+                className="mt-1 w-full rounded-lg border border-white/[0.08] bg-ink-900/60 px-3 py-2 text-sm text-white outline-none focus:border-violet/40"
+              >
+                {CURRENCY_CHOICES.map((c) => (
+                  <option key={c} value={c} className="bg-ink-900">
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-zinc-500">
+                Reference currency for rates below.
+              </p>
+            </div>
             <Field
-              label="Hourly rate (USD)"
+              label="Hourly rate (in selected currency)"
               name="hourlyRateDollars"
               type="number"
               min={0}
@@ -214,6 +340,97 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               }
               placeholder="125"
               hint="Reference only. NEVER visible to clients."
+            />
+            <Field
+              label="Travel rate per hour"
+              name="travelRateDollars"
+              type="number"
+              min={0}
+              max={10000}
+              defaultValue={
+                profile.travelRateCents
+                  ? String(Math.round(profile.travelRateCents / 100))
+                  : ''
+              }
+              placeholder="75"
+              hint="Charged while travelling outside your radius."
+            />
+            <Field
+              label="Overtime multiplier"
+              name="overtimeMultiplier"
+              type="number"
+              min={1}
+              max={5}
+              defaultValue={
+                profile.overtimeMultiplier !== null
+                  ? String(profile.overtimeMultiplier)
+                  : '1.5'
+              }
+              placeholder="1.5"
+              hint="× hourly rate beyond standard day."
+            />
+            <Field
+              label="Weekend multiplier"
+              name="weekendMultiplier"
+              type="number"
+              min={1}
+              max={5}
+              defaultValue={
+                profile.weekendMultiplier !== null
+                  ? String(profile.weekendMultiplier)
+                  : '1.5'
+              }
+              placeholder="1.5"
+            />
+            <Field
+              label="Holiday multiplier"
+              name="holidayMultiplier"
+              type="number"
+              min={1}
+              max={5}
+              defaultValue={
+                profile.holidayMultiplier !== null
+                  ? String(profile.holidayMultiplier)
+                  : '2.0'
+              }
+              placeholder="2.0"
+            />
+            <div>
+              <label
+                htmlFor="paymentTerms"
+                className="block text-[11px] font-semibold uppercase tracking-industrial text-zinc-500"
+              >
+                Payment terms
+              </label>
+              <select
+                id="paymentTerms"
+                name="paymentTerms"
+                defaultValue={profile.paymentTerms ?? 'net30'}
+                className="mt-1 w-full rounded-lg border border-white/[0.08] bg-ink-900/60 px-3 py-2 text-sm text-white outline-none focus:border-violet/40"
+              >
+                {PAYMENT_TERMS.map((t) => (
+                  <option key={t} value={t} className="bg-ink-900">
+                    {PAYMENT_TERM_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-zinc-500">
+                When you expect to be paid after invoice.
+              </p>
+            </div>
+            <Field
+              label="Minimum engagement (hours)"
+              name="minimumEngagementHours"
+              type="number"
+              min={1}
+              max={240}
+              defaultValue={
+                profile.minimumEngagementHours
+                  ? String(profile.minimumEngagementHours)
+                  : ''
+              }
+              placeholder="4"
+              hint="Minimum bookable engagement."
             />
             <Field
               label="Years of experience"

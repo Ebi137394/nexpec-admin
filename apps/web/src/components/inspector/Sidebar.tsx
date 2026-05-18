@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Wallet,
   Settings,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -51,6 +52,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Identity',
     items: [
       { label: 'Compliance', href: '/inspector/compliance', icon: ShieldCheck },
+      { label: 'Work experience', href: '/inspector/experience', icon: Briefcase },
       { label: 'Wallet & payouts', href: '/inspector/wallet', icon: Wallet },
     ],
   },

@@ -22,6 +22,14 @@ const nextConfig = {
   // optimization — not a correctness lever — and the cost of leaving it off
   // is a few extra kilobytes shipped to the client. Re-enable post-launch
   // once the build is provably stable.
+  experimental: {
+    serverActions: {
+      // Inspector submit-report uploads up to 6 photos × 5MB each through a
+      // server action multipart payload. Default 1MB cap would 413 us.
+      // 35MB leaves headroom for form fields + multipart boundary overhead.
+      bodySizeLimit: '35mb',
+    },
+  },
   async headers() {
     return [
       {

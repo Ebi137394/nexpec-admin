@@ -256,9 +256,6 @@ function AssignmentCard({
           >
             <PenLine className="h-3.5 w-3.5" strokeWidth={2} />
             Submit report
-            <span className="rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
-              soon
-            </span>
           </Link>
         ) : (
           <Link

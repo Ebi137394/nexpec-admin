@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
 import type { AdminUser } from '@/lib/data/users';
 import { UserRoleBadge } from './UserRoleBadge';
@@ -33,41 +34,65 @@ export function UsersTable({ users }: UsersTableProps) {
         </thead>
         <tbody className="divide-y divide-white/[0.04]">
           {users.map((u) => (
-            <tr key={u.id} className="transition-colors hover:bg-white/[0.03]">
+            <tr
+              key={u.id}
+              className="group cursor-pointer transition-colors hover:bg-white/[0.03] focus-within:bg-white/[0.04]"
+            >
               <td className="whitespace-nowrap px-4 py-3 align-middle">
-                <div className="flex items-center gap-3">
+                <Link
+                  href={`/admin/users/${u.id}`}
+                  className="flex items-center gap-3 outline-none focus-visible:underline focus-visible:underline-offset-2"
+                >
                   <Avatar name={u.full_name} email={u.email} avatarUrl={u.avatar_url} />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">
+                    <p className="truncate text-sm font-medium text-white group-hover:text-violet-glow">
                       {u.full_name ?? u.email?.split('@')[0] ?? 'Anonymous'}
                     </p>
                     <p className="truncate font-mono text-[10px] text-zinc-500">
                       {u.email ?? u.id}
                     </p>
                   </div>
-                </div>
+                </Link>
               </td>
               <td className="whitespace-nowrap px-4 py-3 align-middle">
-                <UserRoleBadge role={u.role} />
+                <Link
+                  href={`/admin/users/${u.id}`}
+                  className="block outline-none"
+                  tabIndex={-1}
+                >
+                  <UserRoleBadge role={u.role} />
+                </Link>
               </td>
               <td className="whitespace-nowrap px-4 py-3 align-middle">
-                {u.cci_active ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-green/40 bg-accent-green/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
-                    <ShieldCheck className="h-3 w-3" />
-                    CCI {(u.cci_tier ?? '').replace('cci_', '') || 'verified'}
-                  </span>
-                ) : u.role === 'inspector' || u.role === 'contractor' ? (
-                  <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                    no active credential
-                  </span>
-                ) : (
-                  <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-                    —
-                  </span>
-                )}
+                <Link
+                  href={`/admin/users/${u.id}`}
+                  className="block outline-none"
+                  tabIndex={-1}
+                >
+                  {u.cci_active ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-green/40 bg-accent-green/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+                      <ShieldCheck className="h-3 w-3" />
+                      CCI {(u.cci_tier ?? '').replace('cci_', '') || 'verified'}
+                    </span>
+                  ) : u.role === 'inspector' || u.role === 'contractor' ? (
+                    <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
+                      no active credential
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
+                      —
+                    </span>
+                  )}
+                </Link>
               </td>
               <td className="whitespace-nowrap px-4 py-3 align-middle font-mono text-xs text-zinc-400">
-                {formatDate(u.created_at)}
+                <Link
+                  href={`/admin/users/${u.id}`}
+                  className="block outline-none"
+                  tabIndex={-1}
+                >
+                  {formatDate(u.created_at)}
+                </Link>
               </td>
             </tr>
           ))}

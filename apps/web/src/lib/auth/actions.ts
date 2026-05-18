@@ -69,7 +69,15 @@ async function destinationForUser(supabase: Awaited<ReturnType<typeof createSupa
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
   if (normalisedRole === 'super_admin' || normalisedRole === 'admin') return '/admin/dashboard';
   if (normalisedRole === 'inspector') return '/inspector/dashboard';
-  if (normalisedRole === 'client') return '/client/dashboard';
+  // client / agency / enterprise all share the same Client Portal — the
+  // surface is UI-identical, data isolation is enforced by client_id = uid().
+  if (
+    normalisedRole === 'client' ||
+    normalisedRole === 'agency' ||
+    normalisedRole === 'enterprise'
+  ) {
+    return '/client/dashboard';
+  }
   return '/';
 }
 

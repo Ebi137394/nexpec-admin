@@ -173,10 +173,14 @@ function ResolvedCard({
   signal,
   jobId,
 }: {
-  signal: Exclude<
-    Awaited<ReturnType<typeof fetchClientJobReport>>,
-    null
-  >['latestClientSignal'];
+  /**
+   * Caller only renders this card when signal.kind !== 'none'. Encoding
+   * that in the type means TS narrows correctly inside both branches
+   * without runtime guards.
+   */
+  signal:
+    | { kind: 'approved'; at: string }
+    | { kind: 'revision_requested'; at: string; reason: string | null };
   jobId: string;
 }) {
   if (signal.kind === 'approved') {

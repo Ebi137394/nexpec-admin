@@ -17,7 +17,13 @@ import { Header } from '@/components/admin/Header';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_ROLES = new Set(['client', 'admin', 'super_admin']);
+const ALLOWED_ROLES = new Set([
+  'client',
+  'agency',
+  'enterprise',
+  'admin',
+  'super_admin',
+]);
 
 const OWNER_EMAILS = (process.env.OWNER_EMAILS ?? '')
   .split(',')

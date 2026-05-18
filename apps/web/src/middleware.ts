@@ -38,7 +38,10 @@ const AUTH_ROUTES = ['/sign-in', '/sign-up'];
  */
 const PORTAL_ROLES: Record<string, ReadonlyArray<string>> = {
   [ADMIN_PREFIX]: ['super_admin'],
-  [CLIENT_PREFIX]: ['client', 'admin', 'super_admin'],
+  // Client Portal is shared by three roles. UI is identical — the only
+  // separation that matters is data ownership, already enforced by
+  // client_id = auth.uid() and RLS on jobs.
+  [CLIENT_PREFIX]: ['client', 'agency', 'enterprise', 'admin', 'super_admin'],
   [INSPECTOR_PREFIX]: ['inspector', 'admin', 'super_admin'],
 };
 
@@ -204,7 +207,11 @@ export async function middleware(request: NextRequest) {
         dest = '/admin/dashboard';
       } else if (normalisedRole === 'inspector') {
         dest = '/inspector/dashboard';
-      } else if (normalisedRole === 'client') {
+      } else if (
+        normalisedRole === 'client' ||
+        normalisedRole === 'agency' ||
+        normalisedRole === 'enterprise'
+      ) {
         dest = '/client/dashboard';
       }
     }

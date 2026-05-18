@@ -38,7 +38,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Find work',
     items: [
-      { label: 'Open jobs', href: '/inspector/jobs', icon: Compass, badge: 'soon' },
+      { label: 'Open jobs', href: '/inspector/jobs', icon: Compass },
     ],
   },
   {

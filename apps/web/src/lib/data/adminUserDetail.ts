@@ -37,6 +37,12 @@ export interface AdminUserDetail {
   rejection_reason: string | null;
   terms_accepted: boolean | null;
 
+  // Access state (Sprint 12J — admin moderation)
+  status: string | null;
+  suspension_reason: string | null;
+  suspended_at: string | null;
+  suspended_by: string | null;
+
   // Wallet / Stripe (admin sees both sides)
   balance_cents: number | null;
   stripe_connect_id: string | null;
@@ -99,85 +105,132 @@ export async function fetchAdminUserDetail(
   try {
     const supabase = await createSupabaseServerClient();
 
-    // Admin RLS allows full SELECT. We project a wide column list because
-    // the page renders the union across all roles.
-    const { data, error } = await supabase
+    // Two-phase fetch: a small "definitely exists" core projection first,
+    // then a wide projection. If the wide one fails (a column doesn't
+    // exist on this deployment — e.g., admin-moderation columns added in
+    // a later migration), we still return the row with whatever we got.
+    //
+    // This stops the page from showing "User not found" the moment one
+    // optional column is missing.
+
+    const { data: coreRow, error: coreErr } = await supabase
       .from('profiles')
-      .select(
-        [
-          'id',
-          'email',
-          'full_name',
-          'first_name',
-          'last_name',
-          'role',
-          'avatar_url',
-          'phone',
-          'bio',
-          'headline',
-          'professional_title',
-          'company_name',
-          'location_city',
-          'location_province',
-          'location',
-          'created_at',
-          'updated_at',
-          'last_active',
-          'verification_status',
-          'verified_at',
-          'rejection_reason',
-          'terms_accepted',
-          'balance_cents',
-          'stripe_connect_id',
-          'stripe_connect_status',
-          'stripe_connect_payouts_enabled',
-          'stripe_connect_onboarded_at',
-          'rating_average',
-          'rating_count',
-          'reviews_count',
-          'total_reviews',
-          'recommend_percent',
-          'completed_jobs_count',
-          'total_jobs',
-          'years_of_experience',
-          'hourly_rate_cents',
-          'response_time_hours',
-          'specialty_slugs',
-          'ndt_methods',
-          'certifications',
-          'travel_radius_km',
-          'home_base_label',
-          'country_of_residence',
-          'work_authorized_countries',
-          'open_to_sponsored_work',
-          'sponsored_countries',
-          'currency',
-          'travel_rate_cents',
-          'overtime_multiplier',
-          'weekend_multiplier',
-          'holiday_multiplier',
-          'payment_terms',
-          'minimum_engagement_hours',
-          'resume_url',
-          'cv_url',
-          'company_logo_url',
-          'report_header_text',
-          'report_footer_text',
-          'use_custom_branding',
-          'organization_id',
-        ].join(', '),
-      )
+      .select('id, email, full_name, role, avatar_url, created_at')
       .eq('id', userId)
       .maybeSingle();
 
-    if (error || !data) {
-      if (error && typeof console !== 'undefined') {
-        console.warn('[fetchAdminUserDetail] failed:', error.message);
+    if (coreErr || !coreRow) {
+      if (coreErr && typeof console !== 'undefined') {
+        console.warn('[fetchAdminUserDetail] core failed:', coreErr.message);
       }
       return null;
     }
 
-    const r = data as unknown as Record<string, unknown>;
+    // Wide projection — every column that exists on profiles for the full UI.
+    const WIDE_COLUMNS = [
+      'id',
+      'email',
+      'full_name',
+      'first_name',
+      'last_name',
+      'role',
+      'avatar_url',
+      'phone',
+      'bio',
+      'headline',
+      'professional_title',
+      'company_name',
+      'location_city',
+      'location_province',
+      'location',
+      'created_at',
+      'updated_at',
+      'last_active',
+      'verification_status',
+      'verified_at',
+      'rejection_reason',
+      'terms_accepted',
+      'status',
+      'suspension_reason',
+      'suspended_at',
+      'suspended_by',
+      'balance_cents',
+      'stripe_connect_id',
+      'stripe_connect_status',
+      'stripe_connect_payouts_enabled',
+      'stripe_connect_onboarded_at',
+      'rating_average',
+      'rating_count',
+      'reviews_count',
+      'total_reviews',
+      'recommend_percent',
+      'completed_jobs_count',
+      'total_jobs',
+      'years_of_experience',
+      'hourly_rate_cents',
+      'response_time_hours',
+      'specialty_slugs',
+      'ndt_methods',
+      'certifications',
+      'travel_radius_km',
+      'home_base_label',
+      'country_of_residence',
+      'work_authorized_countries',
+      'open_to_sponsored_work',
+      'sponsored_countries',
+      'currency',
+      'travel_rate_cents',
+      'overtime_multiplier',
+      'weekend_multiplier',
+      'holiday_multiplier',
+      'payment_terms',
+      'minimum_engagement_hours',
+      'resume_url',
+      'cv_url',
+      'company_logo_url',
+      'report_header_text',
+      'report_footer_text',
+      'use_custom_branding',
+      'organization_id',
+    ];
+
+    let wideRow: Record<string, unknown> | null = null;
+    {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(WIDE_COLUMNS.join(', '))
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) {
+        if (typeof console !== 'undefined') {
+          console.warn(
+            '[fetchAdminUserDetail] wide projection failed (likely a missing column on this deployment) — falling back to a narrower set:',
+            error.message,
+          );
+        }
+        // Narrower fallback — drop the columns that arrived in late migrations.
+        const NARROW_COLUMNS = WIDE_COLUMNS.filter(
+          (c) => !['suspension_reason', 'suspended_at', 'suspended_by'].includes(c),
+        );
+        const { data: data2, error: err2 } = await supabase
+          .from('profiles')
+          .select(NARROW_COLUMNS.join(', '))
+          .eq('id', userId)
+          .maybeSingle();
+        if (err2) {
+          if (typeof console !== 'undefined') {
+            console.warn('[fetchAdminUserDetail] narrow projection also failed:', err2.message);
+          }
+        } else {
+          wideRow = data2 as unknown as Record<string, unknown>;
+        }
+      } else {
+        wideRow = data as unknown as Record<string, unknown>;
+      }
+    }
+
+    // Merge core + wide so we always have something to render.
+    const r = { ...(coreRow as Record<string, unknown>), ...(wideRow ?? {}) };
 
     // Count related rows — best-effort, each guarded so a missing table
     // doesn't break the page.
@@ -220,6 +273,10 @@ export async function fetchAdminUserDetail(
       verified_at: (r.verified_at as string | null) ?? null,
       rejection_reason: (r.rejection_reason as string | null) ?? null,
       terms_accepted: (r.terms_accepted as boolean | null) ?? null,
+      status: (r.status as string | null) ?? null,
+      suspension_reason: (r.suspension_reason as string | null) ?? null,
+      suspended_at: (r.suspended_at as string | null) ?? null,
+      suspended_by: (r.suspended_by as string | null) ?? null,
       balance_cents: numOrNull(r.balance_cents),
       stripe_connect_id: (r.stripe_connect_id as string | null) ?? null,
       stripe_connect_status: (r.stripe_connect_status as string | null) ?? null,

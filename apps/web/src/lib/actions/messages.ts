@@ -106,7 +106,11 @@ export async function sendMessage(formData: FormData): Promise<void> {
     attachmentName = safeName;
   }
 
-  const { error } = await supabase.from('messages').insert({
+  // Build the insert payload. Pre-20260518270000 migration the `content`
+  // column was NOT NULL, so an attachment-only message would fail. We
+  // attempt with null first, and on a not-null violation we retry with
+  // empty string for backward compatibility.
+  const insertPayload = {
     conversation_id: conversationId,
     sender_id: user.id,
     content: contentTrim.length > 0 ? contentTrim : null,
@@ -115,7 +119,22 @@ export async function sendMessage(formData: FormData): Promise<void> {
     attachment_name: attachmentName,
     client_op_id: clientOpId ?? null,
     // sender_role is auto-filled by the BEFORE INSERT trigger.
-  });
+  } as const;
+
+  let { error } = await supabase.from('messages').insert(insertPayload);
+
+  if (
+    error &&
+    (error.code === '23502' ||
+      (error.message ?? '').toLowerCase().includes('not-null') ||
+      (error.message ?? '').toLowerCase().includes('not null')) &&
+    insertPayload.content === null
+  ) {
+    const retry = await supabase
+      .from('messages')
+      .insert({ ...insertPayload, content: '' });
+    error = retry.error;
+  }
 
   if (error) {
     if (attachmentPath) {

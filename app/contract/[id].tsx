@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -28,6 +29,7 @@ interface Contract {
   status: 'pending' | 'signed' | 'completed' | 'cancelled';
   terms_text: string | null;
   signed_at: string | null;
+  pdf_file_name?: string | null;
   created_at: string;
   jobs?: {
     title: string;
@@ -117,21 +119,11 @@ export default function ContractScreen() {
   };
 
   const fetchContract = async (uid: string) => {
+    // 🌟 FIX: jobId is actually the Contract ID from the URL! We fetch it directly safely.
     const { data, error } = await supabase
       .from('contracts')
-      .select(`
-        *,
-        jobs (
-          title,
-          company_name,
-          location,
-          start_date,
-          scheduled_date,
-          end_date
-        )
-      `)
-      .eq('job_id', jobId)
-      .eq('inspector_id', uid)
+      .select('*')
+      .eq('id', jobId)
       .single();
 
     if (error && error.code !== 'PGRST116') {
@@ -139,9 +131,32 @@ export default function ContractScreen() {
     }
 
     if (data) {
-      // Use scheduled_date as fallback if start_date is null
-      if (data.jobs && !data.jobs.start_date && data.jobs.scheduled_date) {
-        data.jobs.start_date = data.jobs.scheduled_date;
+      // Safely fetch job and client details manually to prevent DB crash
+      if (data.job_id) {
+        const { data: jobData } = await supabase
+          .from('jobs')
+          .select('title, location, start_date, scheduled_date, end_date, client_id')
+          .eq('id', data.job_id)
+          .single();
+
+        if (jobData) {
+          data.jobs = { ...jobData, company_name: 'Unknown Company' };
+          
+          if (jobData.client_id) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('company_name, full_name')
+              .eq('id', jobData.client_id)
+              .single();
+            if (profile) {
+              data.jobs.company_name = profile.company_name || profile.full_name || 'Unknown Company';
+            }
+          }
+
+          if (!data.jobs.start_date && data.jobs.scheduled_date) {
+            data.jobs.start_date = data.jobs.scheduled_date;
+          }
+        }
       }
       setContract(data);
     }
@@ -292,6 +307,16 @@ export default function ContractScreen() {
           bg: COLORS.pendingBg,
           icon: 'time' as const,
         };
+    }
+  };
+
+  // 🌟 Helper for PDF URLs
+  const openPdfViewer = () => {
+    if (contract?.pdf_file_name) {
+      const { data } = supabase.storage.from('contracts').getPublicUrl(contract.pdf_file_name);
+      Linking.openURL(data.publicUrl);
+    } else {
+      Alert.alert('Error', 'PDF link is missing or broken.');
     }
   };
 
@@ -495,6 +520,33 @@ export default function ContractScreen() {
             </Text>
           </View>
 
+          {/* 🌟 PDF Contract Section Added Exactly Here */}
+          {contract.pdf_file_name && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>CONTRACT PDF</Text>
+                
+                <TouchableOpacity 
+                  style={styles.pdfToggleBtn} 
+                  onPress={openPdfViewer}
+                >
+                  <Ionicons name="document-text-outline" size={20} color="#FFF" />
+                  <Text style={styles.pdfToggleText}>View PDF Contract</Text>
+                  <Ionicons name="chevron-forward" size={20} color="#FFF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={styles.fullScreenBtn} 
+                  onPress={openPdfViewer}
+                >
+                  <Ionicons name="expand" size={20} color="#FFF" />
+                  <Text style={styles.fullScreenText}>Full Screen View</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
           {/* Signature Section */}
           {contract.status === 'signed' && contract.signed_at && (
             <>
@@ -506,7 +558,8 @@ export default function ContractScreen() {
                   <View style={styles.signatureInfo}>
                     <Text style={styles.signedLabel}>Digitally Signed</Text>
                     <Text style={styles.signedDate}>
-                      {formatDateTime(contract.signed_at)}
+                      {/* 🌟 FIX: Checked if signed_at exists to prevent Invalid Date */}
+                      {contract.signed_at ? formatDateTime(contract.signed_at) : 'N/A'}
                     </Text>
                   </View>
                   <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
@@ -786,6 +839,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+
+  // 🌟 استایل‌های مربوط به دکمه‌های PDF که اضافه شد
+  pdfToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#8B5CF6',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  pdfToggleText: {
+    flex: 1,
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  fullScreenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 8,
+  },
+  fullScreenText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 8,
   },
 
   // Footer

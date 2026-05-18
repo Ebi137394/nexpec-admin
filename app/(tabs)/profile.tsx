@@ -31,6 +31,9 @@ import { CheckCircle2 } from 'lucide-react-native';
 // ✅ Import Growth Components
 import BadgeWall from '@/src/components/inspector/gamification/BadgeWall';
 import ReferralProgram from '@/src/components/inspector/growth/ReferralProgram';
+// ✅ Phase 5 — Discovery Preferences (Job Feed proximity engine)
+import RadiusPickerSheet from '@/src/components/inspector/RadiusPickerSheet';
+import HomeBasePickerModal from '@/src/components/inspector/HomeBasePickerModal';
 
 interface Profile {
   id: string;
@@ -47,6 +50,11 @@ interface Profile {
   is_verified: boolean;
   verification_status: 'unverified' | 'pending' | 'verified' | 'rejected';
   created_at: string;
+  // ★ Phase 5 — inspector discovery preferences
+  home_base_lat?: number | null;
+  home_base_lng?: number | null;
+  home_base_label?: string | null;
+  travel_radius_km?: number | null; // NULL = Unlimited
 }
 
 interface Stats {
@@ -76,6 +84,11 @@ export default function ProfileScreen() {
   });
   const [notifications, setNotifications] = useState(true);
 
+  // ★ Phase 5 — Discovery Preferences state (inspector only)
+  const [radiusSheetVisible, setRadiusSheetVisible] = useState(false);
+  const [homeBaseModalVisible, setHomeBaseModalVisible] = useState(false);
+  const [savingPrefs, setSavingPrefs] = useState<'home' | 'radius' | null>(null);
+
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
@@ -84,16 +97,16 @@ export default function ProfileScreen() {
     }, [user?.id])
   );
 
+  // 🚀 THE SURGICAL FIX: NO MORE REDIRECT BOUNCING
   const fetchProfile = async () => {
+    // 1. Guard check using the Context User directly. NO REDIRECTS HERE.
+    if (!user?.id) return;
+
     try {
       setLoading(true);
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      if (!currentUser) {
-        router.replace('/auth');
-        return;
-      }
-
+      // 2. Fetch using user.id directly. 
+      // Removed the unstable supabase.auth.getUser() call that was causing the crash.
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(`
@@ -109,18 +122,32 @@ export default function ProfileScreen() {
           role,
           is_verified,
           verification_status,
-          created_at
+          created_at,
+          home_base_lat,
+          home_base_lng,
+          home_base_label,
+          travel_radius_km
         `)
-        .eq('id', currentUser.id)
+        .eq('id', user.id)
         .maybeSingle();
 
       if (profileError && profileError.code !== 'PGRST116') {
         throw profileError;
       }
 
+      // ★ Normalize 'enterprise' → 'agency' so the JSX role branches
+      //   (sections at lines 489+) render the agency view for enterprise
+      //   SSO users. Track _originalRole separately so user-facing labels
+      //   can still say "Enterprise" instead of "Agency". The DB row
+      //   stays 'enterprise'; only the in-memory profile sees 'agency'.
+      if (profileData && (profileData as any).role === 'enterprise') {
+        (profileData as any)._originalRole = 'enterprise';
+        (profileData as any).role = 'agency';
+      }
+
       setProfile(profileData || {
-        id: currentUser.id,
-        email: currentUser.email || '',
+        id: user.id,
+        email: user.email || '',
         full_name: null,
         avatar_url: null,
         bio: null,
@@ -132,7 +159,7 @@ export default function ProfileScreen() {
         created_at: new Date().toISOString(),
       });
 
-      await fetchStats(currentUser.id);
+      await fetchStats(user.id);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -144,32 +171,45 @@ export default function ProfileScreen() {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('role, created_at, years_of_experience, years_experience, verification_status')
+        .select('role, created_at, years_of_experience, years_experience, verification_status, rating_average, rating_count')
         .eq('id', userId)
         .maybeSingle() as any;
 
-      const userRole = profileData?.role || 'inspector';
+      // ★ Normalize 'enterprise' → 'agency' so the agency stats branch
+      //   below (jobs-posted count, agency rating from reviews) fires
+      //   for enterprise SSO users. Mirrors app/(tabs)/_layout.tsx.
+      const rawRole = profileData?.role || 'inspector';
+      const userRole = rawRole === 'enterprise' ? 'agency' : rawRole;
 
       if (userRole === 'client' || userRole === 'agency') {
-        const { count: jobsCount } = await supabase
+        // ★ Count this user's posted jobs. We split by role rather than
+        //   using .or() because PostgREST silently returns 0 when one of
+        //   the OR'd columns doesn't exist on the table — that's what
+        //   was making the profile show "Jobs Posted: 0" for clients
+        //   even when they had many jobs.
+        const filterColumn = userRole === 'agency' ? 'agency_id' : 'client_id';
+        const { count: jobsCount, error: jobsCountErr } = await supabase
           .from('jobs')
           .select('*', { count: 'exact', head: true })
-          .eq('client_id', userId);
+          .eq(filterColumn, userId);
 
-        // Agency rating from reviews (if available)
+        if (jobsCountErr) {
+          console.warn(
+            `[profile] jobs count error (filterCol=${filterColumn}) →`,
+            jobsCountErr.message
+          );
+        } else {
+          console.log(
+            `[profile] jobs count for ${userRole} → ${jobsCount ?? 0} (filterCol=${filterColumn})`
+          );
+        }
+
+        // ★ Phase 6 — same denormalized read for agencies. The trigger
+        //   keeps profiles.rating_average current; no client-side scan.
         let agencyRating = 0;
         if (userRole === 'agency') {
-          try {
-            const { data: reviewData, error: reviewError } = await supabase
-              .from('reviews')
-              .select('rating')
-              .eq('reviewee_id', userId);
-            if (!reviewError && reviewData && reviewData.length > 0) {
-              const sum = reviewData.reduce((acc: number, r: { rating: number }) => acc + r.rating, 0);
-              agencyRating = parseFloat((sum / reviewData.length).toFixed(1));
-            }
-          } catch {
-            agencyRating = 0;
+          if (profileData?.rating_average != null) {
+            agencyRating = Number(profileData.rating_average) || 0;
           }
         }
 
@@ -205,19 +245,14 @@ export default function ProfileScreen() {
           certCount = count ?? 0;
         }
 
-        // Rating: attempt from reviews table, fallback to 4.8
-        let rating = 4.8;
-        try {
-          const { data: reviewData, error: reviewError } = await supabase
-            .from('reviews')
-            .select('rating')
-            .eq('reviewee_id', userId);
-          if (!reviewError && reviewData && reviewData.length > 0) {
-            const sum = reviewData.reduce((acc: number, r: { rating: number }) => acc + r.rating, 0);
-            rating = parseFloat((sum / reviewData.length).toFixed(1));
-          }
-        } catch {
-          rating = 4.8;
+        // ★ Phase 6 — Reviews & Reputation Engine
+        //   The DB trigger keeps profiles.rating_average + rating_count
+        //   continuously up to date (weighted, visible-only). We read the
+        //   denormalized columns directly — no client-side averaging, no
+        //   1000-row scans, no stale 4.8 fallback.
+        let rating = 0;
+        if (profileData?.rating_average != null) {
+          rating = Number(profileData.rating_average) || 0;
         }
 
         // Years of experience
@@ -248,6 +283,69 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, []);
 
+  // ★ Phase 5 — Discovery Preferences savers ─────────────────────────
+  // Persist Home Base (lat/lng/label) to profiles. Optimistic UI: we
+  // patch local state first so the card updates instantly, then write.
+  const handleSaveHomeBase = useCallback(
+    async (base: { lat: number; lng: number; label: string }) => {
+      if (!user?.id) return;
+      setSavingPrefs('home');
+      // Optimistic local patch
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              home_base_lat: base.lat,
+              home_base_lng: base.lng,
+              home_base_label: base.label,
+            }
+          : prev,
+      );
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            home_base_lat: base.lat,
+            home_base_lng: base.lng,
+            home_base_label: base.label,
+          })
+          .eq('id', user.id);
+        if (error) throw error;
+      } catch (e: any) {
+        console.error('[profile] save home_base failed:', e?.message);
+        Alert.alert('Could not save home base', e?.message ?? 'Please try again.');
+        // Roll back by re-fetching truth from the server
+        await fetchProfile();
+      } finally {
+        setSavingPrefs(null);
+      }
+    },
+    [user?.id],
+  );
+
+  // Persist travel radius. `null` = Unlimited.
+  const handleSaveTravelRadius = useCallback(
+    async (km: number | null) => {
+      if (!user?.id) return;
+      setSavingPrefs('radius');
+      setProfile((prev) => (prev ? { ...prev, travel_radius_km: km } : prev));
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ travel_radius_km: km })
+          .eq('id', user.id);
+        if (error) throw error;
+      } catch (e: any) {
+        console.error('[profile] save travel_radius_km failed:', e?.message);
+        Alert.alert('Could not save travel radius', e?.message ?? 'Please try again.');
+        await fetchProfile();
+      } finally {
+        setSavingPrefs(null);
+      }
+    },
+    [user?.id],
+  );
+
   const handleSignOut = () => {
     Alert.alert(
       t('Sign Out'),
@@ -259,7 +357,10 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await signOut();
-            router.replace('/auth');
+            // ★ Route to the canonical NEXPEC sign-in (cyan accent, SSO/
+            //   Enterprise quick-auth). The legacy /auth route landed on
+            //   an off-theme orange screen — bug since fixed.
+            router.replace('/(auth)/sign-in');
           },
         },
       ]
@@ -361,7 +462,7 @@ export default function ProfileScreen() {
           {/* Name & Email */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
             <Text style={[styles.name, { color: colors.text }]}>
-              {profile?.full_name || (profile?.role === 'client' ? 'Client' : profile?.role === 'agency' ? 'Agency' : 'Inspector')}
+              {profile?.full_name || (profile?.role === 'client' ? 'Client' : (profile as any)?._originalRole === 'enterprise' ? 'Enterprise' : profile?.role === 'agency' ? 'Agency' : 'Inspector')}
             </Text>
             {profile?.verification_status === 'verified' && (
               // NEXPEC Purple Checkmark
@@ -375,7 +476,7 @@ export default function ProfileScreen() {
             <View style={styles.vettedBadge}>
               <Ionicons name="shield-checkmark" size={16} color="#10B981" />
               <Text style={styles.vettedText}>
-                {profile?.role === 'client' ? 'Verified Client' : profile?.role === 'agency' ? 'Verified Agency' : 'Vetted Inspector'}
+                {profile?.role === 'client' ? 'Verified Client' : (profile as any)?._originalRole === 'enterprise' ? 'Verified Enterprise' : profile?.role === 'agency' ? 'Verified Agency' : 'Vetted Inspector'}
               </Text>
             </View>
           )}
@@ -418,7 +519,7 @@ export default function ProfileScreen() {
               {stats.rating > 0 && <Ionicons name="star" size={16} color="#F59E0B" />}
             </View>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              {profile?.role === 'client' ? t('Company Rating') : profile?.role === 'agency' ? t('Agency Rating') : t('Rating')}
+              {profile?.role === 'client' ? t('Company Rating') : (profile as any)?._originalRole === 'enterprise' ? t('Enterprise Rating') : profile?.role === 'agency' ? t('Agency Rating') : t('Rating')}
             </Text>
           </View>
           
@@ -434,7 +535,11 @@ export default function ProfileScreen() {
         </Animated.View>
 
         {/* 🏅 Badge Showcase — Career Gamification (Inspector Only) */}
-        {profile?.role === 'inspector' && (
+        {/* ★ HIDDEN by user request: profile felt too busy. To restore,
+              delete the leading `false &&` on the next line. The import
+              and BadgeWall component are intentionally left in place so
+              re-enabling is a one-character change. */}
+        {false && profile?.role === 'inspector' && (
           <Animated.View
             entering={FadeInDown.delay(225).springify()}
             style={styles.section}
@@ -444,7 +549,9 @@ export default function ProfileScreen() {
         )}
 
         {/* 🤝 Referral Program — Viral Growth (Inspector Only) */}
-        {profile?.role === 'inspector' && (
+        {/* ★ HIDDEN by user request: same reason as the BadgeWall above.
+              Delete the leading `false &&` on the next line to restore. */}
+        {false && profile?.role === 'inspector' && (
           <Animated.View
             entering={FadeInDown.delay(250).springify()}
             style={styles.section}
@@ -509,7 +616,7 @@ export default function ProfileScreen() {
                 {/* Agency Quick Actions */}
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/(tabs)/agency-dashboard' as any)}
+                  onPress={() => router.push('/post-new-job' as any)}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(124, 58, 237, 0.2)' }]}>
                     <Ionicons name="add-circle" size={24} color="#7C3AED" />
@@ -527,7 +634,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/contracts/history' as any)}
+                  onPress={() => router.push('/contracts/' as any)}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
                     <Ionicons name="document-text" size={24} color="#F59E0B" />
@@ -540,7 +647,7 @@ export default function ProfileScreen() {
                 {/* Client Quick Actions */}
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/client/post-job' as any)}
+                  onPress={() => router.push('/post-new-job' as any)}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
                     <Ionicons name="add-circle" size={24} color="#10B981" />
@@ -549,7 +656,9 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/client-dashboard' as any)}
+                  // ★ LANE-A-PHASE-2.1 — Repointed from /client-dashboard
+                  //   (root-level orphan-soon) to canonical /(tabs)/client-dashboard.
+                  onPress={() => router.push('/(tabs)/client-dashboard' as any)}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
                     <Ionicons name="briefcase" size={24} color="#3B82F6" />
@@ -569,17 +678,20 @@ export default function ProfileScreen() {
             ) : (
               <>
                 {/* Inspector Quick Actions */}
-                <Link href="/(inspector)/wallet/cert-wallet" asChild>
-                  <TouchableOpacity
-                    style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                    onPress={() => router.push('/(inspector)/wallet/cert-wallet' as any)}
-                  >
-                    <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                      <Ionicons name="ribbon" size={24} color="#10B981" />
-                    </View>
-                    <Text style={[styles.quickActionLabel, { color: colors.textSecondary }]}>{t('Certifications')}</Text>
-                  </TouchableOpacity>
-                </Link>
+                {/* ★ Card was wrapped in <Link asChild>, which dropped the
+                    style array on the TouchableOpacity → no card border /
+                    background rendered. Switched to plain TouchableOpacity
+                    matching the Contracts / My Jobs cards below. */}
+                <TouchableOpacity
+                  style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
+                  onPress={() => router.push('/(inspector)/wallet/cert-wallet' as any)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                    <Ionicons name="ribbon" size={24} color="#10B981" />
+                  </View>
+                  <Text style={[styles.quickActionLabel, { color: colors.textSecondary }]}>{t('Certifications')}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
                   onPress={() => router.push('/contracts')}
@@ -646,6 +758,123 @@ export default function ProfileScreen() {
           >
             <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
               {renderMenuItem('briefcase-outline', t('Work Experience & CV'), () => router.push('/profile/experience' as any))}
+              {/* ★ COMPLIANCE-MODE — CCI credential entry point.
+                  Routes to the application screen which auto-detects
+                  whether the inspector already has a pending or
+                  approved credential and switches to status-view. */}
+              {renderMenuItem(
+                'shield-checkmark-outline',
+                t('Apply for CCI Credential'),
+                () => router.push('/(inspector)/compliance/cci-application' as any),
+                undefined,
+                '#7C3AED'
+              )}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* ★ Phase 5 — Discovery Preferences (Inspector Only) ───────── */}
+        {/*    Controls how the job feed sorts & filters by proximity.   */}
+        {/*    Home Base + Travel Radius persist to profiles columns.    */}
+        {profile?.role === 'inspector' && (
+          <Animated.View
+            entering={FadeInDown.delay(287).springify()}
+            style={styles.section}
+          >
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+              ]}
+            >
+              {t('Discovery Preferences')}
+            </Text>
+
+            <View style={styles.discoveryCard}>
+              {/* Header */}
+              <View style={styles.discoveryHeaderRow}>
+                <View style={styles.discoveryHeaderIcon}>
+                  <Ionicons name="compass" size={20} color="#7C3AED" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.discoveryHeaderTitle}>
+                    {t('Job Feed Sorting')}
+                  </Text>
+                  <Text style={styles.discoveryHeaderSub}>
+                    {t('Closer jobs surface first. Set unlimited to see them all.')}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.discoveryDivider} />
+
+              {/* Home Base row */}
+              <TouchableOpacity
+                style={styles.discoveryRow}
+                onPress={() => setHomeBaseModalVisible(true)}
+                activeOpacity={0.75}
+                disabled={savingPrefs === 'home'}
+              >
+                <View style={[styles.discoveryRowIcon, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
+                  <Ionicons name="location" size={16} color="#3B82F6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.discoveryRowLabel}>{t('Home Base')}</Text>
+                  <Text
+                    style={[
+                      styles.discoveryRowValue,
+                      !profile?.home_base_label && styles.discoveryRowValueMuted,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {savingPrefs === 'home'
+                      ? t('Saving…')
+                      : profile?.home_base_label
+                      ? profile.home_base_label
+                      : t('Not set — tap to pick')}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#64748B" />
+              </TouchableOpacity>
+
+              <View style={styles.discoveryInnerDivider} />
+
+              {/* Travel Radius row */}
+              <TouchableOpacity
+                style={styles.discoveryRow}
+                onPress={() => setRadiusSheetVisible(true)}
+                activeOpacity={0.75}
+                disabled={savingPrefs === 'radius'}
+              >
+                <View style={[styles.discoveryRowIcon, { backgroundColor: 'rgba(124, 58, 237, 0.15)' }]}>
+                  <Ionicons name="resize" size={16} color="#7C3AED" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.discoveryRowLabel}>{t('Travel Radius')}</Text>
+                  <Text style={styles.discoveryRowValue} numberOfLines={1}>
+                    {savingPrefs === 'radius'
+                      ? t('Saving…')
+                      : profile?.travel_radius_km == null
+                      ? t('Unlimited — anywhere')
+                      : `${profile.travel_radius_km} km ${
+                          profile?.home_base_label
+                            ? `${t('from')} ${profile.home_base_label}`
+                            : ''
+                        }`}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#64748B" />
+              </TouchableOpacity>
+
+              {/* Status footer */}
+              {!profile?.home_base_lat && (
+                <View style={styles.discoveryFooter}>
+                  <Ionicons name="information-circle" size={13} color="#F59E0B" />
+                  <Text style={styles.discoveryFooterText}>
+                    {t('Set your home base to enable distance-based sorting.')}
+                  </Text>
+                </View>
+              )}
             </View>
           </Animated.View>
         )}
@@ -660,7 +889,7 @@ export default function ProfileScreen() {
             {renderMenuItem('person-outline', t('Personal Info'), () => router.push('/profile/edit' as any))}
             {renderMenuItem('lock-closed-outline', t('Security'), () => router.push('/profile/security' as any))}
             {renderMenuItem('card-outline', t('Payment Methods'), () => router.push('/profile/payments' as any))}
-            {renderMenuItem('document-text-outline', t('My Contracts'), () => router.push('/contracts/history' as any))}
+            {renderMenuItem('document-text-outline', t('My Contracts'), () => router.push('/contracts/' as any))}
             {renderMenuItem('notifications-outline', t('Notifications'), () => router.push('/notification-settings'))}
           </View>
         </Animated.View>
@@ -680,9 +909,15 @@ export default function ProfileScreen() {
               />
             ))}
             {renderMenuItem('language-outline', t('Language'), () => router.push('/profile/language' as any))}
-            {renderMenuItem('help-circle-outline', t('Help & Support'), () => router.push('/profile/help' as any))}
+            {renderMenuItem('help-circle-outline', t('Help & Support'), () => router.push('/support-chat' as any))}
+            {/* ★ LEGAL-WIRING-001 — Terms & Privacy renders the Tier-1 platform
+                pack (TOS-001 + PRIV-001) via the new registry-backed viewer. */}
             {renderMenuItem('document-outline', t('Terms & Privacy'), () => router.push('/profile/terms' as any))}
-            {renderMenuItem('shield-checkmark-outline', t('Legal & Compliance'), () => router.push('/(inspector)/legal' as any))}
+            {/* ★ LEGAL-WIRING-001 — Pre-strike this routed to /(inspector)/legal,
+                which did not exist on disk and was role-locked to the inspector
+                group. Repointed to /profile/legal which resolves the AUP + the
+                user's Tier-2 role agreement + the Country Addendum Framework. */}
+            {renderMenuItem('shield-checkmark-outline', t('Legal & Compliance'), () => router.push('/profile/legal' as any))}
           </View>
         </Animated.View>
 
@@ -706,6 +941,25 @@ export default function ProfileScreen() {
           <Text style={styles.versionSubtext}>{t('Focus on Excellence')}</Text>
         </Animated.View>
       </ScrollView>
+
+      {/* ★ Phase 5 — Discovery picker modals (inspector only) ──────── */}
+      {profile?.role === 'inspector' && (
+        <>
+          <RadiusPickerSheet
+            visible={radiusSheetVisible}
+            currentRadiusKm={profile?.travel_radius_km ?? null}
+            homeBaseLabel={profile?.home_base_label ?? null}
+            onSelect={handleSaveTravelRadius}
+            onClose={() => setRadiusSheetVisible(false)}
+          />
+          <HomeBasePickerModal
+            visible={homeBaseModalVisible}
+            currentLabel={profile?.home_base_label ?? null}
+            onSelect={handleSaveHomeBase}
+            onClose={() => setHomeBaseModalVisible(false)}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -1121,5 +1375,92 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
+  },
+  // ★ Phase 5 — Discovery Preferences card ───────────────────────────
+  discoveryCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: 16,
+  },
+  discoveryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  discoveryHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discoveryHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  discoveryHeaderSub: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  discoveryDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    marginVertical: 14,
+  },
+  discoveryInnerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    marginVertical: 4,
+  },
+  discoveryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+  },
+  discoveryRowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discoveryRowLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    letterSpacing: 0.2,
+  },
+  discoveryRowValue: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 3,
+  },
+  discoveryRowValueMuted: {
+    color: '#64748B',
+    fontStyle: 'italic',
+  },
+  discoveryFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 10,
+    paddingHorizontal: 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  discoveryFooterText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#94A3B8',
+    lineHeight: 15,
   },
 });

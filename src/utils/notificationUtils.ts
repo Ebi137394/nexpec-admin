@@ -62,7 +62,8 @@ export async function sendEmailWithSettingsCheck(
     try {
       // Your email sending logic here
       // await sendEmail({ ...emailData });
-      console.log(`Sending ${notificationType} email to user ${userId}`);
+      // ★ CONSOLE-NOISE-001(A): PII-stripped (was: userId).
+      console.log(`Sending ${notificationType} email`);
     } catch (error) {
       console.error('Error sending email:', error);
     }

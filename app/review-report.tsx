@@ -76,8 +76,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // HELPERS
 // ============================================================================
 
-const formatCurrency = (amount: number) => 
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+// ★ Task 4: input is integer CENTS — divide by 100 before format.
+const formatCurrency = (cents: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents ?? 0) / 100);
 
 const formatDate = (date: string) => 
   new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -96,6 +97,7 @@ const Header = ({ onBack, title }: { onBack: () => void; title: string }) => (
   </View>
 );
 
+// ★ Task 4: `price` is integer CENTS now. Math is identical (10% of cents = 10% of cents).
 const PaymentCard = ({ price }: { price: number }) => {
   const fee = price * 0.10;
   const netAmount = price - fee;
@@ -242,7 +244,8 @@ export default function ReviewReportScreen() {
         revision_count: data.revision_count || 0,
         submitted_at: data.submitted_at,
         job_title: job?.title || 'Unknown Job',
-        job_price: job?.price || job?.budget || 0, // ✅ FIX: Use budget if price doesn't exist
+        // ★ Task 4: read renamed cents columns; price/budget no longer exist.
+        job_price: (job as any)?.price_cents || (job as any)?.budget_cents || 0,
         job_status: job?.status || 'unknown',
         escrow_status: job?.escrow_status || 'unknown',
         client_id: job?.client_id || '',
@@ -290,7 +293,10 @@ export default function ReviewReportScreen() {
       showAlert(
         'Success',
         'Payment released and job completed!',
-        () => router.replace('/client/jobs')
+        // ★ LANE-A-PHASE-2.6 — Repointed /client/jobs (literal) to canonical
+        //   /(tabs)/client-dashboard which lands the client on their job list.
+        //   (No exact /(client)/jobs index existed; dashboard is the right home.)
+        () => router.replace('/(tabs)/client-dashboard')
       );
     } catch (err: any) {
       console.error('Approve error:', err);

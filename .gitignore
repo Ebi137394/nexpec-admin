@@ -16,3 +16,4 @@ supabase/.temp/
 # Android/IOS Build
 android/
 ios/
+.vercel

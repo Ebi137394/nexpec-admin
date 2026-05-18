@@ -1,32 +1,25 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
-import { TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
+// ★ The real payment-method management UI lives in the Finance tab
+//   (app/(tabs)/finance.tsx) — full Stripe integration, payment-method
+//   cards, wallet balance, transactions, the works. This Profile shortcut
+//   used to render an empty placeholder; now it just redirects to the
+//   canonical screen so the user lands on the working flow.
 export default function PaymentsScreen() {
   const router = useRouter();
 
+  useEffect(() => {
+    // replace() so the placeholder doesn't sit on the back stack
+    const t = setTimeout(() => router.replace('/(tabs)/finance' as any), 0);
+    return () => clearTimeout(t);
+  }, [router]);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payment Methods</Text>
-        <View style={{ width: 40 }} />
-      </View>
-      
-      <View style={styles.content}>
-        <Text style={styles.placeholderText}>Payment Methods</Text>
-        <Text style={styles.placeholderSubtext}>
-          This screen will contain payment methods and billing information.
-        </Text>
-      </View>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#7C3AED" />
+    </View>
   );
 }
 
@@ -34,38 +27,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#020420',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  content: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  placeholderText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 12,
-  },
-  placeholderSubtext: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
   },
 });

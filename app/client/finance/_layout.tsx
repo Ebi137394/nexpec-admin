@@ -1,50 +1,17 @@
-// app/client/finance/_layout.tsx
-import { Stack } from "expo-router";
+// ════════════════════════════════════════════════════════════════════════════
+//  app/client/finance/_layout.tsx — LANE-A-PHASE-2.6 route-consolidation stub
+//
+//  Pre-strike: literal /client/ path duplicating logic now consolidated to
+//  the canonical /(client)/ route group. All inbound `router.push` and
+//  `<Redirect>` references swept to the canonical path.
+//
+//  Post-strike: forward-only redirect. Out-of-band deep links to the old
+//  literal path land on the canonical (client) route group.
+// ════════════════════════════════════════════════════════════════════════════
 
-export default function FinanceLayout() {
-  return (
-    <Stack
-      screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#020617',
-        },
-        headerTintColor: '#F1F5F9',
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 18,
-        },
-        contentStyle: { backgroundColor: '#020617' },
-      }}
-    >
-      <Stack.Screen 
-        name="index" 
-        options={{ 
-          title: 'Financial Hub',
-          headerTitleAlign: 'center'
-        }} 
-      />
-      <Stack.Screen 
-        name="budget" 
-        options={{ 
-          title: 'Budget Overview',
-          headerTitleAlign: 'center'
-        }} 
-      />
-      <Stack.Screen 
-        name="invoices" 
-        options={{ 
-          title: 'Invoice Approver',
-          headerTitleAlign: 'center'
-        }} 
-      />
-      <Stack.Screen 
-        name="compliance" 
-        options={{ 
-          title: 'Compliance Vault',
-          headerTitleAlign: 'center'
-        }} 
-      />
-    </Stack>
-  );
+import React from 'react';
+import { Redirect } from 'expo-router';
+
+export default function LiteralClientFinanceLayoutStub() {
+  return <Redirect href="/(client)/finance" />;
 }

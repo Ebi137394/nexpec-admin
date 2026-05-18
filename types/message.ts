@@ -43,6 +43,7 @@ export interface MessageWithSender extends Message {
  */
 export interface SendMessagePayload {
   job_id: string;
+  room_id?: string | null;
   sender_id: string;
   content: string;
   attachment_url?: string | null;

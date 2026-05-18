@@ -1,0 +1,36 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "//": "Phase 6 / Step 1 — Turborepo pipeline. Coordinates build / dev / typecheck across the workspace so a change in shared-core only re-runs what depends on it.",
+  "globalDependencies": [
+    "tsconfig.base.json",
+    ".env"
+  ],
+  "globalEnv": [
+    "NODE_ENV",
+    "EXPO_PUBLIC_SUPABASE_URL",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+    "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "VERCEL_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint": {
+      "outputs": []
+    }
+  }
+}

@@ -12,6 +12,12 @@ import {
   Maximize2, ChevronDown
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/src/contexts/AuthContext';
+// ★ AGENCY-PARITY-006 — Approve & Request-revision now hit the
+//   approve_inspection_report RPC (atomic, ownership-checked against
+//   BOTH jobs.client_id and jobs.agency_id). Gating mirrors the parent
+//   /jobs/[id] screen via canManageJob so agencies see the same buttons
+//   under identical UX, and non-owners see nothing.
 
 // TYPES
 interface Expense {
@@ -21,8 +27,12 @@ interface ReportDetails {
   report_id: string; job_id: string; contractor_id: string; summary: string;
   report_file_url: string | null; photos_urls: string[]; report_status: string;
   revision_notes: string | null; revision_count: number; submitted_at: string;
-  job_title: string; job_price: number; job_location: string; escrow_status: string;
-  contractor_payout_amount: number; // Professionally managed disbursement
+  job_title: string; job_price_cents: number; job_location: string; escrow_status: string;  // ★ Task 4
+  contractor_payout_amount_cents: number;  // ★ Task 4
+  // ★ AGENCY-PARITY-006 — buyer-ownership fields fetched alongside job
+  //   metadata so canManageJob can be computed locally.
+  job_client_id: string | null;
+  job_agency_id: string | null;
   inspector_first_name: string; inspector_last_name: string; inspector_avatar: string | null;
   inspector_rating: number; inspector_reviews: number;
 }
@@ -32,7 +42,9 @@ const PLATFORM_FEE_RATE = 0.10; // 10%
 const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 16) / 3;
 
 // HELPER: Format Currency
-const formatCurrency = (amount: number) => {
+// ★ Task 4: input is integer CENTS — divide by 100 before format.
+const formatCurrency = (cents: number) => {
+  const amount = (cents ?? 0) / 100;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 };
 
@@ -40,6 +52,8 @@ export default function ReviewReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); // Job ID
   const router = useRouter();
   const scrollY = useRef(new Animated.Value(0)).current;
+  // ★ AGENCY-PARITY-006 — role + user for canManageJob gate
+  const { role, user } = useAuth();
 
   const [report, setReport] = useState<ReportDetails | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -47,6 +61,22 @@ export default function ReviewReportScreen() {
   const [approving, setApproving] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // ★ AGENCY-PARITY-006 — Request Changes modal state
+  const [showRevisionModal, setShowRevisionModal] = useState(false);
+  const [revisionNotes, setRevisionNotes] = useState('');
+  const [revisionSubmitting, setRevisionSubmitting] = useState(false);
+  const [successKind, setSuccessKind] = useState<'approved' | 'revision'>('approved');
+
+  // ★ AGENCY-PARITY-006 — same gate as the parent /jobs/[id] screen.
+  //   Buyer (client or agency) sees the action buttons; everyone else sees
+  //   the page in read-only mode (existing UI minus the footer).
+  const canManageJob =
+    !!user?.id &&
+    !!report &&
+    (
+      (role === 'client' && user.id === report.job_client_id) ||
+      (role === 'agency' && user.id === report.job_agency_id)
+    );
 
   useEffect(() => { if (id) fetchData(); }, [id]);
 
@@ -57,12 +87,14 @@ export default function ReviewReportScreen() {
       if (!user) throw new Error('No user');
 
       // 1. Fetch Report & Job Info
+      // ★ AGENCY-PARITY-006 — pulled client_id + agency_id so the screen
+      //   can compute canManageJob without an extra round trip.
       const { data: rData, error: rError } = await supabase
         .from('inspection_reports')
         .select(`
           id, job_id, contractor_id, summary, notes, file_url, photos_urls, status,
           revision_notes, revision_count, submitted_at,
-          jobs (title, price, location, escrow_status, contractor_payout_amount),
+          jobs (title, price_cents, location, escrow_status, contractor_payout_amount_cents, client_id, agency_id),
           inspector:profiles (first_name, last_name, avatar_url, rating_average, rating_count)
         `)
         .eq('job_id', id)
@@ -96,10 +128,14 @@ export default function ReviewReportScreen() {
         revision_count: rData.revision_count,
         submitted_at: rData.submitted_at,
         job_title: job?.title || 'Job',
-        job_price: job?.price || 0,
+        // ★ Task 4: integer cents end-to-end.
+        job_price_cents: job?.price_cents || 0,
         job_location: job?.location || '',
         escrow_status: job?.escrow_status || 'funded',
-        contractor_payout_amount: job?.contractor_payout_amount || 0,
+        contractor_payout_amount_cents: job?.contractor_payout_amount_cents || 0,
+        // ★ AGENCY-PARITY-006 — ownership pass-through for the gate.
+        job_client_id: job?.client_id ?? null,
+        job_agency_id: job?.agency_id ?? null,
         inspector_first_name: inspector?.first_name || '',
         inspector_last_name: inspector?.last_name || '',
         inspector_avatar: inspector?.avatar_url,
@@ -115,23 +151,84 @@ export default function ReviewReportScreen() {
     }
   };
 
+  // ★ AGENCY-PARITY-006 — Approval now goes through the
+  //   approve_inspection_report RPC, which is atomic (report status +
+  //   audit-event INSERT roll back together on error) and authorizes
+  //   the caller against BOTH jobs.client_id and jobs.agency_id. The
+  //   prior implementation did 3 raw UPDATEs with no atomicity and no
+  //   server-side authorization (only RLS, which we've since hardened).
+  //   Expenses-approval is intentionally NOT in the RPC's scope — that
+  //   stays a client-side write until/unless it gets pulled into the
+  //   atomic transaction in a follow-up migration.
   const handleApprove = async () => {
     if (!report) return;
+    if (!canManageJob) {
+      Alert.alert('Not allowed', 'Only the job owner can approve this report.');
+      return;
+    }
     setApproving(true);
     try {
-      // 1. Approve Report
-      await supabase.from('inspection_reports').update({ status: 'approved', approved_at: new Date() }).eq('id', report.report_id);
-      // 2. Complete Job
-      await supabase.from('jobs').update({ status: 'completed', completed_at: new Date() }).eq('id', id);
-      // 3. Approve Expenses
-      await supabase.from('job_expenses').update({ status: 'approved' }).eq('job_id', id);
-
+      const { data, error } = await supabase.rpc('approve_inspection_report', {
+        p_job_id: id,
+        p_approved: true,
+        p_comment: null,
+      });
+      if (error) throw error;
+      if (!(data as any)?.ok) {
+        throw new Error('RPC returned ok=false');
+      }
+      // Expenses bookkeeping — non-atomic side effect, kept out of the RPC.
+      try {
+        await supabase.from('job_expenses').update({ status: 'approved' }).eq('job_id', id);
+      } catch (expErr) {
+        console.warn('[review-report] expenses update failed (non-fatal):', expErr);
+      }
       setShowConfirmModal(false);
+      setSuccessKind('approved');
       setShowSuccessModal(true);
-    } catch (e) {
-      Alert.alert('Error', 'Failed to process approval.');
+    } catch (e: any) {
+      console.error('[review-report] approve failed:', e);
+      Alert.alert('Error', e?.message ?? 'Failed to process approval.');
     } finally {
       setApproving(false);
+    }
+  };
+
+  // ★ AGENCY-PARITY-006 — Request Changes: same RPC, p_approved=false.
+  //   The inspection_reports row's status flips to 'revision_requested'
+  //   and a job_events row is emitted so the inspector gets pinged via
+  //   the existing notify-job-event dispatcher.
+  const handleRequestRevision = async () => {
+    if (!report) return;
+    if (!canManageJob) {
+      Alert.alert('Not allowed', 'Only the job owner can request changes on this report.');
+      return;
+    }
+    const trimmed = revisionNotes.trim();
+    if (trimmed.length < 8) {
+      Alert.alert('Add detail', 'Please describe what needs to change (at least a sentence).');
+      return;
+    }
+    setRevisionSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('approve_inspection_report', {
+        p_job_id: id,
+        p_approved: false,
+        p_comment: trimmed,
+      });
+      if (error) throw error;
+      if (!(data as any)?.ok) {
+        throw new Error('RPC returned ok=false');
+      }
+      setShowRevisionModal(false);
+      setRevisionNotes('');
+      setSuccessKind('revision');
+      setShowSuccessModal(true);
+    } catch (e: any) {
+      console.error('[review-report] revision request failed:', e);
+      Alert.alert('Error', e?.message ?? 'Failed to send revision request.');
+    } finally {
+      setRevisionSubmitting(false);
     }
   };
 
@@ -141,8 +238,9 @@ export default function ReviewReportScreen() {
     if (!report) return null;
     const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
     // Logic: Total Payout is the manually set amount plus claimed expenses
-    const inspectorPayout = report.contractor_payout_amount + expenseTotal;
-    const serviceCommission = report.job_price - report.contractor_payout_amount;
+    // ★ Task 4: integer cents math is identical to dollar math, just different unit.
+    const inspectorPayout = report.contractor_payout_amount_cents + expenseTotal;
+    const serviceCommission = report.job_price_cents_cents - report.contractor_payout_amount_cents;
 
     return (
       <View style={styles.paymentCard}>
@@ -154,13 +252,13 @@ export default function ReviewReportScreen() {
             </View>
             <View style={styles.secureBadge}><Text style={styles.secureText}>MANAGED</Text></View>
           </View>
-          <Text style={styles.totalAmount}>{formatCurrency(report.job_price + expenseTotal)}</Text>
+          <Text style={styles.totalAmount}>{formatCurrency(report.job_price_cents + expenseTotal)}</Text>
           <Text style={styles.totalLabel}>Total value released</Text>
           <View style={styles.divider} />
 
           <View style={styles.rowBetween}>
             <Text style={styles.lineLabel}>Project Value</Text>
-            <Text style={styles.lineValue}>{formatCurrency(report.job_price)}</Text>
+            <Text style={styles.lineValue}>{formatCurrency(report.job_price_cents)}</Text>
           </View>
           {expenseTotal > 0 && (
             <View style={styles.rowBetween}>
@@ -275,14 +373,32 @@ export default function ReviewReportScreen() {
                 <Image key={i} source={{ uri: url }} style={styles.photo} />
               ))}
             </View>
-          </View>
-        )}
+         </View>
+       )}
 
-      </ScrollView>
+       {/* EXTERNAL CHAT BUTTON */}
+       <TouchableOpacity 
+         style={{ backgroundColor: '#F1F5F9', padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: '#7C3AED', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+         onPress={() => router.push(`/chat/${id}?chatType=admin_support`)} 
+       >
+         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+           <FileText size={24} color="#7C3AED" style={{ marginRight: 12 }} />
+           <View>
+             <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: 'bold' }}>Chat with Admin</Text>
+             <Text style={{ color: '#64748B', fontSize: 12 }}>External support conversation</Text>
+           </View>
+         </View>
+         <ChevronRight size={20} color="#7C3AED" />
+       </TouchableOpacity>
 
-      {/* Footer Actions */}
+     </ScrollView>
+
+     {/* Footer Actions — gated to buyer (client or agency). Non-owners
+         (inspector, admin, anonymous deep-linkers) see the report in
+         read-only mode without the action buttons. */}
+      {canManageJob && (
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.revisionBtn} onPress={() => Alert.alert('Coming Soon', 'Request Revision feature coming soon')}>
+        <TouchableOpacity style={styles.revisionBtn} onPress={() => { setRevisionNotes(''); setShowRevisionModal(true); }}>
           <RefreshCw size={20} color="#F59E0B" />
           <Text style={styles.revisionText}>Request Changes</Text>
         </TouchableOpacity>
@@ -292,6 +408,7 @@ export default function ReviewReportScreen() {
           <Text style={styles.approveText}>Approve & Pay</Text>
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Confirmation Modal */}
       <Modal visible={showConfirmModal} transparent animationType="fade">
@@ -310,13 +427,26 @@ export default function ReviewReportScreen() {
         </View>
       </Modal>
 
-      {/* Success Modal */}
+      {/* Success Modal — branches on whether the last action was approve
+          or revision-request. Existing modal recipe (modalBg/modalCard/
+          modalTitle/modalSub/successBtn) is reused verbatim — only the
+          copy + icon differ. */}
       <Modal visible={showSuccessModal} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
-            <PartyPopper size={48} color="#22C55E" />
-            <Text style={styles.modalTitle}>Job Completed!</Text>
-            <Text style={styles.modalSub}>Payment has been released.</Text>
+            {successKind === 'approved' ? (
+              <>
+                <PartyPopper size={48} color="#22C55E" />
+                <Text style={styles.modalTitle}>Report Approved!</Text>
+                <Text style={styles.modalSub}>Payment release is queued. The job will be marked complete once Stripe captures the held funds.</Text>
+              </>
+            ) : (
+              <>
+                <RefreshCw size={48} color="#F59E0B" />
+                <Text style={styles.modalTitle}>Revision Requested</Text>
+                <Text style={styles.modalSub}>The inspector has been notified and can resubmit. You'll see the updated report here when they do.</Text>
+              </>
+            )}
             <TouchableOpacity style={styles.successBtn} onPress={() => router.replace('/(client)/jobs')}>
               <Text style={styles.successText}>Back to Dashboard</Text>
             </TouchableOpacity>
@@ -324,7 +454,56 @@ export default function ReviewReportScreen() {
         </View>
       </Modal>
 
+      {/* Revision Modal — reuses the same modal recipe so it visually
+          matches the Approve & Pay confirmation modal. The only new
+          control is a multi-line text input for the revision notes. */}
+      <Modal visible={showRevisionModal} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <View style={[styles.modalIcon, { backgroundColor: '#F59E0B' }]}>
+              <RefreshCw size={32} color="#FFF" />
+            </View>
+            <Text style={styles.modalTitle}>Request Changes</Text>
+            <Text style={styles.modalSub}>Describe what needs to change. The inspector will receive your note and can resubmit.</Text>
+            <View style={{ width: '100%', marginBottom: 16 }}>
+              <View style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 10, minHeight: 96 }}>
+                <RevisionNotesInput value={revisionNotes} onChangeText={setRevisionNotes} />
+              </View>
+            </View>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => { setShowRevisionModal(false); setRevisionNotes(''); }}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirm, { backgroundColor: '#F59E0B' }]}
+                onPress={handleRequestRevision}
+                disabled={revisionSubmitting}
+              >
+                {revisionSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Send Request</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
+  );
+}
+
+// ★ AGENCY-PARITY-006 — tiny adapter so we can drop a TextInput inside
+//   the existing modal recipe without restructuring the JSX or adding a
+//   new style. Keeps the modal looking identical to the Approve modal.
+import { TextInput as RNTextInput } from 'react-native';
+function RevisionNotesInput({ value, onChangeText }: { value: string; onChangeText: (v: string) => void }) {
+  return (
+    <RNTextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder="e.g. The exterior photo doesn't clearly show the company signage. Please retake with the sign in frame."
+      placeholderTextColor="#94A3B8"
+      multiline
+      style={{ flex: 1, padding: 0, margin: 0, color: '#0F172A', fontSize: 14, lineHeight: 20, textAlignVertical: 'top', minHeight: 76 }}
+    />
   );
 }
 

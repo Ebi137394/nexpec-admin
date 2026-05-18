@@ -48,7 +48,8 @@ import Animated, {
   SlideInDown,
 } from 'react-native-reanimated';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../providers/AuthProvider';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { navigateToLocation } from '@/src/utils/navigationHelper';
 
 // ── Dimensions ──────────────────────────────────────────────
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -688,6 +689,13 @@ export default function InteractiveMapScreen() {
 
       const { data, error } = await query;
 
+      // 🪤 TRAP: Let's see exactly what fields are available for a job!
+      if (data && data.length > 0) {
+        console.log('\n=== 🕵️‍♂️ NEXPEC DB TRAP: JOB DATA ===');
+        console.log(JSON.stringify(data[0], null, 2));
+        console.log('=====================================\n');
+      }
+
       if (error) {
         console.error('[Map] Jobs fetch error:', error.message);
         Alert.alert('Error', 'Failed to load jobs. Pull to refresh.');
@@ -800,74 +808,26 @@ export default function InteractiveMapScreen() {
     []
   );
 
-  // ── Accept Job (Inspector) ────────────────────────────────
-  const handleAcceptJob = useCallback(async () => {
-    if (!selectedJob || !user?.id) return;
-
+  // ── View Job Details (Inspector) ────────────────────────────────
+  const handleViewDetails = useCallback(() => {
+    if (!selectedJob) return;
+    
     Alert.alert(
-      'Accept This Job?',
-      `You are about to accept "${selectedJob.title}". This will assign the job to you.`,
+      'View Job Details',
+      `Navigate to job details for "${selectedJob.title}".\n\nRoute: /jobs/${selectedJob.id}/apply`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Accept',
+          text: 'View Details',
           style: 'default',
-          onPress: async () => {
-            setAcceptingJob(true);
-            try {
-              const { error } = await supabase
-                .from('jobs')
-                .update({
-                  status: 'assigned',
-                  contractor_id: user.id,
-                })
-                .eq('id', selectedJob.id)
-                .eq('status', 'open'); // Optimistic concurrency — only update if still open
-
-              if (error) {
-                if (error.message.includes('0 rows')) {
-                  Alert.alert(
-                    'Job Unavailable',
-                    'This job has already been taken by another inspector.'
-                  );
-                } else {
-                  throw error;
-                }
-                return;
-              }
-
-              Alert.alert(
-                '🎉 Job Accepted!',
-                `"${selectedJob.title}" has been assigned to you.`,
-                [
-                  {
-                    text: 'Go to My Jobs',
-                    onPress: () => {
-                      bottomSheetRef.current?.close();
-                      router.push('/(tabs)/my-jobs');
-                    },
-                  },
-                ]
-              );
-
-              // Remove the accepted job from the map
-              setJobs((prev) => prev.filter((j) => j.id !== selectedJob.id));
-              setSelectedJob(null);
-              bottomSheetRef.current?.close();
-            } catch (err: any) {
-              console.error('[Map] Accept job error:', err);
-              Alert.alert(
-                'Error',
-                err?.message || 'Failed to accept job. Please try again.'
-              );
-            } finally {
-              setAcceptingJob(false);
-            }
+          onPress: () => {
+            bottomSheetRef.current?.close();
+            router.push(`/jobs/${selectedJob.id}/apply`);
           },
         },
       ]
     );
-  }, [selectedJob, user?.id, router]);
+  }, [selectedJob, router]);
 
   // ── Edit Job (Client / Agency) ────────────────────────────
   const handleEditJob = useCallback(() => {
@@ -1147,34 +1107,46 @@ export default function InteractiveMapScreen() {
 
                 {/* ── Action Buttons ───────────────────── */}
                 <View style={sheetStyles.actionRow}>
-                  {role === 'inspector' ? (
-                    // ── Inspector: Accept Job Button ─────
-                    <TouchableOpacity
-                      style={[
-                        sheetStyles.primaryButton,
-                        selectedJob.status !== 'open' &&
-                          sheetStyles.disabledButton,
-                      ]}
-                      onPress={handleAcceptJob}
-                      disabled={
-                        acceptingJob || selectedJob.status !== 'open'
+                  {/* Navigation Button */}
+                  <TouchableOpacity
+                    style={sheetStyles.secondaryButton}
+                    onPress={() => {
+                      if (selectedJob) {
+                        navigateToLocation({
+                          latitude: selectedJob.latitude,
+                          longitude: selectedJob.longitude,
+                          title: selectedJob.title,
+                          address: selectedJob.location || undefined,
+                        });
                       }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="navigate"
+                      size={18}
+                      color={COLORS.primary}
+                    />
+                    <Text style={sheetStyles.secondaryButtonText}>
+                      Navigate
+                    </Text>
+                  </TouchableOpacity>
+
+                  {role === 'inspector' ? (
+                    // ── Inspector: View Details Button ─────
+                    <TouchableOpacity
+                      style={sheetStyles.primaryButton}
+                      onPress={handleViewDetails}
                       activeOpacity={0.85}
                     >
-                      {acceptingJob ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color="#FFF"
-                          />
-                          <Text style={sheetStyles.primaryButtonText}>
-                            Accept This Job
-                          </Text>
-                        </>
-                      )}
+                      <Ionicons
+                        name="eye-outline"
+                        size={20}
+                        color="#FFF"
+                      />
+                      <Text style={sheetStyles.primaryButtonText}>
+                        View Details
+                      </Text>
                     </TouchableOpacity>
                   ) : (
                     // ── Client/Agency: Edit & View Buttons ─

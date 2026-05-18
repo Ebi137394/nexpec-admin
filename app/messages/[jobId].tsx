@@ -360,8 +360,11 @@ const ScrollToBottomButton: React.FC<ScrollButtonProps> = ({
 // ============================================
 export default function ChatScreen(): React.JSX.Element {
   const router = useRouter();
-  const { jobId: jobIdParam } = useLocalSearchParams<{ jobId: string }>();
+  const { jobId: jobIdParam, chatType } = useLocalSearchParams<{ jobId: string; chatType?: string }>();
   const jobId = typeof jobIdParam === 'string' ? jobIdParam : jobIdParam[0];
+  // Extract real job UUID from concatenated admin room id format: [jobUUID]-admin-[userUUID]
+  const actualJobId = jobId.includes('-admin-') ? jobId.split('-admin-')[0] : jobId;
+  const chatMode = chatType === 'admin_support' ? 'admin_support' : 'general';
 
   // State
   const [loading, setLoading] = useState<boolean>(true);
@@ -419,17 +422,90 @@ export default function ChatScreen(): React.JSX.Element {
       }
       setCurrentUserId(user.id);
 
-      // Fetch job info
+      // Get user role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      
+      const role = profile?.role;
+
+      // Fetch job info - use extracted actualJobId for database query
       const { data: job, error: jobError } = await supabase
         .from('jobs')
         .select('id, title, status')
-        .eq('id', jobId)
-        .single();
+        .eq('id', actualJobId)
+        .maybeSingle();
 
-      if (jobError) throw jobError;
-      setJobInfo(job as JobInfo);
+      // ONLY kick out regular users if job not found - NEVER kick admins
+      if (jobError || !job) {
+        if (role !== 'super_admin' && role !== 'admin') {
+          router.replace('/(tabs)/dashboard');
+          return;
+        }
+        // For admins, continue even without job (admin support chat)
+        setJobInfo(null);
+      } else {
+        setJobInfo(job as JobInfo);
+      }
 
-      // Fetch participants
+      // Admin Support Logic
+      if (chatMode === 'admin_support') {
+        const isAdmin = role === 'super_admin' || role === 'admin';
+
+        if (isAdmin) {
+            // ADMIN SIDE: Fetch the exact room, then extract the user they are talking to
+            const { data: msgs, error: msgsError } = await supabase
+                .from('messages')
+                .select('*, sender:profiles!messages_sender_id_fkey(id, first_name, last_name, avatar_url, role)')
+                .eq('room_id', jobId)
+                .order('created_at', { ascending: true });
+                
+            if (!msgsError && msgs) {
+                setMessages(msgs);
+                // Auto-detect the sender to show in the header
+                const userMsg = msgs.find(m => m.sender_id !== user.id);
+                if (userMsg && userMsg.sender) {
+                    setOtherParticipant(userMsg.sender);
+                }
+            }
+            setLoading(false); 
+            return;
+        } else {
+            // INSPECTOR/CLIENT SIDE: Hardcode the support persona
+            setOtherParticipant({
+                id: 'support',
+                full_name: 'NEXPEC Support',
+                first_name: 'NEXPEC',
+                last_name: 'Support',
+                role: 'admin',
+                avatar_url: null
+            });
+            const { data: msgs, error: msgsError } = await getJobMessages(jobId!, 50, 0, chatMode, user.id);
+            if (!msgsError) setMessages(msgs || []);
+            markMessagesRead(jobId!);
+            subscribeToRealtimeMessages(chatMode, user.id);
+            setLoading(false);
+            return;
+        }
+      }
+
+      const isAdmin = role === 'super_admin' || role === 'admin';
+
+      // Skip participant check entirely for admins
+      if (isAdmin) {
+        // Fetch messages directly without participant validation
+        const { data: msgs, error: msgsError } = await getJobMessages(jobId!, 50, 0, chatMode, user.id);
+        if (msgsError) throw msgsError;
+        setMessages(msgs || []);
+        markMessagesRead(jobId!);
+        subscribeToRealtimeMessages(chatMode, user.id);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch participants (only for regular users)
       const { data: parts, error: partsError } = await getChatParticipants(jobId!);
       if (partsError) throw partsError;
       
@@ -437,16 +513,26 @@ export default function ChatScreen(): React.JSX.Element {
       const other = parts?.find(p => p.id !== user.id);
       setOtherParticipant(other || null);
 
-      // Fetch messages
-      const { data: msgs, error: msgsError } = await getJobMessages(jobId!);
+      // Participant authorization guard
+      const userIsParticipant = parts?.some(p => p.id === user.id);
+
+      // ONLY kick out if they are NOT a participant AND NOT an admin (isAdmin already declared above)
+      if (!userIsParticipant && !isAdmin) {
+        console.log("Ejecting unauthorized user from chat");
+        router.replace('/(tabs)/dashboard');
+        return;
+      }
+
+      // Fetch messages with correct channel isolation
+      const { data: msgs, error: msgsError } = await getJobMessages(jobId!, 50, 0, chatMode, user.id);
       if (msgsError) throw msgsError;
       setMessages(msgs || []);
 
       // Mark messages as read
       markMessagesRead(jobId!);
 
-      // Subscribe to realtime updates
-      subscribeToRealtimeMessages();
+      // Subscribe to realtime updates on correct channel
+      subscribeToRealtimeMessages(chatMode, user.id);
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load chat';
@@ -456,8 +542,8 @@ export default function ChatScreen(): React.JSX.Element {
     }
   };
 
-  const subscribeToRealtimeMessages = (): void => {
-    channelRef.current = subscribeToMessages(jobId!, handleRealtimeEvent);
+  const subscribeToRealtimeMessages = (chatType: string, userId: string): void => {
+    channelRef.current = subscribeToMessages(jobId!, handleRealtimeEvent, chatType, userId);
   };
 
   const handleRealtimeEvent = (event: RealtimeMessageEvent): void => {
@@ -516,13 +602,39 @@ export default function ChatScreen(): React.JSX.Element {
       setInputText('');
       setReplyingTo(null);
 
+      const profileResponse = await supabase.from('profiles').select('role').eq('id', currentUserId).single();
+      const isAdmin = profileResponse.data?.role === 'super_admin' || profileResponse.data?.role === 'admin';
+
+      if (isAdmin && chatMode === 'admin_support') {
+           // Raw insert bypassing lib/messages.ts
+           const { error } = await supabase.from('messages').insert({
+               job_id: actualJobId,
+               room_id: jobId, // The exact room from URL
+               sender_id: currentUserId,
+               content: content,
+               chat_type: 'admin_support'
+           });
+           if (error) throw error;
+           
+           // Fetch the newly sent message locally to update UI
+           fetchMessageSender({
+               id: Math.random().toString(), sender_id: currentUserId, job_id: actualJobId, 
+               room_id: jobId, content: content, chat_type: 'admin_support', created_at: new Date().toISOString()
+           } as any);
+           
+           setTimeout(() => { flatListRef.current?.scrollToEnd({ animated: true }); }, 100);
+           setSending(false);
+           return; // Skip the regular sendMessage function
+      }
+
       const { error } = await sendMessage(
         jobId!,
         content,
         null,
         null,
         null,
-        replyingTo?.id || null
+        replyingTo?.id || null,
+        chatMode
       );
 
       if (error) throw error;
@@ -767,11 +879,23 @@ export default function ChatScreen(): React.JSX.Element {
               </View>
             )}
             <View style={styles.headerText}>
-              <Text style={styles.headerName} numberOfLines={1}>
-                {otherParticipant ? getSenderName(otherParticipant) : 'Chat'}
-              </Text>
+                <Text style={styles.headerName} numberOfLines={1}>
+                  {chatMode === 'admin_support'
+                    ? (otherParticipant?.role === 'admin' || otherParticipant?.role === 'super_admin'
+                      ? 'NEXPEC Support'
+                      : (otherParticipant ? getSenderName(otherParticipant) : 'NEXPEC Support'))
+                    : (otherParticipant
+                      ? (otherParticipant.id === 'support' ? 'NEXPEC Support' : getSenderName(otherParticipant))
+                      : 'NEXPEC Support')}
+                </Text>
               <Text style={styles.headerSubtitle} numberOfLines={1}>
-                {jobInfo?.title || 'Loading...'}
+                {chatMode === 'admin_support'
+                  ? (otherParticipant?.role === 'admin' || otherParticipant?.role === 'super_admin'
+                    ? 'Private Support Chat'
+                    : (otherParticipant?.role
+                      ? `${otherParticipant.role.charAt(0).toUpperCase()}${otherParticipant.role.slice(1)}`
+                      : 'Private Support Chat'))
+                  : (jobInfo?.title || 'Loading...')}
               </Text>
             </View>
           </TouchableOpacity>

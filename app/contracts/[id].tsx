@@ -43,30 +43,64 @@ export default function ContractDetailsScreen() {
     try {
       setLoading(true);
 
-      // 1. Fetch contract linked to job (NO company_name here to avoid crash)
-      const { data: contractData, error } = await supabase
-        .from('contracts')
-        .select(`*, jobs:job_id (id, title, location, client_id)`)
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-
-      // 2. Safe Fetch: Get Client Name from Profiles
-      let clientName = 'Unknown Client';
-      if (contractData?.jobs?.client_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('company_name, full_name')
-          .eq('id', contractData.jobs.client_id)
-          .single();
-
-        if (profile) clientName = profile.company_name || profile.full_name || 'Unknown';
+      // ★ Guard against non-UUID route params (e.g. '/contracts/history').
+      //   expo-router silently routes any unknown segment into [id], so
+      //   without this guard we'd hit Postgres with `id = 'history'` and
+      //   get a 22P02 invalid-uuid error. Bouncing back is friendlier.
+      const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!id || !UUID_RX.test(String(id))) {
+        Alert.alert('Not found', 'No contract matches that link.');
+        router.back();
+        return;
       }
 
-      setContract({ ...contractData, client_name: clientName });
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load contract');
+      // ★ Manual 3-step fetch — replaces the embedded `jobs:job_id (...)`
+      //   select that PostgREST was rejecting with PGRST200 ("Could not
+      //   find a relationship between 'contracts' and 'jobs' in the
+      //   schema cache"). Same pattern we use elsewhere.
+      const { data: contractData, error } = await supabase
+        .from('contracts')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!contractData) {
+        Alert.alert('Not found', 'This contract no longer exists.');
+        router.back();
+        return;
+      }
+
+      // Pull job and client profile in parallel (both optional).
+      const [{ data: jobRow }, clientPromise] = await Promise.all([
+        contractData.job_id
+          ? supabase
+              .from('jobs')
+              .select('id, title, location, client_id')
+              .eq('id', contractData.job_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null } as any),
+        contractData.client_id
+          ? supabase
+              .from('profiles')
+              .select('company_name, full_name')
+              .eq('id', contractData.client_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ]);
+      const profile = (await clientPromise)?.data ?? null;
+
+      const clientName =
+        profile?.company_name || profile?.full_name || 'Unknown Client';
+
+      setContract({
+        ...contractData,
+        jobs: jobRow ?? null,
+        client_name: clientName,
+      });
+    } catch (err: any) {
+      console.error('[contracts/[id]] fetch error →', err);
+      Alert.alert('Error', err?.message ?? 'Failed to load contract');
       router.back();
     } finally {
       setLoading(false);

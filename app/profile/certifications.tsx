@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/src/contexts/AuthContext';
 // ✅ IMPORT LANGUAGE HOOK
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 

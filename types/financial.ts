@@ -34,7 +34,7 @@ export const CURRENCIES: CurrencyConfig[] = [
  * Financial settings from the database
  */
 export interface FinancialSettings {
-  hourly_rate: number | null;
+  hourly_rate_cents: number | null;     // ★ Task 4
   daily_rate: number | null;
   travel_rate: number | null;
   travel_rate_unit: TravelRateUnit;
@@ -77,7 +77,7 @@ export interface FinancialFormData {
  * Payload for updating financial settings
  */
 export interface FinancialUpdatePayload {
-  hourly_rate: number | null;
+  hourly_rate_cents: number | null;     // ★ Task 4
   daily_rate: number | null;
   travel_rate: number | null;
   travel_rate_unit: TravelRateUnit;

@@ -18,7 +18,10 @@ interface ContractorProfile {
   id: string;
   full_name: string | null;
   email: string | null;
-  expo_push_token: string | null;
+  // ★ NOTIF-CONTRACTOR-001 — `expo_push_token` was a phantom column on
+  //   profiles (never migrated). Push tokens now live in their own
+  //   table (public.push_tokens, PUSH-TOKENS-001) and are loaded via
+  //   getContractorPushTokens() below.
   verification_status: VerificationStatus;
 }
 
@@ -269,7 +272,12 @@ async function verifyAdminRole(
 }
 
 /**
- * Fetches contractor profile
+ * Fetches contractor profile.
+ *
+ * ★ NOTIF-CONTRACTOR-001 — `expo_push_token` was dropped from this SELECT.
+ *   That column never existed on profiles; the column-not-found error
+ *   propagated as `null` from this function, causing every push to be
+ *   silently skipped. Use getContractorPushTokens() below for tokens.
  */
 async function getContractorProfile(
   supabaseAdmin: SupabaseClient,
@@ -277,7 +285,7 @@ async function getContractorProfile(
 ): Promise<ContractorProfile | null> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, full_name, email, expo_push_token, verification_status")
+    .select("id, full_name, email, verification_status")
     .eq("id", contractorId)
     .single();
 
@@ -287,6 +295,33 @@ async function getContractorProfile(
   }
 
   return data as ContractorProfile;
+}
+
+/**
+ * Fetches all push tokens registered for a contractor.
+ *
+ * ★ NOTIF-CONTRACTOR-001 — Reads from public.push_tokens (PUSH-TOKENS-001).
+ *   v1 schema is one row per user (PK on user_id) so this returns 0 or 1
+ *   element today; a future multi-device migration (composite PK) is a
+ *   no-op here — the caller already iterates the list.
+ */
+async function getContractorPushTokens(
+  supabaseAdmin: SupabaseClient,
+  contractorId: string
+): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from("push_tokens")
+    .select("token")
+    .eq("user_id", contractorId);
+
+  if (error) {
+    console.error("Error fetching push tokens:", error);
+    return [];
+  }
+
+  return (data ?? [])
+    .map((r: { token: string | null }) => r.token)
+    .filter((t: string | null): t is string => typeof t === "string" && t.length > 0);
 }
 
 /**
@@ -590,45 +625,74 @@ serve(async (req: Request): Promise<Response> => {
     // ========================================
     // SEND PUSH NOTIFICATION
     // ========================================
+    //
+    // ★ NOTIF-CONTRACTOR-001 — Pre-strike this branch keyed on the
+    //   phantom `contractor.expo_push_token` column and every call
+    //   short-circuited into the "no token registered" branch (because
+    //   the column didn't exist and the SELECT failed silently).
+    //
+    //   New flow: fetch tokens from public.push_tokens, fan out one
+    //   Expo push per registered device, and aggregate the outcome.
+    //   The response shape (`{ sent, error? }`) is preserved so the
+    //   admin client doesn't need any code changes.
+    //
+    //   Aggregation rule: `sent: true` iff at least one device's push
+    //   succeeded. When all devices fail, the first device's error is
+    //   surfaced as `error`. Per-device errors are also logged for
+    //   server-side triage.
     let notificationResult: {
       sent: boolean;
       error?: string;
     } = { sent: false };
 
-    if (notify_user && contractor.expo_push_token) {
-      const { title, body } = getNotificationContent(
-        new_status,
-        rejection_reason
+    if (notify_user) {
+      const tokens = await getContractorPushTokens(
+        supabaseAdmin,
+        contractor_id
       );
 
-      const pushResult = await sendExpoPushNotification(
-        contractor.expo_push_token,
-        title,
-        body,
-        {
-          type: "verification_status_update",
-          status: new_status,
-          contractor_id,
-        }
-      );
-
-      notificationResult = {
-        sent: pushResult.success,
-        error: pushResult.error,
-      };
-
-      if (pushResult.success) {
-        console.log(`Push notification sent to contractor ${contractor_id}`);
+      if (tokens.length === 0) {
+        notificationResult = {
+          sent: false,
+          error: "Contractor has no push token registered",
+        };
       } else {
-        console.warn(
-          `Failed to send push notification: ${pushResult.error}`
+        const { title, body } = getNotificationContent(
+          new_status,
+          rejection_reason
         );
+
+        let anySuccess = false;
+        let firstError: string | undefined;
+        for (const token of tokens) {
+          const pushResult = await sendExpoPushNotification(
+            token,
+            title,
+            body,
+            {
+              type: "verification_status_update",
+              status: new_status,
+              contractor_id,
+            }
+          );
+
+          if (pushResult.success) {
+            anySuccess = true;
+            console.log(
+              `Push notification sent to contractor ${contractor_id} (device ok)`
+            );
+          } else {
+            if (firstError === undefined) firstError = pushResult.error;
+            console.warn(
+              `Failed to send push notification: ${pushResult.error}`
+            );
+          }
+        }
+
+        notificationResult = anySuccess
+          ? { sent: true }
+          : { sent: false, error: firstError };
       }
-    } else if (notify_user && !contractor.expo_push_token) {
-      notificationResult = {
-        sent: false,
-        error: "Contractor has no push token registered",
-      };
     }
 
     // ========================================

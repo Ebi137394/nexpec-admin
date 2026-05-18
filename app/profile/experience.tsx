@@ -18,7 +18,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/providers/AuthProvider';
+// ✅ تغییر حیاتی: آدرس درست AuthContext که توی بقیه اپلیکیشن کار می‌کنه
+import { useAuth } from '@/src/contexts/AuthContext';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 interface WorkExperience {
@@ -33,10 +34,9 @@ interface WorkExperience {
 
 export default function ExperienceScreen() {
   const router = useRouter();
-  const { user } = useAuth();
-
-  // ✅ Enable Translation & RTL
   const { t, isRTL } = useLanguage();
+  // ✅ حالا useAuth داره از جای درست می‌خونه و user رو برمی‌گردونه
+  const { user } = useAuth();
 
   const [experiences, setExperiences] = useState<WorkExperience[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,6 @@ export default function ExperienceScreen() {
   const [uploadingCV, setUploadingCV] = useState(false);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
 
-  // Form State
   const [newExperience, setNewExperience] = useState({
     company_name: '',
     job_title: '',
@@ -55,66 +54,66 @@ export default function ExperienceScreen() {
   });
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       checkUserTypeAndRedirect();
+    } else {
+      // اگه یوزر هنوز لود نشده بود تو حالت لودینگ گیر نکنه
+      setLoading(false);
     }
   }, [user]);
 
   const checkUserTypeAndRedirect = async () => {
+    if (!user?.id) return;
+
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) return;
+      setLoading(true);
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_type')
-        .eq('id', currentUser.id)
-        .single();
+        .select('role') 
+        .eq('id', user.id)
+        .maybeSingle();
 
       if (error) throw error;
 
-      // Redirect agencies to company overview instead of experience
-      if (data?.user_type === 'agency') {
+      if (data?.role === 'agency' || data?.role === 'client') {
         router.replace('/profile/edit');
         return;
       }
 
-      fetchExperiences();
-      fetchResumeUrl();
+      await Promise.all([
+          fetchExperiences(user.id),
+          fetchResumeUrl(user.id)
+      ]);
+
     } catch (error) {
-      console.error('Error checking user type:', error);
+      console.error('Error checking user role:', error);
+    } finally {
       setLoading(false);
     }
   };
 
-  const fetchExperiences = async () => {
+  const fetchExperiences = async (userId: string) => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('work_experience')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', userId)
         .order('start_date', { ascending: false });
 
       if (error) throw error;
       setExperiences(data || []);
     } catch (error) {
       console.error('Error fetching experiences:', error);
-      Alert.alert(t('Error'), t('Failed to load work experience'));
-    } finally {
-      setLoading(false);
     }
   };
 
-  const fetchResumeUrl = async () => {
+  const fetchResumeUrl = async (userId: string) => {
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) return;
-
       const { data, error } = await supabase
         .from('profiles')
         .select('resume_url')
-        .eq('id', currentUser.id)
+        .eq('id', userId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -128,18 +127,29 @@ export default function ExperienceScreen() {
   };
 
   const handleUploadCV = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'User session not found.');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
         copyToCacheDirectory: true,
       });
 
-      if (result.canceled) return;
+      if (result.canceled) {
+        Alert.alert(
+          'Upload Cancelled', 
+          'No file selected. \n\nNote: If you are on an iOS Simulator, the file picker may fail to open because iCloud Drive is not configured.'
+        );
+        return;
+      }
 
       setUploadingCV(true);
       const file = result.assets[0];
       const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
-      const filePath = `${user?.id}/resume_${Date.now()}.pdf`;
+      const filePath = `${user.id}/resume_${Date.now()}.pdf`;
 
       const { error: uploadError } = await supabase.storage
         .from('resumes')
@@ -147,7 +157,6 @@ export default function ExperienceScreen() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('resumes')
         .getPublicUrl(filePath);
@@ -158,14 +167,10 @@ export default function ExperienceScreen() {
         throw new Error('Failed to get public URL');
       }
 
-      // Update profile with resume URL
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) return;
-
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ resume_url: publicUrl })
-        .eq('id', currentUser.id);
+        .eq('id', user.id);
 
       if (updateError) throw updateError;
 
@@ -185,10 +190,12 @@ export default function ExperienceScreen() {
       return;
     }
 
+    if (!user?.id) return;
+
     setSaving(true);
     try {
       const { error } = await supabase.from('work_experience').insert({
-        user_id: user?.id,
+        user_id: user.id,
         company_name: newExperience.company_name,
         job_title: newExperience.job_title,
         start_date: newExperience.start_date,
@@ -200,7 +207,7 @@ export default function ExperienceScreen() {
 
       setModalVisible(false);
       setNewExperience({ company_name: '', job_title: '', start_date: '', end_date: '', description: '' });
-      fetchExperiences();
+      await fetchExperiences(user.id);
       Alert.alert(t('Success'), t('Work experience added!'));
     } catch (error: any) {
       Alert.alert(t('Error'), error.message || t('Failed to save'));
@@ -216,14 +223,18 @@ export default function ExperienceScreen() {
         text: t('Delete'),
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('work_experience').delete().eq('id', id);
-          fetchExperiences();
+          try {
+              await supabase.from('work_experience').delete().eq('id', id);
+              if (user?.id) await fetchExperiences(user.id);
+          } catch(err) {
+              console.error(err);
+          }
         }
       }
     ]);
   };
 
-  const formatDate = (dateString: string | null) => {
+  const formatDateString = (dateString: string | null) => {
     if (!dateString) return t('Present');
     try {
       const date = new Date(dateString);
@@ -244,7 +255,7 @@ export default function ExperienceScreen() {
         <View style={[styles.dateRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
           <Calendar size={14} color="#64748b" />
           <Text style={[styles.cardDate, isRTL ? { marginRight: 4 } : { marginLeft: 4 }]}>
-            {formatDate(item.start_date)} - {formatDate(item.end_date)}
+            {formatDateString(item.start_date)} - {formatDateString(item.end_date)}
           </Text>
         </View>
         {item.description && (
@@ -353,7 +364,7 @@ export default function ExperienceScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Add Button */}
+      {/* Floating Action Button */}
       <TouchableOpacity
         style={[styles.fab, isRTL ? { left: 20, right: undefined } : { right: 20, left: undefined }]}
         onPress={() => setModalVisible(true)}
@@ -410,7 +421,7 @@ export default function ExperienceScreen() {
                 <Text style={styles.cancelText}>{t('Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddExperience} disabled={saving}>
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('Save')}</Text>}
+                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>{t('Save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

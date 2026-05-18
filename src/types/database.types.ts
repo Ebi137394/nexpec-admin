@@ -140,6 +140,27 @@ export interface Database {
           Database["public"]["Tables"]["alerts"]["Insert"]
         >;
       };
+      support_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          sender_id: string;
+          content: string;
+          is_read: boolean;
+          created_at: string;
+          updated_at: string;
+          attachment_url: string | null;
+          attachment_type: string | null;
+          attachment_name: string | null;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["support_messages"]["Row"],
+          "id" | "created_at" | "updated_at"
+        >;
+        Update: Partial<
+          Database["public"]["Tables"]["support_messages"]["Insert"]
+        >;
+      };
     };
   };
 }

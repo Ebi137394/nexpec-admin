@@ -1,1660 +1,2445 @@
-// app/(tabs)/index.tsx
-// ──────────────────────────────────────────────────────────────────
-// Super Dashboard — Merged from three implementations
-// Fetches live data from Supabase
-// ──────────────────────────────────────────────────────────────────
-
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
-  Modal,
-  Platform,
   StatusBar,
-  Dimensions,
-  Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import {
-  Bell,
-  DollarSign,
-  Briefcase,
-  FileText,
-  Search,
-  MessageSquare,
-  ChevronRight,
-  TrendingUp,
-  Zap,
-} from "lucide-react-native";
-import { useRouter } from "expo-router";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/src/contexts/AuthContext";
-import WeatherWidget from "../../src/components/dashboard/WeatherWidget";
-import SOSButton from "../../src/components/shared/SOSButton";
-import DynamicInspectionForm from "../../src/components/inspector/DynamicInspectionForm";
-import ChatFAB from "../../components/chat/ChatFAB";
-import { useRealtimeChat } from "@/hooks/useRealtimeChat";
-import { buildRoomId } from "@/types/chat";
+  Pressable,
+  Animated,
+  Easing,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+// ★ Consolidation: see hooks/useInspectorData.ts for full rationale —
+//   single canonical supabase client at @/lib/supabase, not the
+//   secondary instance at src/lib/supabase.
+import { supabase } from '@/lib/supabase';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// --- Secure Chat ---
+import ChatFAB from '../../components/chat/ChatFAB';
 
-// ──────────────────────────────────────────────
-// Type Definitions
-// ──────────────────────────────────────────────
+// --- Existing shared components ---
+import SOSButton from '../../src/components/shared/SOSButton';
 
-type JobStatus =
-  | "assigned"
-  | "accepted"
-  | "in_progress"
-  | "paused"
-  | "completed"
-  | "submitted"
-  | "rejected";
+/** ─────────────────────────────────────────────────────────
+ *  BRAND TOKENS — locked palette for NEXPEC
+ *  ────────────────────────────────────────────────────── */
+const BRAND = {
+  bg: '#020420',
+  primary: '#7C3AED',
+  primaryDeep: '#5B21B6',
+  primaryBright: '#9333EA',
+  primaryGlow: 'rgba(124, 58, 237, 0.22)',
 
-type FilterTab = "all" | "active" | "assigned" | "completed";
+  surface: '#0A0E2E',
+  surfaceElev: '#0E1438',
 
-interface DashboardJob {
-  id: string;
-  title: string;
-  description: string;
-  status: JobStatus;
-  priority: string;
-  project_type: string;
-  due_date: string;
-  daily_rate: number;
-  estimated_days: number;
-  client_name: string;
-  client_company: string;
-  location: string;
-  equipment_needed: string;
-  is_dirty: number;
-}
+  border: 'rgba(255, 255, 255, 0.06)',
+  borderStrong: 'rgba(124, 58, 237, 0.30)',
 
-interface DashboardStats {
-  totalEarnings: number;
+  textPrimary: '#FFFFFF',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+
+  success: '#10B981',
+  successBright: '#10F995',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+  cyan: '#06B6D4',
+  pink: '#F472B6',
+};
+
+type Profile = {
+  full_name?: string | null;
+  avatar_url?: string | null;
+};
+
+type DashboardStats = {
   activeJobs: number;
-  completedJobs: number;
   pendingProposals: number;
-  unreadNotifications: number;
-}
-
-// ──────────────────────────────────────────────
-// Status & Priority Configuration
-// ──────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<
-  JobStatus,
-  { label: string; color: string; bg: string; icon: string }
-> = {
-  assigned: {
-    label: "Assigned",
-    color: "#0A84FF",
-    bg: "rgba(10,132,255,0.12)",
-    icon: "📋",
-  },
-  accepted: {
-    label: "Accepted",
-    color: "#BF5AF2",
-    bg: "rgba(191,90,242,0.12)",
-    icon: "✓",
-  },
-  in_progress: {
-    label: "In Progress",
-    color: "#FFD60A",
-    bg: "rgba(255,214,10,0.12)",
-    icon: "🔧",
-  },
-  paused: {
-    label: "Paused",
-    color: "#FF9F0A",
-    bg: "rgba(255,159,10,0.12)",
-    icon: "⏸",
-  },
-  completed: {
-    label: "Completed",
-    color: "#30D158",
-    bg: "rgba(48,209,88,0.12)",
-    icon: "✅",
-  },
-  submitted: {
-    label: "Submitted",
-    color: "#32D74B",
-    bg: "rgba(50,215,75,0.12)",
-    icon: "📤",
-  },
-  rejected: {
-    label: "Rejected",
-    color: "#FF453A",
-    bg: "rgba(255,69,58,0.12)",
-    icon: "✕",
-  },
+  totalEarnings: number;
+  completedJobs: number;
 };
 
-const PRIORITY_CONFIG: Record<
-  string,
-  { label: string; color: string; bg: string; dot: string }
-> = {
-  critical: {
-    label: "CRITICAL",
-    color: "#FF453A",
-    bg: "rgba(255,69,58,0.12)",
-    dot: "🔴",
-  },
-  high: {
-    label: "HIGH",
-    color: "#FF9F0A",
-    bg: "rgba(255,159,10,0.12)",
-    dot: "🟠",
-  },
-  medium: {
-    label: "MEDIUM",
-    color: "#FFD60A",
-    bg: "rgba(255,214,10,0.12)",
-    dot: "🟡",
-  },
-  low: {
-    label: "LOW",
-    color: "#30D158",
-    bg: "rgba(48,209,88,0.12)",
-    dot: "🟢",
-  },
+type ClientRel =
+  | { full_name?: string | null; avatar_url?: string | null }
+  | Array<{ full_name?: string | null; avatar_url?: string | null }>
+  | null
+  | undefined;
+
+type JobRow = {
+  id: string;
+  title?: string | null;
+  status?: string | null;
+  location?: string | null;
+  due_date?: string | null;
+  scheduled_date?: string | null;
+  daily_rate?: number | null;
+  duration_days?: number | null;
+  total_amount_cents?: number | null;     // ★ Task 4
+  priority?: string | null;
+  client_id?: string | null;
+  client_name?: string | null; // graceful fallback if join fails
+  clients?: ClientRel;
+  created_at?: string | null;
 };
 
-const PROJECT_ICONS: Record<string, string> = {
-  welding: "🔥",
-  coating: "🎨",
-  tank_inspection: "🛢️",
-  pipeline: "🔩",
-  structural: "🏗️",
-  electrical: "⚡",
+type FilterKey = 'all' | 'active' | 'today';
+
+type VendorSync = 'confirmed' | 'pending' | 'none';
+type DocsStatus = 'ready' | 'partial' | 'missing' | 'none';
+
+/** ─────────────────────────────────────────────────────────
+ *  Helpers
+ *  ────────────────────────────────────────────────────── */
+
+// Strip ANY "job_" prefix from an id so Supabase / ChatFAB only ever
+// sees a pure UUID. Uses a global regex as a belt-and-suspenders safeguard.
+const cleanUuid = (id?: string | null): string | null => {
+  if (!id) return null;
+  const cleaned = String(id).replace(/job_/g, '').trim();
+  return cleaned.length > 0 ? cleaned : null;
 };
 
-// ──────────────────────────────────────────────
-// Color Constants — Dark Theme (Purple Dashboard)
-// ──────────────────────────────────────────────
-
-const COLORS = {
-  background: "#020420",
-  cardBackground: "#0A0E2E",
-  cardBackgroundLight: "#111640",
-  cardBorder: "#1A1F4E",
-
-  primary: "#7C3AED",
-  primaryLight: "#8B5CF6",
-  primaryDark: "#5B21B6",
-
-  secondary: "#06B6D4",
-  secondaryLight: "#22D3EE",
-
-  success: "#10B981",
-  successLight: "#34D399",
-  warning: "#F59E0B",
-  warningLight: "#FBBF24",
-  error: "#EF4444",
-  errorLight: "#F87171",
-
-  textPrimary: "#FFFFFF",
-  textSecondary: "#94A3B8",
-  textMuted: "#64748B",
-  textDark: "#1E293B",
-
-  gradientPurple: ["#7C3AED", "#5B21B6", "#4C1D95"] as const,
-  gradientCyan: ["#06B6D4", "#0891B2", "#0E7490"] as const,
-  gradientGreen: ["#10B981", "#059669", "#047857"] as const,
+// Resolve client name from either object or array shape returned by Supabase.
+const resolveClientName = (job: JobRow | null | undefined): string => {
+  if (!job) return '—';
+  const rel = job.clients;
+  if (Array.isArray(rel)) {
+    if (rel[0]?.full_name) return rel[0].full_name;
+  } else if (rel && typeof rel === 'object') {
+    if ((rel as any).full_name) return (rel as any).full_name as string;
+  }
+  if (job.client_name) return job.client_name;
+  return '—';
 };
 
-// ──────────────────────────────────────────────
-// Supabase Status Groups
-// ──────────────────────────────────────────────
+// Robust days-left calculation. Never returns "NaN".
+type DueTone = 'none' | 'past' | 'today' | 'soon' | 'normal';
+const computeDueLabel = (
+  dueDate?: string | null
+): { label: string; tone: DueTone } => {
+  if (!dueDate) return { label: 'No Date', tone: 'none' };
+  const t = new Date(dueDate).getTime();
+  if (!Number.isFinite(t) || Number.isNaN(t)) {
+    return { label: 'TBD', tone: 'none' };
+  }
+  const days = Math.ceil((t - Date.now()) / 86400000);
+  if (days < 0) return { label: `${Math.abs(days)}d overdue`, tone: 'past' };
+  if (days === 0) return { label: 'Due today', tone: 'today' };
+  if (days <= 3) return { label: `${days}d left`, tone: 'soon' };
+  return { label: `${days}d left`, tone: 'normal' };
+};
 
-const ACTIVE_CONTRACT_STATUSES = [
-  "in_progress",
-  "active",
-  "accepted",
-  "ongoing",
-  "assigned",
-];
-const COMPLETED_CONTRACT_STATUSES = [
-  "completed",
-  "done",
-  "finished",
-  "closed",
-];
-const PENDING_PROPOSAL_STATUSES = [
-  "pending",
-  "submitted",
-  "awaiting",
-  "under_review",
-];
+const formatRate = (job: JobRow): string => {
+  const rate = Number(job.daily_rate || 0);
+  if (rate > 0) return `$${rate}/day`;
+  // ★ Task 4: total_amount_cents is integer cents — divide by 100.
+  if (job.total_amount_cents) return `$${(Number(job.total_amount_cents) / 100).toLocaleString()}`;
+  return '$0/day';
+};
 
-// ──────────────────────────────────────────────
-// Job Card  (from Offline Dashboard)
-// ──────────────────────────────────────────────
+const formatDuration = (job: JobRow): string => {
+  const d = Number(job.duration_days || 0);
+  if (d > 0) return `${d} day${d === 1 ? '' : 's'}`;
+  return '—';
+};
 
-const JobCard: React.FC<{
-  job: DashboardJob;
-  onPress: (job: DashboardJob) => void;
-  onStatusChange: (id: string, status: JobStatus) => void;
-  onClone: (job: DashboardJob) => void;
-}> = React.memo(({ job, onPress, onStatusChange, onClone }) => {
-  const statusConfig = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.assigned;
-  const priorityConfig =
-    PRIORITY_CONFIG[job.priority] ?? PRIORITY_CONFIG.medium;
-  const projectIcon = PROJECT_ICONS[job.project_type] ?? "📄";
+const statusMeta = (status?: string | null) => {
+  switch (status) {
+    case 'in_progress':
+      return { label: 'In Progress', icon: '🔧' as const, color: BRAND.warning };
+    case 'assigned':
+      return { label: 'Assigned', icon: '📋' as const, color: BRAND.cyan };
+    case 'completed':
+      return { label: 'Completed', icon: '✅' as const, color: BRAND.success };
+    case 'open':
+      return { label: 'Open', icon: '📬' as const, color: BRAND.primary };
+    default:
+      return { label: 'New', icon: '✨' as const, color: BRAND.textSecondary };
+  }
+};
 
-  const daysUntilDue = Math.ceil(
-    (new Date(job.due_date).getTime() - Date.now()) / 86400000
-  );
-  const isOverdue = daysUntilDue < 0;
-  const isUrgent = daysUntilDue >= 0 && daysUntilDue <= 2;
+const priorityMeta = (priority?: string | null) => {
+  const p = (priority || 'medium').toLowerCase();
+  if (p === 'high' || p === 'urgent')
+    return { label: 'HIGH', color: BRAND.danger };
+  if (p === 'low') return { label: 'LOW', color: BRAND.success };
+  return { label: 'MEDIUM', color: BRAND.warning };
+};
 
-  const getNextAction = (): {
-    label: string;
-    status: JobStatus;
-    color: string;
-  } | null => {
-    switch (job.status) {
-      case "assigned":
-        return { label: "Accept Job", status: "accepted", color: "#0A84FF" };
-      case "accepted":
-        return {
-          label: "Start Inspection",
-          status: "in_progress",
-          color: "#BF5AF2",
-        };
-      case "in_progress":
-        return {
-          label: "Open Form →",
-          status: "in_progress",
-          color: "#30D158",
-        };
-      default:
-        return null;
+/** ─────────────────────────────────────────────────────────
+ *  Main screen
+ *  ────────────────────────────────────────────────────── */
+export default function DashboardHome() {
+  const router = useRouter();
+
+  /** ── State ── */
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeJobForChat, setActiveJobForChat] = useState<JobRow | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    activeJobs: 0,
+    pendingProposals: 0,
+    totalEarnings: 0,
+    completedJobs: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterKey>('all');
+
+  /** ── Animations ── */
+  const fade = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(12)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.parallel([
+        Animated.timing(fade, {
+          toValue: 1,
+          duration: 420,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(slide, {
+          toValue: 0,
+          duration: 420,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [loading]);
+
+  // Soft pulse on the live status dot
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  /** ── Derived ── */
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  const todayLabel = useMemo(() => {
+    return new Date().toLocaleDateString(undefined, {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    });
+  }, []);
+
+  const firstName = useMemo(() => {
+    const n = profile?.full_name?.trim();
+    return n ? n.split(' ')[0] : 'Inspector';
+  }, [profile]);
+
+  const focusJob = useMemo(() => {
+    return (
+      jobs.find((j) => j.status === 'in_progress') ||
+      jobs.find((j) => j.status === 'assigned') ||
+      null
+    );
+  }, [jobs]);
+
+  const filteredJobs = useMemo(() => {
+    if (filter === 'active') {
+      return jobs.filter(
+        (j) => j.status === 'in_progress' || j.status === 'assigned'
+      );
+    }
+    if (filter === 'today') {
+      const today = new Date().toDateString();
+      return jobs.filter((j) => {
+        const d = j.due_date || j.scheduled_date;
+        if (!d) return false;
+        const t = new Date(d).getTime();
+        if (!Number.isFinite(t) || Number.isNaN(t)) return false;
+        return new Date(t).toDateString() === today;
+      });
+    }
+    return jobs;
+  }, [jobs, filter]);
+
+  const todayCount = useMemo(() => {
+    const today = new Date().toDateString();
+    return jobs.filter((j) => {
+      const d = j.due_date || j.scheduled_date;
+      if (!d) return false;
+      const t = new Date(d).getTime();
+      if (!Number.isFinite(t) || Number.isNaN(t)) return false;
+      return new Date(t).toDateString() === today;
+    }).length;
+  }, [jobs]);
+
+  /** ── Operations Hub derived props ──
+   *  These feed the new OperationsHubWidget. Where real data exists
+   *  (the next deadline pulled from focusJob), it is used. Other fields
+   *  are mocked with realistic values until their tables/columns
+   *  are wired into Supabase.
+   */
+  const nextDeadlineDate = useMemo<Date | null>(() => {
+    if (!focusJob) return null;
+    const raw = focusJob.due_date || focusJob.scheduled_date;
+    if (!raw) return null;
+    const t = new Date(raw).getTime();
+    if (!Number.isFinite(t) || Number.isNaN(t)) return null;
+    return new Date(raw);
+  }, [focusJob]);
+
+  const nextDeadlineLabel = focusJob?.title || 'No active deadline';
+
+  // MOCK — replace with real `reports` table count when available
+  const pendingDrafts = useMemo(() => {
+    // Light heuristic: each in-progress job typically has 1 draft awaiting submission
+    return jobs.filter((j) => j.status === 'in_progress').length;
+  }, [jobs]);
+
+  // MOCK — replace with real `vendor_confirmations` table when available.
+  // Tracks whether the next inspection date has been confirmed by the vendor.
+  const vendorSync: VendorSync = useMemo(() => {
+    if (!focusJob) return 'none';
+    if (focusJob.status === 'in_progress') return 'confirmed';
+    if (focusJob.status === 'assigned') return 'pending';
+    return 'none';
+  }, [focusJob]);
+
+  // The actual confirmed inspection date/time (only meaningful when 'confirmed')
+  const vendorSyncDate = useMemo<Date | null>(() => {
+    if (vendorSync !== 'confirmed' || !focusJob) return null;
+    const raw = focusJob.scheduled_date || focusJob.due_date;
+    if (!raw) return null;
+    const t = new Date(raw).getTime();
+    if (!Number.isFinite(t) || Number.isNaN(t)) return null;
+    return new Date(raw);
+  }, [focusJob, vendorSync]);
+
+  // MOCK — replace with real `job_documents` table when available.
+  // Tracks ITP / WPS / Drawings receipt status before traveling to site.
+  const docsStatus: DocsStatus = useMemo(() => {
+    if (!focusJob) return 'none';
+    if (focusJob.status === 'in_progress') return 'ready';
+    if (focusJob.status === 'assigned') return 'partial';
+    return 'none';
+  }, [focusJob]);
+
+  /** ── Data fetch ── */
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1) Profile
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+        if (profileData) setProfile(profileData as Profile);
+      } catch (_) {
+        /* profile not critical */
+      }
+
+      // 2) Recent jobs assigned to this inspector (contractor_id).
+      //    Client info pulled from `profiles` via the `clients` relation alias.
+      const { data: realJobs, error } = await supabase
+        .from('jobs')
+        .select('*, clients:client_id(full_name, avatar_url)')
+        .eq('contractor_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!error && realJobs) {
+        const list = realJobs as JobRow[];
+        setJobs(list);
+        const active =
+          list.find((j) => j.status === 'in_progress') ||
+          list.find((j) => j.status === 'assigned') ||
+          null;
+        if (active) setActiveJobForChat(active);
+      }
+
+      // 3) Counts — active + completed jobs
+      const [{ count: activeCount }, { count: completedCount }] =
+        await Promise.all([
+          supabase
+            .from('jobs')
+            .select('*', { count: 'exact', head: true })
+            .eq('contractor_id', user.id)
+            .in('status', ['assigned', 'in_progress']),
+          supabase
+            .from('jobs')
+            .select('*', { count: 'exact', head: true })
+            .eq('contractor_id', user.id)
+            .eq('status', 'completed'),
+        ]);
+
+      // 4) Pending proposals (best effort)
+      let pendingProposals = 0;
+      try {
+        const { count: proposalsCount } = await supabase
+          .from('proposals')
+          .select('*', { count: 'exact', head: true })
+          .eq('contractor_id', user.id)
+          .eq('status', 'pending');
+        pendingProposals = proposalsCount || 0;
+      } catch (_) {
+        /* optional */
+      }
+
+      // 5) Earnings — sum of completed work
+      let totalEarnings = 0;
+      try {
+        // ★ Task 4: integer cents end-to-end. daily_rate × duration is dollars,
+        //   so multiply by 100 to keep the running total in the same unit.
+        const { data: earningsRows } = await supabase
+          .from('jobs')
+          .select('total_amount_cents, daily_rate, duration_days')
+          .eq('contractor_id', user.id)
+          .eq('status', 'completed');
+        totalEarnings = (earningsRows || []).reduce(
+          (sum: number, j: any) => {
+            const cents =
+              j.total_amount_cents ??
+              Math.round(Number(j.daily_rate || 0) * Number(j.duration_days || 0) * 100);
+            return sum + Number(cents || 0);
+          },
+          0
+        );
+      } catch (_) {
+        /* best effort */
+      }
+
+      setStats({
+        activeJobs: activeCount || 0,
+        completedJobs: completedCount || 0,
+        pendingProposals,
+        totalEarnings,
+      });
+
+      // 6) Unread messages — pure UUID only, never prefixed.
+      try {
+        const activeJob =
+          (realJobs as JobRow[] | null)?.find((j) => j.status === 'in_progress') ||
+          (realJobs as JobRow[] | null)?.find((j) => j.status === 'assigned') ||
+          (realJobs as JobRow[] | null)?.[0] ||
+          null;
+        const activeId = cleanUuid(activeJob?.id);
+
+        const baseQuery = supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('receiver_id', user.id)
+          .eq('is_read', false);
+
+        const { count: unread } = activeId
+          ? await baseQuery.eq('job_id', activeId)
+          : await baseQuery;
+
+        setUnreadMessages(unread || 0);
+      } catch (_) {
+        /* messages optional */
+      }
+    } catch (err) {
+      console.log('Dashboard fetch error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const nextAction = getNextAction();
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadDashboard();
+    setRefreshing(false);
+  }, []);
+
+  /** ── Helpers ── */
+  const formatMoney = (n: number) => {
+    if (!Number.isFinite(n)) return '$0';
+    if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+    return `$${Math.round(n)}`;
+  };
+
+  const handleJobPress = (job: JobRow) => {
+    const id = cleanUuid(job.id);
+    if (!id) return;
+    try {
+      router.push(`/(inspector)/jobs/${id}` as any);
+    } catch {
+      /* swallow */
+    }
+  };
+
+  /** ── Operations Hub navigation handlers ──
+   *  cleanUuid strips any "job_" prefix the route param may carry,
+   *  so the URL is always interpolated with a pure UUID.
+   */
+  const handleDraftsPress = useCallback(() => {
+    try {
+      router.push('/(tabs)/jobs' as any);
+    } catch (e) {
+      console.log(e);
+    }
+  }, [router]);
+
+  const handleVendorPress = useCallback(() => {
+    const id = cleanUuid(focusJob?.id);
+    if (!id) return;
+    try {
+      router.push(`/chat/${id}` as any);
+    } catch (e) {
+      console.log(e);
+    }
+  }, [router, focusJob]);
+
+  const handleDocsPress = useCallback(() => {
+    const id = cleanUuid(focusJob?.id);
+    if (!id) return;
+    try {
+      router.push(`/(inspector)/jobs/${id}` as any);
+    } catch (e) {
+      console.log(e);
+    }
+  }, [router, focusJob]);
+
+  const handleDeadlinePress = useCallback(() => {
+    const id = cleanUuid(focusJob?.id);
+    if (!id) return;
+    try {
+      router.push(`/(inspector)/jobs/${id}` as any);
+    } catch (e) {
+      console.log(e);
+    }
+  }, [router, focusJob]);
+
+  const pulseScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.5],
+  });
+  const pulseOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.55, 0],
+  });
 
   return (
-    <TouchableOpacity
-      style={[cardStyles.card, job.is_dirty === 1 && cardStyles.cardDirty]}
-      onPress={() => onPress(job)}
-      activeOpacity={0.8}
-    >
-      {/* Dirty indicator */}
-      {job.is_dirty === 1 && (
-        <View style={cardStyles.dirtyDot}>
-          <Text style={cardStyles.dirtyDotText}>●</Text>
-        </View>
-      )}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BRAND.bg} />
 
-      {/* Top Row */}
-      <View style={cardStyles.topRow}>
-        <View style={cardStyles.topLeft}>
-          <Text style={cardStyles.projectIcon}>{projectIcon}</Text>
-          <View
-            style={[
-              cardStyles.priorityBadge,
-              { backgroundColor: priorityConfig.bg },
-            ]}
-          >
-            <Text
-              style={[
-                cardStyles.priorityText,
-                { color: priorityConfig.color },
-              ]}
+      {/* Atmospheric ambient glows */}
+      <View pointerEvents="none" style={styles.glowTopLeft} />
+      <View pointerEvents="none" style={styles.glowMidRight} />
+
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <FlatList
+          data={filteredJobs}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.jobItem}>
+              <InlineJobCard
+                job={item}
+                onPress={() => handleJobPress(item)}
+              />
+            </View>
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={BRAND.primary}
+              progressBackgroundColor={BRAND.surface}
+              colors={[BRAND.primary]}
+            />
+          }
+          ListHeaderComponent={
+            <Animated.View
+              style={{
+                opacity: fade,
+                transform: [{ translateY: slide }],
+              }}
             >
-              {priorityConfig.dot} {priorityConfig.label}
-            </Text>
-          </View>
+              {/* ───── HEADER ───── */}
+              <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                  <Text style={styles.dateLabel}>
+                    {todayLabel.toUpperCase()}
+                  </Text>
+                  <Text style={styles.greeting}>{greeting},</Text>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.userName} numberOfLines={1}>
+                      {firstName}
+                    </Text>
+                    <Text style={styles.wave}>👋</Text>
+                  </View>
+                </View>
+
+                <View style={styles.headerRight}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.iconBtn,
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={() => {
+                      try {
+                        router.push('/(inspector)/notifications' as any);
+                      } catch (e) {
+                        console.log(e);
+                      }
+                    }}
+                    hitSlop={8}
+                  >
+                    <Ionicons
+                      name="notifications-outline"
+                      size={20}
+                      color={BRAND.textPrimary}
+                    />
+                    {unreadMessages > 0 && <View style={styles.iconDot} />}
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* ───── FOCUS / TODAY'S MISSION ───── */}
+              {focusJob ? (
+                <Pressable
+                  onPress={() => handleJobPress(focusJob)}
+                  style={({ pressed }) => [
+                    styles.focusWrap,
+                    pressed && { transform: [{ scale: 0.992 }] },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[BRAND.primary, BRAND.primaryBright, BRAND.primaryDeep]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.focusCard}
+                  >
+                    <View pointerEvents="none" style={styles.focusOrbA} />
+                    <View pointerEvents="none" style={styles.focusOrbB} />
+
+                    <View style={styles.focusTopRow}>
+                      <View style={styles.focusBadge}>
+                        <View style={styles.dotWrap}>
+                          <Animated.View
+                            style={[
+                              styles.dotPulse,
+                              {
+                                transform: [{ scale: pulseScale }],
+                                opacity: pulseOpacity,
+                              },
+                            ]}
+                          />
+                          <View style={styles.dotCore} />
+                        </View>
+                        <Text style={styles.focusBadgeText}>
+                          {focusJob.status === 'in_progress'
+                            ? 'IN PROGRESS'
+                            : 'NEXT UP'}
+                        </Text>
+                      </View>
+                      <View style={styles.focusArrow}>
+                        <Ionicons
+                          name="arrow-forward"
+                          size={18}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    </View>
+
+                    <Text style={styles.focusKicker}>Today's mission</Text>
+                    <Text style={styles.focusTitle} numberOfLines={2}>
+                      {focusJob.title || 'Field inspection'}
+                    </Text>
+
+                    <View style={styles.focusMetaRow}>
+                      <View style={styles.focusMetaItem}>
+                        <Ionicons
+                          name="business-outline"
+                          size={13}
+                          color="rgba(255,255,255,0.85)"
+                        />
+                        <Text style={styles.focusMetaText} numberOfLines={1}>
+                          {resolveClientName(focusJob)}
+                        </Text>
+                      </View>
+                      <View style={styles.focusMetaDivider} />
+                      <View style={styles.focusMetaItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={13}
+                          color="rgba(255,255,255,0.85)"
+                        />
+                        <Text style={styles.focusMetaText} numberOfLines={1}>
+                          {focusJob.location || 'On-site'}
+                        </Text>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              ) : (
+                <View style={styles.emptyFocusCard}>
+                  <LinearGradient
+                    colors={[
+                      'rgba(124, 58, 237, 0.18)',
+                      'rgba(124, 58, 237, 0.04)',
+                    ]}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <View style={styles.emptyFocusIcon}>
+                    <Ionicons name="sparkles" size={20} color={BRAND.primary} />
+                  </View>
+                  <Text style={styles.emptyFocusTitle}>
+                    Ready for the next mission
+                  </Text>
+                  <Text style={styles.emptyFocusSub}>
+                    No active assignments — tap below to find your next job.
+                  </Text>
+                </View>
+              )}
+
+              {/* ───── OPERATIONS HUB + SOS ───── */}
+              <View style={styles.envRow}>
+                <View style={styles.envWeather}>
+                  <OperationsHubWidget
+                    pendingDrafts={pendingDrafts}
+                    vendorSync={vendorSync}
+                    vendorSyncDate={vendorSyncDate}
+                    docsStatus={docsStatus}
+                    nextDeadline={nextDeadlineDate}
+                    nextDeadlineLabel={nextDeadlineLabel}
+                    onDraftsPress={handleDraftsPress}
+                    onVendorPress={handleVendorPress}
+                    onDocsPress={handleDocsPress}
+                    onDeadlinePress={handleDeadlinePress}
+                  />
+                </View>
+                <View style={styles.envSos}>
+                  <SOSButton />
+                </View>
+              </View>
+
+              {/* ───── KPI TRIO ───── */}
+              <View style={styles.kpiRow}>
+                <KpiCard
+                  icon="briefcase"
+                  value={String(stats.activeJobs)}
+                  label="Active Jobs"
+                  accent={BRAND.primary}
+                />
+                <KpiCard
+                  icon="document-text"
+                  value={String(stats.pendingProposals)}
+                  label="Proposals"
+                  accent={BRAND.warning}
+                />
+                <KpiCard
+                  icon="trending-up"
+                  value={formatMoney(stats.totalEarnings)}
+                  label="Earnings"
+                  accent={BRAND.success}
+                />
+              </View>
+
+              {/* ───── QUICK ACTIONS ───── */}
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleWrap}>
+                  <View style={styles.sectionAccent} />
+                  <Text style={styles.sectionTitle}>Quick Actions</Text>
+                </View>
+              </View>
+
+              <View style={styles.quickActions}>
+                <ActionItem
+                  icon="search"
+                  label="Find Jobs"
+                  color={BRAND.primary}
+                  onPress={() => {
+                    try {
+                      router.push('/(tabs)/jobs' as any);
+                    } catch {}
+                  }}
+                />
+                <ActionItem
+                  icon="document-attach-outline"
+                  label="Contracts"
+                  color={BRAND.cyan}
+                  onPress={() => {
+                    try {
+                      // ★ Was '/contracts/history' which is not a real route —
+                      //   expo-router fell through to /contracts/[id] and
+                      //   queried `WHERE id = 'history'` against a uuid
+                      //   column, throwing 22P02. Routes to the Hub instead.
+                      router.push('/contracts/' as any);
+                    } catch (e) {
+                      console.log(e);
+                    }
+                  }}
+                />
+                <ActionItem
+                  icon="chatbubbles-outline"
+                  label="Messages"
+                  color={BRAND.success}
+                  badge={unreadMessages}
+                  onPress={() => {
+                    try {
+                      router.push('/messages' as any);
+                    } catch {}
+                  }}
+                />
+                <ActionItem
+                  icon="wallet-outline"
+                  label="Wallet"
+                  color={BRAND.pink}
+                  onPress={() => {
+                    try {
+                      router.push('/(tabs)/finance' as any);
+                    } catch {}
+                  }}
+                />
+              </View>
+
+              {/* ───── TODAY'S AGENDA ───── */}
+              <View style={[styles.sectionHeader, { marginTop: 28 }]}>
+                <View style={styles.sectionTitleWrap}>
+                  <View style={styles.sectionAccent} />
+                  <Text style={styles.sectionTitle}>Today's Agenda</Text>
+                </View>
+                <View style={styles.sectionCount}>
+                  <Text style={styles.sectionCountText}>
+                    {filteredJobs.length}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.filterRow}>
+                <FilterChip
+                  label="All"
+                  count={jobs.length}
+                  active={filter === 'all'}
+                  onPress={() => setFilter('all')}
+                />
+                <FilterChip
+                  label="Active"
+                  count={stats.activeJobs}
+                  active={filter === 'active'}
+                  onPress={() => setFilter('active')}
+                />
+                <FilterChip
+                  label="Today"
+                  count={todayCount}
+                  active={filter === 'today'}
+                  onPress={() => setFilter('today')}
+                />
+              </View>
+            </Animated.View>
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconWrap}>
+                  <Ionicons
+                    name="clipboard-outline"
+                    size={26}
+                    color={BRAND.primary}
+                  />
+                </View>
+                <Text style={styles.emptyTitle}>Nothing on your plate</Text>
+                <Text style={styles.emptySub}>
+                  When you accept a contract, it will land here.
+                </Text>
+                <Pressable
+                  style={styles.emptyCta}
+                  onPress={() => {
+                    try {
+                      router.push('/(tabs)/jobs' as any);
+                    } catch {}
+                  }}
+                >
+                  <Text style={styles.emptyCtaText}>Browse open jobs</Text>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={14}
+                    color={BRAND.textPrimary}
+                  />
+                </Pressable>
+              </View>
+            ) : null
+          }
+        />
+      </SafeAreaView>
+
+      {/* SECURE CHAT FAB — pure UUID guaranteed inline by cleanUuid */}
+      {activeJobForChat?.id && cleanUuid(activeJobForChat?.id) ? (
+        <ChatFAB
+          context="job"
+          contextId={cleanUuid(activeJobForChat?.id) || ''}
+          unreadCount={unreadMessages}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** ─────────────────────────────────────────────────────────
+ *  Operations Hub Widget — built around the four daily pain
+ *  points freelance NDT / welding inspectors actually care about:
+ *
+ *    1. NEXT DEADLINE — live countdown to the closest report /
+ *       inspection due date. Drives daily prioritization.
+ *    2. DRAFTS — pending unsubmitted reports. Unsubmitted = unpaid.
+ *    3. VENDOR SYNC — has the vendor confirmed the inspection
+ *       date? Pending confirmation is the #1 friction before
+ *       traveling to a remote site.
+ *    4. DOCS READY — ITP / WPS / Drawings receipt status. No
+ *       inspector wants to drive 3 hours only to find the WPS
+ *       isn't issued yet.
+ *
+ *  Overall readiness pill (READY / STANDBY / ACTION NEEDED) is
+ *  computed from these signals so the inspector gets one
+ *  glance-worthy verdict at the top of the widget.
+ *  ────────────────────────────────────────────────────── */
+const OperationsHubWidget = ({
+  pendingDrafts,
+  vendorSync,
+  vendorSyncDate,
+  docsStatus,
+  nextDeadline,
+  nextDeadlineLabel,
+  onDraftsPress,
+  onVendorPress,
+  onDocsPress,
+  onDeadlinePress,
+}: {
+  pendingDrafts: number;
+  vendorSync: VendorSync;
+  vendorSyncDate: Date | null;
+  docsStatus: DocsStatus;
+  nextDeadline: Date | null;
+  nextDeadlineLabel: string;
+  onDraftsPress?: () => void;
+  onVendorPress?: () => void;
+  onDocsPress?: () => void;
+  onDeadlinePress?: () => void;
+}) => {
+  const [now, setNow] = useState<Date>(new Date());
+  const sweep = useRef(new Animated.Value(0)).current;
+  const urgentPulse = useRef(new Animated.Value(0)).current;
+
+  // Tick every second for the live countdown
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Ambient HUD scan-line sweep
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(sweep, {
+        toValue: 1,
+        duration: 3400,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  // Soft pulse for the readiness dot (and urgent countdowns)
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(urgentPulse, {
+          toValue: 1,
+          duration: 1100,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(urgentPulse, {
+          toValue: 0,
+          duration: 1100,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  /** ── Countdown ── */
+  type CountTone = 'idle' | 'normal' | 'soon' | 'urgent' | 'past';
+  const { countdownStr, tone: countdownTone } = useMemo<{
+    countdownStr: string;
+    tone: CountTone;
+  }>(() => {
+    if (!nextDeadline) return { countdownStr: '—', tone: 'idle' };
+    const ms = nextDeadline.getTime() - now.getTime();
+    if (ms <= 0) return { countdownStr: 'OVERDUE', tone: 'past' };
+
+    const totalSec = Math.floor(ms / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+
+    if (days >= 1) {
+      const tone: CountTone = days <= 1 ? 'urgent' : days <= 3 ? 'soon' : 'normal';
+      return {
+        countdownStr: `${days}d ${String(hours).padStart(2, '0')}h ${String(
+          mins
+        ).padStart(2, '0')}m`,
+        tone,
+      };
+    }
+    return {
+      countdownStr: `${String(hours).padStart(2, '0')}:${String(mins).padStart(
+        2,
+        '0'
+      )}:${String(secs).padStart(2, '0')}`,
+      tone: 'urgent',
+    };
+  }, [nextDeadline, now]);
+
+  /** ── Sub-metric meta ── */
+  const draftMeta = useMemo(() => {
+    if (pendingDrafts === 0) return { color: BRAND.successBright };
+    if (pendingDrafts >= 5) return { color: BRAND.danger };
+    if (pendingDrafts >= 3) return { color: BRAND.warning };
+    return { color: BRAND.primary };
+  }, [pendingDrafts]);
+
+  // Compact date/time formatter for confirmed vendor sync.
+  // Same-day shows "Today 9am", otherwise "Mon 9am" / "Fri 2:30pm".
+  const formatVendorTime = (d: Date | null | undefined): string | null => {
+    if (!d) return null;
+    const t = d.getTime();
+    if (!Number.isFinite(t) || Number.isNaN(t)) return null;
+    const hh = d.getHours();
+    const mm = d.getMinutes();
+    const ampm = hh >= 12 ? 'pm' : 'am';
+    const h12 = hh % 12 || 12;
+    const timeStr =
+      mm === 0
+        ? `${h12}${ampm}`
+        : `${h12}:${String(mm).padStart(2, '0')}${ampm}`;
+    if (d.toDateString() === now.toDateString()) return `Today ${timeStr}`;
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+    return `${weekday} ${timeStr}`;
+  };
+
+  const vendorMeta = useMemo(() => {
+    switch (vendorSync) {
+      case 'confirmed': {
+        const formatted = formatVendorTime(vendorSyncDate);
+        return {
+          label: 'VENDOR',
+          value: formatted || 'OK',
+          color: BRAND.successBright,
+          icon: 'calendar-outline' as const,
+        };
+      }
+      case 'pending':
+        return {
+          label: 'VENDOR',
+          value: 'Pending',
+          color: BRAND.warning,
+          icon: 'mail-outline' as const,
+        };
+      default:
+        return {
+          label: 'VENDOR',
+          value: '—',
+          color: BRAND.textMuted,
+          icon: 'mail-outline' as const,
+        };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorSync, vendorSyncDate, now]);
+
+  const docsMeta = useMemo(() => {
+    switch (docsStatus) {
+      case 'ready':
+        return {
+          label: 'DOCS',
+          value: 'All Set',
+          color: BRAND.successBright,
+          icon: 'folder-open' as const,
+        };
+      case 'partial':
+        return {
+          label: 'DOCS',
+          value: 'Partial',
+          color: BRAND.warning,
+          icon: 'folder-open-outline' as const,
+        };
+      case 'missing':
+        return {
+          label: 'DOCS',
+          value: 'Missing',
+          color: BRAND.danger,
+          icon: 'folder-open-outline' as const,
+        };
+      default:
+        return {
+          label: 'DOCS',
+          value: '—',
+          color: BRAND.textMuted,
+          icon: 'folder-outline' as const,
+        };
+    }
+  }, [docsStatus]);
+
+  /** ── Overall readiness ──
+   *  Vendor pending OR docs missing → escalates toward "ACTION NEEDED".
+   *  Vendor none / docs partial / drafts piling / deadline soon → "STANDBY".
+   *  Everything green → "READY".
+   */
+  const readiness = useMemo(() => {
+    let score = 0;
+    if (vendorSync === 'pending') score += 2;
+    else if (vendorSync === 'none') score += 1;
+
+    if (docsStatus === 'missing') score += 2;
+    else if (docsStatus === 'partial' || docsStatus === 'none') score += 1;
+
+    if (pendingDrafts >= 5) score += 2;
+    else if (pendingDrafts >= 3) score += 1;
+
+    if (countdownTone === 'past') score += 2;
+    else if (countdownTone === 'urgent') score += 1;
+
+    if (score === 0) return { label: 'READY', color: BRAND.successBright };
+    if (score <= 2) return { label: 'STANDBY', color: BRAND.warning };
+    return { label: 'ACTION NEEDED', color: BRAND.danger };
+  }, [vendorSync, docsStatus, pendingDrafts, countdownTone]);
+
+  /** ── Countdown color ── */
+  const countdownColor =
+    countdownTone === 'past'
+      ? BRAND.danger
+      : countdownTone === 'urgent'
+      ? BRAND.danger
+      : countdownTone === 'soon'
+      ? BRAND.warning
+      : countdownTone === 'idle'
+      ? BRAND.textMuted
+      : BRAND.textPrimary;
+
+  const sweepX = sweep.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-50, 260],
+  });
+
+  const dotScale = urgentPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.6],
+  });
+  const dotOpacity = urgentPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 0],
+  });
+
+  // Pulse the countdown text when urgent or overdue
+  const countdownPulseStyle =
+    countdownTone === 'urgent' || countdownTone === 'past'
+      ? {
+          opacity: urgentPulse.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0.55],
+          }),
+        }
+      : null;
+
+  return (
+    <View style={styles.hubCard}>
+      {/* Decorative HUD layers */}
+      <LinearGradient
+        colors={['rgba(124, 58, 237, 0.22)', 'rgba(2, 4, 32, 0)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View pointerEvents="none" style={styles.hubGridLineA} />
+      <View pointerEvents="none" style={styles.hubGridLineB} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.hubSweep, { transform: [{ translateX: sweepX }] }]}
+      />
+
+      {/* Header row — title + readiness pill */}
+      <View style={styles.hubHeaderRow}>
+        <View style={styles.hubLabelGroup}>
+          <Ionicons
+            name="navigate-circle-outline"
+            size={12}
+            color={BRAND.primary}
+          />
+          <Text style={styles.hubLabel}>OPERATIONS HUB</Text>
         </View>
         <View
           style={[
-            cardStyles.statusBadge,
-            { backgroundColor: statusConfig.bg },
+            styles.hubReadinessPill,
+            { backgroundColor: `${readiness.color}1F`, borderColor: `${readiness.color}55` },
           ]}
         >
+          <View style={styles.hubReadinessDotWrap}>
+            <Animated.View
+              style={[
+                styles.hubReadinessPulse,
+                {
+                  backgroundColor: readiness.color,
+                  transform: [{ scale: dotScale }],
+                  opacity: dotOpacity,
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.hubReadinessDot,
+                { backgroundColor: readiness.color },
+              ]}
+            />
+          </View>
           <Text
-            style={[cardStyles.statusText, { color: statusConfig.color }]}
+            style={[styles.hubReadinessText, { color: readiness.color }]}
           >
-            {statusConfig.icon} {statusConfig.label}
+            {readiness.label}
           </Text>
         </View>
       </View>
 
-      {/* Title & Client */}
-      <Text style={cardStyles.title} numberOfLines={2}>
-        {job.title}
-      </Text>
-      <Text style={cardStyles.client}>
-        {job.client_name} — {job.client_company}
-      </Text>
-
-      {/* Location */}
-      <View style={cardStyles.locationRow}>
-        <Text style={cardStyles.locationIcon}>📍</Text>
-        <Text style={cardStyles.locationText} numberOfLines={1}>
-          {job.location}
-        </Text>
-      </View>
-
-      {/* Meta Row */}
-      <View style={cardStyles.metaRow}>
-        <View style={cardStyles.metaItem}>
-          <Text style={cardStyles.metaLabel}>Rate</Text>
-          <Text style={cardStyles.metaValue}>
-            ${(job.daily_rate ?? 0).toLocaleString()}/day
-          </Text>
+      {/* Hero — next deadline countdown (taps to job details) */}
+      <Pressable
+        onPress={onDeadlinePress}
+        disabled={!onDeadlinePress}
+        style={({ pressed }) => [
+          styles.hubDeadlineBlock,
+          pressed && styles.hubPressed,
+        ]}
+      >
+        <View style={styles.hubDeadlineHeaderRow}>
+          <Ionicons
+            name="alarm-outline"
+            size={11}
+            color={BRAND.textMuted}
+          />
+          <Text style={styles.hubKicker}>NEXT DEADLINE</Text>
         </View>
-        <View style={cardStyles.metaDivider} />
-        <View style={cardStyles.metaItem}>
-          <Text style={cardStyles.metaLabel}>Duration</Text>
-          <Text style={cardStyles.metaValue}>{job.estimated_days} days</Text>
-        </View>
-        <View style={cardStyles.metaDivider} />
-        <View style={cardStyles.metaItem}>
-          <Text style={cardStyles.metaLabel}>Due</Text>
-          <Text
-            style={[
-              cardStyles.metaValue,
-              isOverdue && cardStyles.metaOverdue,
-              isUrgent && cardStyles.metaUrgent,
-            ]}
-          >
-            {isOverdue
-              ? `${Math.abs(daysUntilDue)}d overdue`
-              : daysUntilDue === 0
-                ? "Today"
-                : `${daysUntilDue}d left`}
-          </Text>
-        </View>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={cardStyles.actionRow}>
-        {nextAction && (
-          <TouchableOpacity
-            style={[
-              cardStyles.actionBtn,
-              { backgroundColor: nextAction.color },
-            ]}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              if (job.status === "in_progress") {
-                onPress(job);
-              } else {
-                onStatusChange(job.id, nextAction.status);
-              }
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={cardStyles.actionBtnText}>{nextAction.label}</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Clone Button */}
-        <TouchableOpacity
-          style={cardStyles.cloneBtn}
-          onPress={(e) => {
-            e.stopPropagation?.();
-            onClone(job);
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="copy-outline" size={16} color="#0A84FF" />
-          <Text style={cardStyles.cloneBtnText}>Clone</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-});
-
-// ──────────────────────────────────────────────
-// Job Card Styles
-// ──────────────────────────────────────────────
-
-const cardStyles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.cardBackground,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    position: "relative",
-  },
-  cardDirty: {
-    borderColor: "rgba(255,159,10,0.3)",
-  },
-  dirtyDot: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    zIndex: 10,
-  },
-  dirtyDotText: {
-    color: "#FF9F0A",
-    fontSize: 8,
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  topLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  projectIcon: { fontSize: 20 },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  priorityText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  client: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
-  },
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 12,
-  },
-  locationIcon: { fontSize: 12 },
-  locationText: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-  },
-  metaItem: { flex: 1, alignItems: "center" },
-  metaDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  metaLabel: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  metaValue: { fontSize: 13, color: COLORS.textSecondary, fontWeight: "700" },
-  metaOverdue: { color: "#FF453A" },
-  metaUrgent: { color: "#FFD60A" },
-  actionRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  actionBtnText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  cloneBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(10,132,255,0.3)",
-    backgroundColor: "rgba(10,132,255,0.08)",
-  },
-  cloneBtnText: {
-    color: "#0A84FF",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-});
-
-// ──────────────────────────────────────────────
-// Filter Tabs  (from Offline Dashboard)
-// ──────────────────────────────────────────────
-
-const FilterTabs: React.FC<{
-  active: FilterTab;
-  counts: Record<FilterTab, number>;
-  onChange: (tab: FilterTab) => void;
-}> = ({ active, counts, onChange }) => {
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "active", label: "Active" },
-    { key: "assigned", label: "New" },
-    { key: "completed", label: "Done" },
-  ];
-
-  return (
-    <View style={filterStyles.container}>
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab.key}
+        <Animated.Text
           style={[
-            filterStyles.tab,
-            active === tab.key && filterStyles.tabActive,
+            styles.hubCountdown,
+            { color: countdownColor },
+            countdownPulseStyle as any,
           ]}
-          onPress={() => onChange(tab.key)}
-          activeOpacity={0.7}
+          numberOfLines={1}
         >
-          <Text
-            style={[
-              filterStyles.tabText,
-              active === tab.key && filterStyles.tabTextActive,
-            ]}
-          >
-            {tab.label}
-          </Text>
+          {countdownStr}
+        </Animated.Text>
+        <Text style={styles.hubDeadlineLabel} numberOfLines={1}>
+          {nextDeadlineLabel}
+        </Text>
+      </Pressable>
+
+      {/* Telemetry tiles — each tile is independently tappable */}
+      <View style={styles.hubStats}>
+        {/* Drafts → /(tabs)/jobs (left-aligned tile) */}
+        <Pressable
+          onPress={onDraftsPress}
+          disabled={!onDraftsPress}
+          style={({ pressed }) => [
+            styles.hubStatTile,
+            styles.hubStatTileLeft,
+            pressed && styles.hubPressed,
+          ]}
+        >
           <View
             style={[
-              filterStyles.countBadge,
-              active === tab.key && filterStyles.countBadgeActive,
+              styles.hubStatIcon,
+              { backgroundColor: `${draftMeta.color}1F` },
             ]}
           >
-            <Text
-              style={[
-                filterStyles.countText,
-                active === tab.key && filterStyles.countTextActive,
-              ]}
-            >
-              {counts[tab.key]}
-            </Text>
+            <Ionicons
+              name="document-text"
+              size={12}
+              color={draftMeta.color}
+            />
           </View>
-        </TouchableOpacity>
-      ))}
+          <Text
+            style={[
+              styles.hubStatValue,
+              styles.hubStatValueLeft,
+              { color: draftMeta.color },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {pendingDrafts}
+          </Text>
+          <Text style={[styles.hubStatLabel, styles.hubStatLabelLeft]}>
+            DRAFTS
+          </Text>
+        </Pressable>
+
+        {/* Vendor sync → /chat/<pure-uuid> (center-aligned tile) */}
+        <Pressable
+          onPress={onVendorPress}
+          disabled={!onVendorPress}
+          style={({ pressed }) => [
+            styles.hubStatTile,
+            styles.hubStatTileCenter,
+            pressed && styles.hubPressed,
+          ]}
+        >
+          <View
+            style={[
+              styles.hubStatIcon,
+              { backgroundColor: `${vendorMeta.color}1F` },
+            ]}
+          >
+            <Ionicons
+              name={vendorMeta.icon}
+              size={12}
+              color={vendorMeta.color}
+            />
+          </View>
+          <Text
+            style={[styles.hubStatValue, { color: vendorMeta.color }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {vendorMeta.value}
+          </Text>
+          <Text style={styles.hubStatLabel}>{vendorMeta.label}</Text>
+        </Pressable>
+
+        {/* Docs ready → /(inspector)/jobs/<pure-uuid> (right-aligned tile) */}
+        <Pressable
+          onPress={onDocsPress}
+          disabled={!onDocsPress}
+          style={({ pressed }) => [
+            styles.hubStatTile,
+            styles.hubStatTileRight,
+            pressed && styles.hubPressed,
+          ]}
+        >
+          <View
+            style={[
+              styles.hubStatIcon,
+              { backgroundColor: `${docsMeta.color}1F` },
+            ]}
+          >
+            <Ionicons name={docsMeta.icon} size={12} color={docsMeta.color} />
+          </View>
+          <Text
+            style={[
+              styles.hubStatValue,
+              styles.hubStatValueRight,
+              { color: docsMeta.color },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {docsMeta.value}
+          </Text>
+          <Text style={[styles.hubStatLabel, styles.hubStatLabelRight]}>
+            {docsMeta.label}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
 
-// ──────────────────────────────────────────────
-// Filter Tab Styles
-// ──────────────────────────────────────────────
+/** ─────────────────────────────────────────────────────────
+ *  Inline JobCard (Clone removed)
+ *  ────────────────────────────────────────────────────── */
+const InlineJobCard = ({
+  job,
+  onPress,
+}: {
+  job: JobRow;
+  onPress: () => void;
+}) => {
+  const stat = statusMeta(job.status);
+  const prio = priorityMeta(job.priority);
+  const due = computeDueLabel(job.due_date || job.scheduled_date);
+  const clientName = resolveClientName(job);
 
-const filterStyles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 16,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    gap: 5,
-  },
-  tabActive: {
-    backgroundColor: "rgba(124,58,237,0.18)",
-  },
-  tabText: { fontSize: 12, color: COLORS.textMuted, fontWeight: "600" },
-  tabTextActive: { color: COLORS.primaryLight },
-  countBadge: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    minWidth: 20,
-    alignItems: "center",
-  },
-  countBadgeActive: { backgroundColor: "rgba(124,58,237,0.30)" },
-  countText: { fontSize: 10, color: COLORS.textMuted, fontWeight: "700" },
-  countTextActive: { color: COLORS.primaryLight },
-});
+  const dueColor =
+    due.tone === 'past'
+      ? BRAND.danger
+      : due.tone === 'today'
+      ? BRAND.warning
+      : due.tone === 'soon'
+      ? BRAND.warning
+      : due.tone === 'none'
+      ? BRAND.textMuted
+      : BRAND.textPrimary;
 
-// ──────────────────────────────────────────────
-// Main Screen
-// ──────────────────────────────────────────────
+  const showOpenForm = job.status === 'in_progress';
+  const ctaLabel = showOpenForm ? 'Open Form' : 'View Details';
 
-export default function SuperDashboard() {
-  const { user } = useAuth();
-  const router = useRouter();
-
-  // ── State ──
-  const [jobs, setJobs] = useState<DashboardJob[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({
-    totalEarnings: 0,
-    activeJobs: 0,
-    completedJobs: 0,
-    pendingProposals: 0,
-    unreadNotifications: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
-  const [selectedJob, setSelectedJob] = useState<DashboardJob | null>(null);
-  const [formModalVisible, setFormModalVisible] = useState(false);
-
-  // ── Chat State ──
-  const [activeJobForChat, setActiveJobForChat] = useState<DashboardJob | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  // ── Data Fetching ──
-  const loadDashboard = useCallback(async () => {
-    if (!user?.id) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const results = await Promise.allSettled([
-        // 1. Jobs list for the FlatList
-        supabase
-          .from("jobs")
-          .select("*")
-          .eq("contractor_id", user.id)
-          .order("created_at", { ascending: false }),
-
-        // 2. Active-contract count
-        supabase
-          .from("contracts")
-          .select("*", { count: "exact", head: true })
-          .eq("contractor_id", user.id)
-          .in("status", ACTIVE_CONTRACT_STATUSES),
-
-        // 3. Completed-contract count
-        supabase
-          .from("contracts")
-          .select("*", { count: "exact", head: true })
-          .eq("contractor_id", user.id)
-          .in("status", COMPLETED_CONTRACT_STATUSES),
-
-        // 4. Pending proposals count (from proposals table)
-        supabase
-          .from("proposals")
-          .select("*", { count: "exact", head: true })
-          .eq("contractor_id", user.id)
-          .in("status", PENDING_PROPOSAL_STATUSES),
-
-        // 5. Earnings from completed contracts
-        supabase
-          .from("contracts")
-          .select("price, amount")
-          .eq("contractor_id", user.id)
-          .in("status", COMPLETED_CONTRACT_STATUSES),
-
-        // 6. Unread notifications
-        supabase
-          .from("notifications")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("read", false),
-
-        // 7. Unread messages for active job
-        activeJobForChat
-          ? supabase
-              .from("messages")
-              .select("*", { count: "exact", head: true })
-              .eq("room_id", buildRoomId("job", activeJobForChat.id))
-              .eq("read", false)
-              .neq("sender_id", user.id)
-          : Promise.resolve({ data: null, error: null, count: 0 }),
-      ]);
-
-      const [
-        jobsRes,
-        activeRes,
-        completedRes,
-        pendingRes,
-        earningsRes,
-        notifRes,
-        messagesRes,
-      ] = results;
-
-      // ── Map jobs ──
-      if (
-        jobsRes.status === "fulfilled" &&
-        jobsRes.value.data &&
-        !jobsRes.value.error
-      ) {
-        const mapped: DashboardJob[] = jobsRes.value.data.map((j: any) => ({
-          id: j.id,
-          title: j.title || "Untitled Job",
-          description: j.description || "",
-          status: (j.status as JobStatus) || "assigned",
-          priority: j.priority || "medium",
-          project_type: j.project_type || "general",
-          due_date: j.due_date || new Date().toISOString(),
-          daily_rate: j.daily_rate || 0,
-          estimated_days: j.estimated_days || 1,
-          client_name: j.client_name || "Unknown Client",
-          client_company: j.client_company || "",
-          location: j.location || j.address || "No location",
-          equipment_needed: j.equipment_needed || "",
-          is_dirty: 0,
-        }));
-        setJobs(mapped);
-
-        // ── Set active job for chat ──
-        const activeJob = mapped.find((j) =>
-          ["in_progress", "accepted", "paused"].includes(j.status)
-        );
-        setActiveJobForChat(activeJob || null);
-      }
-
-      // ── Map stats ──
-      const newStats: DashboardStats = {
-        activeJobs:
-          activeRes.status === "fulfilled" && !activeRes.value.error
-            ? activeRes.value.count || 0
-            : 0,
-        completedJobs:
-          completedRes.status === "fulfilled" && !completedRes.value.error
-            ? completedRes.value.count || 0
-            : 0,
-        pendingProposals:
-          pendingRes.status === "fulfilled" && !pendingRes.value.error
-            ? pendingRes.value.count || 0
-            : 0,
-        unreadNotifications:
-          notifRes.status === "fulfilled" && !notifRes.value.error
-            ? notifRes.value.count || 0
-            : 0,
-        totalEarnings: 0,
-      };
-
-      if (
-        earningsRes.status === "fulfilled" &&
-        earningsRes.value.data &&
-        !earningsRes.value.error
-      ) {
-        newStats.totalEarnings = earningsRes.value.data.reduce(
-          (sum: number, row: any) => sum + (row.price || row.amount || 0),
-          0
-        );
-      }
-
-      setStats(newStats);
-
-      // ── Map unread messages ──
-      if (
-        messagesRes.status === "fulfilled" &&
-        !messagesRes.value.error &&
-        messagesRes.value.count !== undefined
-      ) {
-        setUnreadCount(messagesRes.value.count ?? 0);
-      }
-    } catch (err) {
-      console.error("[SuperDashboard] Load error:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user?.id, activeJobForChat]);
-
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-
-  // ── Refresh ──
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadDashboard();
-  }, [loadDashboard]);
-
-  // ── Helpers ──
-  const getGreeting = (): string => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  };
-
-  const formatCurrency = (amount: number): string =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-
-  // ── Actions ──
-  const handleStatusChange = useCallback(
-    async (jobId: string, newStatus: JobStatus) => {
-      try {
-        const { error } = await supabase
-          .from("jobs")
-          .update({ status: newStatus })
-          .eq("id", jobId);
-        if (error) throw error;
-        loadDashboard();
-      } catch {
-        Alert.alert("Error", "Failed to update job status.");
-      }
-    },
-    [loadDashboard]
-  );
-
-  const handleCloneJob = useCallback(
-    (job: DashboardJob) => {
-      Alert.alert(
-        "Clone Job",
-        `Create a new job based on "${job.title}"?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Clone",
-            onPress: async () => {
-              try {
-                const { id, is_dirty, ...rest } = job;
-                await supabase.from("jobs").insert({
-                  ...rest,
-                  status: "assigned",
-                  title: `${rest.title} (Copy)`,
-                  contractor_id: user?.id,
-                });
-                loadDashboard();
-                Alert.alert("Success", "Job cloned successfully.");
-              } catch {
-                Alert.alert("Error", "Failed to clone job.");
-              }
-            },
-          },
-        ]
-      );
-    },
-    [loadDashboard, user?.id]
-  );
-
-  const handleJobPress = useCallback(
-    (job: DashboardJob) => {
-      if (job.status === "in_progress") {
-        setSelectedJob(job);
-        setFormModalVisible(true);
-      } else if (job.status === "assigned") {
-        Alert.alert("Accept Job?", `Accept "${job.title}"?`, [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Accept",
-            onPress: () => handleStatusChange(job.id, "accepted"),
-          },
-        ]);
-      } else {
-        Alert.alert(
-          job.title,
-          `Status: ${STATUS_CONFIG[job.status]?.label ?? job.status}\n\n${job.description}\n\nEquipment: ${job.equipment_needed}`
-        );
-      }
-    },
-    [handleStatusChange]
-  );
-
-  const handleFormSubmitSuccess = useCallback(() => {
-    setFormModalVisible(false);
-    setSelectedJob(null);
-    loadDashboard();
-  }, [loadDashboard]);
-
-  // ── Navigation ──
-  const handleFindJobs = () => router.push("/map");
-  const handleMyContracts = () => router.push("/(tabs)/my-jobs" as any);
-  const handleMessages = () => {
-    if (activeJobForChat) {
-      const roomId = buildRoomId("job", activeJobForChat.id);
-      router.push(`/chat/${roomId}`);
-    } else {
-      router.push("/messages" as any);
-    }
-  };
-  const handleNotifications = () => router.push("/notifications" as any);
-
-  // ── Filtering ──
-  const filteredJobs = useMemo(() => {
-    switch (activeFilter) {
-      case "active":
-        return jobs.filter((j) =>
-          ["in_progress", "accepted", "paused"].includes(j.status)
-        );
-      case "assigned":
-        return jobs.filter((j) => j.status === "assigned");
-      case "completed":
-        return jobs.filter((j) =>
-          ["completed", "submitted"].includes(j.status)
-        );
-      default:
-        return jobs;
-    }
-  }, [jobs, activeFilter]);
-
-  const filterCounts: Record<FilterTab, number> = useMemo(
-    () => ({
-      all: jobs.length,
-      active: jobs.filter((j) =>
-        ["in_progress", "accepted", "paused"].includes(j.status)
-      ).length,
-      assigned: jobs.filter((j) => j.status === "assigned").length,
-      completed: jobs.filter((j) =>
-        ["completed", "submitted"].includes(j.status)
-      ).length,
-    }),
-    [jobs]
-  );
-
-  // ── Loading State ──
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" />
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading dashboard…</Text>
-      </View>
-    );
-  }
-
-  // ── Render ──
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="light-content" />
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && { transform: [{ scale: 0.995 }] },
+      ]}
+    >
+      <View pointerEvents="none" style={styles.cardGlow} />
 
-      <FlatList
-        data={filteredJobs}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <JobCard
-            job={item}
-            onPress={handleJobPress}
-            onStatusChange={handleStatusChange}
-            onClone={handleCloneJob}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={COLORS.primary}
-            colors={[COLORS.primary]}
-            progressBackgroundColor={COLORS.cardBackground}
-          />
-        }
-        // ═══════════════════════════════════════════════════════
-        // LIST HEADER — Everything above the job cards
-        // ═══════════════════════════════════════════════════════
-        ListHeaderComponent={
-          <>
-            {/* ═══ 1. Header Row — Greeting + Notification Bell ═══ */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.greeting}>{getGreeting()},</Text>
-                <Text style={styles.userName}>Inspector 👋</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.notificationButton}
-                onPress={handleNotifications}
-                activeOpacity={0.7}
-              >
-                <Bell size={24} color={COLORS.textPrimary} />
-                {stats.unreadNotifications > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>
-                      {stats.unreadNotifications > 9
-                        ? "9+"
-                        : stats.unreadNotifications}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* ═══ 2. Environment & Safety — Weather + SOS ═══ */}
-            <View style={styles.environmentRow}>
-              <View style={styles.weatherContainer}>
-                <WeatherWidget
-                  humidityThreshold={85}
-                  onHumidityWarning={(humidity: number) => {
-                    console.log(
-                      `[Dashboard] Humidity warning: ${humidity}%`
-                    );
-                  }}
-                />
-              </View>
-              <View style={styles.sosWrapper}>
-                <SOSButton
-                  emergencyContacts={[
-                    { name: "Safety Officer", phone: "+966500000000" },
-                    { name: "Site Manager", phone: "+966500000001" },
-                  ]}
-                  holdDurationMs={3000}
-                  onSOSTriggered={() => {
-                    console.log("[Dashboard] SOS was triggered!");
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* ═══ 3. Hero — Total Earnings (Purple Gradient) ═══ */}
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={handleMyContracts}
-            >
-              <LinearGradient
-                colors={COLORS.gradientPurple}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.earningsCard}
-              >
-                {/* Background decoration */}
-                <View style={styles.earningsDecoration} />
-                <View style={styles.earningsDecorationSmall} />
-
-                <View style={styles.earningsHeader}>
-                  <View style={styles.earningsIconContainer}>
-                    <DollarSign size={24} color={COLORS.textPrimary} />
-                  </View>
-                  <View style={styles.earningsTrendBadge}>
-                    <TrendingUp size={14} color={COLORS.success} />
-                    <Text style={styles.earningsTrendText}>Active</Text>
-                  </View>
-                </View>
-
-                <Text style={styles.earningsLabel}>Total Earnings</Text>
-                <Text style={styles.earningsValue}>
-                  {formatCurrency(stats.totalEarnings)}
-                </Text>
-
-                <View style={styles.earningsFooter}>
-                  <Text style={styles.earningsSubtext}>
-                    From{" "}
-                    {stats.completedJobs > 0
-                      ? "completed contracts"
-                      : "your work"}
-                  </Text>
-                  <ChevronRight
-                    size={16}
-                    color="rgba(255,255,255,0.6)"
-                  />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* ═══ 4a. Secondary Stats ═══ */}
-            <View style={styles.statsRow}>
-              {/* Active Jobs */}
-              <TouchableOpacity
-                style={styles.statsCard}
-                onPress={handleMyContracts}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.statsIconContainer,
-                    styles.statsIconCyan,
-                  ]}
-                >
-                  <Briefcase size={20} color={COLORS.secondary} />
-                </View>
-                <Text style={styles.statsValue}>{stats.activeJobs}</Text>
-                <Text style={styles.statsLabel}>Active Jobs</Text>
-                <View style={styles.statsCardAccent} />
-              </TouchableOpacity>
-
-              {/* Pending Proposals */}
-              <TouchableOpacity
-                style={styles.statsCard}
-                onPress={() =>
-                  router.push("/applications" as any)
-                }
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.statsIconContainer,
-                    styles.statsIconOrange,
-                  ]}
-                >
-                  <FileText size={20} color={COLORS.warning} />
-                </View>
-                <Text style={styles.statsValue}>
-                  {stats.pendingProposals}
-                </Text>
-                <Text style={styles.statsLabel}>Pending Proposals</Text>
-                <View
-                  style={[
-                    styles.statsCardAccent,
-                    styles.statsCardAccentOrange,
-                  ]}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* ═══ 4b. Quick Actions ═══ */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                <Zap size={18} color={COLORS.primary} />
-                <Text style={styles.sectionTitle}>Quick Actions</Text>
-              </View>
-
-              <View style={styles.quickActionsContainer}>
-                {/* Find Jobs */}
-                <TouchableOpacity
-                  style={styles.quickActionButton}
-                  onPress={handleFindJobs}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(124, 58, 237, 0.15)",
-                      "rgba(124, 58, 237, 0.05)",
-                    ]}
-                    style={styles.quickActionGradient}
-                  >
-                    <Search size={24} color={COLORS.primary} />
-                  </LinearGradient>
-                  <Text style={styles.quickActionText}>Find Jobs</Text>
-                </TouchableOpacity>
-
-                {/* Contracts */}
-                <TouchableOpacity
-                  style={styles.quickActionButton}
-                  onPress={handleMyContracts}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(6, 182, 212, 0.15)",
-                      "rgba(6, 182, 212, 0.05)",
-                    ]}
-                    style={styles.quickActionGradient}
-                  >
-                    <Briefcase size={24} color={COLORS.secondary} />
-                  </LinearGradient>
-                  <Text style={styles.quickActionText}>Contracts</Text>
-                </TouchableOpacity>
-
-                {/* Messages */}
-                <TouchableOpacity
-                  style={styles.quickActionButton}
-                  onPress={handleMessages}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={[
-                      "rgba(16, 185, 129, 0.15)",
-                      "rgba(16, 185, 129, 0.05)",
-                    ]}
-                    style={styles.quickActionGradient}
-                  >
-                    <MessageSquare size={24} color={COLORS.success} />
-                  </LinearGradient>
-                  <Text style={styles.quickActionText}>Messages</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* ═══ 5. Job Filters ═══ */}
-            <FilterTabs
-              active={activeFilter}
-              counts={filterCounts}
-              onChange={setActiveFilter}
+      {/* Top row: priority pill + status pill */}
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardLeftHeader}>
+          <View style={styles.cardDocIcon}>
+            <Ionicons
+              name="document-text-outline"
+              size={14}
+              color={BRAND.textSecondary}
             />
-          </>
-        }
-        // ═══════════════════════════════════════════════════════
-        // EMPTY STATE
-        // ═══════════════════════════════════════════════════════
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyTitle}>No Jobs Found</Text>
-            <Text style={styles.emptySubtitle}>
-              {activeFilter === "all"
-                ? "Pull down to refresh and check for new assignments."
-                : `No ${activeFilter} jobs. Try a different filter.`}
+          </View>
+          <View
+            style={[
+              styles.priorityPill,
+              { backgroundColor: `${prio.color}1F` },
+            ]}
+          >
+            <View
+              style={[styles.priorityDot, { backgroundColor: prio.color }]}
+            />
+            <Text style={[styles.priorityText, { color: prio.color }]}>
+              {prio.label}
             </Text>
           </View>
-        }
-      />
-
-      {/* ═══ 7. Floating Action Button — Context-Aware Chat ═══ */}
-      <ChatFAB
-        context="job"
-        contextId="abc-123"
-        unreadCount={3}
-        visible={true}
-      />
-
-      {/* ═══ Inspection Form Modal ═══ */}
-      <Modal
-        visible={formModalVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setFormModalVisible(false)}
-      >
-        <View style={styles.formModalRoot}>
-          {/* Modal Header */}
-          <View style={styles.formModalHeader}>
-            <TouchableOpacity
-              onPress={() => {
-                Alert.alert(
-                  "Close Form?",
-                  "Your draft is auto-saved. You can resume later.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Close",
-                      onPress: () => {
-                        setFormModalVisible(false);
-                        setSelectedJob(null);
-                        loadDashboard();
-                      },
-                    },
-                  ]
-                );
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={styles.formModalClose}>✕ Close</Text>
-            </TouchableOpacity>
-            <Text style={styles.formModalTitle} numberOfLines={1}>
-              {selectedJob?.title ?? "Inspection Form"}
-            </Text>
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Live</Text>
-            </View>
-          </View>
-
-          {/* Form */}
-          {selectedJob && (
-            <DynamicInspectionForm />
-          )}
         </View>
-      </Modal>
-    </SafeAreaView>
+
+        <View
+          style={[
+            styles.statusPill,
+            { backgroundColor: `${stat.color}1F` },
+          ]}
+        >
+          <Text style={styles.statusEmoji}>{stat.icon}</Text>
+          <Text style={[styles.statusText, { color: stat.color }]}>
+            {stat.label}
+          </Text>
+        </View>
+      </View>
+
+      {/* Title + client */}
+      <Text style={styles.cardTitle} numberOfLines={2}>
+        {job.title || 'Untitled job'}
+      </Text>
+      <View style={styles.cardClientRow}>
+        <Text style={styles.cardClientName} numberOfLines={1}>
+          {clientName}
+        </Text>
+      </View>
+
+      {/* Location */}
+      {job.location ? (
+        <View style={styles.cardLocationRow}>
+          <Text style={styles.locationPin}>📍</Text>
+          <Text style={styles.cardLocationText} numberOfLines={1}>
+            {job.location}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Stats box */}
+      <View style={styles.cardStatsBox}>
+        <CardStat label="Rate" value={formatRate(job)} />
+        <View style={styles.cardStatVDivider} />
+        <CardStat label="Duration" value={formatDuration(job)} />
+        <View style={styles.cardStatVDivider} />
+        <CardStat label="Due" value={due.label} valueColor={dueColor} />
+      </View>
+
+      {/* Single CTA — Clone removed */}
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.cardCta,
+          pressed && { opacity: 0.88 },
+        ]}
+      >
+        <Text style={styles.cardCtaText}>{ctaLabel}</Text>
+        <Ionicons name="arrow-forward" size={16} color="#04130B" />
+      </Pressable>
+    </Pressable>
   );
-}
+};
 
-// ──────────────────────────────────────────────────────────────────
-// Combined Styles
-// ──────────────────────────────────────────────────────────────────
+const CardStat = ({
+  label,
+  value,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+}) => (
+  <View style={styles.cardStat}>
+    <Text style={styles.cardStatLabel}>{label}</Text>
+    <Text
+      style={[
+        styles.cardStatValue,
+        valueColor ? { color: valueColor } : null,
+      ]}
+      numberOfLines={1}
+    >
+      {value}
+    </Text>
+  </View>
+);
 
+/** ─────────────────────────────────────────────────────────
+ *  Subcomponents
+ *  ────────────────────────────────────────────────────── */
+
+const KpiCard = ({
+  icon,
+  value,
+  label,
+  accent,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  label: string;
+  accent: string;
+}) => (
+  <View style={styles.kpiCard}>
+    <LinearGradient
+      colors={[`${accent}1F`, `${accent}06`]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+    <View style={[styles.kpiIcon, { backgroundColor: `${accent}26` }]}>
+      <Ionicons name={icon} size={14} color={accent} />
+    </View>
+    <Text style={styles.kpiValue} numberOfLines={1}>
+      {value}
+    </Text>
+    <Text style={styles.kpiLabel} numberOfLines={1}>
+      {label}
+    </Text>
+    <View style={[styles.kpiAccentLine, { backgroundColor: accent }]} />
+  </View>
+);
+
+const ActionItem = ({
+  icon,
+  label,
+  color,
+  badge = 0,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  color: string;
+  badge?: number;
+  onPress?: () => void;
+}) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.actionItem,
+      pressed && { transform: [{ scale: 0.96 }] },
+    ]}
+    onPress={onPress}
+  >
+    <LinearGradient
+      colors={[`${color}33`, `${color}0A`]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.actionGrad, { borderColor: `${color}33` }]}
+    >
+      <Ionicons name={icon} size={22} color={color} />
+      {badge > 0 && (
+        <View style={styles.actionBadge}>
+          <Text style={styles.actionBadgeText}>
+            {badge > 9 ? '9+' : badge}
+          </Text>
+        </View>
+      )}
+    </LinearGradient>
+    <Text style={styles.actionLabel} numberOfLines={1}>
+      {label}
+    </Text>
+  </Pressable>
+);
+
+const FilterChip = ({
+  label,
+  count,
+  active,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onPress: () => void;
+}) => (
+  <Pressable
+    onPress={onPress}
+    style={[styles.filterChip, active && styles.filterChipActive]}
+  >
+    <Text
+      style={[
+        styles.filterChipLabel,
+        active && styles.filterChipLabelActive,
+      ]}
+    >
+      {label}
+    </Text>
+    <View
+      style={[
+        styles.filterChipCount,
+        active && styles.filterChipCountActive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.filterChipCountText,
+          active && styles.filterChipCountTextActive,
+        ]}
+      >
+        {count}
+      </Text>
+    </View>
+  </Pressable>
+);
+
+/** ─────────────────────────────────────────────────────────
+ *  Styles
+ *  ────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  // ── Layout ──────────────────────────────────
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
+  container: { flex: 1, backgroundColor: BRAND.bg },
+  safeArea: { flex: 1 },
+
+  // Atmospheric ambient lighting
+  glowTopLeft: {
+    position: 'absolute',
+    top: -140,
+    left: -100,
+    width: 340,
+    height: 340,
+    borderRadius: 200,
+    backgroundColor: BRAND.primary,
+    opacity: 0.18,
   },
+  glowMidRight: {
+    position: 'absolute',
+    top: 240,
+    right: -140,
+    width: 300,
+    height: 300,
+    borderRadius: 200,
+    backgroundColor: BRAND.cyan,
+    opacity: 0.06,
+  },
+
   listContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 100,
+    paddingBottom: 140,
   },
 
-  // ── Loading ─────────────────────────────────
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-
-  // ── 1. Header ───────────────────────────────
+  // ── Header
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 22,
+    marginTop: 4,
   },
-  headerLeft: {
-    flex: 1,
+  headerLeft: { flex: 1, paddingRight: 12 },
+  dateLabel: {
+    color: BRAND.primary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    marginBottom: 6,
   },
   greeting: {
+    color: BRAND.textSecondary,
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-    letterSpacing: 0.3,
+    fontWeight: '500',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 2,
   },
   userName: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    letterSpacing: -0.5,
+    color: BRAND.textPrimary,
+    fontSize: 30,
+    fontWeight: '800',
+    letterSpacing: -0.6,
+    flexShrink: 1,
   },
-  notificationButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: COLORS.cardBackground,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  notificationBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: COLORS.error,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: COLORS.background,
-  },
-  notificationBadgeText: {
-    color: COLORS.textPrimary,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-
-  // ── 2. Environment & Safety ─────────────────
-  environmentRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 16,
-  },
-  weatherContainer: {
-    flex: 1,
-  },
-  sosWrapper: {
-    paddingTop: 4,
-  },
-
-  // ── 3. Earnings Card (Purple Gradient) ──────
-  earningsCard: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    overflow: "hidden",
-    position: "relative",
-  },
-  earningsDecoration: {
-    position: "absolute",
-    top: -50,
-    right: -50,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  earningsDecorationSmall: {
-    position: "absolute",
-    bottom: -30,
-    left: -30,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-  },
-  earningsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  earningsIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  earningsTrendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(16, 185, 129, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-  },
-  earningsTrendText: {
-    fontSize: 12,
-    color: COLORS.success,
-    fontWeight: "600",
-  },
-  earningsLabel: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.7)",
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  earningsValue: {
-    fontSize: 42,
-    fontWeight: "800",
-    color: COLORS.textPrimary,
-    marginBottom: 12,
-    letterSpacing: -1,
-  },
-  earningsFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  earningsSubtext: {
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.6)",
-  },
-
-  // ── 4a. Stats Row ───────────────────────────
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 28,
-  },
-  statsCard: {
-    flex: 1,
-    backgroundColor: COLORS.cardBackground,
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-    overflow: "hidden",
-    position: "relative",
-  },
-  statsCardAccent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 3,
-    backgroundColor: COLORS.secondary,
-  },
-  statsCardAccentOrange: {
-    backgroundColor: COLORS.warning,
-  },
-  statsIconContainer: {
+  wave: { fontSize: 24, marginTop: 4 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  iconBtn: {
     width: 44,
     height: 44,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
+    borderRadius: 22,
+    backgroundColor: BRAND.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BRAND.border,
   },
-  statsIconCyan: {
-    backgroundColor: "rgba(6, 182, 212, 0.15)",
-  },
-  statsIconOrange: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-  },
-  statsValue: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-    letterSpacing: -0.5,
-  },
-  statsLabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    letterSpacing: 0.2,
+  pressed: { opacity: 0.7 },
+  iconDot: {
+    position: 'absolute',
+    top: 11,
+    right: 12,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: BRAND.danger,
+    borderWidth: 1.5,
+    borderColor: BRAND.bg,
   },
 
-  // ── 4b. Quick Actions ───────────────────────
-  section: {
-    marginBottom: 24,
+  // ── Focus / mission card
+  focusWrap: { marginBottom: 18 },
+  focusCard: {
+    borderRadius: 28,
+    padding: 22,
+    overflow: 'hidden',
+    minHeight: 178,
+    shadowColor: BRAND.primary,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  focusOrbA: {
+    position: 'absolute',
+    top: -70,
+    right: -70,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+  },
+  focusOrbB: {
+    position: 'absolute',
+    bottom: -90,
+    left: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  focusTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  focusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    letterSpacing: 0.2,
+  dotWrap: {
+    width: 10,
+    height: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  quickActionsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  dotPulse: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: BRAND.successBright,
+  },
+  dotCore: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: BRAND.successBright,
+  },
+  focusBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  focusArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusKicker: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  focusTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    lineHeight: 28,
+    marginBottom: 18,
+  },
+  focusMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  quickActionButton: {
-    flex: 1,
-    alignItems: "center",
+  focusMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
   },
-  quickActionGradient: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.cardBorder,
-  },
-  quickActionText: {
+  focusMetaText: {
+    color: 'rgba(255,255,255,0.95)',
     fontSize: 13,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    fontWeight: "500",
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  focusMetaDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: 'rgba(255,255,255,0.3)',
   },
 
-  // ── Empty State ─────────────────────────────
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 60,
+  // ── Empty focus card
+  emptyFocusCard: {
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: BRAND.borderStrong,
   },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: COLORS.textPrimary },
-  emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: "center",
-    marginTop: 8,
-    paddingHorizontal: 40,
-    lineHeight: 20,
+  emptyFocusIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: BRAND.primaryGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-
-  // ── 7. FAB (from second code block) ─────────
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.success,
-    alignItems: "center",
-    justifyContent: "center",
-    // iOS shadow
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    // Android shadow
-    elevation: 8,
+  emptyFocusTitle: {
+    color: BRAND.textPrimary,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyFocusSub: {
+    color: BRAND.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
-  // ── Form Modal ──────────────────────────────
-  formModalRoot: {
+  // ── Operations Hub + SOS row
+  envRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 18,
+    alignItems: 'stretch',
+  },
+  envWeather: { flex: 1 },
+  envSos: { justifyContent: 'center' },
+
+  // ── Operations Hub widget
+  hubCard: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: BRAND.surface,
+    borderWidth: 1,
+    borderColor: BRAND.borderStrong,
+    overflow: 'hidden',
+    minHeight: 230,
+  },
+  hubGridLineA: {
+    position: 'absolute',
+    top: 56,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(124, 58, 237, 0.14)',
+  },
+  hubGridLineB: {
+    position: 'absolute',
+    bottom: 78,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  },
+  hubSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 70,
+    backgroundColor: 'rgba(124, 58, 237, 0.06)',
+  },
+  hubHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  hubLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  hubLabel: {
+    color: BRAND.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  hubReadinessPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  hubReadinessDotWrap: {
+    width: 8,
+    height: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hubReadinessPulse: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  hubReadinessDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  hubReadinessText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+
+  // Hero — deadline countdown
+  hubDeadlineBlock: {
+    marginBottom: 16,
+  },
+  hubDeadlineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  hubKicker: {
+    color: BRAND.textMuted,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+  },
+  hubCountdown: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
+    marginBottom: 4,
+  },
+  hubDeadlineLabel: {
+    color: BRAND.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Telemetry tiles
+  hubStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    overflow: 'hidden',
+  },
+  hubStatTile: {
+    width: '30%',
+    minWidth: 0,
+    justifyContent: 'flex-start',
+    overflow: 'hidden',
+  },
+  hubStatTileLeft: {
+    alignItems: 'flex-start',
+  },
+  hubStatTileCenter: {
+    alignItems: 'center',
+  },
+  hubStatTileRight: {
+    alignItems: 'flex-end',
+  },
+  hubStatIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  hubStatValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginBottom: 2,
+    width: '100%',
+    textAlign: 'center',
+    flexShrink: 1,
+    includeFontPadding: false,
+  },
+  hubStatValueLeft: {
+    textAlign: 'left',
+  },
+  hubStatValueRight: {
+    textAlign: 'right',
+  },
+  hubStatLabel: {
+    color: BRAND.textMuted,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+    width: '100%',
+  },
+  hubStatLabelLeft: {
+    textAlign: 'left',
+  },
+  hubStatLabelRight: {
+    textAlign: 'right',
+  },
+  hubPressed: {
+    opacity: 0.85,
+  },
+
+  // ── KPI Trio
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 26,
+  },
+  kpiCard: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    minHeight: 110,
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: BRAND.surface,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    overflow: 'hidden',
   },
-  formModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === "ios" ? 56 : 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.cardBorder,
-    backgroundColor: COLORS.cardBackground,
+  kpiIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  formModalClose: {
-    fontSize: 14,
-    color: COLORS.error,
-    fontWeight: "600",
+  kpiValue: {
+    color: BRAND.textPrimary,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 2,
   },
-  formModalTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+  kpiLabel: {
+    color: BRAND.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  kpiAccentLine: {
+    position: 'absolute',
+    bottom: 0,
+    left: 14,
+    right: 14,
+    height: 2,
+    borderRadius: 2,
+    opacity: 0.55,
+  },
+
+  // ── Section header
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 18,
+    borderRadius: 2,
+    backgroundColor: BRAND.primary,
+  },
+  sectionTitle: {
+    color: BRAND.textPrimary,
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  sectionCount: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: BRAND.surface,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+  },
+  sectionCountText: {
+    color: BRAND.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // ── Quick actions
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  actionItem: {
+    alignItems: 'center',
     flex: 1,
-    textAlign: "center",
-    marginHorizontal: 12,
   },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(48,209,88,0.12)",
+  actionGrad: {
+    width: '100%',
+    aspectRatio: 1,
+    maxWidth: 78,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  actionLabel: {
+    color: BRAND.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  actionBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    backgroundColor: BRAND.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: BRAND.bg,
+  },
+  actionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  // ── Filter chips
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: BRAND.surface,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+  },
+  filterChipActive: {
+    backgroundColor: BRAND.primary,
+    borderColor: BRAND.primary,
+  },
+  filterChipLabel: {
+    color: BRAND.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterChipLabelActive: { color: '#FFFFFF' },
+  filterChipCount: {
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+  },
+  filterChipCountActive: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  filterChipCountText: {
+    color: BRAND.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterChipCountTextActive: { color: '#FFFFFF' },
+
+  // ── Job item wrapper
+  jobItem: { marginBottom: 12 },
+
+  // ── Card (inline JobCard)
+  card: {
+    borderRadius: 22,
+    padding: 16,
+    backgroundColor: BRAND.surface,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    overflow: 'hidden',
+  },
+  cardGlow: {
+    position: 'absolute',
+    top: -60,
+    right: -60,
+    width: 160,
+    height: 160,
+    borderRadius: 100,
+    backgroundColor: BRAND.primary,
+    opacity: 0.05,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 10,
+  },
+  cardLeftHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flexShrink: 1,
+  },
+  cardDocIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  priorityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: "#30D158",
+  priorityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  liveText: {
+  priorityText: {
     fontSize: 10,
-    color: "#30D158",
-    fontWeight: "700",
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  statusEmoji: { fontSize: 12 },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cardTitle: {
+    color: BRAND.textPrimary,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    marginBottom: 4,
+  },
+  cardClientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardClientName: {
+    color: BRAND.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  cardLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 14,
+  },
+  locationPin: { fontSize: 13 },
+  cardLocationText: {
+    color: BRAND.textSecondary,
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  cardStatsBox: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+  },
+  cardStat: { flex: 1, alignItems: 'center' },
+  cardStatLabel: {
+    color: BRAND.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  cardStatValue: {
+    color: BRAND.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  cardStatVDivider: {
+    width: 1,
+    backgroundColor: BRAND.border,
+  },
+  cardCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#22D67D',
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  cardCtaText: {
+    color: '#04130B',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  // ── Empty state
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  emptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: BRAND.primaryGlow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    color: BRAND.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  emptySub: {
+    color: BRAND.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: BRAND.primary,
+  },
+  emptyCtaText: {
+    color: BRAND.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

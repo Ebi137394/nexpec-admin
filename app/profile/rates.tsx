@@ -40,6 +40,7 @@ import {
   X,
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { toCents, fromCents } from '../../lib/money';
 import {
   FinancialFormData,
   FinancialUpdatePayload,
@@ -457,7 +458,7 @@ export default function RatesScreen(): React.JSX.Element {
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          hourly_rate,
+          hourly_rate_cents,
           daily_rate,
           travel_rate,
           travel_rate_unit,
@@ -476,8 +477,10 @@ export default function RatesScreen(): React.JSX.Element {
       if (error) throw error;
 
       if (data) {
+        // ★ Task 4: hourly_rate is now hourly_rate_cents (bigint). Convert to dollars for the form input.
+        const hourlyDollars = fromCents((data as any).hourly_rate_cents);
         const settings: FinancialFormData = {
-          hourly_rate: data.hourly_rate?.toString() || '',
+          hourly_rate: hourlyDollars > 0 ? hourlyDollars.toString() : '',
           daily_rate: data.daily_rate?.toString() || '',
           travel_rate: data.travel_rate?.toString() || '',
           travel_rate_unit: (data.travel_rate_unit as TravelRateUnit) || 'km',
@@ -570,7 +573,8 @@ export default function RatesScreen(): React.JSX.Element {
       if (!user) throw new Error('No authenticated user found');
 
       const updates: FinancialUpdatePayload = {
-        hourly_rate: parseCurrencyInput(formData.hourly_rate),
+        // ★ Task 4: hourly_rate column is now hourly_rate_cents (bigint).
+        hourly_rate_cents: toCents(parseCurrencyInput(formData.hourly_rate)),
         daily_rate: parseCurrencyInput(formData.daily_rate),
         travel_rate: parseCurrencyInput(formData.travel_rate),
         travel_rate_unit: formData.travel_rate_unit,

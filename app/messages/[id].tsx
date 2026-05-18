@@ -1,714 +1,356 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-  ActivityIndicator,
-  Keyboard,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import {
-  ArrowLeft,
-  Send,
-  User,
-  Phone,
-  Video,
-  MoreVertical,
-  Check,
-  CheckCheck,
-  Image as ImageIcon,
-  Paperclip,
-  MessageCircle, // Added missing import
-} from 'lucide-react-native';
-import { supabase } from '@/src/lib/supabase';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, StatusBar, Linking, Keyboard, Dimensions } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/src/contexts/AuthContext';
-import type { Database } from '@/src/types/database.types';
+// ★ Schema-fix: '@/src/lib/supabase' is a phantom path — same issue as
+//   in app/messages/index.tsx. Canonical client lives at /lib/supabase.ts.
+import { supabase } from '@/lib/supabase';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
+import { ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck, FileText, ChevronDown } from 'lucide-react-native';
 
-// Types
-interface Message {
-  id: string;
-  conversation_id: string;
-  sender_id: string;
-  content: string;
-  message_type: 'text' | 'image' | 'file';
-  is_read: boolean;
-  created_at: string;
+const COLORS = {
+  background: '#070716', surface: 'rgba(255, 255, 255, 0.03)', surfaceSolid: '#0D0D24', border: 'rgba(255, 255, 255, 0.1)',
+  primary: '#00FFFF', textPrimary: '#FFFFFF', textSecondary: '#9CA3AF', textMuted: '#64748B', purple: '#7C3AED',
+  myBubble: '#7C3AED', theirBubble: 'rgba(255, 255, 255, 0.08)', skeleton: 'rgba(255, 255, 255, 0.06)',
+};
+
+const SCREEN_WIDTH = Dimensions.get('window').width; const BUBBLE_MAX_WIDTH = SCREEN_WIDTH * 0.75;
+const GROUP_THRESHOLD_MS = 5 * 60 * 1000; const HEADER_HEIGHT = 62;
+
+interface Profile { id: string; full_name: string; avatar_url: string | null; role: string; }
+interface MessageRow { id: string; job_id: string; sender_id: string; content: string; is_read: boolean; created_at: string; attachment_url: string | null; attachment_type: string | null; attachment_name: string | null; }
+interface DisplayMessage extends MessageRow { _optimistic?: boolean; _localUri?: string; }
+
+const keyExtractor = (item: DisplayMessage) => item.id;
+
+function hapticLight() { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); }
+function hapticMedium() { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); }
+function getInitials(name: string): string { return name ? name.split(' ').map((w) => w.charAt(0)).join('').toUpperCase().substring(0, 2) : '?'; }
+function formatBubbleTime(iso: string): string { if (!iso) return ''; return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }); }
+function dayKeyFromIso(iso: string): string { if (!iso) return ''; const d = new Date(iso); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function dateSectionLabel(iso: string): string {
+  if (!iso) return ''; const d = new Date(iso); const now = new Date(), diffDays = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000);
+  if (diffDays === 0) return 'Today'; if (diffDays === 1) return 'Yesterday'; if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
-
-// ✅ FIXED INTERFACE: Matches SQL (client_id)
-interface Conversation {
-  id: string;
-  job_id: string;
-  client_id: string; 
-  worker_id: string;
-  job: {
-    id: string;
-    title: string;
-  };
-  client: { 
-    id: string;
-    full_name: string;
-    avatar_url: string;
-  };
-  worker: {
-    id: string;
-    full_name: string;
-    avatar_url: string;
-  };
+function mimeForFile(name: string, kind: 'image' | 'document'): string {
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (kind === 'image') return ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+  if (ext === 'pdf') return 'application/pdf'; if (ext === 'doc' || ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  return 'application/octet-stream';
 }
-
-interface OtherUser {
-  id: string;
-  full_name: string;
-  avatar_url: string;
+function resolveOtherUserId(job: { client_id: string | null; agency_id: string | null; hired_inspector_id: string | null; }, myId: string): string | null {
+  return job.hired_inspector_id === myId ? (job.client_id ?? job.agency_id ?? null) : (job.hired_inspector_id ?? null);
 }
 
 export default function ChatRoomScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { user } = useAuth();
+  const { id: jobId } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter(); const insets = useSafeAreaInsets();
+  const { user } = useAuth() as any; const myId = user?.id ?? null;
 
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
+  const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [optimisticMsgs, setOptimisticMsgs] = useState<DisplayMessage[]>([]);
+  const [otherUser, setOtherUser] = useState<Profile | null>(null);
+  const [jobTitle, setJobTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [text, setText] = useState('');
+  const [inputHeight, setInputHeight] = useState(40);
+  const [signedUrlCache, setSignedUrlCache] = useState<Record<string, string>>({});
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
-  const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
+  const flatListRef = useRef<FlatList>(null); const inputRef = useRef<TextInput>(null);
+  const displayMessages: DisplayMessage[] = useMemo(() => [...optimisticMsgs, ...messages], [optimisticMsgs, messages]);
+
+  const ensureSignedUrls = useCallback(async (msgs: MessageRow[]) => {
+    const need = msgs.filter((m) => m.attachment_type === 'image' && m.attachment_url && !signedUrlCache[m.attachment_url]);
+    if (need.length === 0) return;
+    const results = await Promise.allSettled(need.map(async (m) => {
+      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(m.attachment_url!, 3600);
+      return { path: m.attachment_url!, url: data?.signedUrl ?? null };
+    }));
+    const newEntries: Record<string, string> = {};
+    for (const r of results) if (r.status === 'fulfilled' && r.value.url) newEntries[r.value.path] = r.value.url;
+    if (Object.keys(newEntries).length > 0) setSignedUrlCache((prev) => ({ ...prev, ...newEntries }));
+  }, [signedUrlCache]);
 
   useEffect(() => {
-    fetchConversation();
-    fetchMessages();
-    const subscription = subscribeToMessages();
-    markMessagesAsRead();
+    if (!jobId || !myId) return; let alive = true;
+    (async () => {
+      setIsLoading(true);
+      try {
+        // ★ N+1-MESSAGES-001 — Pre-strike this loader ran THREE
+        //   sequential awaits (jobs → profiles → messages). On a slow
+        //   connection that's max(j+p+m) ≈ 800ms typical. The jobs and
+        //   messages queries are independent — they can fire in
+        //   parallel. Profile still depends on the job row to know
+        //   which user_id to fetch; we kick it off as soon as the job
+        //   resolves, in parallel with the messages mark-read UPDATE.
+        //   Net latency drops to max(j, m) + max(p, mark) ≈ 250ms.
+        const [jobsRes, msgsRes] = await Promise.all([
+          supabase
+            .from('jobs')
+            .select('title, client_id, agency_id, hired_inspector_id')
+            .eq('id', jobId)
+            .single(),
+          supabase
+            .from('messages')
+            .select('*')
+            .eq('job_id', jobId)
+            .order('created_at', { ascending: false }),
+        ]);
 
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [id]);
+        if (!alive) return;
+        if (jobsRes.error) throw jobsRes.error;
+        const job = jobsRes.data;
+        if (!job) return;
+        setJobTitle(job.title ?? 'Untitled Job');
 
-  const fetchConversation = async () => {
-    try {
-      // ✅ FIXED QUERY: Uses client_id instead of employer_id
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          job:jobs (
-            id,
-            title
-          ),
-          client:profiles!client_id (
-            id,
-            full_name,
-            avatar_url
-          ),
-          worker:profiles!contractor_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq('id', id)
-        .single();
+        if (msgsRes.error) throw msgsRes.error;
+        const messageList = (msgsRes.data ?? []) as MessageRow[];
+        setMessages(messageList);
 
-      if (error) throw error;
-      setConversation(data);
+        // Profile fetch + mark-read run in parallel — both depend on
+        // data we already have (otherId from job row, unreadIds from
+        // messages), neither depends on the other.
+        const otherId = resolveOtherUserId(job, myId);
+        const profilePromise = otherId
+          ? supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url, role')
+              .eq('id', otherId)
+              .single()
+          : Promise.resolve({ data: null, error: null } as const);
 
-      // ✅ FIXED LOGIC: Uses client_id to determine other user
-      if (data.client_id === user?.id) {
-        setOtherUser(data.worker);
-      } else {
-        setOtherUser(data.client);
-      }
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-    }
-  };
+        const unreadIds = messageList
+          .filter((m) => m.sender_id !== myId && !m.is_read)
+          .map((m) => m.id);
+        const markReadPromise =
+          unreadIds.length > 0
+            ? supabase
+                .from('messages')
+                .update({ is_read: true })
+                .in('id', unreadIds)
+            : Promise.resolve();
 
-  const fetchMessages = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', id)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setMessages(data || []);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const subscribeToMessages = () => {
-    const channel = supabase
-      .channel(`messages:${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${id}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as Message;
-          setMessages((prev) => [...prev, newMsg]);
-          
-          if (newMsg.sender_id !== user?.id) {
-            markMessageAsRead(newMsg.id);
-          }
+        const [profRes] = await Promise.all([profilePromise, markReadPromise]);
+        if (alive && profRes && (profRes as { data: unknown }).data) {
+          setOtherUser((profRes as { data: Profile }).data);
         }
-      )
-      .subscribe();
 
-    return channel;
-  };
+        await ensureSignedUrls(messageList);
+      } catch (err) {} finally { if (alive) setIsLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [jobId, myId]);
 
-  const markMessagesAsRead = async () => {
-    if (!user) return;
+  useEffect(() => {
+    if (!jobId || !myId) return;
+    const channel = supabase.channel(`chatroom-${jobId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` }, async (payload) => {
+        const incoming = payload.new as MessageRow;
+        if (incoming.sender_id !== myId) { hapticMedium(); await supabase.from('messages').update({ is_read: true }).eq('id', incoming.id); }
+        if (incoming.sender_id === myId) setOptimisticMsgs([]);
+        setMessages((prev) => { if (prev.some((m) => m.id === incoming.id)) return prev; return [incoming, ...prev]; });
+        if (incoming.attachment_type === 'image' && incoming.attachment_url) {
+          const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(incoming.attachment_url, 3600);
+          if (data?.signedUrl) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: data.signedUrl }));
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` }, (payload) => {
+        const updated = payload.new as MessageRow; setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [jobId, myId]);
+
+  const handleSendText = useCallback(async () => {
+    const body = text.trim(); if (!body || isSending || !myId || !jobId) return;
+    hapticLight(); setText(''); setInputHeight(40);
+    const tempId = `optimistic_${Date.now()}_${Math.random()}`;
+    const ghost: DisplayMessage = { id: tempId, job_id: jobId, sender_id: myId, content: body, is_read: false, created_at: new Date().toISOString(), attachment_url: null, attachment_type: null, attachment_name: null, _optimistic: true };
+    setOptimisticMsgs((prev) => [ghost, ...prev]); setIsSending(true);
     try {
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('conversation_id', id)
-        .neq('sender_id', user.id)
-        .eq('is_read', false);
-    } catch (error) {
-      console.error('Error marking messages as read:', error);
-    }
-  };
+      const { error } = await supabase.from('messages').insert({ job_id: jobId, sender_id: myId, content: body });
+      if (error) throw error;
+    } catch (err: any) {
+      setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); setText(body);
+    } finally { setIsSending(false); }
+  }, [text, isSending, myId, jobId]);
 
-  const markMessageAsRead = async (messageId: string) => {
+  const uploadAndSendAttachment = useCallback(async (uri: string, kind: 'image' | 'document', fileName: string) => {
+    if (!myId || !jobId) return; hapticLight();
+    const tempId = `optimistic_att_${Date.now()}_${Math.random()}`;
+    const ghost: DisplayMessage = { id: tempId, job_id: jobId, sender_id: myId, content: '', is_read: false, created_at: new Date().toISOString(), attachment_url: uri, attachment_type: kind, attachment_name: fileName, _optimistic: true, _localUri: uri };
+    setOptimisticMsgs((prev) => [ghost, ...prev]); setIsSending(true);
     try {
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('id', messageId);
-    } catch (error) {
-      console.error('Error marking message as read:', error);
-    }
-  };
+      const sanitized = encodeURIComponent(fileName); const storagePath = `${myId}/${jobId}/${Date.now()}_${sanitized}`;
+      const fetchResp = await fetch(uri); const blob = await fetchResp.blob();
+      const { error: uploadErr } = await supabase.storage.from('chat_attachments').upload(storagePath, blob, { contentType: mimeForFile(fileName, kind), upsert: false });
+      if (uploadErr) throw uploadErr;
+      const { error: insertErr } = await supabase.from('messages').insert({ job_id: jobId, sender_id: myId, content: '', attachment_url: storagePath, attachment_type: kind, attachment_name: fileName });
+      if (insertErr) throw insertErr;
+    } catch (err: any) {
+      setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); Alert.alert('Upload Failed', err.message ?? 'Could not upload the attachment.');
+    } finally { setIsSending(false); }
+  }, [myId, jobId]);
 
-  const handleSend = async () => {
-    if (!newMessage.trim() || sending || !user) return;
+  const handlePickImage = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (status !== 'granted') return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: false });
+    if (result.canceled || !result.assets?.[0]) return;
+    await uploadAndSendAttachment(result.assets[0].uri, 'image', result.assets[0].fileName ?? `photo_${Date.now()}.jpg`);
+  }, [uploadAndSendAttachment]);
 
-    const messageText = newMessage.trim();
-    setNewMessage('');
-    setSending(true);
+  const handleCamera = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync(); if (status !== 'granted') return;
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
+    if (result.canceled || !result.assets?.[0]) return;
+    await uploadAndSendAttachment(result.assets[0].uri, 'image', result.assets[0].fileName ?? `camera_${Date.now()}.jpg`);
+  }, [uploadAndSendAttachment]);
 
+  const handlePickDocument = useCallback(async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    if (result.canceled || !result.assets?.[0]) return;
+    await uploadAndSendAttachment(result.assets[0].uri, 'document', result.assets[0].name);
+  }, [uploadAndSendAttachment]);
+
+  const handleAttachmentMenu = useCallback(() => {
+    Alert.alert('Attach', 'Choose a source', [{ text: 'Photo Library', onPress: handlePickImage }, { text: 'Document', onPress: handlePickDocument }, { text: 'Cancel', style: 'cancel' }]);
+  }, [handlePickImage, handlePickDocument]);
+
+  const handleOpenDocument = useCallback(async (storagePath: string) => {
     try {
-      const { error: messageError } = await supabase.from('messages').insert({
-        conversation_id: id,
-        sender_id: user.id,
-        content: messageText,
-        is_read: false,
-      });
+      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(storagePath, 3600);
+      if (data?.signedUrl) await Linking.openURL(data.signedUrl);
+    } catch {}
+  }, []);
 
-      if (messageError) throw messageError;
-
-      // Update conversation's updated_at (removed custom columns like last_message for simplicity unless added to SQL)
-      await supabase
-        .from('conversations')
-        .update({
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setNewMessage(messageText); 
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const formatMessageTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  const formatDateHeader = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-      });
-    }
-  };
-
-  const shouldShowDateHeader = (index: number) => {
-    if (index === 0) return true;
-    const currentDate = new Date(messages[index].created_at).toDateString();
-    const previousDate = new Date(messages[index - 1].created_at).toDateString();
-    return currentDate !== previousDate;
-  };
-
-  const isMyMessage = (message: Message) => message.sender_id === user?.id;
-
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isMine = isMyMessage(item);
-    const showDateHeader = shouldShowDateHeader(index);
-    const showAvatar = !isMine && (
-      index === messages.length - 1 ||
-      messages[index + 1]?.sender_id !== item.sender_id
-    );
+  const renderItem = useCallback(({ item, index }: { item: DisplayMessage; index: number }) => {
+    const isMe = item.sender_id === myId;
+    const below = index > 0 ? displayMessages[index - 1] : null; const above = index < displayMessages.length - 1 ? displayMessages[index + 1] : null;
+    const sameSenderBelow = below && below.sender_id === item.sender_id && dayKeyFromIso(below.created_at) === dayKeyFromIso(item.created_at) && Math.abs(new Date(item.created_at).getTime() - new Date(below.created_at).getTime()) < GROUP_THRESHOLD_MS;
+    const sameSenderAbove = above && above.sender_id === item.sender_id && dayKeyFromIso(above.created_at) === dayKeyFromIso(item.created_at) && Math.abs(new Date(above.created_at).getTime() - new Date(item.created_at).getTime()) < GROUP_THRESHOLD_MS;
+    const isTopOfGroup = !sameSenderAbove; const isBottomOfGroup = !sameSenderBelow;
+    const showDateHeader = !above || dayKeyFromIso(above.created_at) !== dayKeyFromIso(item.created_at);
+    const showOtherAvatar = !isMe && isBottomOfGroup;
+    
+    const myRadii = { borderTopLeftRadius: 18, borderTopRightRadius: isTopOfGroup ? 18 : 4, borderBottomLeftRadius: 18, borderBottomRightRadius: isBottomOfGroup ? 18 : 4 };
+    const theirRadii = { borderTopLeftRadius: isTopOfGroup ? 18 : 4, borderTopRightRadius: 18, borderBottomLeftRadius: isBottomOfGroup ? 18 : 4, borderBottomRightRadius: 18 };
+    let imageDisplayUri: string | null = null;
+    if (item.attachment_type === 'image') { if (item._optimistic && item._localUri) imageDisplayUri = item._localUri; else if (item.attachment_url) imageDisplayUri = signedUrlCache[item.attachment_url] ?? null; }
 
     return (
       <View>
-        {showDateHeader && (
-          <View style={styles.dateHeaderContainer}>
-            <View style={styles.dateHeaderLine} />
-            <Text style={styles.dateHeaderText}>
-              {formatDateHeader(item.created_at)}
-            </Text>
-            <View style={styles.dateHeaderLine} />
-          </View>
-        )}
-
-        <View
-          style={[
-            styles.messageRow,
-            isMine ? styles.messageRowMine : styles.messageRowTheirs,
-          ]}
-        >
-          {!isMine && (
-            <View style={styles.messageAvatarContainer}>
-              {showAvatar ? (
-                otherUser?.avatar_url ? (
-                  <Image
-                    source={{ uri: otherUser.avatar_url }}
-                    style={styles.messageAvatar}
-                  />
-                ) : (
-                  <View style={styles.messageAvatarPlaceholder}>
-                    <User size={14} color="#8B5CF6" />
-                  </View>
-                )
-              ) : (
-                <View style={styles.messageAvatarSpacer} />
-              )}
+        {showDateHeader && <View style={s.dateSeparator}><View style={s.datePill}><Text style={s.datePillText}>{dateSectionLabel(item.created_at)}</Text></View></View>}
+        <View style={[s.msgRow, isMe ? s.msgRowMe : s.msgRowThem, { marginTop: isTopOfGroup ? 10 : 2, marginBottom: isBottomOfGroup ? 2 : 0, opacity: item._optimistic ? 0.5 : 1 }]}>
+          {!isMe && (
+            <View style={s.avatarSlot}>
+              {showOtherAvatar && (otherUser?.avatar_url ? <Image source={{ uri: otherUser.avatar_url }} style={s.msgAvatar} /> : <View style={[s.msgAvatar, s.msgAvatarFallback]}><Text style={s.msgAvatarInitials}>{getInitials(otherUser?.full_name ?? '?')}</Text></View>)}
             </View>
           )}
-
-          <View
-            style={[
-              styles.messageBubble,
-              isMine ? styles.messageBubbleMine : styles.messageBubbleTheirs,
-            ]}
-          >
-            <Text
-              style={[
-                styles.messageText,
-                isMine ? styles.messageTextMine : styles.messageTextTheirs,
-              ]}
-            >
-              {item.content}
-            </Text>
-            <View style={styles.messageFooter}>
-              <Text
-                style={[
-                  styles.messageTime,
-                  isMine ? styles.messageTimeMine : styles.messageTimeTheirs,
-                ]}
-              >
-                {formatMessageTime(item.created_at)}
-              </Text>
-              {isMine && (
-                <View style={styles.readIndicator}>
-                  {item.is_read ? (
-                    <CheckCheck size={14} color="#A5B4FC" />
-                  ) : (
-                    <Check size={14} color="#A5B4FC" />
-                  )}
+          <View style={[s.bubble, isMe ? [s.bubbleMine, myRadii] : [s.bubbleTheirs, theirRadii], { maxWidth: BUBBLE_MAX_WIDTH }]}>
+            {item.attachment_type === 'image' && (
+              <View style={s.attachImageWrap}>
+                {imageDisplayUri ? <Image source={{ uri: imageDisplayUri }} style={s.attachImage} resizeMode="cover" /> : <View style={s.attachImagePlaceholder}><ActivityIndicator size="small" color={COLORS.primary}/></View>}
+              </View>
+            )}
+            {item.attachment_type === 'document' && (
+              <TouchableOpacity style={s.attachDocRow} activeOpacity={0.7} disabled={item._optimistic} onPress={() => item.attachment_url && handleOpenDocument(item.attachment_url)}>
+                <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,255,255,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
+                <View style={s.attachDocText}>
+                  <Text style={[s.attachDocName, { color: isMe ? '#FFFFFF' : COLORS.textPrimary }]} numberOfLines={1}>{item.attachment_name || 'Document'}</Text>
+                  <Text style={[s.attachDocHint, { color: isMe ? 'rgba(255,255,255,0.6)' : COLORS.textMuted }]}>Tap to open</Text>
                 </View>
-              )}
+              </TouchableOpacity>
+            )}
+            {item.content.length > 0 && <Text style={[s.msgText, { color: isMe ? '#FFFFFF' : COLORS.textPrimary }]}>{item.content}</Text>}
+            <View style={[s.msgFooter, isMe ? s.msgFooterMe : s.msgFooterThem]}>
+              <Text style={[s.msgTimeText, { color: isMe ? 'rgba(255,255,255,0.5)' : COLORS.textMuted }]}>{formatBubbleTime(item.created_at)}</Text>
+              {isMe && !item._optimistic && <View style={s.receiptIcon}>{item.is_read ? <CheckCheck size={14} color={COLORS.primary} strokeWidth={2.5}/> : <Check size={14} color={COLORS.textMuted} strokeWidth={2.5}/>}</View>}
+              {item._optimistic && <ActivityIndicator size={10} color={isMe ? 'rgba(255,255,255,0.5)' : COLORS.textMuted} style={{ marginLeft: 4 }} />}
             </View>
           </View>
         </View>
       </View>
     );
-  };
+  }, [myId, displayMessages, otherUser, signedUrlCache, handleOpenDocument]);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const hasContent = text.trim().length > 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[s.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.headerProfile}>
-          {otherUser?.avatar_url ? (
-            <Image
-              source={{ uri: otherUser.avatar_url }}
-              style={styles.headerAvatar}
-            />
-          ) : (
-            <View style={styles.headerAvatarPlaceholder}>
-              <User size={20} color="#8B5CF6" />
-            </View>
-          )}
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {otherUser?.full_name || 'Unknown User'}
-            </Text>
-            <Text style={styles.headerJobTitle} numberOfLines={1}>
-              {conversation?.job?.title || 'Job Discussion'}
-            </Text>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.headerBackBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}><ArrowLeft size={24} color={COLORS.textPrimary} /></TouchableOpacity>
+        <View style={s.headerProfile}>
+          {otherUser?.avatar_url ? <Image source={{ uri: otherUser.avatar_url }} style={s.headerAvatar} /> : <View style={[s.headerAvatar, s.headerAvatarFb]}><Text style={s.headerAvatarTxt}>{getInitials(otherUser?.full_name ?? '?')}</Text></View>}
+          <View style={s.headerInfo}>
+            <Text style={s.headerName} numberOfLines={1}>{otherUser?.full_name ?? 'Loading…'}</Text>
+            <Text style={s.headerJob} numberOfLines={1}>{jobTitle}</Text>
           </View>
-        </TouchableOpacity>
-
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerAction}>
-            <Phone size={20} color="#FFFFFF" />
-          </TouchableOpacity>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }}
-          onLayout={() => {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          }}
-          ListEmptyComponent={
-            <View style={styles.emptyMessages}>
-              <View style={styles.emptyMessagesIcon}>
-                <MessageCircle size={48} color="#8B5CF6" />
-              </View>
-              <Text style={styles.emptyMessagesText}>
-                No messages yet. Start the conversation!
-              </Text>
-            </View>
-          }
-        />
-
-        <View style={styles.inputContainer}>
-          <View style={styles.inputWrapper}>
-            <TouchableOpacity style={styles.attachButton}>
-              <Paperclip size={22} color="#8B5CF6" />
-            </TouchableOpacity>
-
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              placeholder="Type a message..."
-              placeholderTextColor="#6B7280"
-              value={newMessage}
-              onChangeText={setNewMessage}
-              multiline
-              maxLength={1000}
-            />
+      <KeyboardAvoidingView style={s.flex1} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + HEADER_HEIGHT : 0}>
+        {isLoading ? <View style={s.loadingCenter}><ActivityIndicator size="large" color={COLORS.primary} /></View> : (
+          <View style={s.flex1}>
+            <FlatList ref={flatListRef} data={displayMessages} renderItem={renderItem} keyExtractor={keyExtractor} inverted contentContainerStyle={s.listPadding} showsVerticalScrollIndicator={false} keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled" onScrollBeginDrag={Keyboard.dismiss} onScroll={(e) => setShowScrollDown(e.nativeEvent.contentOffset.y > 350)} scrollEventThrottle={120} />
+            {showScrollDown && <TouchableOpacity style={s.scrollFab} onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })} activeOpacity={0.8}><ChevronDown size={20} color={COLORS.primary} /></TouchableOpacity>}
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!newMessage.trim() || sending) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSend}
-            disabled={!newMessage.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Send size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
+        )}
+        <View style={[s.inputBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+          <TouchableOpacity onPress={handleAttachmentMenu} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Paperclip size={21} color={COLORS.textSecondary} /></TouchableOpacity>
+          <View style={s.inputFieldWrap}>
+            <TextInput ref={inputRef} style={[s.textInput, { height: Math.min(Math.max(40, inputHeight), 120) }]} value={text} onChangeText={setText} placeholder="Message…" placeholderTextColor={COLORS.textMuted} multiline maxLength={4000} onContentSizeChange={(e) => setInputHeight(e.nativeEvent.contentSize.height)} returnKeyType="default" blurOnSubmit={false} />
+          </View>
+          {hasContent || isSending ? (
+            <TouchableOpacity onPress={handleSendText} disabled={isSending || !hasContent} style={[s.inputIconBtn, (isSending || !hasContent) && { opacity: 0.4 }]}>
+              {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color={COLORS.background} style={{ marginLeft: 2 }} /></View>}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleCamera} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Camera size={22} color={COLORS.textSecondary} /></TouchableOpacity>
+          )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#020420',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(139, 92, 246, 0.1)',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerProfile: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 4,
-  },
-  headerAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  headerAvatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  headerJobTitle: {
-    fontSize: 13,
-    color: '#8B5CF6',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  headerAction: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messagesList: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  dateHeaderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  dateHeaderLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-  },
-  dateHeaderText: {
-    fontSize: 12,
-    color: '#6B7280',
-    paddingHorizontal: 12,
-    fontWeight: '500',
-  },
-  messageRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  messageRowMine: {
-    justifyContent: 'flex-end',
-  },
-  messageRowTheirs: {
-    justifyContent: 'flex-start',
-  },
-  messageAvatarContainer: {
-    width: 28,
-    marginRight: 8,
-    justifyContent: 'flex-end',
-  },
-  messageAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  messageAvatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messageAvatarSpacer: {
-    width: 28,
-    height: 28,
-  },
-  messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginBottom: 2,
-  },
-  messageBubbleMine: {
-    backgroundColor: '#8B5CF6',
-    borderBottomRightRadius: 4,
-  },
-  messageBubbleTheirs: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  messageTextMine: {
-    color: '#FFFFFF',
-  },
-  messageTextTheirs: {
-    color: '#FFFFFF',
-  },
-  messageFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 4,
-    gap: 4,
-  },
-  messageTime: {
-    fontSize: 11,
-  },
-  messageTimeMine: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  messageTimeTheirs: {
-    color: '#6B7280',
-  },
-  readIndicator: {
-    marginLeft: 2,
-  },
-  emptyMessages: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyMessagesIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyMessagesText: {
-    fontSize: 15,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(139, 92, 246, 0.1)',
-    backgroundColor: '#020420',
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    marginRight: 10,
-  },
-  attachButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#FFFFFF',
-    maxHeight: 100,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#8B5CF6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: 'rgba(139, 92, 246, 0.4)',
-  },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.background }, flex1: { flex: 1 },
+  header: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border, backgroundColor: COLORS.surfaceSolid },
+  headerBackBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerProfile: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19 },
+  headerAvatarFb: { backgroundColor: COLORS.purple, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarTxt: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  headerInfo: { marginLeft: 12, flex: 1 }, headerName: { fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }, headerJob: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
+  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  listPadding: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  emptyChat: { alignItems: 'center', justifyContent: 'center', paddingTop: 60, transform: [{ scaleY: -1 }] },
+  emptyChatText: { fontSize: 14, color: COLORS.textMuted, fontStyle: 'italic' },
+  dateSeparator: { alignItems: 'center', marginVertical: 14 },
+  datePill: { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 5 },
+  datePillText: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end' }, msgRowMe: { justifyContent: 'flex-end' }, msgRowThem: { justifyContent: 'flex-start' },
+  avatarSlot: { width: 30, marginRight: 6 }, msgAvatar: { width: 28, height: 28, borderRadius: 14 },
+  msgAvatarFallback: { backgroundColor: COLORS.purple, alignItems: 'center', justifyContent: 'center' }, msgAvatarInitials: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
+  bubble: { paddingHorizontal: 14, paddingTop: 9, paddingBottom: 5, minWidth: 70 }, bubbleMine: { backgroundColor: COLORS.myBubble }, bubbleTheirs: { backgroundColor: COLORS.theirBubble },
+  msgText: { fontSize: 15.5, lineHeight: 21, letterSpacing: 0.1 },
+  msgFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 2 }, msgFooterMe: { justifyContent: 'flex-end' }, msgFooterThem: { justifyContent: 'flex-start' },
+  msgTimeText: { fontSize: 10.5 }, receiptIcon: { marginLeft: 3 },
+  attachImageWrap: { marginBottom: 6, borderRadius: 10, overflow: 'hidden', marginHorizontal: -6, marginTop: -2 }, attachImage: { width: 210, height: 210, borderRadius: 10 },
+  attachImagePlaceholder: { width: 210, height: 210, backgroundColor: COLORS.skeleton, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  attachDocRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingVertical: 4 }, attachDocIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  attachDocText: { marginLeft: 10, flex: 1 }, attachDocName: { fontSize: 14, fontWeight: '600' }, attachDocHint: { fontSize: 11, marginTop: 2 },
+  scrollFab: { position: 'absolute', right: 16, bottom: 8, width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.surfaceSolid, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4 },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border, backgroundColor: COLORS.surfaceSolid },
+  inputIconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  inputFieldWrap: { flex: 1, backgroundColor: COLORS.surface, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, marginHorizontal: 4, justifyContent: 'center' },
+  textInput: { fontSize: 15, color: COLORS.textPrimary, paddingVertical: Platform.OS === 'ios' ? 10 : 8, maxHeight: 120 },
+  sendCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
 });

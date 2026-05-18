@@ -70,7 +70,9 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             await signOut();
-            router.replace('/auth');
+            // Canonical NEXPEC sign-in (cyan, SSO/Enterprise). /auth was a
+            // legacy duplicate landing on an off-theme orange screen.
+            router.replace('/(auth)/sign-in');
           }
         },
       ]

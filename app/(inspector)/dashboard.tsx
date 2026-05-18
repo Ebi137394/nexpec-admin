@@ -196,7 +196,7 @@ const EarningsTab = React.memo(({ data }: TabProps) => {
 
 const JobCard = React.memo(({ item }: { item: MappedInspectorJob }) => {
   const handlePress = useCallback(() => {
-    router.push(`/chat/${item.id}`);
+    router.push(`/(inspector)/jobs/${item.id}`);
   }, [item.id]);
 
   return (

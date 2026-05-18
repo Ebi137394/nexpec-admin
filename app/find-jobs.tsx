@@ -14,11 +14,11 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { showAlert, showConfirm } from '../lib/alert';
 
-interface Project {
+interface Job {
   id: string;
   title: string;
   location: string;
-  price: number;
+  payout_amount_cents: number;        // ★ Task 4
   description: string;
   client_id: string;
   status: string;
@@ -26,7 +26,7 @@ interface Project {
 }
 
 export default function FindJobsScreen() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export default function FindJobsScreen() {
       setLoading(true);
 
       const { data, error } = await supabase
-        .from('projects')
+        .from('jobs')
         .select('*')
         .eq('status', 'Open')
         .order('created_at', { ascending: false });
@@ -52,7 +52,7 @@ export default function FindJobsScreen() {
       }
 
       console.log('✅ Jobs fetched:', data?.length || 0);
-      setProjects(data || []);
+      setJobs(data || []);
     } catch (error: any) {
       console.error('💥 Error in fetchOpenJobs:', error);
       showAlert('Error', error.message || 'Failed to load jobs');
@@ -62,18 +62,18 @@ export default function FindJobsScreen() {
     }
   };
 
-  const handleApply = async (project: Project) => {
+  const handleApply = async (job: Job) => {
     showConfirm(
       'Claim this Job?',
-      `Are you sure you want to claim "${project.title}"?\n\nYou'll need to complete an inspection report.`,
+      `Are you sure you want to claim "${job.title}"?\n\nYou'll need to complete an inspection report.`,
       async () => {
         try {
-          setApplyingJobId(project.id);
+          setApplyingJobId(job.id);
           console.log('════════════════════════════════════════');
           console.log('🔍 CLAIMING JOB');
           console.log('════════════════════════════════════════');
-          console.log('Project:', project.title);
-          console.log('Project ID:', project.id);
+          console.log('Job:', job.title);
+          console.log('Job ID:', job.id);
 
           // Step 1: Get current user
           const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -87,15 +87,15 @@ export default function FindJobsScreen() {
             throw new Error('You must be logged in to claim jobs');
           }
 
+          // ★ CONSOLE-NOISE-001(A): PII-stripped (was: inspector ID).
           console.log('✅ User authenticated');
-          console.log('Inspector ID:', user.id);
 
           // Step 2: Check if already claimed
           console.log('🔍 Checking for existing report...');
           const { data: existingReport, error: checkError } = await supabase
             .from('reports')
             .select('id, status, result')
-            .eq('project_id', project.id)
+            .eq('project_id', job.id)
             .eq('inspector_id', user.id)
             .maybeSingle();
 
@@ -117,9 +117,9 @@ export default function FindJobsScreen() {
 
           // Step 3: Create report with ALL required fields
           const reportData = {
-            project_id: project.id,
+            project_id: job.id,
             inspector_id: user.id,
-            title: project.title, // ✅ CRITICAL: Include title to avoid NULL error
+            title: job.title, // ✅ CRITICAL: Include title to avoid NULL error
             comments: '', // Empty comments initially
             result: 'Pending', // ✅ Must match new constraint: 'Pending', 'Pass', 'Fail'
             status: 'In_Progress', // ✅ Must match new constraint
@@ -149,12 +149,12 @@ export default function FindJobsScreen() {
           console.log('Report ID:', insertedReport.id);
           console.log('Report data:', insertedReport);
 
-          // Step 4: Update project status to In Progress
-          console.log('🔍 Updating project status...');
+          // Step 4: Update job status to In Progress
+          console.log('🔍 Updating job status...');
           const { error: updateError } = await supabase
-            .from('projects')
+            .from('jobs')
             .update({ status: 'In_Progress' })
-            .eq('id', project.id);
+            .eq('id', job.id);
 
           if (updateError) {
             console.error('⚠️ Project update error:', updateError);
@@ -168,7 +168,7 @@ export default function FindJobsScreen() {
           // Success!
           showAlert(
             'Job Claimed Successfully! 🎉',
-            `You have claimed "${project.title}"!\n\n` +
+            `You have claimed "${job.title}"!\n\n` +
             `Report ID: ${insertedReport.id}\n` +
             `Status: ${insertedReport.status}\n` +
             `Result: ${insertedReport.result}\n\n` +
@@ -197,13 +197,14 @@ export default function FindJobsScreen() {
     fetchOpenJobs();
   };
 
-  const renderJobCard = ({ item }: { item: Project }) => {
+  const renderJobCard = ({ item }: { item: Job }) => {
     const isApplying = applyingJobId === item.id;
+    // ★ Task 4: payout_amount_cents is integer cents — divide by 100.
     const formattedPrice = new Intl.NumberFormat('en-CA', {
       style: 'currency',
       currency: 'CAD',
       minimumFractionDigits: 0,
-    }).format(item.price);
+    }).format((item.payout_amount_cents ?? 0) / 100);
 
     return (
       <View style={styles.jobCard}>
@@ -271,7 +272,7 @@ export default function FindJobsScreen() {
   const renderHeader = () => (
     <View style={styles.listHeader}>
       <Text style={styles.listHeaderText}>
-        {projects.length} {projects.length === 1 ? 'Job' : 'Jobs'} Available
+        {jobs.length} {jobs.length === 1 ? 'Job' : 'Jobs'} Available
       </Text>
     </View>
   );
@@ -288,21 +289,21 @@ export default function FindJobsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Find New Projects</Text>
+        <Text style={styles.headerTitle}>Find New Jobs</Text>
         <TouchableOpacity onPress={fetchOpenJobs} style={styles.headerRefreshButton}>
           <Ionicons name="refresh-outline" size={24} color="#60A5FA" />
         </TouchableOpacity>
       </View>
 
       <FlatList
-        data={projects}
+        data={jobs}
         keyExtractor={(item) => item.id}
         renderItem={renderJobCard}
         contentContainerStyle={[
           styles.listContainer,
-          projects.length === 0 && styles.listContainerEmpty,
+          jobs.length === 0 && styles.listContainerEmpty,
         ]}
-        ListHeaderComponent={projects.length > 0 ? renderHeader : null}
+        ListHeaderComponent={jobs.length > 0 ? renderHeader : null}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
         refreshControl={

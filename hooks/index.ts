@@ -1,11 +1,8 @@
-// ============================================
-// HOOKS INDEX
-// ============================================
-// Central export point for all custom hooks
-
-export * from './useChat';
-export * from './useWallet';
-export * from './useJobs';
-export * from './useDashboard';
-export * from './useEarnings';
-
+// ════════════════════════════════════════════════════════════════════════════
+//  hooks/index.ts — LANE-A-PHASE-3 re-export stub
+//
+//  Pre-strike: canonical location. Post-strike: relocated to @/src/core/hooks/index;
+//  this file is a transparent re-export so legacy imports keep working.
+//  New code should import directly from the new location.
+// ════════════════════════════════════════════════════════════════════════════
+export * from '@/src/core/hooks/index';

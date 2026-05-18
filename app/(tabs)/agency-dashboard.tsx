@@ -1,103 +1,497 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// app/(tabs)/agency-dashboard.tsx
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NEXPEC · AGENCY COMMAND CENTER  (UX-refined)
+//
+// Visual fixes vs. v2:
+//   • Action Inbox is now the FIRST card after the hero — front & center.
+//   • The duplicate giant "Post a New Inspection" banner is gone.
+//     One sleek + button lives in the hero, top-right.
+//   • Pipeline funnel replaced with a clean step-rail (dots + counts),
+//     no rigid table feel.
+//   • More depth: layered gradients, glowing rings, glass strips,
+//     soft shadows. Every card has hierarchy and breath.
+//   • Skeleton loading mirrors the new layout.
+//
+// Data layer is unchanged from v2 — same Supabase calls, same memos.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
-  FlatList,
+  ScrollView,
   StyleSheet,
+  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   RefreshControl,
   StatusBar,
-  Alert,
-  Modal,
-  TextInput,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import {
+  Bell,
   Plus,
   Briefcase,
   Clock,
-  CheckCircle,
+  CheckCircle2,
+  TrendingUp,
+  AlertCircle,
+  ArrowUpRight,
   ChevronRight,
-  Building2,
   MapPin,
-  Calendar,
+  MessageCircle,
+  FileSignature,
+  Users,
+  Sparkles,
+  Hourglass,
+  ShieldCheck,
+  Wallet,
+  Target,
+  Zap,
+  Crown,
+  Compass,
 } from 'lucide-react-native';
+
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../src/contexts/AuthContext';
+// ★ LANE-B-PHASE-5.2 — extracted agency components.
+import { AgencyHero } from '@/src/roles/agency/components/AgencyHero';
+import {
+  AgencyQuickActions,
+  type AgencyQuickAction,
+} from '@/src/roles/agency/components/AgencyQuickActions';
+import {
+  AgencyActionInbox,
+  type AgencyActionItem,
+} from '@/src/roles/agency/components/AgencyActionInbox';
+import { AgencyBudgetSparkline } from '@/src/roles/agency/components/AgencyBudgetSparkline';
+import { AgencyPipelineRail } from '@/src/roles/agency/components/AgencyPipelineRail';
+import {
+  AgencyInspectorBench,
+  type AgencyInspectorBenchItem,
+} from '@/src/roles/agency/components/AgencyInspectorBench';
+import {
+  AgencyLiveJobs,
+  type AgencyLiveJobItem,
+} from '@/src/roles/agency/components/AgencyLiveJobs';
+import {
+  AgencyActivityTimeline,
+  type AgencyActivityItem,
+} from '@/src/roles/agency/components/AgencyActivityTimeline';
+import { AgencyEmptyState } from '@/src/roles/agency/components/AgencyEmptyState';
 
-// ────────────────────────────────────────────────────────
+// ── Brand palette ─────────────────────────────────────────────
+const C = {
+  bg: '#020420',
+  card: '#0A0E2A',
+  cardLift: '#0F1538',
+  cardElevated: '#11183F',
+  border: '#1A1F4A',
+  borderHi: '#2B2F6E',
+  borderGlow: 'rgba(124,58,237,0.45)',
+  primary: '#7C3AED',
+  primaryStrong: '#9333EA',
+  primarySoft: '#A78BFA',
+  primaryDim: 'rgba(124,58,237,0.14)',
+  primaryGlow: 'rgba(124,58,237,0.45)',
+  text: '#FFFFFF',
+  textSec: '#CBD5F5',
+  textDim: '#64748B',
+  textMuted: '#475569',
+  warn: '#F59E0B',
+  warnDim: 'rgba(245,158,11,0.14)',
+  ok: '#10B981',
+  okDim: 'rgba(16,185,129,0.14)',
+  info: '#3B82F6',
+  infoDim: 'rgba(59,130,246,0.14)',
+  danger: '#EF4444',
+  dangerDim: 'rgba(239,68,68,0.14)',
+  cyan: '#06B6D4',
+  cyanDim: 'rgba(6,182,212,0.14)',
+  pink: '#EC4899',
+  amber: '#FBBF24',
+};
+
+const { width: SCREEN_W } = Dimensions.get('window');
+
+// ── Money formatting (★ Task 4: input is integer CENTS) ───────
+const usd = (cents: number | null | undefined) => {
+  const v = Number(cents ?? 0) / 100;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}k`;
+  return `$${v.toFixed(0)}`;
+};
+const usdFull = (cents: number | null | undefined) =>
+  `$${(Number(cents ?? 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+// ── Time-of-day greeting ──────────────────────────────────────
+const greetingFor = (d = new Date()) => {
+  const h = d.getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+};
+
+// ── Relative time ─────────────────────────────────────────────
+const ago = (iso?: string | null) => {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+// ── Status meta ───────────────────────────────────────────────
+const STATUS_META: Record<string, { label: string; color: string; chip: string }> = {
+  pending_approval: { label: 'Pending Admin', color: C.warn, chip: C.warnDim },
+  open: { label: 'Open', color: C.cyan, chip: C.cyanDim },
+  assigned: { label: 'Assigned', color: C.info, chip: C.infoDim },
+  in_progress: { label: 'In Progress', color: C.primary, chip: C.primaryDim },
+  completed: { label: 'Completed', color: C.ok, chip: C.okDim },
+  cancelled: { label: 'Cancelled', color: C.danger, chip: C.dangerDim },
+};
+const meta = (s: string) =>
+  STATUS_META[s] ?? { label: s, color: C.textDim, chip: 'rgba(100,116,139,0.14)' };
+
+// ─────────────────────────────────────────────────────────────
 // TYPES
-// ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 interface Job {
   id: string;
-  title: string;
+  title: string | null;
   status: string;
-  location?: string;
+  location: string | null;
+  client_price_cents: number | null;    // ★ Task 4
+  payout_amount_cents: number | null;   // ★ Task 4
+  contractor_id: string | null;
   created_at: string;
-  description?: string;
+  admin_confirmed_at?: string | null;
+}
+interface ApplicationLite {
+  id: string;
+  job_id: string;
+  applicant_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+interface ProfileLite {
+  id: string;
+  full_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  company_name?: string | null;
+  avatar_url?: string | null;
 }
 
-// ────────────────────────────────────────────────────────
-// HELPERS
-// ────────────────────────────────────────────────────────
-const STATUS_COLORS: Record<string, string> = {
-  open: '#F59E0B',
-  assigned: '#3B82F6',
-  in_progress: '#8B5CF6',
-  completed: '#10B981',
-  cancelled: '#EF4444',
+// ─────────────────────────────────────────────────────────────
+// LIVE PULSE
+// ─────────────────────────────────────────────────────────────
+const LivePulse: React.FC<{ color?: string; size?: number }> = ({
+  color = C.ok,
+  size = 9,
+}) => {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0.6);
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(2.4, { duration: 1100, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 0 })
+      ),
+      -1
+    );
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 1100, easing: Easing.out(Easing.quad) }),
+        withTiming(0.6, { duration: 0 })
+      ),
+      -1
+    );
+  }, [opacity, scale]);
+  const ring = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: color,
+          },
+          ring,
+        ]}
+      />
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  open: 'Open',
-  assigned: 'Assigned',
-  in_progress: 'In Progress',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
+// ─────────────────────────────────────────────────────────────
+// SHIMMER (skeleton loader)
+// ─────────────────────────────────────────────────────────────
+const Shimmer: React.FC<{ style?: any }> = ({ style }) => {
+  const x = useSharedValue(-1);
+  useEffect(() => {
+    x.value = withRepeat(
+      withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+      -1
+    );
+  }, [x]);
+  const a = useAnimatedStyle(() => ({
+    opacity: 0.45 + Math.abs(x.value) * 0.25,
+  }));
+  return <Animated.View style={[s.skel, a, style]} />;
 };
 
-const getStatusColor = (s: string) => STATUS_COLORS[s] ?? '#64748B';
-const getStatusLabel = (s: string) => STATUS_LABELS[s] ?? s;
-
-const formatDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+// ─────────────────────────────────────────────────────────────
+// SPARKLINE (7-day spend bars)
+// ─────────────────────────────────────────────────────────────
+const Sparkline: React.FC<{ values: number[]; tint?: string }> = ({
+  values,
+  tint = C.primary,
+}) => {
+  const max = Math.max(1, ...values);
+  return (
+    <View style={spark.row}>
+      {values.map((v, i) => {
+        const h = Math.max(4, (v / max) * 38);
+        const dim = i < values.length - 1;
+        return (
+          <View key={i} style={spark.bar}>
+            <View
+              style={{
+                width: 8,
+                height: h,
+                borderRadius: 3,
+                backgroundColor: dim ? tint + '55' : tint,
+              }}
+            />
+          </View>
+        );
+      })}
+    </View>
+  );
 };
+const spark = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 40 },
+  bar: { justifyContent: 'flex-end', alignItems: 'center' },
+});
 
-// ────────────────────────────────────────────────────────
-// COMPONENT
-// ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// PIPELINE STEP-RAIL — clean horizontal dots, not a table.
+// Replaces the old segmented funnel.
+// ─────────────────────────────────────────────────────────────
+const StepRail: React.FC<{
+  stages: { key: string; label: string; count: number; color: string }[];
+}> = ({ stages }) => (
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={rail.wrap}
+  >
+    {/* Connector line — drawn behind the dots, sized to the row. */}
+    <View style={rail.line} />
+    {stages.map((st) => (
+      <View key={st.key} style={rail.col}>
+        <View style={[rail.dot, { borderColor: st.color, backgroundColor: C.card }]}>
+          <View style={[rail.inner, { backgroundColor: st.color + '33' }]}>
+            <Text style={[rail.count, { color: st.color }]}>{st.count}</Text>
+          </View>
+        </View>
+        <Text style={rail.label} numberOfLines={1}>
+          {st.label}
+        </Text>
+      </View>
+    ))}
+  </ScrollView>
+);
+const RAIL_COL_W = 88;
+const rail = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingTop: 4,
+    paddingHorizontal: 2,
+  },
+  line: {
+    position: 'absolute',
+    left: 46,
+    right: 46,
+    top: 26,
+    height: 2,
+    backgroundColor: C.border,
+    borderRadius: 1,
+  },
+  col: { alignItems: 'center', width: RAIL_COL_W },
+  dot: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  count: { fontSize: 13, fontWeight: '900' },
+  label: {
+    color: C.textDim,
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginTop: 10,
+    width: RAIL_COL_W,
+  },
+});
+
+// ─────────────────────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────────────────────
 export default function AgencyDashboard() {
   const { user } = useAuth();
   const router = useRouter();
 
+  // ── State (data layer — unchanged) ────────────────────────
+  const [profile, setProfile] = useState<ProfileLite | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [apps, setApps] = useState<ApplicationLite[]>([]);
+  const [applicantProfiles, setApplicantProfiles] = useState<Record<string, ProfileLite>>(
+    {}
+  );
+  const [contractorProfiles, setContractorProfiles] = useState<
+    Record<string, ProfileLite>
+  >({});
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [pendingReports, setPendingReports] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Post-job modal state
-  const [showPostModal, setShowPostModal] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-  const [posting, setPosting] = useState(false);
-
-  // ── Fetch jobs ──────────────────────────────────────────
-  const fetchJobs = useCallback(async () => {
-    if (!user?.id) return;
+  // ── Fetch all in parallel (unchanged) ─────────────────────
+  const loadAll = useCallback(async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     try {
-      const { data, error } = await supabase
+      const profilePromise = supabase
+        .from('profiles')
+        .select('id, full_name, first_name, last_name, company_name, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const jobsPromise = supabase
         .from('jobs')
-        .select('*')
+        .select(
+          'id, title, status, location, client_price_cents, payout_amount_cents, contractor_id, created_at, admin_confirmed_at'
+        )
         .eq('client_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setJobs(data ?? []);
+      const notifPromise = supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+
+      const [{ data: profileRow }, { data: jobsRow, error: jobsErr }, { count: notifCount }] =
+        await Promise.all([profilePromise, jobsPromise, notifPromise]);
+
+      if (jobsErr) throw jobsErr;
+
+      const jobList = (jobsRow ?? []) as Job[];
+      const jobIds = jobList.map((j) => j.id);
+
+      setProfile(profileRow ?? null);
+      setJobs(jobList);
+      setUnreadNotifs(notifCount ?? 0);
+
+      let appsRows: ApplicationLite[] = [];
+      let applicantMap: Record<string, ProfileLite> = {};
+      let contractorMap: Record<string, ProfileLite> = {};
+      if (jobIds.length > 0) {
+        const { data: appsData } = await supabase
+          .from('applications')
+          .select('id, job_id, applicant_id, status, created_at, updated_at')
+          .in('job_id', jobIds)
+          .order('updated_at', { ascending: false })
+          .limit(80);
+        appsRows = (appsData ?? []) as ApplicationLite[];
+
+        const inspectorIds = new Set<string>();
+        appsRows.forEach((a) => a.applicant_id && inspectorIds.add(a.applicant_id));
+        jobList.forEach((j) => j.contractor_id && inspectorIds.add(j.contractor_id));
+        if (inspectorIds.size > 0) {
+          const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, full_name, first_name, last_name, avatar_url')
+            .in('id', Array.from(inspectorIds));
+          (profs ?? []).forEach((p: any) => {
+            applicantMap[p.id] = p;
+            contractorMap[p.id] = p;
+          });
+        }
+      }
+      setApps(appsRows);
+      setApplicantProfiles(applicantMap);
+      setContractorProfiles(contractorMap);
+
+      if (jobIds.length > 0) {
+        try {
+          const { count } = await supabase
+            .from('inspection_reports')
+            .select('id', { count: 'exact', head: true })
+            .in('job_id', jobIds)
+            .eq('is_published', true)
+            .eq('is_client_approved', false);
+          setPendingReports(count ?? 0);
+        } catch {
+          /* table optional */
+        }
+      } else {
+        setPendingReports(0);
+      }
     } catch (err: any) {
-      console.error('[AgencyDashboard] fetch error:', err);
+      console.error('[AgencyDashboard] load error →', err?.message ?? err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -105,610 +499,1288 @@ export default function AgencyDashboard() {
   }, [user?.id]);
 
   useEffect(() => {
-    fetchJobs();
-  }, [fetchJobs]);
+    loadAll();
+  }, [loadAll]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchJobs();
-  }, [fetchJobs]);
+    loadAll();
+  }, [loadAll]);
 
-  // ── Post a job ──────────────────────────────────────────
-  const handlePostJob = async () => {
-    if (!newTitle.trim()) {
-      Alert.alert('Required', 'Please enter a job title.');
-      return;
-    }
-    setPosting(true);
-    try {
-      const { error } = await supabase.from('jobs').insert({
-        client_id: user?.id,
-        title: newTitle.trim(),
-        description: newDescription.trim() || null,
-        location: newLocation.trim() || null,
-        status: 'open',
-      });
-      if (error) throw error;
-
-      Alert.alert('Success', 'Contract job posted!');
-      setNewTitle('');
-      setNewDescription('');
-      setNewLocation('');
-      setShowPostModal(false);
-      fetchJobs();
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not post job.');
-    } finally {
-      setPosting(false);
-    }
-  };
-
-  const resetModal = () => {
-    setShowPostModal(false);
-    setNewTitle('');
-    setNewDescription('');
-    setNewLocation('');
-  };
-
-  // ── Derived stats ───────────────────────────────────────
-  const activeCount = jobs.filter((j) =>
-    ['open', 'assigned', 'in_progress'].includes(j.status),
-  ).length;
-  const pendingCount = jobs.filter((j) => j.status === 'open').length;
-  const completedCount = jobs.filter((j) => j.status === 'completed').length;
-
-  // ── Render helpers ──────────────────────────────────────
-  const renderJobItem = ({ item }: { item: Job }) => {
-    const color = getStatusColor(item.status);
-    return (
-      <TouchableOpacity style={styles.jobCard} activeOpacity={0.7}>
-        {/* Header row */}
-        <View style={styles.jobHeader}>
-          <View style={styles.jobTitleRow}>
-            <Briefcase size={18} color="#7C3AED" />
-            <Text style={styles.jobTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-          </View>
-          <View style={[styles.badge, { backgroundColor: `${color}20` }]}>
-            <View style={[styles.badgeDot, { backgroundColor: color }]} />
-            <Text style={[styles.badgeText, { color }]}>{getStatusLabel(item.status)}</Text>
-          </View>
-        </View>
-
-        {/* Description */}
-        {!!item.description && (
-          <Text style={styles.jobDesc} numberOfLines={2}>
-            {item.description}
-          </Text>
-        )}
-
-        {/* Meta row */}
-        <View style={styles.jobMeta}>
-          {!!item.location && (
-            <View style={styles.metaItem}>
-              <MapPin size={14} color="#64748B" />
-              <Text style={styles.metaText}>{item.location}</Text>
-            </View>
-          )}
-          <View style={styles.metaItem}>
-            <Calendar size={14} color="#64748B" />
-            <Text style={styles.metaText}>{formatDate(item.created_at)}</Text>
-          </View>
-        </View>
-
-        {/* Arrow */}
-        <View style={styles.jobArrow}>
-          <ChevronRight size={20} color="#64748B" />
-        </View>
-      </TouchableOpacity>
+  // ── Derived metrics (unchanged) ───────────────────────────
+  const m = useMemo(() => {
+    const liveJobs = jobs.filter((j) =>
+      ['open', 'assigned', 'in_progress'].includes(j.status)
     );
-  };
+    const inProgress = jobs.filter((j) => j.status === 'in_progress');
+    const completed = jobs.filter((j) => j.status === 'completed');
+    const pendingApproval = jobs.filter((j) => j.status === 'pending_approval');
+    const open = jobs.filter((j) => j.status === 'open');
+    const assigned = jobs.filter((j) => j.status === 'assigned');
 
-  const renderEmpty = () => (
-    <View style={styles.emptyState}>
-      <Building2 size={64} color="#1E293B" />
-      <Text style={styles.emptyTitle}>No Jobs Yet</Text>
-      <Text style={styles.emptySub}>Post your first contract job to get started.</Text>
-    </View>
+    const sum = (arr: Job[]) => arr.reduce((s, j) => s + Number(j.client_price_cents ?? 0), 0);
+    const activeBudget = sum(liveJobs);
+    const totalSpend = sum(completed);
+    const lifetimeVolume = sum(jobs);
+    const avgJobValue = completed.length > 0 ? totalSpend / completed.length : 0;
+
+    const pendingApps = apps.filter((a) =>
+      ['pending', 'shortlisted'].includes(a.status)
+    ).length;
+    const awaitingDispatch = apps.filter((a) => a.status === 'CLIENT_SELECTED').length;
+    const totalApps = apps.length;
+    const hiredApps = apps.filter((a) => a.status === 'hired').length;
+    const conversion = totalApps > 0 ? Math.round((hiredApps / totalApps) * 100) : 0;
+
+    const dispatched = jobs.filter((j) => j.admin_confirmed_at && j.created_at);
+    let avgDaysToHire = 0;
+    if (dispatched.length > 0) {
+      const dayMs = 1000 * 60 * 60 * 24;
+      avgDaysToHire =
+        dispatched.reduce((s, j) => {
+          return (
+            s +
+            (new Date(j.admin_confirmed_at!).getTime() -
+              new Date(j.created_at).getTime()) /
+              dayMs
+          );
+        }, 0) / dispatched.length;
+    }
+
+    const activeInspectorIds = Array.from(
+      new Set(liveJobs.map((j) => j.contractor_id).filter(Boolean))
+    ) as string[];
+
+    const dayMs = 1000 * 60 * 60 * 24;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = new Array(7).fill(0);
+    jobs.forEach((j) => {
+      const d = new Date(j.created_at);
+      d.setHours(0, 0, 0, 0);
+      const idx = 6 - Math.floor((today.getTime() - d.getTime()) / dayMs);
+      if (idx >= 0 && idx < 7) {
+        buckets[idx] += Number(j.client_price_cents ?? 0);
+      }
+    });
+
+    return {
+      jobsTotal: jobs.length,
+      liveJobs,
+      liveCount: liveJobs.length,
+      inProgressCount: inProgress.length,
+      assignedCount: assigned.length,
+      openCount: open.length,
+      completedCount: completed.length,
+      pendingApprovalCount: pendingApproval.length,
+      activeBudget,
+      totalSpend,
+      lifetimeVolume,
+      avgJobValue,
+      pendingApps,
+      awaitingDispatch,
+      conversion,
+      avgDaysToHire,
+      activeInspectorIds,
+      sparkBuckets: buckets,
+    };
+  }, [jobs, apps]);
+
+  // ── Display name + initials (unchanged) ───────────────────
+  const displayName =
+    profile?.company_name?.trim() ||
+    profile?.full_name?.trim() ||
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
+    'Agency Partner';
+  const initials =
+    (displayName
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join('')
+      .slice(0, 2) || 'A').toUpperCase();
+
+  // ── Action items (unchanged) ──────────────────────────────
+  const actionItems = useMemo(() => {
+    const items: {
+      id: string;
+      icon: any;
+      tint: string;
+      title: string;
+      sub: string;
+      onPress: () => void;
+      urgent?: boolean;
+    }[] = [];
+
+    if (m.awaitingDispatch > 0) {
+      items.push({
+        id: 'await-dispatch',
+        icon: ShieldCheck,
+        tint: C.primary,
+        title: `${m.awaitingDispatch} pending Confirm & Dispatch`,
+        sub: 'You selected an inspector — admin finalizes the hire',
+        onPress: () => router.push('/(tabs)/jobs' as any),
+        urgent: true,
+      });
+    }
+    if (m.pendingApps > 0) {
+      items.push({
+        id: 'pending-apps',
+        icon: Users,
+        tint: C.warn,
+        title: `${m.pendingApps} new applicant${m.pendingApps === 1 ? '' : 's'} to review`,
+        sub: 'Tap to evaluate inspectors and select one',
+        onPress: () => router.push('/(tabs)/jobs' as any),
+        urgent: true,
+      });
+    }
+    if (m.pendingApprovalCount > 0) {
+      items.push({
+        id: 'pending-mod',
+        icon: Hourglass,
+        tint: C.cyan,
+        title: `${m.pendingApprovalCount} job${m.pendingApprovalCount === 1 ? '' : 's'} pending admin pricing`,
+        sub: 'NEXPEC admin will set spread and publish to inspectors',
+        onPress: () => router.push('/(tabs)/jobs' as any),
+      });
+    }
+    if (pendingReports > 0) {
+      items.push({
+        id: 'pending-reports',
+        icon: FileSignature,
+        tint: C.info,
+        title: `${pendingReports} report${pendingReports === 1 ? '' : 's'} awaiting your approval`,
+        sub: 'Review findings and close the inspection',
+        onPress: () => router.push('/(tabs)/jobs' as any),
+        urgent: true,
+      });
+    }
+    return items;
+  }, [m, pendingReports, router]);
+
+  // ── Activity items (pre-built for AgencyActivityTimeline) ─
+  //   LANE-B-PHASE-5.2 #8 — Resolves `toneColor` via the dashboard's
+  //   shared `meta()` helper, derives the human-readable status
+  //   label, and bakes in the per-row navigation closure so the
+  //   extracted component stays purely presentational. CLIENT_SELECTED
+  //   is treated as `in_progress` for tone-color purposes (preserved
+  //   verbatim from the original derivation).
+  const activityItems = useMemo<AgencyActivityItem[]>(() => {
+    return apps.slice(0, 6).map((a) => {
+      const job = jobs.find((j) => j.id === a.job_id);
+      const applicant = applicantProfiles[a.applicant_id];
+      const applicantName =
+        applicant?.full_name?.trim() ||
+        [applicant?.first_name, applicant?.last_name].filter(Boolean).join(' ').trim() ||
+        'Inspector';
+      const tone = meta(a.status === 'CLIENT_SELECTED' ? 'in_progress' : a.status);
+      let label = 'Applied';
+      if (a.status === 'CLIENT_SELECTED') label = 'Selected by you';
+      else if (a.status === 'hired') label = 'Hired';
+      else if (a.status === 'rejected') label = 'Rejected';
+      else if (a.status === 'shortlisted') label = 'Shortlisted';
+      return {
+        id: a.id,
+        applicantName,
+        applicantAvatar: applicant?.avatar_url ?? null,
+        jobTitle: job?.title ?? 'Untitled job',
+        when: ago(a.updated_at || a.created_at),
+        label,
+        toneColor: tone.color,
+        onPress: () => router.push(`/applicant/${a.applicant_id}` as any),
+      };
+    });
+  }, [apps, jobs, applicantProfiles, router]);
+
+  // ── Inspector bench (unchanged) ───────────────────────────
+  const inspectorBench = useMemo(() => {
+    const seen = new Set<string>();
+    const list: {
+      id: string;
+      name: string;
+      avatar: string | null;
+      jobTitle: string;
+      jobId: string;
+      status: string;
+    }[] = [];
+    m.liveJobs.forEach((j) => {
+      const cid = j.contractor_id;
+      if (cid && !seen.has(cid)) {
+        seen.add(cid);
+        const p = contractorProfiles[cid];
+        const name =
+          p?.full_name?.trim() ||
+          [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() ||
+          'Inspector';
+        list.push({
+          id: cid,
+          name,
+          avatar: p?.avatar_url ?? null,
+          jobTitle: j.title ?? 'Inspection',
+          jobId: j.id,
+          status: j.status,
+        });
+      }
+    });
+    return list.slice(0, 8);
+  }, [m.liveJobs, contractorProfiles]);
+
+  // ── Bench items (pre-built for AgencyInspectorBench) ──────
+  //   LANE-B-PHASE-5.2 #6 — Resolves `statusMeta` via the dashboard's
+  //   shared `meta()` helper and bakes in the per-card navigation
+  //   handler so the extracted component stays purely presentational.
+  //   The compound `id` (inspectorId + jobId) preserves the original
+  //   key strategy for the per-item enter animation.
+  const benchItems = useMemo<AgencyInspectorBenchItem[]>(
+    () =>
+      inspectorBench.map((ib) => ({
+        id: ib.id + ib.jobId,
+        name: ib.name,
+        avatar: ib.avatar,
+        jobTitle: ib.jobTitle,
+        status: ib.status,
+        statusMeta: meta(ib.status),
+        onPress: () =>
+          router.push({
+            pathname: '/agency-job-details',
+            params: { id: ib.jobId },
+          } as any),
+      })),
+    [inspectorBench, router],
   );
 
-  const renderListHeader = () => (
-    <View>
-      {/* ── Greeting ────────────────────────────────── */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>Agency Command Center</Text>
-          <Text style={styles.subGreeting}>Manage your contract inspections</Text>
-        </View>
-        <View style={styles.headerIconWrap}>
-          <Building2 size={28} color="#7C3AED" />
-        </View>
-      </View>
+  // ── Live preview (unchanged) ──────────────────────────────
+  const livePreview = useMemo(() => m.liveJobs.slice(0, 5), [m.liveJobs]);
 
-      {/* ── Stats ───────────────────────────────────── */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(124,58,237,0.15)' }]}>
-            <Briefcase size={20} color="#7C3AED" />
-          </View>
-          <Text style={styles.statNum}>{activeCount}</Text>
-          <Text style={styles.statLabel}>Active</Text>
-        </View>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
-            <Clock size={20} color="#F59E0B" />
-          </View>
-          <Text style={styles.statNum}>{pendingCount}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
-        </View>
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-            <CheckCircle size={20} color="#10B981" />
-          </View>
-          <Text style={styles.statNum}>{completedCount}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
-        </View>
-      </View>
-
-      {/* ── Post Job Button ─────────────────────────── */}
-      <TouchableOpacity
-        style={styles.postBtn}
-        activeOpacity={0.8}
-        onPress={() => setShowPostModal(true)}
-      >
-        <View style={styles.postBtnGlow} />
-        <View style={styles.postBtnContent}>
-          <Plus size={22} color="#FFFFFF" strokeWidth={3} />
-          <Text style={styles.postBtnText}>Post a Contract Job</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* ── Section header ──────────────────────────── */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your Jobs</Text>
-        <Text style={styles.sectionCount}>{jobs.length} total</Text>
-      </View>
-    </View>
+  // ── Live-job items (pre-built for AgencyLiveJobs) ─────────
+  //   LANE-B-PHASE-5.2 #7 — Pre-formats the relative-time string via
+  //   `ago()`, pre-formats the price via `usdFull()`, resolves
+  //   `statusMeta` via `meta()`, and bakes in the per-card navigation
+  //   closure so the extracted component stays purely presentational.
+  const liveJobItems = useMemo<AgencyLiveJobItem[]>(
+    () =>
+      livePreview.map((j) => ({
+        id: j.id,
+        title: j.title || 'Untitled inspection',
+        location: j.location,
+        agoLabel: ago(j.created_at),
+        priceFormatted: usdFull(j.client_price_cents),
+        status: j.status,
+        statusMeta: meta(j.status),
+        onPress: () =>
+          router.push({
+            pathname: '/agency-job-details',
+            params: { id: j.id },
+          } as any),
+      })),
+    [livePreview, router],
   );
 
-  // ── Loading state ───────────────────────────────────────
+  // ─────────────────────────────────────────────────────────
+  // SKELETON
+  // ─────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar barStyle="light-content" backgroundColor="#020420" />
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#7C3AED" />
-          <Text style={styles.loadingLabel}>Loading dashboard…</Text>
+      <SafeAreaView style={s.root} edges={['top']}>
+        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <View pointerEvents="none" style={s.bgOrbWrap}>
+          <View style={s.bgOrb} />
         </View>
+        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          <Shimmer style={{ height: 144, marginTop: 8, borderRadius: 26 }} />
+          <Shimmer style={{ height: 110, marginTop: 18, borderRadius: 18 }} />
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+            <Shimmer style={{ flex: 1, height: 130, borderRadius: 18 }} />
+            <Shimmer style={{ flex: 1, height: 130, borderRadius: 18 }} />
+          </View>
+          <Shimmer style={{ height: 124, marginTop: 18, borderRadius: 18 }} />
+          <Shimmer style={{ height: 220, marginTop: 18, borderRadius: 18 }} />
+          <View style={s.loadingPin}>
+            <ActivityIndicator size="small" color={C.primary} />
+            <Text style={s.loadingPinText}>Building command center…</Text>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // ── Main render ─────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor="#020420" />
+    <SafeAreaView style={s.root} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      <FlatList
-        data={jobs}
-        keyExtractor={(item) => item.id}
-        renderItem={renderJobItem}
-        ListHeaderComponent={renderListHeader}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={styles.listContent}
+      {/* Distant ambient glow */}
+      <View pointerEvents="none" style={s.bgOrbWrap}>
+        <View style={s.bgOrb} />
+      </View>
+      <View pointerEvents="none" style={s.bgOrbBottom} />
+
+      <ScrollView
+        contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#7C3AED"
-            colors={['#7C3AED']}
+            tintColor={C.primary}
+            colors={[C.primary]}
           />
         }
-      />
+      >
+        {/* ★ LANE-B-PHASE-5.2 — Hero block extracted to
+            src/roles/agency/components/AgencyHero.tsx. The JSX +
+            styles + LivePulse animation all live in the component.
+            Props are derived at this call site so AgencyHero stays
+            a pure presentation component. */}
+        <AgencyHero
+          avatarUrl={profile?.avatar_url ?? null}
+          initials={initials}
+          greetingText={greetingFor()}
+          displayName={displayName}
+          unreadNotifs={unreadNotifs}
+          liveCount={m.liveCount}
+          activeInspectorCount={m.activeInspectorIds.length}
+          volumeFormatted={usd(m.lifetimeVolume)}
+          onNotificationsPress={() => router.push('/notifications' as any)}
+        />
 
-      {/* ── Post-Job Modal ─────────────────────────────── */}
-      <Modal visible={showPostModal} animationType="slide" transparent onRequestClose={resetModal}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Post a Contract Job</Text>
-            <Text style={styles.modalSub}>Create a new inspection contract for your agency</Text>
+        {/* ★ LANE-B-PHASE-5.2 — Quick Actions launchpad extracted to
+            src/roles/agency/components/AgencyQuickActions.tsx. The 4
+            action configs (icon + tint + label + gradient + onPress)
+            are owned here at the parent so routing decisions and tint
+            choices stay in the dashboard's hands. The component just
+            renders. */}
+        <AgencyQuickActions
+          actions={[
+            {
+              id: 'jobs',
+              icon: Briefcase,
+              tint: C.info,
+              label: 'My Jobs',
+              gradient: ['rgba(59,130,246,0.32)', 'rgba(59,130,246,0.06)'],
+              onPress: () => router.push('/(tabs)/jobs' as any),
+            },
+            {
+              id: 'inspectors',
+              icon: Compass,
+              tint: C.primary,
+              label: 'Inspectors',
+              gradient: ['rgba(124,58,237,0.32)', 'rgba(124,58,237,0.06)'],
+              onPress: () => router.push('/inspectors' as any),
+            },
+            {
+              id: 'messages',
+              icon: MessageCircle,
+              tint: C.ok,
+              label: 'Messages',
+              gradient: ['rgba(16,185,129,0.32)', 'rgba(16,185,129,0.06)'],
+              onPress: () => router.push('/messages' as any),
+            },
+            {
+              id: 'contracts',
+              icon: FileSignature,
+              tint: C.cyan,
+              label: 'Contracts',
+              gradient: ['rgba(6,182,212,0.32)', 'rgba(6,182,212,0.06)'],
+              onPress: () => router.push('/contracts/' as any),
+            },
+          ]}
+        />
 
-            {/* Title */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Job Title *</Text>
-              <TextInput
-                style={styles.fieldInput}
-                placeholder="e.g., Pipeline Inspection — Site A"
-                placeholderTextColor="#64748B"
-                value={newTitle}
-                onChangeText={setNewTitle}
-                editable={!posting}
-              />
-            </View>
+        {/* ★ LANE-B-PHASE-5.2 — Action Inbox extracted to
+            src/roles/agency/components/AgencyActionInbox.tsx. The
+            actionItems array is still computed by the parent via
+            useMemo so all routing/data logic stays here. The component
+            decides between the "Needs Your Attention" card view and
+            the "All clear" panel based on items.length. */}
+        <AgencyActionInbox items={actionItems} />
 
-            {/* Description */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Description</Text>
-              <TextInput
-                style={[styles.fieldInput, styles.fieldTextArea]}
-                placeholder="Describe the inspection requirements…"
-                placeholderTextColor="#64748B"
-                value={newDescription}
-                onChangeText={setNewDescription}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                editable={!posting}
-              />
-            </View>
+        {/* ★ LANE-B-PHASE-5.2 — Spend & Velocity (budget + sparkline)
+            extracted to src/roles/agency/components/AgencyBudgetSparkline.tsx.
+            Parent supplies pre-formatted strings/numbers via the
+            usd / usdFull helpers; the component (and its private
+            Sparkline) handle all rendering. */}
+        <AgencyBudgetSparkline
+          activeBudgetFormatted={usdFull(m.activeBudget)}
+          avgJobValueFormatted={usdFull(m.avgJobValue)}
+          sparkBuckets={m.sparkBuckets}
+          lifetimeFormatted={usd(m.lifetimeVolume)}
+          completedFormatted={usd(m.totalSpend)}
+          conversionPercent={m.conversion}
+        />
 
-            {/* Location */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Location</Text>
-              <TextInput
-                style={styles.fieldInput}
-                placeholder="e.g., Houston, TX"
-                placeholderTextColor="#64748B"
-                value={newLocation}
-                onChangeText={setNewLocation}
-                editable={!posting}
-              />
-            </View>
+        {/* ───── PIPELINE STEP-RAIL ─────────────────────────────
+            LANE-B-PHASE-5.2 #5 — extracted to
+            src/roles/agency/components/AgencyPipelineRail.tsx. The
+            section header, 5-stage step-rail, and 4-up insight strip
+            all live in the component; props are pre-computed counts
+            and the "View all" handler so the component stays purely
+            presentational and visual design is locked. */}
+        <AgencyPipelineRail
+          pendingApprovalCount={m.pendingApprovalCount}
+          openCount={m.openCount}
+          assignedCount={m.assignedCount}
+          inProgressCount={m.inProgressCount}
+          completedCount={m.completedCount}
+          liveCount={m.liveCount}
+          appsCount={apps.length}
+          conversionPercent={m.conversion}
+          avgDaysToHire={m.avgDaysToHire}
+          onViewAll={() => router.push('/(tabs)/jobs' as any)}
+        />
 
-            {/* Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={resetModal} disabled={posting}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  (!newTitle.trim() || posting) && styles.submitBtnDisabled,
-                ]}
-                onPress={handlePostJob}
-                disabled={!newTitle.trim() || posting}
-              >
-                {posting ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Post Job</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        {/* ───── INSPECTOR BENCH ────────────────────────────────
+            LANE-B-PHASE-5.2 #6 — extracted to
+            src/roles/agency/components/AgencyInspectorBench.tsx.
+            The horizontal scroll-rail, per-card stagger animation,
+            avatar ring, live-pulse badge, and status chip all live in
+            the component. Items are pre-built above so `meta()` and
+            routing remain orchestrated by the dashboard. */}
+        <AgencyInspectorBench items={benchItems} />
+
+        {/* ───── LIVE JOBS ──────────────────────────────────────
+            LANE-B-PHASE-5.2 #7 — extracted to
+            src/roles/agency/components/AgencyLiveJobs.tsx. The section
+            header, stacked job-card list, status accent strip, meta
+            row, and right-side chip + price all live in the component.
+            Items are pre-built above (formatted strings + resolved
+            `statusMeta` + per-card navigation closure) so the
+            dashboard retains full control of data/routing while the
+            component stays purely presentational. */}
+        <AgencyLiveJobs
+          items={liveJobItems}
+          onViewAll={() => router.push('/(tabs)/jobs' as any)}
+        />
+
+        {/* ───── ACTIVITY TIMELINE ──────────────────────────────
+            LANE-B-PHASE-5.2 #8 — extracted to
+            src/roles/agency/components/AgencyActivityTimeline.tsx. The
+            vertical thread (node + connector line + applicant card)
+            now lives in the component; items are pre-built above
+            (resolved `toneColor`, derived `label`, `ago()`-formatted
+            `when`, baked-in navigation closure) so the dashboard
+            retains full control of data/routing while the component
+            stays purely presentational. */}
+        <AgencyActivityTimeline items={activityItems} />
+
+        {/* ───── EMPTY STATE ────────────────────────────────────
+            LANE-B-PHASE-5.2 #9 — extracted to
+            src/roles/agency/components/AgencyEmptyState.tsx. Final
+            extraction in the agency dashboard sequence — the screen is
+            now 100% composed from extracted components plus
+            orchestration code. */}
+        {jobs.length === 0 && (
+          <AgencyEmptyState onCreate={() => router.push('/post-new-job' as any)} />
+        )}
+
+      </ScrollView>
+
+      {/* ───── FLOATING POST-JOB CTA ────────────────────────
+            Direct sibling of ScrollView. NativeWind className for
+            layout / pill shape; inline style for cross-platform
+            shadow + elevation so it renders identically on iOS
+            and Android. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Post a new job"
+        onPress={() => router.push('/post-new-job' as any)}
+        hitSlop={10}
+        className="absolute bottom-6 right-6 z-50 flex-row items-center justify-center rounded-full bg-[#7C3AED] px-5 py-4"
+        style={{
+          shadowColor: '#7C3AED',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.5,
+          shadowRadius: 12,
+          elevation: 10,
+        }}
+      >
+        <Text className="text-white font-bold text-lg mr-2">+</Text>
+        <Text className="text-white font-bold text-base">Post Job</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
 
-// ────────────────────────────────────────────────────────
-// STYLES — dark theme: #020420 bg, #7C3AED primary, #0F172A cards
-// ────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: {
+// ─────────────────────────────────────────────────────────────
+// SUB-COMPONENTS
+// ─────────────────────────────────────────────────────────────
+const Insight: React.FC<{
+  icon: any;
+  tint: string;
+  label: string;
+  value: string;
+}> = ({ icon: Icon, tint, label, value }) => (
+  <View style={s.insight}>
+    <View style={s.insightHead}>
+      <View style={[s.insightIcon, { backgroundColor: tint + '22' }]}>
+        <Icon size={10} color={tint} />
+      </View>
+      <Text style={s.insightLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+    <Text style={s.insightValue} numberOfLines={1}>
+      {value}
+    </Text>
+  </View>
+);
+
+const QuickAction: React.FC<{
+  icon: any;
+  tint: string;
+  label: string;
+  gradient: [string, string];
+  onPress: () => void;
+}> = ({ icon: Icon, tint, label, gradient, onPress }) => (
+  <Pressable
+    onPress={onPress}
+    style={({ pressed }) => [s.qaCard, pressed && { transform: [{ scale: 0.97 }] }]}
+  >
+    <LinearGradient
+      colors={gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+    <View style={[s.qaIcon, { backgroundColor: tint + '26', borderColor: tint + '66' }]}>
+      <Icon size={20} color={tint} />
+    </View>
+    <Text style={s.qaLabel} numberOfLines={1} adjustsFontSizeToFit>
+      {label}
+    </Text>
+  </Pressable>
+);
+
+// ─────────────────────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 18, paddingBottom: 120 }, // ★ FAB clearance
+
+  /* AMBIENT GLOW (background depth) */
+  bgOrbWrap: {
+    position: 'absolute',
+    top: -120,
+    right: -120,
+    width: 360,
+    height: 360,
+  },
+  bgOrb: {
     flex: 1,
-    backgroundColor: '#020420',
+    borderRadius: 360,
+    backgroundColor: 'rgba(124,58,237,0.18)',
+    opacity: 0.7,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingLabel: {
-    color: '#64748B',
-    fontSize: 14,
-    marginTop: 12,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+  bgOrbBottom: {
+    position: 'absolute',
+    bottom: -160,
+    left: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 320,
+    backgroundColor: 'rgba(59,130,246,0.10)',
+    opacity: 0.5,
   },
 
-  /* ── Header ─────────────────────────────────────────── */
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-  greeting: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  subGreeting: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  headerIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(124,58,237,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  /* ── Stats ──────────────────────────────────────────── */
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
+  /* SKELETON */
+  skel: {
+    backgroundColor: C.card,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderColor: C.border,
   },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  loadingPin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 32,
+  },
+  loadingPinText: { color: C.textDim, fontSize: 12 },
+
+  /* HERO */
+  heroWrap: {
+    backgroundColor: C.card,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 18,
+    marginTop: 8,
+    marginBottom: 18,
+    overflow: 'hidden',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  heroEdge: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 1,
+    backgroundColor: 'rgba(167,139,250,0.45)',
+  },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center' },
+  heroAvatarRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: 'rgba(124,58,237,0.20)',
+    borderColor: 'rgba(124,58,237,0.55)',
+    borderWidth: 1.5,
+    padding: 3,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
   },
-  statNum: {
+  heroAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+    backgroundColor: C.cardElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  heroAvatarImg: { width: '100%', height: '100%' },
+  heroAvatarText: { color: C.text, fontWeight: '800', fontSize: 18 },
+  heroCrown: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: C.cardElevated,
+    borderWidth: 1,
+    borderColor: C.amber + '88',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroGreet: { color: C.textDim, fontSize: 12, fontWeight: '600' },
+  heroName: {
+    color: C.text,
     fontSize: 22,
     fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
+    letterSpacing: -0.3,
     marginTop: 2,
   },
-
-  /* ── Post-job CTA ───────────────────────────────────── */
-  postBtn: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'visible',
-    marginBottom: 28,
-  },
-  postBtnGlow: {
-    position: 'absolute',
-    top: 4,
-    left: 10,
-    right: 10,
-    bottom: -4,
-    backgroundColor: '#7C3AED',
-    borderRadius: 16,
-    opacity: 0.35,
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  postBtnContent: {
+  heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7C3AED',
-    borderRadius: 16,
-    paddingVertical: 18,
-    gap: 10,
-  },
-  postBtnText: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-
-  /* ── Section header ─────────────────────────────────── */
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  sectionCount: {
-    fontSize: 13,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-
-  /* ── Job card ───────────────────────────────────────── */
-  jobCard: {
-    backgroundColor: '#0F172A',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
+    gap: 5,
+    backgroundColor: C.primaryDim,
+    borderColor: 'rgba(124,58,237,0.45)',
     borderWidth: 1,
-    borderColor: '#1E293B',
-    position: 'relative',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
   },
-  jobHeader: {
+  heroBadgeText: {
+    color: C.primary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  heroIconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(2,4,32,0.55)',
+    borderWidth: 1,
+    borderColor: C.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: C.danger,
+    paddingHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: C.card,
+  },
+  bellBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  heroPlusBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+
+  heroPulse: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginTop: 16,
+    backgroundColor: 'rgba(2,4,32,0.55)',
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  jobTitleRow: {
+  heroPulseLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  heroPulseText: { color: C.textSec, fontSize: 12, flex: 1 },
+  heroVolPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    marginRight: 10,
-    gap: 8,
-  },
-  jobTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
+    gap: 5,
+    backgroundColor: 'rgba(251,191,36,0.10)',
+    borderColor: 'rgba(251,191,36,0.30)',
+    borderWidth: 1,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 20,
-    gap: 6,
+    borderRadius: 8,
   },
-  badgeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  jobDesc: {
-    fontSize: 13,
-    color: '#94A3B8',
-    lineHeight: 18,
+  heroVolText: { color: C.amber, fontSize: 11, fontWeight: '800' },
+
+  /* SECTION */
+  sectionLabel: {
+    color: C.textDim,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 18,
     marginBottom: 10,
   },
-  jobMeta: {
+  sectionHead: {
     flexDirection: 'row',
-    gap: 18,
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
+  sectionLink: {
+    color: C.primary,
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  jobArrow: {
-    position: 'absolute',
-    right: 16,
-    top: '50%',
-    marginTop: -10,
-  },
-
-  /* ── Empty state ────────────────────────────────────── */
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 16,
-  },
-  emptySub: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 6,
-    textAlign: 'center',
+    marginTop: 18,
+    marginBottom: 10,
   },
 
-  /* ── Modal ──────────────────────────────────────────── */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(2,4,32,0.85)',
-    justifyContent: 'flex-end',
+  /* PRIORITY (Action Inbox front-and-center) */
+  priorityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop: 22, // ★ breathing room from Quick Actions above
   },
-  modalBox: {
-    backgroundColor: '#0F172A',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  modalTitle: {
-    fontSize: 22,
+  priorityHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  priorityHeaderText: {
+    color: C.warn,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#FFFFFF',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  priorityHeaderCount: { color: C.textDim, fontSize: 11, fontWeight: '700' },
+  priorityCard: {
+    backgroundColor: C.card,
+    borderColor: 'rgba(245,158,11,0.32)',
+    borderWidth: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: C.warn,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  /* PRIORITY CARD — vertical premium layout, no flex-row sibling issues */
+  priorityRow: {
+    flexDirection: 'column',
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  priorityTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 4,
   },
-  modalSub: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 24,
+  priorityIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
   },
-  fieldGroup: {
-    marginBottom: 18,
+  priorityTitle: {
+    color: C.text,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+    lineHeight: 22,
   },
-  fieldLabel: {
+  prioritySub: {
+    color: C.textDim,
     fontSize: 13,
-    fontWeight: '600',
-    color: '#94A3B8',
-    marginBottom: 8,
+    lineHeight: 19,
+    fontWeight: '500',
+  },
+  priorityCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  priorityCtaLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  urgentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  urgentBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  urgentDot: { width: 5, height: 5, borderRadius: 3 },
+
+  /* ALL CLEAR */
+  allClearWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: C.card,
+    borderColor: 'rgba(16,185,129,0.32)',
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    overflow: 'hidden',
+  },
+  allClearIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: C.okDim,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  allClearTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
+  allClearSub: { color: C.textDim, fontSize: 12, marginTop: 2 },
+
+  /* BUDGET */
+  budgetCard: {
+    backgroundColor: C.card,
+    borderColor: C.borderHi,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    overflow: 'hidden',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  budgetGlowRing: {
+    position: 'absolute',
+    top: -36,
+    right: -36,
+    width: 120,
+    height: 120,
+    borderRadius: 120,
+    backgroundColor: 'rgba(124,58,237,0.22)',
+  },
+  budgetRow: { flexDirection: 'row', alignItems: 'center' },
+  budgetCaption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  budgetCaptionText: {
+    color: C.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+  },
+  budgetValue: {
+    color: C.text,
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    marginTop: 4,
+  },
+  budgetHint: { color: C.textDim, fontSize: 12, marginTop: 4 },
+  budgetSpark: { alignItems: 'flex-end', paddingLeft: 16 },
+  budgetSparkLabel: {
+    color: C.textDim,
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  budgetFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2,4,32,0.55)',
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginTop: 14,
+  },
+  budgetFooterPiece: { flex: 1 },
+  budgetFooterLabel: {
+    color: C.textDim,
+    fontSize: 10,
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  fieldInput: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
+  budgetFooterVal: { color: C.text, fontSize: 15, fontWeight: '800', marginTop: 2 },
+  budgetFooterDiv: { width: 1, height: 28, backgroundColor: C.border, marginHorizontal: 8 },
+
+  /* PIPELINE */
+  pipeWrap: {
+    backgroundColor: C.card,
+    borderColor: C.border,
     borderWidth: 1,
-    borderColor: '#1E293B',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
   },
-  fieldTextArea: {
-    minHeight: 80,
-    paddingTop: 14,
-  },
-  modalActions: {
+  insightRow: {
     flexDirection: 'row',
-    gap: 12,
+    alignItems: 'stretch',
+    marginTop: 14,
+    gap: 8,
+  },
+  insight: {
+    flex: 1, // ★ equal-width 4-up grid — every chip visible
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 4,
+    backgroundColor: 'rgba(2,4,32,0.55)',
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    minHeight: 64,
+    justifyContent: 'center',
+  },
+  insightIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  insightHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  insightLabel: {
+    color: C.textDim,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    flexShrink: 1,
+  },
+  insightValue: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+
+  /* INSPECTOR BENCH */
+  benchCard: {
+    width: 156,
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+  },
+  benchAvatarRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26, // ★ perfect circle (½ width)
+    backgroundColor: C.primaryDim,
+    borderColor: 'rgba(124,58,237,0.45)',
+    borderWidth: 1,
+    padding: 2,
+    marginBottom: 10,
+  },
+  benchAvatar: {
+    flex: 1,
+    borderRadius: 24, // ★ perfect circle (½ inner width)
+    backgroundColor: C.cardElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    aspectRatio: 1,
+  },
+  benchAvatarImg: { width: '100%', height: '100%' },
+  benchAvatarText: { color: C.text, fontWeight: '800', fontSize: 14 },
+  benchLive: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: C.card,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  benchName: { color: C.text, fontSize: 13, fontWeight: '700' },
+  benchJob: { color: C.textDim, fontSize: 11, marginTop: 2 },
+  benchStatus: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
     marginTop: 8,
   },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 14,
+  benchStatusText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+
+  /* JOB CARDS */
+  jobList: {
+    backgroundColor: C.card,
+    borderColor: C.border,
     borderWidth: 1,
-    borderColor: '#1E293B',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  jobCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
-  cancelBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#94A3B8',
+  jobAccent: { width: 3, height: 36, borderRadius: 2 },
+  jobTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  jobTitle: { color: C.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
+  jobMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  jobMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  jobMetaText: { color: C.textDim, fontSize: 11, fontWeight: '500' },
+  jobBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    borderRadius: 14,
-    backgroundColor: '#7C3AED',
+  jobBadgeDot: { width: 5, height: 5, borderRadius: 3 },
+  jobBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  jobPrice: { color: C.text, fontSize: 13, fontWeight: '800' },
+
+  /* QUICK ACTIONS — top-of-dashboard launchpad
+        Header row + 4-up equal-width grid (no horizontal scroll). */
+  qaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 18,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  qaHeaderTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  qaHeaderDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.primary,
+    shadowColor: C.primary,
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  qaGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  qaCard: {
+    flex: 1, // ★ equal-width 4-up grid
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    overflow: 'hidden',
+    minHeight: 96,
   },
-  submitBtnDisabled: {
-    backgroundColor: 'rgba(124,58,237,0.35)',
-    shadowOpacity: 0,
-    elevation: 0,
+  qaIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  submitBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  qaLabel: { color: C.text, fontSize: 12, fontWeight: '800' },
+
+  /* (FAB styles removed — pill now lives inline via className+style) */
+
+  /* TIMELINE */
+  timeline: { backgroundColor: 'transparent', paddingTop: 4 },
+  tlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  tlGutter: { width: 18, alignItems: 'center', paddingTop: 16 },
+  tlNode: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    backgroundColor: C.card,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  tlNodeDot: { width: 6, height: 6, borderRadius: 3 },
+  tlLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: C.border,
+    marginTop: 2,
+    marginBottom: -8,
+  },
+  tlCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    gap: 12,
+    marginBottom: 10,
+  },
+  tlAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: C.primaryDim,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tlAvatarImg: { width: '100%', height: '100%' },
+  tlAvatarText: { color: C.primary, fontWeight: '800', fontSize: 12 },
+  tlTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  tlName: { color: C.text, fontSize: 13, fontWeight: '800', flexShrink: 1 },
+  tlWhen: { fontSize: 10, fontWeight: '800' },
+  tlSub: { color: C.textDim, fontSize: 11, marginTop: 2 },
+
+  /* EMPTY */
+  emptyWrap: {
+    backgroundColor: C.card,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 28,
+    alignItems: 'center',
+    marginTop: 18,
+    overflow: 'hidden',
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: C.primaryDim,
+    borderColor: 'rgba(124,58,237,0.50)',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: { color: C.text, fontSize: 18, fontWeight: '800' },
+  emptySub: {
+    color: C.textDim,
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 19,
+    paddingHorizontal: 14,
+  },
+  emptyCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 18,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  emptyCtaText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 });

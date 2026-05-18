@@ -1,0 +1,14 @@
+import React from 'react';
+import { View, Text } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+
+export default function DummyChatRoom() {
+  const { id } = useLocalSearchParams();
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#070716' }}>
+      <Text style={{ color: '#00FFFF', fontSize: 24, fontWeight: 'bold' }}>SUCCESS!</Text>
+      <Text style={{ color: '#FFFFFF', fontSize: 16, marginTop: 10 }}>The router is working.</Text>
+      <Text style={{ color: '#9CA3AF', fontSize: 14, marginTop: 10 }}>Job ID: {id}</Text>
+    </View>
+  );
+}

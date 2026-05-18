@@ -1,0 +1,78 @@
+{
+  "_comment_phase_5_hour_4": "Created during Phase 5 / Hour 4. Before this file, the repo had NO eas.json — `eas build` would have failed for lack of a profile. NX-EAS-001 closure.",
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+
+    "_comment_development": "Development profile — local dev clients only. Includes the Expo dev tools / debug bridge. Never ship this to the stores.",
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Debug"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "development"
+      }
+    },
+
+    "_comment_preview": "Preview profile — TestFlight / internal Play tracks. Production code path, production Supabase / Stripe TEST keys, internal distribution. Use this for QA before promoting to production.",
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "preview"
+      },
+      "autoIncrement": true
+    },
+
+    "_comment_production": "Production profile — what ships to the App Store and Google Play. Release build configuration, AAB on Android (required by Play), autoIncrement bumps buildNumber / versionCode automatically so we never collide with a previous submission. ALL EXPO_PUBLIC_* keys MUST be supplied via `eas secret:create` before the first prod build — supabase URL, anon key, Stripe live publishable key, and the Expo project ID.",
+    "production": {
+      "channel": "production",
+      "ios": {
+        "buildConfiguration": "Release",
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
+      },
+      "autoIncrement": true
+    }
+  },
+
+  "submit": {
+    "_comment_production_submit": "After `eas build --profile production`, run `eas submit --profile production`. App-Store-Connect creds + Google Play service-account JSON must be supplied via `eas credentials` or environment variables — they are NOT committed to this file.",
+    "production": {
+      "ios": {
+        "appleId": "REPLACE_WITH_APPLE_ID",
+        "ascAppId": "REPLACE_WITH_ASC_APP_ID",
+        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
+  }
+}

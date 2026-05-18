@@ -1,4 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// ─────────────────────────────────────────────────────────────
+// app/messages/index.tsx — Production Chat List
+// ─────────────────────────────────────────────────────────────
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -6,509 +15,735 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   RefreshControl,
+  TextInput,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, Stack, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, Link } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/src/contexts/AuthContext';
+// ★ Schema-fix: '@/src/lib/supabase' is a phantom path — there is no
+//   src/lib/supabase.ts file in this repo. The canonical client lives
+//   at /lib/supabase.ts; every other screen imports it as '@/lib/supabase'.
+//   With the broken path, Metro resolved supabase to undefined and the
+//   first .from('jobs') call threw silently, leaving the screen stuck on
+//   skeleton loaders forever.
+import { supabase } from '@/lib/supabase';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+  FadeIn,
+  FadeOut,
+} from 'react-native-reanimated';
 import {
   MessageCircle,
   Search,
-  User,
-  Check,
-  CheckCheck,
+  X,
+  ArrowLeft,
+  Paperclip,
+  ImageIcon,
 } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/src/contexts/AuthContext';
+import * as Haptics from 'expo-haptics';
 
-// Types updated to match SQL (client_id instead of employer_id)
-interface Conversation {
+// ═══════════════════════════════════════════════════════════
+// DESIGN TOKENS
+// ═══════════════════════════════════════════════════════════
+const COLORS = {
+  background: '#070716',
+  surface: 'rgba(255, 255, 255, 0.03)',
+  surfaceSolid: '#0D0D24',
+  border: 'rgba(255, 255, 255, 0.1)',
+  primary: '#00FFFF',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#9CA3AF',
+  textMuted: '#64748B',
+  purple: '#7C3AED',
+  myBubble: '#7C3AED',
+  theirBubble: 'rgba(255, 255, 255, 0.08)',
+  skeleton: 'rgba(255, 255, 255, 0.06)',
+};
+
+// ═══════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════
+interface Profile {
   id: string;
-  job_id: string;
-  client_id: string; 
-  worker_id: string;
-  last_message: string; // Note: You might need to add this column to SQL or calculate it
-  updated_at: string; // Changed from last_message_at
-  last_message_sender_id: string; // Note: You might need to add this column to SQL
-  unread_count: number; // Note: You might need to add this column to SQL
-  created_at: string;
-  job: {
-    id: string;
-    title: string;
-  };
-  client: { // Changed from employer
-    id: string;
-    full_name: string;
-    avatar_url: string;
-  };
-  worker: {
-    id: string;
-    full_name: string;
-    avatar_url: string;
-  };
+  full_name: string;
+  avatar_url: string | null;
+  role: string;
 }
 
-export default function MessagesScreen() {
+interface JobRow {
+  id: string;
+  title: string;
+  client_id: string | null;
+  agency_id: string | null;
+  hired_inspector_id: string | null;
+}
+
+interface MessageRow {
+  id: string;
+  job_id: string;
+  sender_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  attachment_url: string | null;
+  attachment_type: string | null;
+  attachment_name: string | null;
+}
+
+interface Conversation {
+  job_id: string;
+  job_title: string;
+  other_user: Profile;
+  last_message: MessageRow;
+  unread_count: number;
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Now';
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7)
+    return d.toLocaleDateString('en-US', { weekday: 'short' });
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function messagePreview(msg: MessageRow, myId: string): string {
+  const prefix = msg.sender_id === myId ? 'You: ' : '';
+  if (msg.attachment_type === 'image') return `${prefix}📷 Photo`;
+  if (msg.attachment_type === 'document')
+    return `${prefix}📎 ${msg.attachment_name || 'Document'}`;
+  const text = msg.content ?? '';
+  const truncated =
+    text.length > 50 ? text.substring(0, 50) + '…' : text;
+  return `${prefix}${truncated}`;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((w) => w.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+}
+
+/**
+ * Resolves the "other participant" for a 1-on-1 job chat.
+ * - If I am the inspector → other is client or agency
+ * - If I am the client or agency → other is inspector
+ */
+function resolveOtherUserId(job: JobRow, myId: string): string | null {
+  if (job.hired_inspector_id === myId) {
+    // I am the inspector; the other party is the client or agency
+    return job.client_id ?? job.agency_id ?? null;
+  }
+  // I am the client or agency; the other party is the inspector
+  return job.hired_inspector_id ?? null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SKELETON SHIMMER (Reanimated pulsing rows)
+// ═══════════════════════════════════════════════════════════
+const SkeletonPulse = React.memo(() => {
+  const opacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, []);
+
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View style={style}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <View key={`skel-${i}`} style={styles.skelRow}>
+          <View style={styles.skelAvatar} />
+          <View style={styles.skelBody}>
+            <View
+              style={[styles.skelLine, { width: '48%', height: 14 }]}
+            />
+            <View
+              style={[
+                styles.skelLine,
+                { width: '72%', height: 12, marginTop: 8 },
+              ]}
+            />
+            <View
+              style={[
+                styles.skelLine,
+                { width: '35%', height: 10, marginTop: 6 },
+              ]}
+            />
+          </View>
+        </View>
+      ))}
+    </Animated.View>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════
+// EMPTY STATE
+// ═══════════════════════════════════════════════════════════
+const EmptyState = React.memo(() => (
+  <View style={styles.emptyRoot}>
+    <View style={styles.emptyCircle}>
+      <MessageCircle
+        size={44}
+        color={COLORS.textMuted}
+        strokeWidth={1.3}
+      />
+    </View>
+    <Text style={styles.emptyTitle}>No conversations yet</Text>
+    <Text style={styles.emptySub}>
+      When a job is assigned, your conversation with the other party will
+      appear here.
+    </Text>
+  </View>
+));
+
+// ═══════════════════════════════════════════════════════════
+// CONVERSATION ROW
+// ═══════════════════════════════════════════════════════════
+interface ConvoRowProps {
+  item: Conversation;
+  myId: string;
+  onPress: (jobId: string) => void;
+}
+
+const ConversationRow = React.memo(({ item, myId }: { item: Conversation; myId: string; }) => {
+  const hasUnread = item.unread_count > 0;
+  return (
+    <Link href={`/messages/${item.job_id}`} asChild>
+      {/* CRITICAL: Do NOT add an onPress here. The Link injects it automatically. */}
+      <TouchableOpacity activeOpacity={0.65} style={styles.row}>
+        {item.other_user.avatar_url ? <Image source={{ uri: item.other_user.avatar_url }} style={styles.avatar} /> : <View style={[styles.avatar, styles.avatarFallback]}><Text style={styles.avatarInitials}>{getInitials(item.other_user.full_name)}</Text></View>}
+        <View style={styles.rowBody}>
+          <View style={styles.rowTopLine}>
+            <Text style={styles.rowName} numberOfLines={1}>{item.other_user.full_name}</Text>
+            <Text style={[styles.rowTime, hasUnread && { color: COLORS.primary }]}>{formatRelative(item.last_message?.created_at)}</Text>
+          </View>
+          <View style={styles.rowMidLine}>
+            <Text style={[styles.rowPreview, hasUnread && { color: COLORS.textPrimary, fontWeight: '500' }]} numberOfLines={1}>{messagePreview(item.last_message, myId)}</Text>
+            {hasUnread && <View style={styles.badge}><Text style={styles.badgeText}>{item.unread_count > 99 ? '99+' : item.unread_count}</Text></View>}
+          </View>
+          <Text style={styles.rowJob} numberOfLines={1}>{item.job_title}</Text>
+        </View>
+      </TouchableOpacity>
+    </Link>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════
+// MAIN SCREEN EXPORT
+// ═══════════════════════════════════════════════════════════
+export default function MessagesListScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { user, profile } = useAuth() as {
+    user: { id: string } | null;
+    profile: Profile | null;
+    [key: string]: any;
+  };
+  const myId = user?.id ?? null;
+  const isAdmin = profile?.role === 'admin';
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
 
-  // Fetch conversations on focus
-  useFocusEffect(
-    useCallback(() => {
-      if (user) {
-        fetchConversations();
-        const subscription = subscribeToConversations();
-        return () => {
-          subscription?.unsubscribe();
-        };
-      }
-    }, [user?.id])
-  );
-
-  const fetchConversations = async () => {
-    if (!user) return;
+  // ─── DATA FETCH ───
+  const fetchConversations = useCallback(async () => {
+    if (!myId) return;
 
     try {
-      // ✅ FIXED QUERY: Uses client_id and updated_at
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          job:jobs (
-            id,
-            title
-          ),
-          client:profiles!client_id (
-            id,
-            full_name,
-            avatar_url
-          ),
-          worker:profiles!contractor_id (
-            id,
-            full_name,
-            avatar_url
-          )
-        `)
-        .or(`client_id.eq.${user.id},contractor_id.eq.${user.id}`)
-        .order('updated_at', { ascending: false });
+      // 1) Get all relevant jobs
+      let jobQuery = supabase
+        .from('jobs')
+        .select('id, title, client_id, agency_id, hired_inspector_id')
+        .not('hired_inspector_id', 'is', null);
 
-      if (error) throw error;
-      setConversations(data || []);
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!isAdmin) {
+        // Non-admin: only jobs I am part of
+        jobQuery = jobQuery.or(
+          `client_id.eq.${myId},agency_id.eq.${myId},hired_inspector_id.eq.${myId}`,
+        );
+      }
+
+      const { data: jobs, error: jobErr } = await jobQuery;
+      if (jobErr) throw jobErr;
+      if (!jobs || jobs.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      const jobIds = jobs.map((j: JobRow) => j.id);
+
+      // 2) Get all messages for those jobs (newest first)
+      const { data: allMsgs, error: msgErr } = await supabase
+        .from('messages')
+        .select('*')
+        .in('job_id', jobIds)
+        .order('created_at', { ascending: false });
+
+      if (msgErr) throw msgErr;
+      if (!allMsgs || allMsgs.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      // Group messages by job_id
+      const msgsByJob: Record<string, MessageRow[]> = {};
+      for (const m of allMsgs as MessageRow[]) {
+        (msgsByJob[m.job_id] ??= []).push(m);
+      }
+
+      // 3) Collect all other-user profile IDs
+      const profileIds = new Set<string>();
+      for (const job of jobs as JobRow[]) {
+        const otherId = isAdmin
+          ? job.hired_inspector_id ??
+            job.client_id ??
+            job.agency_id
+          : resolveOtherUserId(job, myId);
+        if (otherId) profileIds.add(otherId);
+      }
+
+      // 4) Fetch profiles
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role')
+        .in('id', [...profileIds]);
+
+      const profileMap: Record<string, Profile> = {};
+      for (const p of (profiles ?? []) as Profile[]) {
+        profileMap[p.id] = p;
+      }
+
+      // 5) Build conversation list
+      const convos: Conversation[] = [];
+
+      for (const job of jobs as JobRow[]) {
+        const jobMessages = msgsByJob[job.id];
+        if (!jobMessages || jobMessages.length === 0) continue;
+
+        const otherId = isAdmin
+          ? job.hired_inspector_id ??
+            job.client_id ??
+            job.agency_id
+          : resolveOtherUserId(job, myId);
+
+        const otherProfile: Profile = otherId
+          ? profileMap[otherId] ?? {
+              id: otherId,
+              full_name: 'Unknown User',
+              avatar_url: null,
+              role: 'unknown',
+            }
+          : {
+              id: 'unknown',
+              full_name: 'Unknown User',
+              avatar_url: null,
+              role: 'unknown',
+            };
+
+        const unreadCount = jobMessages.filter(
+          (m) => !m.is_read && m.sender_id !== myId,
+        ).length;
+
+        convos.push({
+          job_id: job.id,
+          job_title: job.title ?? 'Untitled Job',
+          other_user: otherProfile,
+          last_message: jobMessages[0], // already sorted desc
+          unread_count: unreadCount,
+        });
+      }
+
+      // Sort by most recent message
+      convos.sort(
+        (a, b) =>
+          new Date(b.last_message.created_at).getTime() -
+          new Date(a.last_message.created_at).getTime(),
+      );
+
+      setConversations(convos);
+    } catch (err) {
+      console.error('[MessagesListScreen] fetch error:', err);
     }
-  };
+  }, [myId, isAdmin]);
 
-  const subscribeToConversations = () => {
-    if (!user) return null;
+  // ─── LOAD ON FOCUS ───
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      (async () => {
+        await fetchConversations();
+        if (alive) setLoading(false);
+      })();
+      return () => {
+        alive = false;
+      };
+    }, [fetchConversations]),
+  );
+
+  // ─── REALTIME SUBSCRIPTION ───
+  useEffect(() => {
+    if (!myId) return;
 
     const channel = supabase
-      .channel('conversations_changes')
+      .channel('chat-list-realtime')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversations',
-          filter: `client_id=eq.${user.id}`, // ✅ Fixed filter
-        },
-        () => {
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const incoming = payload.new as MessageRow;
+          if (incoming.sender_id !== myId) {
+            Haptics.impactAsync(
+              Haptics.ImpactFeedbackStyle.Medium,
+            ).catch(() => {});
+          }
           fetchConversations();
-        }
+        },
       )
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversations',
-          filter: `worker_id=eq.${user.id}`,
-        },
-        () => {
-          fetchConversations();
-        }
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        () => fetchConversations(),
       )
       .subscribe();
 
-    return channel;
-  };
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [myId, fetchConversations]);
 
-  const handleRefresh = () => {
+  // ─── HANDLERS ───
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    fetchConversations();
-  };
+    await fetchConversations();
+    setRefreshing(false);
+  }, [fetchConversations]);
 
-  const getOtherUser = (conversation: Conversation) => {
-    // ✅ Logic updated for client_id
-    if (conversation.client_id === user?.id) {
-      return conversation.worker;
-    }
-    return conversation.client;
-  };
-
-  const formatTime = (dateString: string) => {
-    if (!dateString) return '';
+  const handleRowPress = useCallback((jobId: string) => { 
+    console.log('🧭 Tapped conversation! Routing to Job ID:', jobId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); 
     
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    // Using the foolproof object syntax for dynamic routes
+    router.push({
+      pathname: "/messages/[id]",
+      params: { id: jobId }
+    } as any); 
+  }, [router]);
 
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-    } else if (diffInHours < 168) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
-    }
-  };
-
-  const isUnread = (conversation: Conversation) => {
-    // Note: ensure unread_count exists in your DB or remove this check
-    return (
-      conversation.last_message_sender_id !== user?.id &&
-      (conversation.unread_count || 0) > 0
+  // ─── FILTERED DATA ───
+  const filtered = useMemo(() => {
+    if (!search.trim()) return conversations;
+    const q = search.toLowerCase();
+    return conversations.filter(
+      (c) =>
+        c.other_user.full_name.toLowerCase().includes(q) ||
+        c.job_title.toLowerCase().includes(q),
     );
-  };
+  }, [conversations, search]);
 
-  const renderConversation = ({ item }: { item: Conversation }) => {
-    const otherUser = getOtherUser(item);
-    const unread = isUnread(item);
-    const isLastMessageMine = item.last_message_sender_id === user?.id;
-
-    return (
-      <TouchableOpacity
-        style={[styles.conversationItem, unread && styles.conversationUnread]}
-        onPress={() => router.push(`/messages/${item.id}`)}
-        activeOpacity={0.7}
-      >
-        {/* Avatar */}
-        <View style={styles.avatarContainer}>
-          {otherUser?.avatar_url ? (
-            <Image
-              source={{ uri: otherUser.avatar_url }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <User size={24} color="#8B5CF6" />
-            </View>
-          )}
-          {unread && <View style={styles.onlineIndicator} />}
-        </View>
-
-        {/* Content */}
-        <View style={styles.conversationContent}>
-          <View style={styles.conversationHeader}>
-            <Text style={[styles.userName, unread && styles.userNameUnread]} numberOfLines={1}>
-              {otherUser?.full_name || 'Unknown User'}
-            </Text>
-            <Text style={[styles.timeText, unread && styles.timeTextUnread]}>
-              {formatTime(item.updated_at)} 
-            </Text>
-          </View>
-
-          <Text style={styles.jobTitle} numberOfLines={1}>
-            {item.job?.title || 'Job Discussion'}
-          </Text>
-
-          <View style={styles.lastMessageRow}>
-            {isLastMessageMine && (
-              <View style={styles.readIndicator}>
-                <CheckCheck size={14} color="#8B5CF6" />
-              </View>
-            )}
-            <Text
-              style={[styles.lastMessage, unread && styles.lastMessageUnread]}
-              numberOfLines={1}
-            >
-              {item.last_message || 'Start chatting...'}
-            </Text>
-            {unread && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadCount}>
-                  {(item.unread_count || 0) > 9 ? '9+' : item.unread_count}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <MessageCircle size={64} color="#8B5CF6" />
-      </View>
-      <Text style={styles.emptyTitle}>No Conversations Yet</Text>
-      <Text style={styles.emptyMessage}>
-        When you start a conversation with an employer or worker, it will appear here.
-      </Text>
-      <TouchableOpacity
-        style={styles.browseButton}
-        onPress={() => router.push('/jobs')}
-      >
-        <Text style={styles.browseButtonText}>Browse Jobs</Text>
-      </TouchableOpacity>
-    </View>
+  const totalUnread = useMemo(
+    () => conversations.reduce((sum, c) => sum + c.unread_count, 0),
+    [conversations],
   );
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Messages</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // ─── RENDER ───
+  const renderItem = useCallback(
+    ({ item }: { item: Conversation }) => (
+      <ConversationRow item={item} myId={myId!} />
+    ),
+    [myId],
+  );
+
+  const keyExtractor = useCallback(
+    (item: Conversation) => item.job_id,
+    [],
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.background}
+      />
 
-      {/* Header */}
+      {/* ══ HEADER ══ */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity style={styles.searchButton}>
-          <Search size={22} color="#FFFFFF" />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          style={styles.headerBack}
+        >
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Messages</Text>
+        {totalUnread > 0 && (
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>{totalUnread}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Conversations List */}
-      <FlatList
-        data={conversations}
-        keyExtractor={(item) => item.id}
-        renderItem={renderConversation}
-        contentContainerStyle={[
-          styles.listContent,
-          conversations.length === 0 && styles.emptyListContent,
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#8B5CF6"
-            colors={['#8B5CF6']}
-          />
-        }
-        ListEmptyComponent={renderEmpty}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
-    </SafeAreaView>
+      {/* ══ SEARCH ══ */}
+      <View style={styles.searchBar}>
+        <Search size={16} color={COLORS.textMuted} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search conversations…"
+          placeholderTextColor={COLORS.textMuted}
+          value={search}
+          onChangeText={setSearch}
+          returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearch('')}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <X size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* ══ BODY ══ */}
+      {loading ? (
+        <SkeletonPulse />
+      ) : (
+        <FlatList
+          data={filtered}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={
+            filtered.length === 0
+              ? styles.listEmptyContainer
+              : styles.listContent
+          }
+          ListEmptyComponent={<EmptyState />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.primary}
+              colors={[COLORS.primary]}
+              progressBackgroundColor={COLORS.surfaceSolid}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+        />
+      )}
+    </View>
   );
 }
 
+// ═══════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#020420',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  root: { flex: 1, backgroundColor: COLORS.background },
 
-  // Header
+  // header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(139, 92, 246, 0.1)',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  headerBack: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   headerTitle: {
     fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.5,
+    flex: 1,
+  },
+  headerBadge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 7,
+    marginLeft: 8,
+  },
+  headerBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.background,
+  },
+
+  // search
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    height: 42,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    marginLeft: 10,
+    paddingVertical: 0,
+  },
+
+  // list
+  listContent: { paddingBottom: 100 },
+  listEmptyContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 80,
+  },
+
+  // conversation row
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  avatar: { width: 50, height: 50, borderRadius: 25 },
+  avatarFallback: {
+    backgroundColor: COLORS.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: {
+    fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  searchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // List
-  listContent: {
-    paddingVertical: 8,
-  },
-  emptyListContent: {
-    flex: 1,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: 'rgba(139, 92, 246, 0.05)',
-    marginLeft: 80,
-  },
-
-  // Conversation Item
-  conversationItem: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  conversationUnread: {
-    backgroundColor: 'rgba(139, 92, 246, 0.05)',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 14,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#020420',
-  },
-  conversationContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  conversationHeader: {
+  rowBody: { flex: 1, marginLeft: 14 },
+  rowTopLine: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 3,
   },
-  userName: {
+  rowName: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: COLORS.textPrimary,
     flex: 1,
     marginRight: 8,
   },
-  userNameUnread: {
-    fontWeight: '700',
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  timeTextUnread: {
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-  jobTitle: {
-    fontSize: 13,
-    color: '#8B5CF6',
-    marginBottom: 4,
-  },
-  lastMessageRow: {
+  rowTime: { fontSize: 12, color: COLORS.textMuted },
+  rowMidLine: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3,
   },
-  readIndicator: {
-    marginRight: 4,
-  },
-  lastMessage: {
+  rowPreview: {
     fontSize: 14,
-    color: '#6B7280',
+    color: COLORS.textSecondary,
     flex: 1,
+    marginRight: 8,
   },
-  lastMessageUnread: {
-    color: '#D1D5DB',
-    fontWeight: '500',
-  },
-  unreadBadge: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    minWidth: 22,
-    height: 22,
-    justifyContent: 'center',
+  badge: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 5,
   },
-  unreadCount: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: COLORS.background,
   },
+  rowJob: { fontSize: 12, color: COLORS.textMuted },
 
-  // Empty State
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  // skeleton
+  skelRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    justifyContent: 'center',
+  skelAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.skeleton,
+  },
+  skelBody: { flex: 1, marginLeft: 14 },
+  skelLine: { borderRadius: 6, backgroundColor: COLORS.skeleton },
+
+  // empty
+  emptyRoot: { alignItems: 'center', paddingHorizontal: 40 },
+  emptyCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptyMessage: {
-    fontSize: 15,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  browseButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  browseButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 21,
   },
 });
-

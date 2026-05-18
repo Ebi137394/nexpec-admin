@@ -21,17 +21,17 @@ import {
   Clock,
   Star,
   Briefcase,
-  Wallet,
-  Globe2,
   FileText,
   AlertTriangle,
   Building2,
   ExternalLink,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchAdminUserDetail } from '@/lib/data/adminUserDetail';
-import type { AdminUserDetail } from '@/lib/data/adminUserDetail';
 import { UserRoleBadge } from '@/components/admin/users/UserRoleBadge';
+import { UserModerationPanel } from '@/components/admin/users/UserModerationPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,10 +44,12 @@ export async function generateMetadata({
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ error?: string; saved?: string }>;
 }
 
-export default async function AdminUserDetailPage({ params }: PageProps) {
+export default async function AdminUserDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const sp = (await searchParams) ?? {};
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -84,11 +86,11 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
   const isClientSide =
     role === 'client' || role === 'agency' || role === 'enterprise';
 
+  // Build display name in two steps so we don't mix ?? and || in one
+  // expression (JS spec forbids it without parens).
+  const composedFromParts = `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim();
   const displayName =
-    profile.full_name ??
-    `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() ||
-    profile.email ||
-    'Anonymous';
+    profile.full_name || composedFromParts || profile.email || 'Anonymous';
 
   return (
     <div className="space-y-8">
@@ -196,6 +198,33 @@ export default async function AdminUserDetailPage({ params }: PageProps) {
           icon={<AlertTriangle className="h-4 w-4" strokeWidth={1.75} />}
         />
       </section>
+
+      {sp.error && (
+        <div className="flex items-start gap-3 rounded-2xl border border-accent-red/30 bg-accent-red/10 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-accent-red" />
+          <p className="text-sm text-accent-red">{sp.error}</p>
+        </div>
+      )}
+      {sp.saved && (
+        <div className="flex items-start gap-3 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent-green" />
+          <p className="text-sm text-accent-green">
+            Action applied: <span className="font-mono">{sp.saved}</span>. The
+            user has been notified.
+          </p>
+        </div>
+      )}
+
+      {/* Admin moderation actions */}
+      <UserModerationPanel
+        userId={profile.id}
+        email={profile.email}
+        role={profile.role}
+        verificationStatus={profile.verification_status}
+        currentStatus={profile.status ?? 'active'}
+        suspensionReason={profile.suspension_reason}
+        returnTo={`/admin/users/${profile.id}`}
+      />
 
       {/* Bio */}
       {profile.bio && (

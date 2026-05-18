@@ -1,8 +1,12 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Animated, Dimensions, Alert, RefreshControl, Platform, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, Animated, Dimensions, Alert, RefreshControl, Platform, ActivityIndicator, Modal, Pressable, KeyboardAvoidingView, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
+// ★ Stripe Connect onboarding redirects via the device browser; we use
+//   openAuthSessionAsync so the OS-level "auth session" presentation
+//   lets Stripe's hosted onboarding redirect us back into the app.
+import * as WebBrowser from 'expo-web-browser';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Rect, Defs, LinearGradient as SvgGrad, Stop, Text as SvgText, Line } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
@@ -15,14 +19,24 @@ const COLORS = { background: '#020420', surface: '#0F172A', surfaceLight: '#1E29
 
 type UserRole = 'inspector' | 'client' | 'agency';
 interface Transaction { id: string; type: 'earning' | 'withdrawal' | 'deposit' | 'escrow' | 'refund' | 'fee' | 'payout'; amount: number; description: string; status: 'completed' | 'pending' | 'failed' | 'processing'; created_at: string; reference_id?: string; metadata?: Record<string, any>; }
-interface PaymentMethod { id: string; type: 'bank_account' | 'card' | 'paypal' | 'stripe'; label: string; last4: string; is_default: boolean; brand?: string; bank_name?: string; status: 'active' | 'pending' | 'expired'; }
+interface PaymentMethod { id: string; type: 'bank_account' | 'card' | 'paypal' | 'wise' | 'payoneer' | 'stripe'; label: string; last4: string; is_default: boolean; brand?: string; bank_name?: string; status: 'active' | 'pending' | 'expired'; }
 interface WalletStats { availableBalance: number; totalEarned: number; pendingAmount: number; escrowAmount: number; totalSpent: number; totalVolume: number; agencyRevenue: number; pendingPayouts: number; }
 interface DbTransaction { id: string; type: string; amount: number; description: string; status: string; created_at: string; reference_id?: string; metadata?: any; }
 interface DbPaymentMethod { id: string; type: string; label: string; last_four: string; is_default: boolean; brand?: string; bank_name?: string; status: string; }
-interface PaymentProviderOption { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string; }
+interface PaymentProviderOption { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string; targetRole: 'all' | 'inspector' | 'client'; }
 
 const DEFAULT_STATS: WalletStats = { availableBalance: 0, totalEarned: 0, pendingAmount: 0, escrowAmount: 0, totalSpent: 0, totalVolume: 0, agencyRevenue: 0, pendingPayouts: 0 };
-const PAYMENT_PROVIDERS: PaymentProviderOption[] = [ { id: 'stripe', name: 'Stripe', icon: 'card-outline', color: '#635BFF', description: 'Credit or debit card' }, { id: 'bank', name: 'Bank Account', icon: 'business-outline', color: COLORS.green, description: 'Direct bank transfer' }, { id: 'paypal', name: 'PayPal', icon: 'logo-paypal', color: '#0070BA', description: 'PayPal account' } ];
+
+const PAYMENT_PROVIDERS: PaymentProviderOption[] = [
+  { id: 'stripe', name: 'Credit / Debit Card', icon: 'card-outline', color: '#635BFF', description: 'Powered by Stripe', targetRole: 'client' },
+  // ★ Stripe Connect Express for inspector payouts. Stripe handles KYC,
+  //   bank verification, multi-currency, and tax forms. Replaces the
+  //   old manual 'bank' option that bounced users to the Withdraw form.
+  { id: 'stripe_connect', name: 'Bank Account (Stripe)', icon: 'business-outline', color: COLORS.green, description: 'Verified by Stripe — instant USD payouts', targetRole: 'inspector' },
+  { id: 'paypal', name: 'PayPal', icon: 'logo-paypal', color: '#0070BA', description: 'Connect PayPal account', targetRole: 'all' },
+  { id: 'wise', name: 'Wise', icon: 'globe-outline', color: '#00B9FF', description: 'International transfer', targetRole: 'all' },
+  { id: 'payoneer', name: 'Payoneer', icon: 'cash-outline', color: '#FF4800', description: 'Global payout method', targetRole: 'inspector' }
+];
 
 const formatCurrency = (amount: number) => `$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const getStatusColor = (status: string) => { switch (status) { case 'completed': return COLORS.green; case 'pending': case 'processing': return COLORS.amber; case 'failed': return COLORS.red; default: return COLORS.textMuted; } };
@@ -33,11 +47,36 @@ const formatDate = (dateStr: string) => { const d = new Date(dateStr); const now
 const MiniStat: React.FC<{ label: string; value: string; color: string }> = ({ label, value, color }) => ( <View style={s.miniStat}><Text style={s.miniStatLabel}>{label}</Text><Text style={[s.miniStatValue, { color }]}>{value}</Text></View> );
 const MiniStatDivider = () => <View style={s.miniStatDivider} />;
 
-const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; onWithdraw: () => void; onDeposit: () => void; }> = ({ stats, userRole, onWithdraw, onDeposit }) => {
+// ★ Stripe Connect status pill — small visual indicator shown next to
+//   the role badge for inspectors. Renders nothing if status is
+//   'not_connected' (the +Add option already invites onboarding) or if
+//   user isn't an inspector.
+type StripeConnectState = { status: string; payouts_enabled: boolean };
+
+const STRIPE_STATUS_DISPLAY: Record<string, {
+  label: string;
+  color: string;
+  bg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}> = {
+  verified: { label: 'Stripe Verified', color: '#10B981', bg: 'rgba(16,185,129,0.12)', icon: 'checkmark-circle' },
+  pending: { label: 'Setup Pending', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: 'time' },
+  restricted: { label: 'Action Needed', color: '#EF4444', bg: 'rgba(239,68,68,0.12)', icon: 'warning' },
+  disabled: { label: 'Disconnected', color: '#94A3B8', bg: 'rgba(148,163,184,0.12)', icon: 'close-circle' },
+};
+
+const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConnect: StripeConnectState; onWithdraw: () => void; onDeposit: () => void; }> = ({ stats, userRole, stripeConnect, onWithdraw, onDeposit }) => {
   const balanceAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(balanceAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }).start(); }, []);
   const roleLabel = userRole === 'inspector' ? 'Inspector' : userRole === 'client' ? 'Client' : 'Agency';
   const roleIcon: keyof typeof Ionicons.glyphMap = userRole === 'inspector' ? 'shield-checkmark' : userRole === 'client' ? 'briefcase' : 'business';
+
+  // Compute Stripe display from status — only show pill for inspectors
+  // with a non-default status.
+  const stripeDisplay =
+    userRole === 'inspector' && stripeConnect.status !== 'not_connected'
+      ? STRIPE_STATUS_DISPLAY[stripeConnect.status]
+      : null;
 
   return (
     <View style={s.heroCard}>
@@ -49,26 +88,70 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; onWithdraw
             {formatCurrency(stats.availableBalance)}
           </Animated.Text>
         </View>
-        <View style={s.roleBadge}><Ionicons name={roleIcon} size={14} color={COLORS.primary} /><Text style={s.roleText}>{roleLabel}</Text></View>
+        <View style={{ alignItems: 'flex-end', gap: 6 }}>
+          <View style={s.roleBadge}><Ionicons name={roleIcon} size={14} color={COLORS.primary} /><Text style={s.roleText}>{roleLabel}</Text></View>
+          {stripeDisplay && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: stripeDisplay.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, gap: 4 }}>
+              <Ionicons name={stripeDisplay.icon} size={11} color={stripeDisplay.color} />
+              <Text style={{ fontSize: 10, fontWeight: '600', color: stripeDisplay.color, letterSpacing: 0.3 }}>{stripeDisplay.label}</Text>
+            </View>
+          )}
+        </View>
       </View>
-      <View style={s.miniStatsRow}>
-        {userRole === 'inspector' && ( <><MiniStat label="Pending" value={formatCurrency(stats.pendingAmount)} color={COLORS.amber} /><MiniStatDivider /><MiniStat label="In Escrow" value={formatCurrency(stats.escrowAmount)} color={COLORS.blue} /><MiniStatDivider /><MiniStat label="Total Earned" value={formatCurrency(stats.totalEarned)} color={COLORS.green} /></> )}
-        {userRole === 'client' && ( <><MiniStat label="In Escrow" value={formatCurrency(stats.escrowAmount)} color={COLORS.amber} /><MiniStatDivider /><MiniStat label="Total Spent" value={formatCurrency(stats.totalSpent)} color={COLORS.red} /><MiniStatDivider /><MiniStat label="Volume" value={formatCurrency(stats.totalVolume)} color={COLORS.blue} /></> )}
-        {userRole === 'agency' && ( <><MiniStat label="Revenue" value={formatCurrency(stats.agencyRevenue)} color={COLORS.green} /><MiniStatDivider /><MiniStat label="Pending Payouts" value={formatCurrency(stats.pendingPayouts)} color={COLORS.amber} /><MiniStatDivider /><MiniStat label="Volume" value={formatCurrency(stats.totalVolume)} color={COLORS.blue} /></> )}
-      </View>
+      {/* ★ FINANCE-FIELD-NAMING-001 — Render only the mini-stats backed
+          by real schema. Pre-strike the inspector row exposed an "In
+          Escrow" pill and the client/agency row exposed three pills
+          ("In Escrow", "Total Spent", "Volume"), all hardcoded to 0 in
+          fetchWalletStats because the underlying columns / tables do
+          not exist in the live schema. Phantom zeros under suggestive
+          labels mislead users into thinking the platform is tracking
+          money it isn't.
+
+          Inspector path: keep `Pending` (backed by inspector_earnings.
+          pending_halalas) and `Total Earned` (backed by inspector_
+          earnings.total_earned_halalas). Drop the unbacked "In Escrow".
+
+          Client / Agency path: hide the row entirely — none of the
+          three stats have backing schema. Once the broader wallet
+          schema for clients/agencies lands (separate strike), restore
+          the row with the same backed-only rule. */}
+      {userRole === 'inspector' && (
+        <View style={s.miniStatsRow}>
+          <MiniStat label="Pending"      value={formatCurrency(stats.pendingAmount)} color={COLORS.amber} />
+          <MiniStatDivider />
+          <MiniStat label="Total Earned" value={formatCurrency(stats.totalEarned)}   color={COLORS.green} />
+        </View>
+      )}
+      
       <View style={s.heroActions}>
-        {(userRole === 'inspector' || userRole === 'agency') && (
-          <TouchableOpacity style={[s.heroBtn, s.heroBtnPrimary]} onPress={onWithdraw} activeOpacity={0.8}><Ionicons name="arrow-up-circle" size={18} color="#FFF" /><Text style={s.heroBtnTextWhite}>Withdraw</Text></TouchableOpacity>
+        {userRole === 'inspector' && (
+          <TouchableOpacity style={[s.heroBtn, s.heroBtnPrimary]} onPress={onWithdraw} activeOpacity={0.8}>
+            <Ionicons name="arrow-up-circle" size={18} color="#FFF" />
+            <Text style={s.heroBtnTextWhite}>Withdraw</Text>
+          </TouchableOpacity>
         )}
-        <TouchableOpacity style={[s.heroBtn, s.heroBtnOutline]} onPress={onDeposit} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color={COLORS.primary} /><Text style={[s.heroBtnTextWhite, { color: COLORS.primary }]}>Deposit</Text></TouchableOpacity>
+        
+        {(userRole === 'client' || userRole === 'agency') && (
+          <TouchableOpacity style={[s.heroBtn, s.heroBtnOutline]} onPress={onDeposit} activeOpacity={0.8}>
+            <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+            <Text style={[s.heroBtnTextWhite, { color: COLORS.primary }]}>Deposit</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
 
 const PaymentMethodCard: React.FC<{ method: PaymentMethod; onSetDefault: (id: string) => void; onRemove: (id: string) => void; }> = ({ method, onSetDefault, onRemove }) => {
-  const iconName: keyof typeof Ionicons.glyphMap = method.type === 'bank_account' ? 'business-outline' : method.type === 'paypal' ? 'logo-paypal' : 'card-outline';
-  const brandColor = method.type === 'paypal' ? '#0070BA' : method.type === 'stripe' ? '#635BFF' : COLORS.primary;
+  let iconName: keyof typeof Ionicons.glyphMap = 'card-outline';
+  let brandColor = COLORS.primary;
+
+  if(method.type === 'paypal') { iconName = 'logo-paypal'; brandColor = '#0070BA'; }
+  else if (method.type === 'bank_account') { iconName = 'business-outline'; brandColor = COLORS.green; }
+  else if (method.type === 'stripe' || method.type === 'card' || method.type === 'visa') { iconName = 'card-outline'; brandColor = '#635BFF'; }
+  else if (method.type === 'wise') { iconName = 'globe-outline'; brandColor = '#00B9FF'; }
+  else if (method.type === 'payoneer') { iconName = 'cash-outline'; brandColor = '#FF4800'; }
+
   return (
     <View style={[s.methodCard, method.is_default && s.methodCardDefault]}>
       <View style={[s.methodIcon, { backgroundColor: `${brandColor}20` }]}><Ionicons name={iconName} size={22} color={brandColor} /></View>
@@ -109,21 +192,62 @@ const QuickStatCard: React.FC<{ icon: keyof typeof Ionicons.glyphMap; label: str
   </View>
 );
 
+// ★ SVG-NAN-CRASH-001 — Bullet-proof numeric coercion for SVG props.
+//   The Finance tab's GrowthChart was crashing the entire app with
+//   `NSException` from `-[CALayer setPosition:]` (see iOS crash report)
+//   when any element in `data[]` was NaN / undefined / null. The math
+//   `val / maxVal * (chartH - 20)` propagates NaN straight into
+//   `<Rect height={NaN}>`, which RNSVG hands to CALayer, which throws
+//   because CALayer.setPosition rejects non-finite coordinates.
+//
+//   Three guards together make the chart crash-proof regardless of
+//   upstream data quality:
+//     1. `safeNum` — coerces any input to a finite number (0 fallback).
+//        Applied to every value PULLED from the input array.
+//     2. Sanitised `data[]` is used everywhere instead of the raw prop.
+//     3. Every numeric attribute on every SVG primitive is wrapped
+//        in `safeNum` as a defense-in-depth measure — even if the
+//        math produces NaN through some other path, the final value
+//        is forced to a finite number before it reaches CALayer.
+const safeNum = (n: unknown, fallback = 0): number =>
+  typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+
 const GrowthChart: React.FC<{ data: number[]; labels: string[] }> = ({ data, labels }) => {
-  const chartW = SCREEN_WIDTH - 64; const chartH = 160; const maxVal = Math.max(...data, 1); const barCount = data.length || 1;
-  const barW = Math.min((chartW - (barCount - 1) * 8) / barCount, 40); const barGap = (chartW - barW * barCount) / (barCount + 1);
+  // Sanitise the entire input array up front.
+  const safeData = (Array.isArray(data) ? data : []).map((v) => safeNum(v));
+  const chartW = safeNum(SCREEN_WIDTH - 64, 320);
+  const chartH = 160;
+  const maxVal = Math.max(...safeData, 1); // safeData is all finite → max is finite
+  const barCount = safeData.length || 1;
+  const barW = safeNum(Math.min((chartW - (barCount - 1) * 8) / barCount, 40), 1);
+  const barGap = safeNum((chartW - barW * barCount) / (barCount + 1), 0);
   return (
     <View style={s.chartWrap}>
       <Svg width={chartW} height={chartH + 30}>
         <Defs><SvgGrad id="finBarGrad" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={COLORS.primary} stopOpacity="1" /><Stop offset="1" stopColor={COLORS.primary} stopOpacity="0.35" /></SvgGrad></Defs>
-        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => ( <Line key={`g${i}`} x1={0} y1={chartH * (1 - pct)} x2={chartW} y2={chartH * (1 - pct)} stroke={COLORS.border} strokeWidth={0.5} strokeDasharray="4,4" /> ))}
-        {data.map((val, i) => {
-          const barH = Math.max((val / maxVal) * (chartH - 20), 2); const x = barGap + i * (barW + barGap); const y = chartH - barH;
+        {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => (
+          <Line
+            key={`g${i}`}
+            x1={0}
+            y1={safeNum(chartH * (1 - pct))}
+            x2={safeNum(chartW)}
+            y2={safeNum(chartH * (1 - pct))}
+            stroke={COLORS.border}
+            strokeWidth={0.5}
+            strokeDasharray="4,4"
+          />
+        ))}
+        {safeData.map((val, i) => {
+          const barH = safeNum(Math.max((val / maxVal) * (chartH - 20), 2), 2);
+          const x = safeNum(barGap + i * (barW + barGap));
+          const y = safeNum(chartH - barH);
           return (
             <React.Fragment key={`b${i}`}>
-              <Rect x={x} y={y} width={barW} height={barH} rx={4} fill="url(#finBarGrad)" />
-              <SvgText x={x + barW / 2} y={chartH + 16} fill={COLORS.textMuted} fontSize={10} textAnchor="middle">{labels[i] ?? ''}</SvgText>
-              {val > 0 && ( <SvgText x={x + barW / 2} y={y - 6} fill={COLORS.textSecondary} fontSize={9} textAnchor="middle">{formatUSD(val)}</SvgText> )}
+              <Rect x={x} y={y} width={safeNum(barW, 1)} height={safeNum(barH, 1)} rx={4} fill="url(#finBarGrad)" />
+              <SvgText x={safeNum(x + barW / 2)} y={safeNum(chartH + 16)} fill={COLORS.textMuted} fontSize={10} textAnchor="middle">{labels[i] ?? ''}</SvgText>
+              {val > 0 && (
+                <SvgText x={safeNum(x + barW / 2)} y={safeNum(y - 6)} fill={COLORS.textSecondary} fontSize={9} textAnchor="middle">{formatUSD(val)}</SvgText>
+              )}
             </React.Fragment>
           );
         })}
@@ -162,6 +286,12 @@ export default function FinanceScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const [walletStats, setWalletStats] = useState<WalletStats>(DEFAULT_STATS);
+  // ★ Stripe Connect onboarding state — used by BalanceHero to render
+  //   the status pill. Populated by determineUserRole().
+  const [stripeConnect, setStripeConnect] = useState<StripeConnectState>({
+    status: 'not_connected',
+    payouts_enabled: false,
+  });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [userRole, setUserRole] = useState<UserRole>('inspector');
@@ -169,6 +299,8 @@ export default function FinanceScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showProviderForm, setShowProviderForm] = useState<PaymentProviderOption | null>(null);
+  const [providerInputValue, setProviderInputValue] = useState('');
 
   const earnings = useEarnings();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -176,20 +308,77 @@ export default function FinanceScreen() {
   const determineUserRole = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
-      if (profile?.role) setUserRole(profile.role as UserRole);
+      // ★ Pull stripe_connect_* fields alongside role so we can render
+      //   the status pill in BalanceHero. One query, no extra round-trip.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, stripe_connect_status, stripe_connect_payouts_enabled')
+        .eq('id', session.user.id)
+        .single();
+      if (profile?.role) {
+        const normalized = profile.role === 'enterprise' ? 'agency' : profile.role;
+        setUserRole(normalized as UserRole);
+      }
+      if (profile?.stripe_connect_status) {
+        setStripeConnect({
+          status: profile.stripe_connect_status,
+          payouts_enabled: !!profile.stripe_connect_payouts_enabled,
+        });
+      }
     } catch (err) { console.error('Error fetching role:', err); }
   }, [session?.user?.id]);
 
   const fetchWalletStats = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
-      const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
-      if (wallet) {
-        setWalletStats({
-          availableBalance: wallet.available_balance || 0, totalEarned: wallet.total_earned || 0, pendingAmount: wallet.pending_amount || 0, escrowAmount: wallet.escrow_amount || 0, totalSpent: wallet.total_spent || 0, totalVolume: wallet.total_volume || 0, agencyRevenue: wallet.agency_revenue || 0, pendingPayouts: wallet.pending_payouts || 0,
-        });
-      }
+      // ★ WALLET-COLUMN-001 — Pre-strike this read targeted a `wallets` table
+      //   that does NOT exist (no migration creates it) and read columns
+      //   like `available_balance` that don't exist either. Result: every
+      //   user saw $0.00 across the board.
+      //
+      //   The real earnings schema is `public.inspector_earnings`
+      //   (supabase/migrations/20250219120000_create_earnings_tables.sql)
+      //   with `_halalas` (cents-equivalent) BIGINT columns keyed on
+      //   `inspector_id`. We:
+      //     • SELECT only what exists,
+      //     • use maybeSingle() so newly-signed-up users (no row yet) don't
+      //       throw,
+      //     • divide halalas by 100 at the boundary so the rest of the UI
+      //       continues to operate in dollars.
+      //
+      //   Fields not yet backed by schema (escrow, totalSpent, totalVolume,
+      //   agencyRevenue, pendingPayouts) are intentionally surfaced as 0
+      //   until their backing tables/views land. BalanceHero will need a
+      //   follow-up patch to hide the agency-only mini-stats when those
+      //   columns remain absent — tracked as FINANCE-FIELD-NAMING-001.
+      // ★ WALLET-SCHEMA-DRIFT-001 — Live DB column is `user_id`, not
+      //   `inspector_id`. The on-disk migration
+      //   (supabase/migrations/20250219120000_create_earnings_tables.sql)
+      //   declares inspector_id; an out-of-band ALTER renamed the column
+      //   without a corresponding migration file. Confirmed via
+      //   information_schema.columns probe.
+      const { data: earnings, error } = await supabase
+        .from('inspector_earnings')
+        .select(
+          'available_balance_halalas, pending_halalas, total_earned_halalas',
+        )
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (error) throw error;
+
+      setWalletStats({
+        availableBalance: (earnings?.available_balance_halalas ?? 0) / 100,
+        pendingAmount:    (earnings?.pending_halalas ?? 0) / 100,
+        totalEarned:      (earnings?.total_earned_halalas ?? 0) / 100,
+        // Fields below have no backing schema yet — explicit 0 (not a
+        // misleading garbage value). Re-evaluate in the next financial
+        // strike that introduces the missing columns.
+        escrowAmount:    0,
+        totalSpent:      0,
+        totalVolume:     0,
+        agencyRevenue:   0,
+        pendingPayouts:  0,
+      });
     } catch (err) { console.error('Error fetching wallet stats:', err); }
   }, [session?.user?.id]);
 
@@ -226,18 +415,259 @@ export default function FinanceScreen() {
   useFocusEffect( useCallback(() => { loadAllData(); }, [loadAllData]), );
 
   const handleWithdraw = useCallback(async () => {
-    if (walletStats.availableBalance <= 0) { Alert.alert( 'Insufficient Balance', "You don't have any funds available to withdraw.", ); return; }
-    if (paymentMethods.length === 0) { Alert.alert( 'No Payment Method', 'Please add a payment method before withdrawing.', [ { text: 'Cancel', style: 'cancel' }, { text: 'Add Method', onPress: () => setShowAddPaymentModal(true), }, ], ); return; }
-    if (Platform.OS === 'ios') {
-      Alert.prompt( 'Withdraw Funds', `Available: ${formatCurrency(walletStats.availableBalance)}\nEnter amount to withdraw:`, [ { text: 'Cancel', style: 'cancel' }, { text: 'Withdraw', onPress: async (amountStr) => { const amount = parseFloat(amountStr || '0'); if (isNaN(amount) || amount <= 0) { Alert.alert('Invalid Amount', 'Please enter a valid amount.'); return; } if (amount > walletStats.availableBalance) { Alert.alert( 'Insufficient Funds', 'The amount exceeds your available balance.', ); return; } setActionLoading(true); try { const { error } = await supabase.rpc('process_withdrawal', { p_user_id: session?.user?.id, p_amount: amount, }); if (error) throw error; Alert.alert( 'Success', `Withdrawal of ${formatCurrency(amount)} initiated.`, ); await loadAllData(); } catch (err: any) { Alert.alert( 'Withdrawal Failed', err.message || 'An error occurred.', ); } finally { setActionLoading(false); } }, }, ], 'plain-text', '', 'decimal-pad', );
-    } else { Alert.alert('Withdraw', 'Withdraw flow will open.'); }
-  }, [ walletStats.availableBalance, paymentMethods, session?.user?.id, loadAllData, ]);
+    // ★ Phase C — Stripe Connect-aware withdraw flow.
+    //   If the inspector has a verified Stripe Connect account, we run
+    //   the full balance through the create-stripe-payout EF (transfer
+    //   to connected acct → payout to bank, no application fee). If
+    //   they only have manual fallbacks (PayPal/Wise/Payoneer), we
+    //   keep routing to the existing manual withdrawal form. If they
+    //   have neither, we prompt them to add a method.
 
+    if (!session?.user?.id) {
+      Alert.alert('Not signed in', 'Please sign in again to withdraw.');
+      return;
+    }
+
+    // Pull fresh Connect status — we don't want to trust stale state
+    // since the webhook updates this asynchronously after onboarding.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_connect_status, stripe_connect_payouts_enabled')
+      .eq('id', session.user.id)
+      .single();
+
+    const stripeReady =
+      profile?.stripe_connect_status === 'verified' &&
+      profile?.stripe_connect_payouts_enabled === true;
+
+    // No methods AND no Stripe Connect → nudge them to add one
+    if (paymentMethods.length === 0 && !stripeReady) {
+      Alert.alert(
+        'No Payment Method',
+        'Please add a payment method before withdrawing.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add Method', onPress: () => setShowAddPaymentModal(true) },
+        ],
+      );
+      return;
+    }
+
+    // Stripe Connect path — call the EF directly. $50 USD minimum.
+    if (stripeReady) {
+      const balanceCents = Math.round(walletStats.availableBalance * 100);
+      const balanceUSD = (balanceCents / 100).toFixed(2);
+
+      if (balanceCents < 5000) {
+        Alert.alert(
+          'Below minimum',
+          `You need at least $50.00 USD to withdraw. Current balance: $${balanceUSD}.`,
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Withdraw to Bank',
+        `Send $${balanceUSD} USD to your verified bank account?\n\nFunds typically arrive in 1–2 business days.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Withdraw',
+            style: 'default',
+            onPress: async () => {
+              setActionLoading(true);
+              try {
+                const { data, error: payoutErr } = await supabase.functions.invoke(
+                  'create-stripe-payout',
+                  {
+                    body: {
+                      user_id: session.user.id,
+                      amount_cents: balanceCents,
+                    },
+                  },
+                );
+                if (payoutErr) {
+                  // ★ supabase-js wraps non-2xx responses with a generic
+                  //   "Edge Function returned a non-2xx status code" — the
+                  //   real error from the EF lives in error.context.json().
+                  //   Surface it so we can debug without trawling logs.
+                  let realMsg = payoutErr.message ?? 'Payout failed';
+                  try {
+                    const body = await (payoutErr as any).context?.json?.();
+                    if (body?.error) realMsg = body.error;
+                  } catch {
+                    /* ignore — fall back to generic message */
+                  }
+                  throw new Error(realMsg);
+                }
+                if (data?.warning) {
+                  Alert.alert('Payout Pending', data.warning);
+                } else {
+                  Alert.alert(
+                    'Withdrawal Initiated',
+                    `Your $${balanceUSD} USD payout is on its way. We'll notify you when it lands in your bank.`,
+                  );
+                }
+                await fetchWalletStats();
+              } catch (err: any) {
+                Alert.alert('Withdrawal Failed', err?.message ?? 'Unknown error');
+              } finally {
+                setActionLoading(false);
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    // Fallback: manual payment-method users land on the existing form
+    router.push('/(inspector)/wallet/withdraw');
+  }, [
+    walletStats.availableBalance,
+    paymentMethods,
+    session?.user?.id,
+    fetchWalletStats,
+  ]);
+
+  // 🌟 تابع ذخیره متدهای غیر از استرایپ (پی‌پال، بانک، وایز) تو دیتابیس
+  const handleSaveProviderDetail = async () => {
+    if (!providerInputValue.trim()) {
+      Alert.alert('Required', 'Please enter your account details.');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const newMethod = {
+        user_id: session?.user?.id,
+        type: showProviderForm?.id === 'bank' ? 'bank_account' : showProviderForm?.id,
+        label: showProviderForm?.name,
+        last_four: providerInputValue.slice(-4).padStart(4, '*'),
+        is_default: paymentMethods.length === 0,
+        status: 'active',
+        metadata: { account_detail: providerInputValue }
+      };
+
+      const { error } = await supabase.from('payment_methods').insert([newMethod]);
+      if (error) throw error;
+
+      Alert.alert('Success', `${showProviderForm?.name} added successfully!`);
+      setShowProviderForm(null);
+      setProviderInputValue('');
+      await fetchPaymentMethods();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to save payment method.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // ★ WALLET-DEPOSIT-001 — Re-enables the wallet top-up flow.
+  //
+  //   The legacy handler called `create-payment-intent` with a client-
+  //   supplied `{ amount }`. That endpoint was hardened (STRIPE-003/004)
+  //   to require a `{ job_id }` — top-ups have no job, so the flow was
+  //   gated. This re-build wires through a dedicated Edge Function:
+  //
+  //     create-wallet-deposit-intent
+  //         ├─ verifies the caller is an inspector (auth + role)
+  //         ├─ validates amount_halalas (100 ≤ x ≤ 1,000,000)
+  //         ├─ mints a Stripe PaymentIntent with metadata.kind='wallet_topup'
+  //         └─ returns { clientSecret, ... }
+  //
+  //   The stripe-payments-webhook then routes payment_intent.succeeded
+  //   events with that metadata into the wallet_credit_topup RPC, which
+  //   increments inspector_earnings.available_balance_halalas atomically
+  //   and writes a transactions row + audit event.
+  //
+  //   UI surface preserved: same Alert.prompt entry, same Payment Sheet
+  //   flow, same success copy — only the network calls change.
   const handleDeposit = useCallback(async () => {
-    if (Platform.OS === 'ios') {
-      Alert.prompt( 'Deposit Funds', 'Enter amount to deposit:', [ { text: 'Cancel', style: 'cancel' }, { text: 'Continue', onPress: async (amountStr) => { const amount = parseFloat(amountStr || '0'); if (isNaN(amount) || amount <= 0) { Alert.alert('Invalid Amount', 'Please enter a valid amount.'); return; } setActionLoading(true); try { const response = await fetch( 'YOUR_API_URL/create-payment-intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: Math.round(amount * 100), user_id: session?.user?.id, }), }, ); const { clientSecret, error: apiError } = await response.json(); if (apiError) throw new Error(apiError); const { error: initError } = await initPaymentSheet({ paymentIntentClientSecret: clientSecret, merchantDisplayName: 'NEXPEC', }); if (initError) throw initError; const { error: presentError } = await presentPaymentSheet(); if (presentError) { if (presentError.code !== 'Canceled') throw presentError; return; } Alert.alert( 'Success', `Deposit of ${formatCurrency(amount)} completed!`, ); await loadAllData(); } catch (err: any) { Alert.alert( 'Deposit Failed', err.message || 'An error occurred.', ); } finally { setActionLoading(false); } }, }, ], 'plain-text', '', 'decimal-pad', );
-    } else { Alert.alert('Deposit', 'Deposit flow will open.'); }
-  }, [session?.user?.id, initPaymentSheet, presentPaymentSheet, loadAllData]);
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Deposit', 'Deposit flow will open.');
+      return;
+    }
+    Alert.prompt(
+      'Deposit Funds',
+      'Enter amount in SAR:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: async (amountStr) => {
+            const amountSar = parseFloat(amountStr || '0');
+            if (isNaN(amountSar) || amountSar <= 0) {
+              Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+              return;
+            }
+            const amountHalalas = Math.round(amountSar * 100);
+            if (amountHalalas < 100 || amountHalalas > 1_000_000) {
+              Alert.alert(
+                'Out of range',
+                'Deposit must be between 1 and 10,000 SAR.',
+              );
+              return;
+            }
+
+            setActionLoading(true);
+            try {
+              // 1. Mint a wallet-topup PaymentIntent server-side.
+              const { data, error: apiError } = await supabase.functions.invoke(
+                'create-wallet-deposit-intent',
+                { body: { amount_halalas: amountHalalas } },
+              );
+              if (apiError) {
+                const fnErr =
+                  (apiError as any).context?.error ?? (apiError as any).message;
+                throw new Error(
+                  typeof fnErr === 'string'
+                    ? fnErr
+                    : 'Failed to start the deposit.',
+                );
+              }
+              const clientSecret = data?.clientSecret;
+              if (!clientSecret) {
+                throw new Error('Invalid response from payment server.');
+              }
+
+              // 2. Present the Stripe Payment Sheet.
+              const { error: initError } = await initPaymentSheet({
+                paymentIntentClientSecret: clientSecret,
+                merchantDisplayName: 'NEXPEC',
+              });
+              if (initError) throw initError;
+
+              const { error: presentError } = await presentPaymentSheet();
+              if (presentError) {
+                if (presentError.code !== 'Canceled') throw presentError;
+                return;
+              }
+
+              // 3. The webhook credits the wallet asynchronously. We
+              //    show the user a confirmation immediately and re-fetch
+              //    stats — the new balance will appear within a few
+              //    seconds once the webhook lands.
+              Alert.alert(
+                'Success',
+                `Deposit of ${formatCurrency(amountSar)} submitted! Your balance will update once the payment clears.`,
+              );
+              await loadAllData();
+            } catch (err: any) {
+              Alert.alert(
+                'Deposit Failed',
+                err.message || 'An error occurred.',
+              );
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'decimal-pad',
+    );
+  }, [initPaymentSheet, presentPaymentSheet, loadAllData]);
 
   const handleSetDefault = useCallback( async (methodId: string) => {
       try { await supabase .from('payment_methods') .update({ is_default: false }) .eq('user_id', session?.user?.id); await supabase .from('payment_methods') .update({ is_default: true }) .eq('id', methodId); await fetchPaymentMethods(); } catch (err: any) { Alert.alert('Error', err.message || 'Failed to update default method.'); }
@@ -249,8 +679,104 @@ export default function FinanceScreen() {
 
   const handleAddPaymentMethod = useCallback( async (provider: PaymentProviderOption) => {
       setShowAddPaymentModal(false); setActionLoading(true);
-      try { if (provider.id === 'stripe') { const response = await fetch( 'YOUR_API_URL/create-setup-intent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: session?.user?.id }), }, ); const { clientSecret, error: apiError } = await response.json(); if (apiError) throw new Error(apiError); const { error: initError } = await initPaymentSheet({ setupIntentClientSecret: clientSecret, merchantDisplayName: 'NEXPEC', }); if (initError) throw initError; const { error: presentError } = await presentPaymentSheet(); if (presentError) { if (presentError.code !== 'Canceled') throw presentError; return; } Alert.alert('Success', 'Payment method added successfully!'); } else { Alert.alert( 'Coming Soon', `${provider.name} integration will be available soon.`, ); } await fetchPaymentMethods(); } catch (err: any) { Alert.alert('Error', err.message || 'Failed to add payment method.'); } finally { setActionLoading(false); }
-    }, [ session?.user?.id, initPaymentSheet, presentPaymentSheet, fetchPaymentMethods, ], );
+      try { 
+        if (provider.id === 'stripe') { 
+          const { data, error: apiError } = await supabase.functions.invoke('create-setup-intent', {
+            body: { user_id: session?.user?.id, email: session?.user?.email }, 
+          });
+          
+          if (apiError) throw new Error(apiError.message || 'Failed to communicate with payment server.');
+
+          // 🔴 THE FIX: Extracting the correct secret from the advanced backend
+          const clientSecret = data?.setupIntentClientSecret || data?.clientSecret;
+          const setupIntentId = data?.setupIntentId; // 👈 آی‌دی رو گرفتیم
+          
+          if (!clientSecret) throw new Error('Invalid response from payment server.');
+
+          const { error: initError } = await initPaymentSheet({ setupIntentClientSecret: clientSecret, merchantDisplayName: 'NEXPEC', }); 
+          if (initError) throw initError; 
+          
+          const { error: presentError } = await presentPaymentSheet(); 
+          if (presentError) { if (presentError.code !== 'Canceled') throw presentError; return; } 
+          
+          // 🔴 THE FIX: Sync with Supabase using the professional backend sync function
+          if (setupIntentId) {
+            await supabase.functions.invoke('sync-payment-method', {
+              body: { 
+                user_id: session?.user?.id,
+                setup_intent_id: setupIntentId 
+              }
+            });
+          }
+          
+          Alert.alert('Success', 'Payment method added successfully!'); 
+          await fetchPaymentMethods(); 
+        } else if (provider.id === 'stripe_connect') {
+          // ★ Phase B — Stripe Connect Express onboarding for inspectors.
+          //   Calls the create-stripe-connect-link Edge Function which:
+          //     1. Creates an Express account if one doesn't exist
+          //        (country=CA, currency=USD, transfers capability)
+          //     2. Returns a short-lived Stripe-hosted onboarding URL
+          //   We open it via WebBrowser.openAuthSessionAsync so the OS
+          //   handles the redirect back via the nexpec:// deep-link
+          //   scheme. The stripe-connect-webhook then flips
+          //   profiles.stripe_connect_status to 'verified' once Stripe
+          //   confirms the account is fully onboarded.
+          setShowAddPaymentModal(false);
+
+          // ★ return_url / refresh_url are now built server-side from
+          //   SUPABASE_URL — they point to the stripe-connect-redirect
+          //   bridge EF (HTTPS), which JS-redirects to nexpec://...
+          //   Stripe's SDK rejects custom schemes, so we can't pass
+          //   them directly. The bridge handles the handoff.
+          const { data, error: linkError } = await supabase.functions.invoke(
+            'create-stripe-connect-link',
+            { body: { user_id: session?.user?.id } },
+          );
+
+          if (linkError || !data?.url) {
+            throw new Error(
+              linkError?.message ?? 'Could not start Stripe onboarding.',
+            );
+          }
+
+          await WebBrowser.openAuthSessionAsync(
+            data.url,
+            'nexpec://finance/connect-return',
+          );
+
+          // ★ Sync status with Stripe directly. Belt-and-braces against
+          //   webhook misconfig: pulls live account state from Stripe
+          //   and writes it into profiles, so the user sees their
+          //   verified status immediately on return — regardless of
+          //   whether the account.updated webhook has fired yet.
+          try {
+            await supabase.functions.invoke('sync-stripe-connect-status', {
+              body: { user_id: session?.user?.id },
+            });
+          } catch (syncErr) {
+            // Non-fatal — webhook will catch up eventually.
+            console.warn('[finance] sync-stripe-connect-status failed:', syncErr);
+          }
+
+          await fetchPaymentMethods();
+          await determineUserRole();
+          Alert.alert(
+            'Stripe Connect',
+            'Onboarding complete. Your account is being verified — you\'re ready to receive payouts.',
+          );
+        } else {
+          // 🌟 برای پی‌پال، وایز و پایونیر، همین مودالِ سریع رو باز می‌کنیم
+          setShowAddPaymentModal(false);
+          setShowProviderForm(provider);
+          setProviderInputValue('');
+        } 
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Failed to add payment method.'); 
+      } finally { 
+        setActionLoading(false); 
+      }
+    }, [ session?.user?.id, session?.user?.email, initPaymentSheet, presentPaymentSheet, fetchPaymentMethods, ], );
 
   const earningsData = useMemo(() => {
     if (!earnings) return null;
@@ -261,14 +787,16 @@ export default function FinanceScreen() {
     return ( <SafeAreaView style={s.loadingWrap}><StatusBar barStyle="light-content" backgroundColor={COLORS.background} /><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>Loading Finance…</Text></SafeAreaView> );
   }
 
+  const availableProviders = PAYMENT_PROVIDERS.filter(p => p.targetRole === 'all' || p.targetRole === userRole || (p.targetRole === 'client' && userRole === 'agency'));
+
   return (
     <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       {actionLoading && ( <View style={s.overlay}><View style={s.overlayBox}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.overlayText}>Processing…</Text></View></View> )}
       <View style={s.header}><View><Text style={s.headerTitle}>Finance</Text><Text style={s.headerSub}>Wallet & Earnings</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
       <Animated.ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false} onScroll={Animated.event( [{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }, )} scrollEventThrottle={16} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>
-        <BalanceHero stats={walletStats} userRole={userRole} onWithdraw={handleWithdraw} onDeposit={handleDeposit} />
-        {earningsData && (
+        <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} />
+        {userRole === 'inspector' && earningsData && (
           <>
             <SectionHeader icon="trending-up" title="Earnings Overview" subtitle="Your performance at a glance" color={COLORS.green} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickStatsRow}>
@@ -279,7 +807,7 @@ export default function FinanceScreen() {
             </ScrollView>
             {earningsData.weeklyData.length > 0 && ( <><SectionHeader icon="bar-chart-outline" title="Weekly Earnings" subtitle="Last 7 days performance" color={COLORS.primary} /><View style={s.card}><GrowthChart data={earningsData.weeklyData} labels={earningsData.weeklyLabels} /></View></> )}
             {earningsData.breakdown.length > 0 && ( <><SectionHeader icon="pie-chart-outline" title="Smart Breakdown" subtitle="Where your money comes from" color={COLORS.primary} /><View style={s.card}>{earningsData.breakdown.map((item: any, idx: number) => ( <SmartBreakdownCard key={`bd-${idx}`} icon={item.icon || 'ellipse'} label={item.label} amount={item.amount} percentage={item.percentage} color={item.color || COLORS.primary} /> ))}</View></> )}
-            {userRole === 'inspector' && earningsData.totalEarnings > 0 && ( <><SectionHeader icon="calculator-outline" title="Tax Planning" subtitle="Estimated tax reserve" color={COLORS.amber} /><TaxReserveCard totalEarned={earningsData.totalEarnings} /></> )}
+            {earningsData.totalEarnings > 0 && ( <><SectionHeader icon="calculator-outline" title="Tax Planning" subtitle="Estimated tax reserve" color={COLORS.amber} /><TaxReserveCard totalEarned={earningsData.totalEarnings} /></> )}
           </>
         )}
         <SectionHeader icon="card-outline" title="Payment Methods" subtitle={`${paymentMethods.length} method${paymentMethods.length !== 1 ? 's' : ''}`} color={COLORS.primary} rightAction={{ label: '+ Add', onPress: () => setShowAddPaymentModal(true), }} />
@@ -292,10 +820,41 @@ export default function FinanceScreen() {
         <Pressable style={s.modalOverlay} onPress={() => setShowAddPaymentModal(false)}>
           <Pressable style={s.modalSheet} onPress={(e) => e.stopPropagation()}>
             <View style={s.modalHandle} /><Text style={s.modalTitle}>Add Payment Method</Text><Text style={s.modalSub}>Choose how you want to receive or send payments</Text>
-            {PAYMENT_PROVIDERS.map((p) => ( <TouchableOpacity key={p.id} style={s.providerRow} onPress={() => handleAddPaymentMethod(p)} activeOpacity={0.7}><View style={[ s.providerIcon, { backgroundColor: `${p.color}20` }, ]}><Ionicons name={p.icon} size={24} color={p.color} /></View><View style={s.providerInfo}><Text style={s.providerName}>{p.name}</Text><Text style={s.providerDesc}>{p.description}</Text></View><Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} /></TouchableOpacity> ))}
+            {availableProviders.map((p) => ( <TouchableOpacity key={p.id} style={s.providerRow} onPress={() => handleAddPaymentMethod(p)} activeOpacity={0.7}><View style={[ s.providerIcon, { backgroundColor: `${p.color}20` }, ]}><Ionicons name={p.icon} size={24} color={p.color} /></View><View style={s.providerInfo}><Text style={s.providerName}>{p.name}</Text><Text style={s.providerDesc}>{p.description}</Text></View><Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} /></TouchableOpacity> ))}
             <TouchableOpacity style={s.modalCancel} onPress={() => setShowAddPaymentModal(false)} activeOpacity={0.7}><Text style={s.modalCancelText}>Cancel</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* 🌟 فرم جدید برای گرفتن اطلاعات پی‌پال و بانک با همون ظاهر استاندارد NEXPEC */}
+      <Modal visible={!!showProviderForm} transparent animationType="slide" onRequestClose={() => setShowProviderForm(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalOverlay}>
+          <Pressable style={s.modalOverlay} onPress={() => setShowProviderForm(null)}>
+            <Pressable style={s.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={s.modalHandle} />
+              <Text style={s.modalTitle}>Add {showProviderForm?.name}</Text>
+              <Text style={s.modalSub}>Enter your {showProviderForm?.id === 'paypal' ? 'PayPal email' : 'account details'}</Text>
+
+              <TextInput
+                style={{ backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, color: COLORS.textPrimary, fontSize: 15, marginBottom: 10 }}
+                placeholder={showProviderForm?.id === 'paypal' ? "e.g., inspector@nexpec.com" : "Account Number or IBAN"}
+                placeholderTextColor={COLORS.textMuted}
+                value={providerInputValue}
+                onChangeText={setProviderInputValue}
+                autoCapitalize="none"
+                keyboardType={showProviderForm?.id === 'paypal' ? "email-address" : "default"}
+              />
+
+              <TouchableOpacity style={[s.modalCancel, { backgroundColor: COLORS.primary, marginTop: 10 }]} onPress={handleSaveProviderDetail} activeOpacity={0.7}>
+                <Text style={[s.modalCancelText, { color: '#FFF' }]}>Save Account</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={s.modalCancel} onPress={() => setShowProviderForm(null)} activeOpacity={0.7}>
+                <Text style={s.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -303,7 +862,13 @@ export default function FinanceScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background, }, loadingWrap: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', }, loadingText: { color: COLORS.textSecondary, fontSize: 14, marginTop: 12, }, scroll: { flex: 1 }, scrollContent: { paddingHorizontal: 16, paddingTop: 8 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? 12 : 4, paddingBottom: 12, }, headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -0.5, }, headerSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.8, }, headerBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, },
+  // ★ FINANCE-HEADER-BLEED-001 — Top header was rendering transparent, so
+  //   ScrollView content slid visually *underneath* the "Finance / WALLET
+  //   & EARNINGS" title as the user scrolled. Patch: give the header an
+  //   opaque background, raise its stacking order with zIndex/elevation,
+  //   and expand the Android paddingTop to clear the system status bar
+  //   (SafeAreaView already covers iOS).
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 8 : 4, paddingBottom: 12, backgroundColor: COLORS.background, zIndex: 10, elevation: 10, }, headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -0.5, }, headerSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.8, }, headerBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, },
   heroCard: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', }, heroHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, }, heroLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8, }, heroBalance: { fontSize: 38, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -1, }, roleBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primaryBg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, gap: 5, }, roleText: { fontSize: 12, fontWeight: '600', color: COLORS.primary, },
   miniStatsRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 12, marginBottom: 16, }, miniStat: { flex: 1, alignItems: 'center' }, miniStatLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4, }, miniStatValue: { fontSize: 15, fontWeight: '700' }, miniStatDivider: { width: 1, height: 28, backgroundColor: COLORS.border, },
   heroActions: { flexDirection: 'row', gap: 10, }, heroBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 13, borderRadius: 14, gap: 8, }, heroBtnPrimary: { backgroundColor: COLORS.primary, }, heroBtnOutline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: COLORS.primary, }, heroBtnTextWhite: { fontSize: 15, fontWeight: '700', color: '#FFF', },

@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { SignOutButton } from './SignOutButton';
+import { NotificationBell } from '@/components/NotificationBell';
 
 interface HeaderProps {
   /** Display name from profiles.full_name or email fallback. */
@@ -52,8 +54,25 @@ export function Header({
           </span>
         </div>
 
-        {/* Right: user pill + sign-out */}
+        {/* Right: bell + user pill + sign-out */}
         <div className="flex items-center gap-3">
+          {/* Notification bell — wraps in Suspense so a slow profiles read
+              never blocks header render. Falls back to an inert bell shape. */}
+          <Suspense
+            fallback={
+              <span
+                aria-hidden
+                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-500"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75">
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 21a2 2 0 0 0 4 0" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            }
+          >
+            <NotificationBell />
+          </Suspense>
           <div className="hidden items-center gap-2 sm:flex">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-[11px] font-semibold text-white">
               {initials(userLabel)}

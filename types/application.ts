@@ -4,13 +4,14 @@
  * Application status enum values
  */
 export type ApplicationStatus = 
-  | 'pending'
-  | 'reviewing'
-  | 'shortlisted'
-  | 'offered'
-  | 'rejected'
-  | 'hired'
-  | 'withdrawn';
+  | 'pending' 
+  | 'shortlisted' 
+  | 'offered' 
+  | 'CLIENT_SELECTED' 
+  | 'hired' 
+  | 'rejected' 
+  | 'withdrawn'
+  | 'accepted'; // accepted رو هم گذاشتم که اگر دیتای قدیمی داری ارور نده
 
 /**
  * Bid type for custom pricing
@@ -26,7 +27,7 @@ export interface Application {
   applicant_id: string;
   status: ApplicationStatus;
   cover_note: string | null;
-  bid_amount: number | null;
+  bid_amount_cents: number | null;      // ★ Task 4
   bid_type: BidType | null;
   currency: string;
   estimated_duration: string | null;
@@ -49,7 +50,7 @@ export interface ApplicationInsertPayload {
   job_id: string;
   applicant_id: string;
   cover_note?: string | null;
-  bid_amount?: number | null;
+  bid_amount_cents?: number | null;       // ★ Task 4
   bid_type?: BidType | null;
   currency?: string;
   estimated_duration?: string | null;
@@ -62,7 +63,7 @@ export interface ApplicationInsertPayload {
  */
 export interface ApplicationUpdatePayload {
   cover_note?: string | null;
-  bid_amount?: number | null;
+  bid_amount_cents?: number | null;       // ★ Task 4
   bid_type?: BidType | null;
   estimated_duration?: string | null;
   available_start_date?: string | null;
@@ -102,7 +103,7 @@ export interface ApplicantProfile {
   title: string | null;
   bio: string | null;
   years_experience: number | null;
-  hourly_rate: number | null;
+  hourly_rate_cents: number | null;     // ★ Task 4
   daily_rate: number | null;
   specialties: string[] | null;
 }
@@ -228,6 +229,21 @@ export const APPLICATION_STATUS_CONFIG: Record<ApplicationStatus, StatusConfig> 
     icon: 'check-circle',
     description: 'You have received an offer',
   },
+  // ★ Client has chosen this inspector. Awaiting super-admin Confirm & Dispatch.
+  CLIENT_SELECTED: {
+    label: 'Pending Admin Confirmation',
+    color: '#3B82F6',
+    bgColor: '#3B82F620',
+    icon: 'clock',
+    description: 'Client selected this inspector. Awaiting admin Confirm & Dispatch.',
+  },
+  accepted: {
+    label: 'Accepted',
+    color: '#22C55E',
+    bgColor: '#22C55E20',
+    icon: 'check-circle',
+    description: 'Application accepted (legacy)',
+  },
   rejected: {
     label: 'Not Selected',
     color: '#EF4444',
@@ -267,13 +283,17 @@ export const DEFAULT_APPLICATION_FORM: ApplicationFormData = {
  * Status flow - what statuses can transition to what
  */
 export const STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
-  pending: ['reviewing', 'rejected', 'withdrawn'],
-  reviewing: ['shortlisted', 'offered', 'rejected', 'withdrawn'],
-  shortlisted: ['offered', 'rejected', 'withdrawn'],
+  // ★ Client may now jump straight to CLIENT_SELECTED from pending or shortlisted.
+  pending: ['shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  shortlisted: ['CLIENT_SELECTED', 'offered', 'pending', 'rejected', 'withdrawn'],
+  // Legacy 'offered' kept so old rows still validate; treat the same as CLIENT_SELECTED.
   offered: ['hired', 'rejected', 'withdrawn'],
-  rejected: [], // Terminal state
-  hired: [], // Terminal state
-  withdrawn: [], // Terminal state
+  // ★ Admin owns the promotion to 'hired'.
+  CLIENT_SELECTED: ['hired', 'rejected', 'shortlisted', 'withdrawn'],
+  hired: [],     // Terminal
+  rejected: [],  // Terminal
+  withdrawn: [], // Terminal
+  accepted: [],  // Legacy terminal
 };
 
 /**
@@ -418,15 +438,15 @@ export const sortApplications = (
       );
     case 'bid_low':
       return sorted.sort((a, b) => {
-        if (a.bid_amount === null) return 1;
-        if (b.bid_amount === null) return -1;
-        return a.bid_amount - b.bid_amount;
+        if (a.bid_amount_cents === null) return 1;
+        if (b.bid_amount_cents === null) return -1;
+        return a.bid_amount_cents - b.bid_amount_cents;
       });
     case 'bid_high':
       return sorted.sort((a, b) => {
-        if (a.bid_amount === null) return 1;
-        if (b.bid_amount === null) return -1;
-        return b.bid_amount - a.bid_amount;
+        if (a.bid_amount_cents === null) return 1;
+        if (b.bid_amount_cents === null) return -1;
+        return b.bid_amount_cents - a.bid_amount_cents;
       });
     case 'experience':
       return sorted.sort((a, b) => {

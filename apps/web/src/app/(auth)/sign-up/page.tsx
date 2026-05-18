@@ -21,14 +21,38 @@ interface PageProps {
     error?: string;
     email?: string;
     pending?: string;
+    /** Role hint from marketing CTAs: ?role=client | inspector | agency. */
+    role?: string;
   }>;
 }
+
+const PUBLIC_SIGNUP_ROLES = new Set(['client', 'inspector', 'agency']);
+
+const ROLE_COPY: Record<string, { title: string; subtitle: string }> = {
+  client: {
+    title: 'Post your first inspection',
+    subtitle: 'Set up your account to dispatch vetted inspectors.',
+  },
+  inspector: {
+    title: 'Join as an inspector',
+    subtitle: 'Get paid for signed reports. Stripe-backed escrow on every job.',
+  },
+  agency: {
+    title: 'Onboard your agency',
+    subtitle: 'Manage your inspector roster and route jobs through one console.',
+  },
+};
 
 export default async function SignUpPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const error = params.error;
   const prefillEmail = params.email ?? '';
   const pending = params.pending === '1';
+  // Whitelist the role hint against the same enum the server action validates.
+  // Unknown values silently fall through; the action defaults to 'client'.
+  const role =
+    params.role && PUBLIC_SIGNUP_ROLES.has(params.role) ? params.role : '';
+  const copy = role && ROLE_COPY[role] ? ROLE_COPY[role] : null;
 
   if (pending) {
     return (
@@ -60,14 +84,18 @@ export default async function SignUpPage({ searchParams }: PageProps) {
 
   return (
     <AuthCard
-      title="Create your account"
+      title={copy?.title ?? 'Create your account'}
       subtitle={
         <>
-          Already have one?{' '}
-          <Link href="/sign-in" className="text-violet-glow hover:text-white">
-            Sign in
-          </Link>
-          .
+          {copy?.subtitle ?? 'Already have one? '}
+          {!copy && (
+            <>
+              <Link href="/sign-in" className="text-violet-glow hover:text-white">
+                Sign in
+              </Link>
+              .
+            </>
+          )}
         </>
       }
     >
@@ -75,6 +103,7 @@ export default async function SignUpPage({ searchParams }: PageProps) {
       <Divider label="or sign up with email" />
 
       <form action={signUp} className="space-y-4">
+        {role && <input type="hidden" name="role" value={role} />}
         <AuthField
           label="Full name"
           name="fullName"

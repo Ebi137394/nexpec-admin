@@ -93,12 +93,13 @@ const PHOTO_SIZE = (SCREEN_WIDTH - 48 - 16) / 3;
 // HELPER FUNCTIONS
 // ============================================================================
 
-const formatCurrency = (amount: number): string => {
+// ★ Task 4: input is integer CENTS — divide by 100 before format.
+const formatCurrency = (cents: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
-  }).format(amount);
+  }).format((cents ?? 0) / 100);
 };
 
 const formatDate = (dateString: string): string => {
@@ -361,7 +362,8 @@ export default function ReviewReportScreen() {
         revision_count: rData.revision_count,
         submitted_at: rData.submitted_at,
         job_title: job?.title || 'Job',
-        job_price: job?.price || 0,
+        // ★ Task 4: jobs.price was renamed to price_cents. Already integer cents.
+        job_price: job?.price_cents ?? 0,
         job_location: job?.location || '',
         inspector_first_name: inspector?.first_name || '',
         inspector_last_name: inspector?.last_name || '',
@@ -370,7 +372,10 @@ export default function ReviewReportScreen() {
         inspector_reviews: inspector?.rating_count || 0,
       });
 
-      setExpenses(eData || []);
+      // ★ Task 4: job_expenses.amount is still dollars (separate table not migrated).
+      //   Normalize to cents at read time so all in-memory math is in the same unit
+      //   and the cents-aware formatCurrency works correctly.
+      setExpenses((eData || []).map((e: any) => ({ ...e, amount: Math.round((e.amount ?? 0) * 100) })));
 
     } catch (e: any) {
       Alert.alert('Error', e.message);

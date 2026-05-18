@@ -1,20 +1,33 @@
-import 'react-native-url-polyfill/auto'; // ✅ Must be first line here
+import 'react-native-url-polyfill/auto';
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
+import { initializeOfflineSync } from '@/lib/offline';
+// ★ Phase 5 / Hour 3 — root ErrorBoundary. Catches every render-time
+//   exception in the tree below and shows a recoverable fallback instead
+//   of letting React unmount the whole app to a blank screen.
+import { ErrorBoundary } from '@/src/core/errors/ErrorBoundary';
+
+// ★ Silence non-actionable dev warnings that fire from deeply-nested
+//   3rd-party trees (e.g. @stripe, expo-router internals). These are
+//   noise — they don't affect runtime behavior on either platform.
+LogBox.ignoreLogs([
+  'VirtualizedLists should never be nested', // FlatList inside ScrollView
+  'Non-serializable values were found in the navigation state',
+  'Sending `onAnimatedValueUpdate` with no listeners registered',
+]);
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/providers/ThemeProvider';
 import { getColors } from '@/src/constants/theme';
 import '../global.css';
-
-// ✅ ۱. ایمپورت کردن سیستم زبان (که در مرحله قبل ساختی)
 import { LanguageProvider } from '@/src/i18n/LanguageProvider';
-
-// =============================================================================
-// AUTH GATE - هندل کردن روتینگ و جلوگیری از پرش‌های ناگهانی
-// =============================================================================
+// ★ NOTIF-DEEPLINK-001: mount the push-notification hook from the root
+//   AuthGate so the response listener is registered for every signed-in
+//   session. Without this call the hook was defined but never invoked,
+//   so push registration AND the deep-link tap listener never fired.
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 function AuthGate() {
   const { session, loading, role } = useAuth();
@@ -23,97 +36,185 @@ function AuthGate() {
   const router = useRouter();
   const isAuthenticated = !!session;
   const colors = getColors(isDarkMode);
-  
-  // Use a more robust approach to ensure navigation is ready
+
+  // ★ NOTIF-DEEPLINK-001: register push tokens + tap-handler. Hook
+  //   internally short-circuits when running on a simulator (returns a
+  //   MOCK_TOKEN) and writes the real token to push_tokens once a
+  //   physical device grants permission. We don't gate this on
+  //   `isAuthenticated` because saveTokenToDatabase guards on the
+  //   current Supabase user itself, and re-running token registration
+  //   on sign-out → sign-in is harmless (upsert by user_id).
+  usePushNotifications();
+
   const [isReady, setIsReady] = useState(false);
+  const isNavigating = useRef(false);
 
   useEffect(() => {
-    // Wait for both auth and navigation to be ready
-    if (!loading) {
-      const timer = setTimeout(() => {
-        setIsReady(true);
-      }, 100); // Increased delay for better stability
-      
-      return () => clearTimeout(timer);
-    }
+    if (!loading) setIsReady(true);
   }, [loading]);
 
   useEffect(() => {
-    if (!isReady || loading) return;
+    // 🛑 Prevent routing until logic is ready
+    if (!isReady || loading || !segments || segments.length < 1 || !segments[0]) return;
 
-    const inAuthGroup = segments[0] === 'auth' || segments[0] === '(auth)';
-    const inSeniorGroup = segments[0] === '(senior)';
-    const inTabsGroup = segments[0] === '(tabs)';
-    const inProfileGroup = segments[0] === 'profile' || segments.includes('edit-profile');
+    const currentSegment = segments[0] as string;
 
-    // Not authenticated → send to login
+    const inAuthGroup = currentSegment === 'auth' || currentSegment === '(auth)';
+    const inSeniorGroup = currentSegment === '(senior)';
+    const inTabsGroup = currentSegment === '(tabs)';
+    // ★ LANE-A-PHASE-2.7 — Variable renamed (was inSuperAdminGroup) to match
+    //   the (super-admin) → (admin) route-group rename. Also accepting
+    //   '(super-admin)' as a safe-zone fallback so any user mid-flight on
+    //   the old path doesn't get bounced (they'll hit a redirect stub
+    //   anyway and land in (admin)/).
+    const inAdminGroup = currentSegment === '(admin)' || currentSegment === '(super-admin)';
+
+    // ★ NX-DEEPLINK-001 closure — every entry here was verified against the
+    //   `app/` folder on disk via a full `ls`-level sweep. Stale entries
+    //   (edit-profile, apply, [id]) were removed: no backing file/folder
+    //   and no router.push() caller anywhere in the codebase.
+    //
+    //   `profile` and `expenses` are intentionally kept — both are real
+    //   on-disk folders (profile/ has 11 sub-screens; expenses/[id].tsx
+    //   exists for future use). An earlier draft of this sweep dropped
+    //   them based on incomplete tooling output — that was a regression,
+    //   restored here.
+    //
+    //   Missing top-level files that exist on disk but were never
+    //   allow-listed have been added (settings, my-jobs, find-jobs,
+    //   browse-jobs, browse-jobs-map, project-details, review-report,
+    //   rate-inspector, map, applicant). Without these the gate's
+    //   fallback branch would redirect signed-in users away from
+    //   legitimate destinations.
+    //
+    //   If you add a new top-level segment to app/, add it here too.
+    const allowedStandaloneRoutes = [
+      // — Standalone screens (app/<name>.tsx) —
+      'messages',
+      'submit-report',
+      'payment-screen',
+      'notifications',
+      'notification-settings',
+      'support-chat',
+      'post-new-job',
+      'post-compliance-job',
+      'agency-job-details',
+      'inspectors',
+      'settings',
+      'my-jobs',
+      'find-jobs',
+      'browse-jobs',
+      'browse-jobs-map',
+      'project-details',
+      'review-report',
+      'rate-inspector',
+      'map',
+      // — Folder-backed segments with dynamic children —
+      'profile',       // app/profile/* (11 sub-screens: edit, certifications,
+                       //  experience, skills, rates, payments, security,
+                       //  language, help, terms, legal, document/[id])
+      'expenses',      // app/expenses/[id].tsx
+      'jobs',          // app/jobs/[id]/*
+      'reviews',       // app/reviews/submit/[jobId]
+      'contracts',     // app/contracts/index.tsx
+      'contract',      // app/contract/[id].tsx
+      'chat',          // app/chat/[job_id].tsx
+      'report',        // app/report/[id].tsx
+      'job-details',   // app/job-details/[id].tsx
+      'applicant',     // app/(shared)/applicant/[id].tsx — resolved bare via Expo Router groups
+      // — Role folders (client/inspector/admin top-level legacy routes) —
+      'client',        // app/client/*
+      'inspector',     // app/inspector/* (legacy submit-report etc.)
+      'admin',         // app/admin/index.tsx
+      // — Compliance-mode α-phase entries —
+      //   cci-applications + compliance-templates live in (admin); the
+      //   top-level segment doesn't exist on its own but inbound deep
+      //   links from notifications use the bare segment. Keeping them
+      //   in the allowlist is a deliberate forward-compat hedge —
+      //   when post-launch sweeps land the redirect stubs, no gate
+      //   change is needed.
+      'cci-applications',
+      'compliance',
+      'compliance-templates',
+      // — Public anon surfaces (also handled by publicAnonRoutes below) —
+      'verify',
+      'cert',
+      // — Route group for inspector role —
+      '(inspector)',
+    ];
+    const inAllowedRoute = allowedStandaloneRoutes.includes(currentSegment);
+
+    // ★ STEP 7 — Public verify surfaces (/verify/[token] + /cert/[slug])
+    //   are anon-callable end-to-end (the underlying RPCs grant SELECT
+    //   to the anon role). The AuthGate's "force login" branch below
+    //   would otherwise bounce unauthenticated deep-link visitors to
+    //   sign-in. Bypass everything for these routes — they're the
+    //   public face of the platform's trust layer.
+    const publicAnonRoutes = ['verify', 'cert'];
+    if (publicAnonRoutes.includes(currentSegment)) return;
+
+    // Now apply the navigation lock — only for actual redirects below.
+    if (isNavigating.current) return;
+
+    const safeNavigate = (path: string) => {
+      if (isNavigating.current) return;
+      isNavigating.current = true;
+      try {
+        router.replace(path as any);
+      } catch (error) {
+        console.warn('[AuthGate] Navigation error:', error);
+      } finally {
+        setTimeout(() => { isNavigating.current = false; }, 400);
+      }
+    };
+
+    // 🛑 STRICT ROLE ENFORCEMENT: Super Admins belong ONLY in (super-admin) OR allowed shared routes
+    if (isAuthenticated && role === 'super_admin' && !inAdminGroup && !inAllowedRoute) {
+      safeNavigate('/(admin)/dashboard');
+      return;
+    }
+
+    // ✅ SAFE ZONE CHECK: Normal users can stay in their tabs, Super Admins can stay in their dashboard
+    if (isAuthenticated && (inTabsGroup || inSeniorGroup || inAllowedRoute || inAdminGroup)) {
+      return;
+    }
+
+    // 1. USER NOT LOGGED IN -> Force Login
     if (!isAuthenticated) {
-      if (!inAuthGroup) {
-        try {
-          router.replace('/auth/sign-in');
-        } catch (error) {
-          console.warn('Navigation error:', error);
-        }
-      }
+      if (!inAuthGroup) safeNavigate('/(auth)/sign-in'); 
       return;
     }
 
-    // Authenticated but still on auth screens → route by role
+    // 2. USER IS LOGGED IN but trying to see Auth pages -> Send to their Dashboard
     if (inAuthGroup && role) {
-      try {
-        if (role === 'admin') {
-          router.replace('/(senior)/inbox');
-        } else if (role === 'agency' || role === 'enterprise') {
-          router.replace('/(tabs)/agency-dashboard');
-        } else if (role === 'client') {
-          router.replace('/(tabs)/client-dashboard');
-        } else {
-          router.replace('/(tabs)');
-        }
-      } catch (error) {
-        console.warn('Navigation error:', error);
-      }
+      if (role === 'super_admin') safeNavigate('/(admin)/dashboard');
+      // ★ LANE-A-PHASE-2.3 — Repointed admin landing from /(senior)/inbox to
+//   the canonical /(admin)/admin-inbox. The (senior) route group
+//   is being stubbed in the same sub-phase; (super-admin) is the
+//   established admin-tier folder. Future Phase 2b rename of (super-admin)
+//   → (admin) will sweep this reference along with all other (super-admin)
+//   refs in one pass.
+else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
+      else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
+      else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
+      else safeNavigate('/(tabs)');
       return;
     }
 
-    // RBAC Guard: Inspector trying to access senior routes
-    if (inSeniorGroup && role === 'inspector') {
-      try {
-        router.replace('/(tabs)/dashboard');
-      } catch (error) {
-        console.warn('Navigation error:', error);
-      }
-      return;
-    }
+    // 3. FALLBACK: If path is unknown, send to role-based dashboard
+    if (role === 'super_admin') safeNavigate('/(admin)/dashboard');
+    // ★ LANE-A-PHASE-2.3 — Repointed admin landing from /(senior)/inbox to
+//   the canonical /(admin)/admin-inbox. The (senior) route group
+//   is being stubbed in the same sub-phase; (super-admin) is the
+//   established admin-tier folder. Future Phase 2b rename of (super-admin)
+//   → (admin) will sweep this reference along with all other (super-admin)
+//   refs in one pass.
+else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
+    else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
+    else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
+    else safeNavigate('/(tabs)');
 
-    // Profile routes are allowed for all authenticated users
-    if (inProfileGroup) return;
-
-    // 🔴 Define allowed routes that should bypass default dashboard routing
-    const isAllowedRoute = segments[0] === 'chat' || segments[0] === 'submit-report' || segments[0] === 'payment-screen';
-
-    // Default to tabs dashboard for authenticated users
-    // 🔴 Add !isAllowedRoute condition to prevent routing away from allowed routes
-    if (isAuthenticated && !inTabsGroup && !inSeniorGroup && !inProfileGroup && !isAllowedRoute) {
-      try {
-        if (role === 'admin') {
-          router.replace('/(senior)/inbox');
-        } else if (role === 'agency' || role === 'enterprise') {
-          // Route agency and enterprise users to agency dashboard
-          router.replace('/(tabs)/agency-dashboard');
-        } else if (role === 'client') {
-          // Route client users to client dashboard
-          router.replace('/(tabs)/client-dashboard');
-        } else {
-          // Default fallback for other roles
-          router.replace('/(tabs)');
-        }
-      } catch (error) {
-        console.warn('Navigation error:', error);
-      }
-      return;
-    }
-  }, [isAuthenticated, loading, segments, role, router, isReady]);
+  }, [isAuthenticated, loading, segments, role, isReady]);
 
   if (loading || !isReady) {
     return (
@@ -131,21 +232,69 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
+  // ★ Phase 3 / Task 2 — boot the offline outbox sync engine.
+  //    Subscribes to NetInfo, drains the queue when online,
+  //    re-polls every 60s for backoff-due retries. Idempotent.
+  useEffect(() => {
+    const teardown = initializeOfflineSync();
+    return teardown;
+  }, []);
+
+  // ── NX-SECRET-001 + NX-STRIPE-KEY-001 closure ────────────────────────
+  // Stripe publishable key is sourced from EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY.
+  //
+  // We now validate the SHAPE of the key at boot. Real Stripe publishable
+  // keys start with `pk_test_` (test mode) or `pk_live_` (production). The
+  // post-rotation key-mix-up (Supabase `sb_publishable_*` pasted into the
+  // Stripe slot) used to reach the Stripe SDK and surface as a confusing
+  // "Invalid API Key provided: sb_publi***" dialog on first card action.
+  // We now log a loud actionable warning at boot and substitute the
+  // hard-coded test fallback so the rest of the app keeps working.
+  // ──────────────────────────────────────────────────────────────────────
+  const STRIPE_TEST_FALLBACK =
+    'pk_test_51SkICRL9uHtRspTiLLEeg3YLMBY9MTMIR5BbylbYFBzu7UmjoVs1BLoFUkik0DRjIPh7k7t52aXPjqwVWN2vyvWO00h8sfZE9h';
+
+  const rawStripeKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  const isWellFormedStripeKey =
+    typeof rawStripeKey === 'string' &&
+    (rawStripeKey.startsWith('pk_test_') || rawStripeKey.startsWith('pk_live_'));
+
+  const stripePublishableKey = isWellFormedStripeKey
+    ? (rawStripeKey as string)
+    : STRIPE_TEST_FALLBACK;
+
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    if (!rawStripeKey) {
+      console.warn(
+        '[RootLayout] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY not set — using hard-coded test fallback. Production builds MUST override.',
+      );
+    } else if (!isWellFormedStripeKey) {
+      // Common mix-up: Supabase publishable key (`sb_publishable_*`) pasted
+      // into the Stripe slot. Surface it loudly.
+      const masked =
+        rawStripeKey.slice(0, 8) + '***' + rawStripeKey.slice(-4);
+      console.warn(
+        `[RootLayout] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is not a Stripe key (got "${masked}"). Stripe keys start with pk_test_ or pk_live_. Falling back to the hard-coded test key so the app stays operable, but Stripe calls WILL fail until the env is corrected.`,
+      );
+    }
+  }
+
   return (
-    <ThemeProvider>
-      {/* ✅ ۲. کل برنامه را اینجا با LanguageProvider بغل می‌کنیم */}
-      <LanguageProvider>
-        <AuthProvider>
-          <StripeProvider
-            publishableKey="pk_test_51SkICRL9uHtRspTiLLEeg3YLMBY9MTMIR5BbylbYFBzu7UmjoVs1BLoFUkik0DRjIPh7k7t52aXPjqwVWN2vyvWO00h8sfZE9h"
-            merchantIdentifier="com.nexpec.app"
-            urlScheme="nexpec"
-          >
-            <AuthGate />
-          </StripeProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <StripeProvider
+              publishableKey={stripePublishableKey}
+              merchantIdentifier="com.nexpec.app"
+              urlScheme="nexpec"
+            >
+              <AuthGate />
+            </StripeProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -154,6 +303,6 @@ const styles = StyleSheet.create({
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    backgroundColor: '#FFFFFF' 
+    backgroundColor: '#020420' 
   },
 });

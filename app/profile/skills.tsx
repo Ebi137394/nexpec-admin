@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/providers/ThemeProvider';
 import { getColors } from '@/src/constants/theme';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
@@ -59,9 +59,26 @@ export default function SkillsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    // ★ SPEC-FIX-002: escape hatch for the auth-resolved-but-no-user
+    //   case. The original code only handled `user` truthy and left
+    //   `loading=true` forever otherwise, causing an infinite spinner
+    //   when the screen was opened during a signed-out / cold-boot
+    //   state. We bail to a non-loading state instead so the screen
+    //   renders an actionable surface rather than hanging.
+    //
+    //   `useAuth` exposes `user` as `null | undefined | User`. We
+    //   treat both falsy values identically here — the screen has no
+    //   meaningful content without a user, and the auth provider will
+    //   re-emit once it resolves, re-running this effect.
     if (user) {
       checkUserTypeAndRedirect();
+      return;
     }
+    if (user === null) {
+      // Auth resolved, no user. Stop spinning.
+      setLoading(false);
+    }
+    // user === undefined → still resolving; keep the spinner.
   }, [user]);
 
   const checkUserTypeAndRedirect = async () => {

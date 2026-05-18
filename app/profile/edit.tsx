@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -17,7 +18,17 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/providers/AuthProvider';
+import { useAuth } from '@/src/contexts/AuthContext';
+// ★ Specialty taxonomy (Phase 3): inspectors pick which disciplines they
+//   cover; written to profiles.specialty_slugs. Used by the inspector
+//   job-feed matcher (server-side intersection with jobs.specialty_slugs).
+import SpecialtyPicker from '@/src/components/SpecialtyPicker';
+// ★ JURISDICTION-002 (Phase 2 / Capture): inspector declares country of
+//   residence, the countries they're legally authorised to work in, and
+//   whether they accept sponsored work. The Phase-4 matcher reads these
+//   to filter the inspector's job feed by legal eligibility.
+import CountryPicker from '@/src/components/CountryPicker';
+import { normaliseCountryArray } from '@/src/data/countryCodes';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -28,6 +39,15 @@ export default function EditProfileScreen() {
   const [headline, setHeadline] = useState(''); // Bio/Headline
   const [bio, setBio] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  // ★ Specialty taxonomy slugs (Phase 3). Empty array is the legal
+  //   "none selected"; we never store NULL.
+  const [specialtySlugs, setSpecialtySlugs] = useState<string[]>([]);
+  // ★ JURISDICTION-002 capture state. Defaults mirror the database
+  //   defaults (NULL COR, empty arrays, sponsorship off).
+  const [countryOfResidence, setCountryOfResidence] = useState<string | null>(null);
+  const [workAuthorizedCountries, setWorkAuthorizedCountries] = useState<string[]>([]);
+  const [openToSponsoredWork, setOpenToSponsoredWork] = useState<boolean>(false);
+  const [sponsoredCountries, setSponsoredCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -55,6 +75,30 @@ export default function EditProfileScreen() {
           setHeadline(data.headline || '');
           setBio(data.bio || '');
           setAvatarUri(data.avatar_url || null);
+          // Specialty slugs — defensively coerce to a string[]. The
+          // migration declares the column NOT NULL DEFAULT '{}', so
+          // post-migration we always get an array; before the migration
+          // lands we treat missing/NULL as empty.
+          const slugs = Array.isArray(data.specialty_slugs)
+            ? (data.specialty_slugs as string[])
+            : [];
+          setSpecialtySlugs(slugs);
+
+          // ★ JURISDICTION-002 hydrate. We accept legacy NULL/missing
+          //   and normalise to safe defaults so the screen always
+          //   renders deterministically.
+          setCountryOfResidence(
+            typeof data.country_of_residence === 'string' && data.country_of_residence
+              ? data.country_of_residence
+              : null,
+          );
+          setWorkAuthorizedCountries(
+            normaliseCountryArray(data.work_authorized_countries),
+          );
+          setOpenToSponsoredWork(Boolean(data.open_to_sponsored_work));
+          setSponsoredCountries(
+            normaliseCountryArray(data.sponsored_countries),
+          );
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -143,6 +187,24 @@ export default function EditProfileScreen() {
       } else {
         updates.headline = null;
       }
+
+      // ★ Specialty taxonomy slugs (Phase 3). Always write the array —
+      //   never NULL. Empty array means the inspector has declared no
+      //   specialties, which is a legitimate state.
+      updates.specialty_slugs = specialtySlugs;
+
+      // ★ JURISDICTION-002 capture. country_of_residence may legally
+      //   be NULL (not declared yet) — pass through. Arrays always
+      //   write the actual array; booleans are normalised.
+      updates.country_of_residence = countryOfResidence ?? null;
+      updates.work_authorized_countries = normaliseCountryArray(workAuthorizedCountries);
+      updates.open_to_sponsored_work = Boolean(openToSponsoredWork);
+      // If sponsorship is OFF we deliberately clear the preferred-list
+      // — preserving it across a toggle-off would create silent state
+      // the inspector can't see in the UI when the picker is hidden.
+      updates.sponsored_countries = openToSponsoredWork
+        ? normaliseCountryArray(sponsoredCountries)
+        : [];
 
       const { error } = await supabase
         .from('profiles')
@@ -235,6 +297,83 @@ export default function EditProfileScreen() {
             multiline
             numberOfLines={4}
           />
+
+          {/* ★ Specialty taxonomy (Phase 3) — search + chip multi-select. */}
+          <View style={styles.specialtySection}>
+            <Text style={styles.label}>Specialties</Text>
+            <SpecialtyPicker
+              value={specialtySlugs}
+              onChange={setSpecialtySlugs}
+              maxSelections={12}
+              helperText="Choose the inspection disciplines you cover. Used to match you with relevant jobs."
+            />
+          </View>
+
+          {/* ★ JURISDICTION-002 (Phase 2 / Capture) — Work Authorization. */}
+          <View style={styles.workAuthSection}>
+            <Text style={styles.sectionHeading}>Work Authorization</Text>
+            <Text style={styles.sectionHeadingSub}>
+              Used to match you with jobs you can legally accept. Required
+              for the inspector job feed to filter out ineligible postings.
+            </Text>
+
+            <View style={styles.pickerWrap}>
+              <CountryPicker
+                mode="single"
+                value={countryOfResidence}
+                onChange={setCountryOfResidence}
+                label="Country of residence"
+                helperText="Your tax home. Drives 1099 / W-8BEN selection on payouts later."
+                searchPlaceholder="Search countries…"
+              />
+            </View>
+
+            <View style={styles.pickerWrap}>
+              <CountryPicker
+                mode="multi"
+                value={workAuthorizedCountries}
+                onChange={setWorkAuthorizedCountries}
+                maxSelections={60}
+                showRegionBundles
+                label="Where can you legally work without sponsorship?"
+                helperText="Tap a region bundle to add EU/EEA/GCC/USMCA at once, or pick individual countries."
+                searchPlaceholder="Search countries…"
+              />
+            </View>
+
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleRowText}>
+                <Text style={styles.toggleLabel}>
+                  I'm open to sponsored relocation work
+                </Text>
+                <Text style={styles.toggleHelper}>
+                  Clients can hire you for jobs outside your authorized
+                  countries if they cover the visa / relocation.
+                </Text>
+              </View>
+              <Switch
+                value={openToSponsoredWork}
+                onValueChange={setOpenToSponsoredWork}
+                trackColor={{ false: '#334155', true: '#7C3AED' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            {openToSponsoredWork ? (
+              <View style={styles.pickerWrap}>
+                <CountryPicker
+                  mode="multi"
+                  value={sponsoredCountries}
+                  onChange={setSponsoredCountries}
+                  maxSelections={60}
+                  showRegionBundles
+                  label="Preferred sponsored destinations (optional)"
+                  helperText="Leave empty to accept sponsorship to any country."
+                  searchPlaceholder="Search countries…"
+                />
+              </View>
+            ) : null}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -261,4 +400,25 @@ const styles = StyleSheet.create({
   label: { color: '#94a3b8', fontSize: 14, marginBottom: 4 },
   input: { backgroundColor: '#1e293b', color: '#fff', padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, borderColor: '#334155' },
   textArea: { height: 120, textAlignVertical: 'top' },
+  specialtySection: { marginTop: 8 },
+  // ★ JURISDICTION-002 styles
+  workAuthSection: { marginTop: 12, gap: 16 },
+  sectionHeading: { color: '#F9FAFB', fontSize: 16, fontWeight: '700' },
+  sectionHeadingSub: { color: '#94a3b8', fontSize: 12, marginTop: -8 },
+  pickerWrap: { paddingTop: 4 },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  toggleRowText: { flex: 1 },
+  toggleLabel: { color: '#F9FAFB', fontSize: 14, fontWeight: '600' },
+  toggleHelper: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
 });

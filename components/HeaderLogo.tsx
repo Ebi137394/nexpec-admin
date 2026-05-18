@@ -1,29 +1,9 @@
-import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
-
-interface HeaderLogoProps {
-  size?: number;
-}
-
-export default function HeaderLogo({ size = 32 }: HeaderLogoProps) {
-  return (
-    <View style={styles.container}>
-      <Image
-        source={require('../assets/images/logo.png')}
-        style={[styles.logo, { width: size, height: size }]}
-        resizeMode="contain"
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    // Size will be set dynamically via props
-  },
-});
-
+// ════════════════════════════════════════════════════════════════════════════
+//  components/HeaderLogo.tsx — LANE-A-PHASE-3 re-export stub
+//
+//  Pre-strike: canonical location. Post-strike: relocated to @/src/shared-ui/headers/HeaderLogo;
+//  this file is a transparent re-export so legacy imports keep working.
+//  New code should import directly from the new location.
+// ════════════════════════════════════════════════════════════════════════════
+export * from '@/src/shared-ui/headers/HeaderLogo';
+export { default } from '@/src/shared-ui/headers/HeaderLogo';

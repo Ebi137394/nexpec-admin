@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────────────────────────────
+   Base
+   ─────────────────────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    color-scheme: dark;
+    /* ★ next/font emits --font-geist-sans + --font-geist-mono via the
+       `.variable` classes on <html>. Our Tailwind config consumes
+       --font-sans / --font-mono. Alias them here so the font wiring stays
+       data-driven from next/font with no inline-style coupling on <html>. */
+    --font-sans: var(--font-geist-sans);
+    --font-mono: var(--font-geist-mono);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-ink-950 text-zinc-100;
+    background-image:
+      radial-gradient(ellipse at top, rgba(124, 58, 237, 0.18) 0%, rgba(2, 4, 32, 0) 55%),
+      radial-gradient(ellipse at bottom right, rgba(0, 207, 213, 0.08) 0%, rgba(2, 4, 32, 0) 45%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-violet/40 text-white;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   Components
+   ─────────────────────────────────────────────────────────────────────── */
+@layer components {
+  .container-narrow {
+    @apply mx-auto w-full max-w-6xl px-6 sm:px-8;
+  }
+
+  .grid-overlay {
+    background-image: var(--tw-gradient-grid, none);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+
+  /* Subtle topographic grid behind the hero. */
+  .topo-grid {
+    background-image:
+      linear-gradient(rgba(124, 58, 237, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.06) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 35%, black 0%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 35%, black 0%, transparent 75%);
+  }
+
+  /* Magnetic button base — the JS layer applies translate3d offsets via Framer. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-violet
+           px-7 py-3.5 text-sm font-semibold tracking-wide text-white
+           shadow-glow transition-[transform,box-shadow,background-color]
+           duration-200 ease-out hover:bg-violet-glow hover:shadow-[0_0_60px_-8px_rgba(167,139,250,0.6)]
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-glow focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full
+           border border-white/15 bg-white/[0.02] px-7 py-3.5 text-sm font-semibold
+           tracking-wide text-zinc-200 backdrop-blur-sm
+           transition-all duration-200 ease-out
+           hover:border-white/30 hover:bg-white/[0.05] hover:text-white
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-industrial text-violet-glow/90;
+  }
+
+  .card-elevated {
+    @apply relative overflow-hidden rounded-2xl border border-white/[0.06]
+           bg-gradient-to-b from-ink-800/80 to-ink-900/60 p-8 backdrop-blur-xl
+           transition-all duration-300
+           hover:-translate-y-1 hover:border-violet/40
+           hover:shadow-[0_30px_60px_-30px_rgba(124,58,237,0.5)];
+  }
+
+  /* Headline with a violet-to-cyan sweep on the second clause. */
+  .headline-gradient {
+    background: linear-gradient(110deg, #ffffff 0%, #ffffff 40%, #a78bfa 60%, #00cfd5 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+   Utilities — bespoke
+   ─────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  /* Hard mask used by the cursor-glow effect in the hero. */
+  .mask-radial-fade {
+    -webkit-mask-image: radial-gradient(circle at center, black 0%, transparent 70%);
+    mask-image: radial-gradient(circle at center, black 0%, transparent 70%);
+  }
+}
+
+/* Prefers-reduced-motion guardrail. Every motion utility above respects this. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

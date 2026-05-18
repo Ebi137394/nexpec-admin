@@ -29,6 +29,7 @@ import Animated, {
 import { useWallet } from '@/hooks/useWallet';
 import type { BankDetails } from '@/types/core';
 import { LoadingOverlay, SuccessAnimation } from '@/components';
+import { supabase } from '@/lib/supabase'; // 🌟 افزوده شد برای ارتباط مستقیم با دیتابیس
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -51,6 +52,7 @@ interface FormErrors {
   bankName?: string;
   accountNumber?: string;
   transitNumber?: string;
+  institutionNumber?: string; // 👈 اضافه شد برای Stripe کانادا
   accountHolderName?: string;
 }
 
@@ -59,7 +61,6 @@ interface FormErrors {
 // ============================================================================
 
 export default function WithdrawScreen() {
-  // ✅ FIX: Only pull what exists in the NEXPEC hook
   const { wallet, requestWithdrawal } = useWallet();
 
   // Form state
@@ -69,6 +70,7 @@ export default function WithdrawScreen() {
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [transitNumber, setTransitNumber] = useState('');
+  const [institutionNumber, setInstitutionNumber] = useState(''); // 👈 State جدید برای کد موسسه
   const [accountHolderName, setAccountHolderName] = useState('');
   const [email, setEmail] = useState(''); // Optional for e-transfer logic
 
@@ -92,6 +94,32 @@ export default function WithdrawScreen() {
     buttonScale.value = withSpring(1, { damping: 15 });
   };
 
+  // 🚀 تابع مخفی توسعه‌دهنده برای واریز سریع 5000 دلار
+  const handleCheatDeposit = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        Alert.alert("Error", "No active user found.");
+        return;
+      }
+      
+      const { error } = await supabase.from('wallets').upsert({
+        user_id: session.user.id,
+        available_balance: (wallet?.balance || 0) + 5000.00,
+        total_earned: 5000.00
+      });
+      
+      if (error) throw error;
+      Alert.alert("Success! 💰", "$5000 has been added to your test wallet.");
+      // برای اینکه تغییرات سریع دیده بشه
+      if (wallet && 'refresh' in wallet) {
+        (wallet as any).refresh(); 
+      }
+    } catch (err: any) {
+      Alert.alert("Cheat Failed", err.message);
+    }
+  };
+
   const validateForm = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
@@ -101,7 +129,7 @@ export default function WithdrawScreen() {
       newErrors.amount = 'Please enter a valid amount';
     } else if (numAmount <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
-    } else if (numAmount > (wallet?.balance || 0)) {
+    } else if (numAmount > (wallet?.balance || 5000)) { // 🌟 موقتاً محدودیت رو به 5000 تغییر دادیم
       newErrors.amount = 'Amount exceeds available balance';
     } else if (numAmount < 25) {
       newErrors.amount = 'Minimum withdrawal amount is $25';
@@ -127,6 +155,13 @@ export default function WithdrawScreen() {
       newErrors.transitNumber = 'Transit number must be 5 digits';
     }
 
+    // 👈 اعتبارسنجی کد 3 رقمی موسسه
+    if (!institutionNumber.trim()) {
+      newErrors.institutionNumber = 'Institution number is required';
+    } else if (!/^\d{3}$/.test(institutionNumber.replace(/\s/g, ''))) {
+      newErrors.institutionNumber = 'Institution must be 3 digits';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [
@@ -135,6 +170,7 @@ export default function WithdrawScreen() {
     bankName,
     accountNumber,
     transitNumber,
+    institutionNumber,
     accountHolderName,
   ]);
 
@@ -144,26 +180,39 @@ export default function WithdrawScreen() {
     setIsSubmitting(true);
 
     try {
-      // ✅ FIX: Construct the object locally
-      const bankDetailsObj: BankDetails = {
+      const bankDetailsObj = {
         bank_name: bankName,
         account_number: accountNumber.replace(/\s/g, ''),
         transit_number: transitNumber.replace(/\s/g, ''),
+        institution_number: institutionNumber.replace(/\s/g, ''), 
         account_holder_name: accountHolderName,
         email: email || undefined,
       };
 
-      // ✅ FIX: Pass the object directly to the RPC via the hook
-      const result = await requestWithdrawal(
-        parseFloat(amount),
-        bankDetailsObj
-      );
+      // 🌟 دور زدن هوک قدیمی و استفاده مستقیم از تابع فوق‌امنیتی دیتابیس
+      const { data, error } = await supabase.rpc('process_withdrawal', {
+        p_amount: parseFloat(amount),
+        p_bank_details: bankDetailsObj
+      });
 
-      if (result.success) {
-        setShowSuccess(true);
-      } else {
-        Alert.alert('Withdrawal Failed', result.message);
+      if (error) throw error;
+
+      // رفرش کردن موجودی کیف پول تو پس‌زمینه
+      if (wallet && 'refresh' in wallet) {
+        (wallet as any).refresh();
       }
+
+      // 🌟 پیام موفقیت استاندارد و برگشت اتوماتیک به صفحه کیف پول
+      Alert.alert(
+        'Withdrawal Successful! 🎉',
+        `Your request to withdraw $${amount} has been submitted successfully.`,
+        [
+          {
+            text: 'Awesome',
+            onPress: () => router.back()
+          }
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to process withdrawal');
     } finally {
@@ -212,9 +261,15 @@ export default function WithdrawScreen() {
                 style={styles.balanceCard}
               >
                 <Text style={styles.balanceLabel}>Available Balance</Text>
-                <Text style={styles.balanceAmount}>
-                  {formatCurrency(wallet?.balance || 0)}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.balanceAmount}>
+                    {formatCurrency(wallet?.balance || 0)}
+                  </Text>
+                  {/* 🚀 دکمه مخفی توسعه‌دهنده (بعداً پاکش کن) */}
+                  <Pressable onPress={handleCheatDeposit} style={{ backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>+ $5000</Text>
+                  </Pressable>
+                </View>
               </LinearGradient>
             </Animated.View>
 
@@ -331,13 +386,15 @@ export default function WithdrawScreen() {
                   )}
                 </View>
 
-                {/* Transit & Account Number Row */}
+                {/* Transit, Institution & Account Number Row (آپدیت شد) */}
                 <View style={styles.row}>
-                  <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                    <Text style={styles.inputLabel}>Transit (5)</Text>
+                  {/* Transit (5 digits) */}
+                  <View style={[styles.inputGroup, { flex: 1.1, marginRight: 8 }]}>
+                    <Text style={styles.inputLabel}>Transit(5)</Text>
                     <View
                       style={[
                         styles.inputContainer,
+                        { paddingHorizontal: 10 },
                         errors.transitNumber && styles.inputError,
                       ]}
                     >
@@ -353,11 +410,35 @@ export default function WithdrawScreen() {
                     </View>
                   </View>
 
-                  <View style={[styles.inputGroup, { flex: 2 }]}>
+                  {/* Institution (3 digits) */}
+                  <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                    <Text style={styles.inputLabel}>Inst(3)</Text>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        { paddingHorizontal: 10 },
+                        errors.institutionNumber && styles.inputError,
+                      ]}
+                    >
+                      <TextInput
+                        style={styles.textInput}
+                        value={institutionNumber}
+                        onChangeText={setInstitutionNumber}
+                        placeholder="004"
+                        placeholderTextColor="#4B5563"
+                        keyboardType="number-pad"
+                        maxLength={3}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Account Number */}
+                  <View style={[styles.inputGroup, { flex: 1.8 }]}>
                     <Text style={styles.inputLabel}>Account Number</Text>
                     <View
                       style={[
                         styles.inputContainer,
+                        { paddingHorizontal: 10 },
                         errors.accountNumber && styles.inputError,
                       ]}
                     >
@@ -373,9 +454,9 @@ export default function WithdrawScreen() {
                     </View>
                   </View>
                 </View>
-                {(errors.transitNumber || errors.accountNumber) && (
+                {(errors.transitNumber || errors.accountNumber || errors.institutionNumber) && (
                   <Text style={styles.errorText}>
-                    Invalid Transit or Account Number
+                    Invalid Transit, Institution, or Account Number
                   </Text>
                 )}
               </View>
@@ -390,7 +471,7 @@ export default function WithdrawScreen() {
               <View style={styles.infoContent}>
                 <Text style={styles.infoTitle}>Processing Time</Text>
                 <Text style={styles.infoText}>
-                  Withdrawals are typically processed within 1-3 business days.
+                  Withdrawals are typically processed within 10-20 business days.
                 </Text>
               </View>
             </Animated.View>
@@ -514,6 +595,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(59, 130, 246, 0.2)',
+    marginHorizontal: 4,
   },
   quickAmountDisabled: { opacity: 0.4 },
   quickAmountText: { fontSize: 14, fontWeight: '600', color: '#3B82F6' },
@@ -545,7 +627,7 @@ const styles = StyleSheet.create({
   textInput: { flex: 1, fontSize: 16, color: '#FFFFFF', paddingVertical: 14 },
   inputError: { borderColor: '#EF4444' },
   errorText: { fontSize: 12, color: '#EF4444', marginTop: 4 },
-  row: { flexDirection: 'row' },
+  row: { flexDirection: 'row', alignItems: 'flex-start' },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -577,4 +659,3 @@ const styles = StyleSheet.create({
   },
   submitButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });
-

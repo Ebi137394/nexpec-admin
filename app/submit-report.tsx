@@ -10,11 +10,11 @@ import {
   Image,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons'; // Added for icons
+import { Ionicons } from '@expo/vector-icons';
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '../lib/supabase';
 
@@ -96,8 +96,6 @@ export default function SubmitReport() {
   };
 
   const handleSignatureEnd = () => {
-    // Re-enable parent ScrollView
-    scrollViewRef.current?.setNativeProps({ scrollEnabled: true });
     // Trigger read after the user lifts their finger
     signatureRef.current?.readSignature();
   };
@@ -105,6 +103,11 @@ export default function SubmitReport() {
   const handleSignatureBegin = () => {
     // Disable parent ScrollView while user is drawing
     scrollViewRef.current?.setNativeProps({ scrollEnabled: false });
+  };
+
+  const handleSignatureTouchEnd = () => {
+    // Re-enable parent ScrollView
+    scrollViewRef.current?.setNativeProps({ scrollEnabled: true });
   };
 
   const handleSubmit = async () => {
@@ -176,8 +179,8 @@ export default function SubmitReport() {
     );
   };
 
-  // ── NEW: Form validation ──────────────────────────────────
-  const isFormValid = description.trim().length > 0 && !!signature;
+  // ── Form validation ───────────────────────────────────────
+  const isFormValid = description.trim().length > 0 && signature !== null;
 
   return (
     <KeyboardAvoidingView 
@@ -235,65 +238,75 @@ export default function SubmitReport() {
         </View>
 
         {/* ── NEW: Inspector Signature ────────────────────── */}
-        <Text style={styles.sectionLabel}>4. Inspector Signature</Text>
-        
-        {/* Signature Canvas Container */}
-        <View style={styles.signatureContainer}>
-          <View style={styles.signatureCanvasWrapper}>
-            <SignatureScreen
-              ref={signatureRef}
-              onOK={handleSignatureOK}
-              onEmpty={handleSignatureEmpty}
-              onEnd={handleSignatureEnd}
-              onBegin={handleSignatureBegin}
-              autoClear={false}
-              descriptionText=""
-              webStyle={signatureWebStyle}
-              backgroundColor="#FFFFFF"
-              penColor="#020617"
-              dotSize={2}
-              minWidth={1.5}
-              maxWidth={3}
-              trimWhitespace
-              imageType="image/png"
-              style={styles.signatureCanvas}
-            />
-
-            {/* Hint overlay — shown only before first stroke */}
-            {!signature && (
-              <View style={styles.signatureHintOverlay} pointerEvents="none">
-                <Ionicons name="pencil-outline" size={24} color="#CBD5E1" />
-                <Text style={styles.signatureHintText}>
-                  Sign here with your finger
-                </Text>
+        <View style={styles.section}>
+          <View style={styles.signatureLabelRow}>
+            <Text style={styles.label}>Inspector Signature</Text>
+            {signature && (
+              <View style={styles.signedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                <Text style={styles.signedBadgeText}>Signed</Text>
               </View>
             )}
           </View>
 
-          {/* Clear Button */}
-          <TouchableOpacity
-            style={styles.clearSignatureButton}
-            onPress={handleClearSignature}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trash-outline" size={18} color="#EF4444" />
-            <Text style={styles.clearSignatureText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Signature Preview (after signing) */}
-        {signature && (
-          <View style={styles.signaturePreviewContainer}>
-            <Text style={styles.signaturePreviewLabel}>Preview</Text>
-            <View style={styles.signaturePreviewBox}>
-              <Image
-                source={{ uri: signature }}
-                style={styles.signaturePreviewImage}
-                resizeMode="contain"
+          {/* Signature Canvas Container */}
+          <View style={styles.signatureContainer}>
+            <View style={styles.signatureCanvasWrapper}>
+              <SignatureScreen
+                ref={signatureRef}
+                onOK={handleSignatureOK}
+                onEmpty={handleSignatureEmpty}
+                onEnd={handleSignatureEnd}
+                onBegin={handleSignatureBegin}
+                autoClear={false}
+                descriptionText=""
+                webStyle={signatureWebStyle}
+                backgroundColor="#FFFFFF"
+                penColor="#020617"
+                dotSize={2}
+                minWidth={1.5}
+                maxWidth={3}
+                trimWhitespace
+                imageType="image/png"
+                style={styles.signatureCanvas}
               />
+
+              {/* Hint overlay — shown only before first stroke */}
+              {!signature && (
+                <View style={styles.signatureHintOverlay} pointerEvents="none">
+                  <Ionicons name="pencil-outline" size={24} color="#CBD5E1" />
+                  <Text style={styles.signatureHintText}>
+                    Sign here with your finger
+                  </Text>
+                </View>
+              )}
             </View>
+
+            {/* Clear Button */}
+            <TouchableOpacity
+              style={styles.clearSignatureButton}
+              onPress={handleClearSignature}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
+              <Text style={styles.clearSignatureText}>Clear</Text>
+            </TouchableOpacity>
           </View>
-        )}
+
+          {/* Signature Preview (after signing) */}
+          {signature && (
+            <View style={styles.signaturePreviewContainer}>
+              <Text style={styles.signaturePreviewLabel}>Preview</Text>
+              <View style={styles.signaturePreviewBox}>
+                <Image
+                  source={{ uri: signature }}
+                  style={styles.signaturePreviewImage}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+          )}
+        </View>
 
         {/* ── Submit Button (disabled until signed) ───────── */}
         <TouchableOpacity
@@ -434,6 +447,28 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   // ── NEW: Signature styles ────────────────────────────────
+  signatureLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  signedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  signedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
   sectionLabel: {
     fontSize: 18,
     fontWeight: '700',

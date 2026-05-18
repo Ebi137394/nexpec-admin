@@ -11,9 +11,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ShieldCheck, Mail, Lock, User } from 'lucide-react-native';
+import { ShieldCheck, Mail, Lock, User, Globe2 } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { supabase, supabaseReady } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+// ★ LEGAL-WIRING-005 — Market-gating policy (Checkpoint 5 / CN signup-block).
+//   ADDENDUM-CN-001 declares mainland-China NOT-FOR-ACTIVATION; this utility
+//   enforces the signup-time block before any auth.users row is created.
+import { evaluateMarketEligibility } from '@/src/legal/marketGating';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -22,6 +26,9 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  // ★ LEGAL-WIRING-005 — Country captured at signup for marketGating policy
+  //   (ADDENDUM-CN-001 enforcement) and persisted into auth user metadata.
+  const [country, setCountry] = useState('');
   const [loading, setLoading] = useState(false);
   const [clientReady, setClientReady] = useState(false);
 
@@ -29,20 +36,9 @@ export default function AuthScreen() {
   useEffect(() => {
     let mounted = true;
     
-    supabaseReady().then(() => {
-      if (mounted) {
-        setClientReady(true);
-      }
-    }).catch((error) => {
-      if (mounted) {
-        console.error('Supabase initialization error:', error);
-        Alert.alert(
-          'Connection Error',
-          'Could not connect to the authentication service. ' +
-          'Check your network and restart the app.'
-        );
-      }
-    });
+    if (mounted) {
+      setClientReady(true);
+    }
 
     return () => {
       mounted = false;
@@ -90,8 +86,8 @@ export default function AuthScreen() {
   };
 
   const handleSignUp = async () => {
-    if (!email || !password || !fullName) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!email || !password || !fullName || !country) {
+      Alert.alert('Error', 'Please fill in all fields, including your country.');
       return;
     }
 
@@ -100,13 +96,34 @@ export default function AuthScreen() {
       return;
     }
 
+    // ★ LEGAL-WIRING-005 — Market-gating policy check before account creation.
+    //   Enforces ADDENDUM-CN-001 NOT-FOR-ACTIVATION status (signup_blocked) and
+    //   any future per-country gates added to marketGating.ts. Runs BEFORE
+    //   supabase.auth.signUp so we never create an auth.users row for a
+    //   blocked-jurisdiction signup.
+    const gating = evaluateMarketEligibility({ countryCode: country });
+    if (!gating.permitted) {
+      Alert.alert('Region Not Available', gating.userFacingMessage);
+      console.warn('[Auth] signup blocked:', gating.auditNote);
+      return;
+    }
+    const normalizedCountry = gating.countryCode; // canonical ISO-3166-1 alpha-2
+
     try {
       setLoading(true);
 
-      // Step 1: Create auth user
+      // Step 1: Create auth user — country persisted into auth user metadata
+      //   so downstream profile-completion and trigger-logic can read it
+      //   without a separate round-trip.
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
         password: password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            country_code: normalizedCountry,
+          },
+        },
       });
 
       if (authError) throw authError;
@@ -173,7 +190,7 @@ export default function AuthScreen() {
             {/* Header with Logo */}
             <View className="items-center mb-12">
               <View className="mb-6">
-                <ShieldCheck size={80} color="#F59E0B" fill="#F59E0B" />
+                <ShieldCheck size={80} color="#7C3AED" fill="#7C3AED" />
               </View>
               <Text className="text-white text-4xl font-bold mb-2">NEXPEC</Text>
               <Text className="text-gray-400 text-lg">Industrial Inspection Platform</Text>
@@ -183,7 +200,7 @@ export default function AuthScreen() {
             <View className="flex-row mb-8 bg-[#1E293B] rounded-lg p-1">
               <TouchableOpacity
                 className={`flex-1 py-3 rounded-lg ${
-                  mode === 'signin' ? 'bg-[#F59E0B]' : 'bg-transparent'
+                  mode === 'signin' ? 'bg-[#7C3AED]' : 'bg-transparent'
                 }`}
                 onPress={() => setMode('signin')}
                 disabled={loading}
@@ -198,7 +215,7 @@ export default function AuthScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 className={`flex-1 py-3 rounded-lg ${
-                  mode === 'signup' ? 'bg-[#F59E0B]' : 'bg-transparent'
+                  mode === 'signup' ? 'bg-[#7C3AED]' : 'bg-transparent'
                 }`}
                 onPress={() => setMode('signup')}
                 disabled={loading}
@@ -230,6 +247,32 @@ export default function AuthScreen() {
                       editable={!loading}
                     />
                   </View>
+                </View>
+              )}
+
+              {/* ★ LEGAL-WIRING-005 — Country (Sign Up Only). 2-letter ISO-3166-1
+                  alpha-2 code (US, CA, GB, AE, SA, JP, KR, IN, FR, DE, ...).
+                  Drives marketGating policy + downstream Country Addendum
+                  trigger logic per ADDENDUM-FRAMEWORK-001 §3. */}
+              {mode === 'signup' && (
+                <View className="mb-4">
+                  <View className="flex-row items-center bg-[#1E293B] rounded-lg px-4 py-4 border border-gray-700">
+                    <Globe2 size={20} color="#94A3B8" />
+                    <TextInput
+                      className="flex-1 text-white ml-3 text-base"
+                      placeholder="Country (e.g., US, CA, AE)"
+                      placeholderTextColor="#64748B"
+                      value={country}
+                      onChangeText={(t) => setCountry(t.toUpperCase())}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={2}
+                      editable={!loading}
+                    />
+                  </View>
+                  <Text className="text-gray-500 text-sm mt-2 ml-1">
+                    2-letter country code (ISO 3166-1)
+                  </Text>
                 </View>
               )}
 
@@ -278,7 +321,7 @@ export default function AuthScreen() {
             {/* Submit Button */}
             <TouchableOpacity
               className={`rounded-lg py-4 items-center mb-4 ${
-                loading ? 'bg-gray-600' : 'bg-[#F59E0B]'
+                loading ? 'bg-gray-600' : 'bg-[#7C3AED]'
               }`}
               onPress={handleSubmit}
               disabled={loading}
@@ -302,7 +345,7 @@ export default function AuthScreen() {
 
             {mode === 'signin' && (
               <TouchableOpacity className="mt-4" disabled={loading}>
-                <Text className="text-[#F59E0B] text-center">Forgot Password?</Text>
+                <Text className="text-[#7C3AED] text-center">Forgot Password?</Text>
               </TouchableOpacity>
             )}
           </View>

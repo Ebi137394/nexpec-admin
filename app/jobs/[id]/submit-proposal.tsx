@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { toCents } from '@/lib/money';
 
 const COLORS = {
   background: '#020420',
@@ -49,14 +50,17 @@ export default function SubmitProposalScreen() {
     setLoading(true);
 
     try {
-      // ✅ FIX: Changed 'user_id' to 'applicant_id' to match your database
+      // ★ HIRE-008: canonical applications table, canonical columns only.
+      //   `applications` does NOT have inspector_id / user_id columns —
+      //   confirmed by the table-consolidation migration. applicant_id
+      //   is the single source of truth for the inspector identity.
       const { error } = await supabase
         .from('applications')
         .insert({
           job_id: id,
-          applicant_id: user?.id, 
-          bid_amount: parseFloat(bidAmount),
-          cover_letter: coverLetter,
+          applicant_id: user?.id,
+          bid_amount_cents: toCents(bidAmount),
+          cover_note: coverLetter,
           status: 'pending',
         });
 

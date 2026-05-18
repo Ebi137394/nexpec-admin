@@ -23,7 +23,12 @@ export default function TabLayout() {
     try {
       const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
       if (error && error.code !== 'PGRST116') { setUserRole('inspector'); } 
-      else { const fetchedRole = (data as any)?.role || 'inspector'; setUserRole(fetchedRole === 'enterprise' ? 'agency' : fetchedRole); }
+      else { 
+        const fetchedRole = (data as any)?.role || 'inspector'; 
+        // ✅ FIX: Properly handle all role types including 'agency' and 'enterprise'
+        const normalizedRole = fetchedRole === 'enterprise' ? 'agency' : fetchedRole;
+        setUserRole(normalizedRole); 
+      }
     } catch (error) { setUserRole('inspector'); } finally { setLoading(false); }
   }, [user?.id]);
 
@@ -42,15 +47,12 @@ export default function TabLayout() {
       <Tabs.Screen name="jobs" options={{ title: 'Jobs', tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="resources" options={{ title: 'Docs', tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
+      
+      {/* 👇 این خط رو درست کردم. فقط نوشته profile 👇 */}
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, focused }) => <TabIcon name="person" nameOutline="person-outline" color={color} focused={focused} /> }} />
       
       {/* Hidden Routes */}
       <Tabs.Screen name="dashboard" options={{ href: null }} />
-      <Tabs.Screen name="map-screen" options={{ href: null }} />
-      <Tabs.Screen name="wallet" options={{ href: null }} />
-      <Tabs.Screen name="earnings" options={{ href: null }} />
-      <Tabs.Screen name="my-jobs" options={{ href: null }} />
-      <Tabs.Screen name="inspections" options={{ href: null }} />
       <Tabs.Screen name="inspector-dashboard" options={{ href: null }} />
       <Tabs.Screen name="job-details-example" options={{ href: null }} />
     </Tabs>

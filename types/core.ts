@@ -116,7 +116,7 @@ export interface Profile {
   location_country?: string;
   is_verified?: boolean;
   is_available?: boolean;
-  hourly_rate?: number | null;
+  hourly_rate_cents?: number | null;      // ★ Task 4
   years_experience?: number;
   
   // فیلدهای محاسباتی از دیتابیس
@@ -173,8 +173,9 @@ export interface Job {
   
   scheduled_date?: string;
   
-  // Managed Payout System - New field for flexible commissions
-  contractor_payout_amount?: number; // Professionally managed disbursement amount
+  // Managed Payout System — ★ Task 4: integer cents (bigint)
+  contractor_payout_amount_cents?: number;
+  payout_amount_cents?: number;
   
   // Additional optional fields (for backward compatibility)
   updated_at?: string;
@@ -199,7 +200,7 @@ export interface JobApplication {
   job_id: string;
   inspector_id: string;
   status: 'pending' | 'accepted' | 'rejected';
-  proposed_price: number;
+  proposed_price_cents: number;        // ★ Task 4b
   cover_letter?: string;
   created_at: string;
   
@@ -476,7 +477,7 @@ export interface JobFormData {
  */
 export interface ApplicationFormData {
   cover_letter: string | null;
-  proposed_price: number;
+  proposed_price_cents: number;        // ★ Task 4b
   availability_start: string | null;
 }
 

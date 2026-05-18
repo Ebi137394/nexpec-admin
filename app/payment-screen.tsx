@@ -10,17 +10,28 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+// ★ STRIPE-003/004: call the Edge Function through supabase.functions.invoke
+//   so the user's session JWT is automatically forwarded as the
+//   Authorization Bearer. Raw fetch lost the auth header.
+import { supabase } from '@/lib/supabase';
 
 type Params = {
+  // ★ Canonical NEXPEC name. New callers should use jobId.
+  jobId?: string;
+  // Legacy alias — `client/approve.tsx` still pushes projectId=${job.id}.
+  // Both resolve to the same job uuid.
   projectId?: string;
-  amount?: string; // will parse to number
+  // Display-only. NOT forwarded to the server — the Edge Function reads
+  // the canonical amount from jobs.client_price_cents.
+  amount?: string;
 };
 
 export default function PaymentScreen() {
-  const { projectId, amount } = useLocalSearchParams<Params>();
-  const numericAmount = amount ? Number(amount) : 0;
+  const { jobId, projectId, amount } = useLocalSearchParams<Params>();
+  // Canonical id resolution: prefer the new param, fall back to legacy.
+  const jobIdString = (jobId ?? projectId) ?? null;
+  // amountCents is display-only now — the server is the source of truth.
+  const amountCents = amount ? Number(amount) : 0;
   const [loading, setLoading] = useState(false);
   const [paymentReady, setPaymentReady] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -29,46 +40,45 @@ export default function PaymentScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!projectId || !numericAmount || Number.isNaN(numericAmount)) {
-      Alert.alert('Invalid payment', 'Missing project or amount.');
+    if (!jobIdString) {
+      Alert.alert('Invalid payment', 'Missing job id.');
       return;
     }
     initializePaymentSheet();
-  }, [projectId, numericAmount]);
+  }, [jobIdString]);
 
   async function fetchPaymentParams() {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/create-payment-intent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          // amount in cents
-          body: JSON.stringify({
-            amount: Math.round(numericAmount * 100),
-            currency: 'CAD',
-            projectId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorPayload = await response.text();
-        console.error('Edge function error:', errorPayload);
-        throw new Error('Failed to create payment intent.');
+      if (!jobIdString) {
+        throw new Error('Missing job id.');
       }
 
-      const json = await response.json();
-      if (!json.clientSecret) {
+      // ★ STRIPE-003/004: send job_id only.
+      //   - Authorization Bearer is forwarded automatically by
+      //     supabase.functions.invoke (uses the current session token).
+      //   - The Edge Function looks up jobs.client_price_cents server-side
+      //     and rejects callers who aren't the job's client/agency.
+      //   - The amount route param above is display-only and is NOT sent.
+      const { data, error } = await supabase.functions.invoke(
+        'create-payment-intent',
+        { body: { job_id: jobIdString } },
+      );
+
+      if (error) {
+        console.error('create-payment-intent error:', error);
+        // Surface the Edge Function's machine-readable error code if present.
+        const fnErr = (error as any).context?.error ?? (error as any).message;
+        throw new Error(typeof fnErr === 'string' ? fnErr : 'Failed to create payment intent.');
+      }
+
+      if (!data?.clientSecret) {
         throw new Error('Missing clientSecret in response.');
       }
 
-      setClientSecret(json.clientSecret);
-      return json.clientSecret as string;
+      setClientSecret(data.clientSecret);
+      return data.clientSecret as string;
     } catch (err: any) {
       console.error('fetchPaymentParams error:', err);
       Alert.alert('Error', err.message ?? 'Failed to prepare payment.');
@@ -151,7 +161,7 @@ export default function PaymentScreen() {
             Total Amount
           </Text>
           <Text style={styles.amountText}>
-            ${numericAmount.toFixed(2)} CAD
+            {`$${(amountCents / 100).toFixed(2)} CAD`}
           </Text>
         </View>
 

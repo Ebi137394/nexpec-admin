@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,142 +7,190 @@ import {
   FlatList,
   RefreshControl,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router'; 
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { 
   FadeInDown, 
   SlideInRight,
 } from 'react-native-reanimated';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../src/contexts/AuthContext';
 
+const COLORS = {
+  background: '#020420',
+  backgroundAlt: '#0a0f2e',
+  surface: '#0F172A',
+  surfaceLight: '#1E293B',
+  surfaceElevated: '#162036',
+  border: '#1F2937',
+  borderLight: '#334155',
+  primary: '#7C3AED',
+  primaryLight: '#8B5CF6',
+  primaryDark: '#6D28D9',
+  primaryBg: 'rgba(124, 58, 237, 0.12)',
+  primaryBorder: 'rgba(124, 58, 237, 0.25)',
+  accent: '#00D4AA',
+  accentBg: 'rgba(0, 212, 170, 0.12)',
+  accentBorder: 'rgba(0, 212, 170, 0.25)',
+  blue: '#3B82F6',
+  blueBg: 'rgba(59, 130, 246, 0.12)',
+  green: '#10B981',
+  greenBg: 'rgba(16, 185, 129, 0.12)',
+  red: '#EF4444',
+  redBg: 'rgba(239, 68, 68, 0.12)',
+  amber: '#F59E0B',
+  amberBg: 'rgba(245, 158, 11, 0.12)',
+  cyan: '#06B6D4',
+  cyanBg: 'rgba(6, 182, 212, 0.12)',
+  white: '#FFFFFF',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  textDark: '#475569',
+};
+
+// 🟢 تغییر مهم: نوع data رو به any تغییر دادیم تا بتونه هم استرینگ بگیره هم آبجکت
 interface Notification {
   id: string;
-  type: 'job_alert' | 'contract' | 'payment' | 'verification' | 'system' | 'reminder';
+  type: string;
   title: string;
-  message: string;
-  timestamp: Date;
+  body: string;
+  created_at: string;
   read: boolean;
-  actionUrl?: string;
+  data?: any; 
 }
-
-const DEMO_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'job_alert',
-    title: 'New Job Alert',
-    message: 'Piping Inspector needed in Houston, TX. $85/hr - Matches your profile!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5),
-    read: false,
-    actionUrl: '/jobs/1',
-  },
-  {
-    id: '2',
-    type: 'contract',
-    title: 'Contract Signed',
-    message: 'Your contract with ExxonMobil for the Permian Basin project has been signed.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'verification',
-    title: 'Profile Verified',
-    message: 'Congratulations! Your AWS Certified Welder certification has been verified.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'payment',
-    title: 'Payment Received',
-    message: 'You received $4,250.00 for the Gulf Coast Pipeline project.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5),
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'job_alert',
-    title: 'Job Recommendation',
-    message: 'NDT Technician role in Midland, TX. 95% match with your skills.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    read: true,
-  },
-  {
-    id: '6',
-    type: 'reminder',
-    title: 'Certification Expiring',
-    message: 'Your OSHA Safety certification expires in 30 days. Renew now to stay compliant.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-    read: true,
-  },
-  {
-    id: '7',
-    type: 'system',
-    title: 'Welcome to NEXPEC!',
-    message: 'Start using the next generation of inspection tools. Complete your profile now.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
-    read: true,
-  },
-];
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>(DEMO_NOTIFICATIONS);
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const fetchNotifications = async () => {
+    if (!user?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error) setNotifications(data || []);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [user?.id])
+  );
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
-  }, []);
+    fetchNotifications();
+  }, [user?.id]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', id);
+
+      if (!error) {
+        setNotifications(prev =>
+          prev.map(n => (n.id === id ? { ...n, read: true } : n))
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      if (!user?.id) return;
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', user.id);
+
+      if (!error) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  // 🟢 رفع باگ اساسی: پارس کردن امن دیتای Supabase و هدایت به پوشه‌های درست
+  const handleNotificationPress = (item: Notification) => {
+    markAsRead(item.id);
+
+    let parsedData = item.data;
+    
+    // اگر سوپابیس دیتا رو به صورت متن (String) فرستاده بود، تبدیلش کن به آبجکت
+    if (typeof parsedData === 'string') {
+      try {
+        parsedData = JSON.parse(parsedData);
+      } catch (e) {
+        parsedData = {};
+      }
+    }
+
+    if (!parsedData) return;
+
+    if (parsedData.job_id) {
+      router.push(`/job-details/${parsedData.job_id}`);
+    } 
+    else if (parsedData.contract_id) {
+      router.push(`/contracts/${parsedData.contract_id}`);
+    } 
+    else if (parsedData.report_id) {
+      // ★ NX-DEEPLINK-002 — on-disk folder is `app/report/[id].tsx`, not
+      //   `report-detail/`. Pre-fix path 404'd on every report push tap.
+      router.push(`/report/${parsedData.report_id}` as any);
+    }
   };
 
   const getIcon = (type: Notification['type']) => {
     switch (type) {
-      case 'job_alert':
-        return <Ionicons name="briefcase" size={22} color="#00D4AA" />;
-      case 'contract':
-        return <Ionicons name="document-text" size={22} color="#3B82F6" />;
-      case 'payment':
-        return <Ionicons name="cash" size={22} color="#10B981" />;
-      case 'verification':
-        return <Ionicons name="person-circle" size={22} color="#8B5CF6" />;
-      case 'reminder':
-        return <Ionicons name="warning" size={22} color="#F59E0B" />;
-      case 'system':
-        return <Ionicons name="notifications" size={22} color="#6366F1" />;
-      default:
-        return <Ionicons name="notifications" size={22} color="#6B7280" />;
+      case 'job_alert': return <Ionicons name="briefcase" size={22} color={COLORS.accent} />;
+      case 'contract': return <Ionicons name="document-text" size={22} color={COLORS.blue} />;
+      case 'payment': return <Ionicons name="cash" size={22} color={COLORS.green} />;
+      case 'verification': return <Ionicons name="person-circle" size={22} color={COLORS.primary} />;
+      case 'reminder': return <Ionicons name="warning" size={22} color={COLORS.amber} />;
+      case 'system': return <Ionicons name="notifications" size={22} color={COLORS.cyan} />;
+      default: return <Ionicons name="notifications" size={22} color={COLORS.textMuted} />;
     }
   };
 
   const getIconBackground = (type: Notification['type']) => {
     switch (type) {
-      case 'job_alert': return 'rgba(0, 212, 170, 0.15)';
-      case 'contract': return 'rgba(59, 130, 246, 0.15)';
-      case 'payment': return 'rgba(16, 185, 129, 0.15)';
-      case 'verification': return 'rgba(139, 92, 246, 0.15)';
-      case 'reminder': return 'rgba(245, 158, 11, 0.15)';
-      case 'system': return 'rgba(99, 102, 241, 0.15)';
+      case 'job_alert': return COLORS.accentBg;
+      case 'contract': return COLORS.blueBg;
+      case 'payment': return COLORS.greenBg;
+      case 'verification': return COLORS.primaryBg;
+      case 'reminder': return COLORS.amberBg;
+      case 'system': return COLORS.cyanBg;
       default: return 'rgba(107, 114, 128, 0.15)';
     }
   };
 
-  const formatTimestamp = (date: Date): string => {
+  const formatTimestamp = (dateString: string): string => {
+    if (!dateString) return 'Recently';
+    const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -154,7 +202,6 @@ export default function NotificationsScreen() {
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
-    
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -162,12 +209,7 @@ export default function NotificationsScreen() {
     <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
       <TouchableOpacity
         style={[styles.notificationItem, !item.read && styles.unreadItem]}
-        onPress={() => {
-          markAsRead(item.id);
-          if (item.actionUrl) {
-            router.push(item.actionUrl as any);
-          }
-        }}
+        onPress={() => handleNotificationPress(item)}
         activeOpacity={0.7}
       >
         <View style={[styles.iconContainer, { backgroundColor: getIconBackground(item.type) }]}>
@@ -175,12 +217,12 @@ export default function NotificationsScreen() {
         </View>
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
-            <Text style={styles.notificationTitle} numberOfLines={1}>{item.title}</Text>
-            <Text style={styles.timestamp}>{formatTimestamp(item.timestamp)}</Text>
+            <Text style={[styles.notificationTitle, { color: COLORS.textPrimary }]} numberOfLines={1}>{item.title}</Text>
+            <Text style={[styles.timestamp, { color: COLORS.textSecondary }]}>{formatTimestamp(item.created_at)}</Text>
           </View>
-          <Text style={styles.notificationMessage} numberOfLines={2}>{item.message}</Text>
+          <Text style={[styles.notificationMessage, { color: COLORS.textSecondary }]} numberOfLines={2}>{item.body}</Text>
         </View>
-        {!item.read && <View style={styles.unreadDot} />}
+        {!item.read && <View style={[styles.unreadDot, { backgroundColor: COLORS.accent }]} />}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -188,10 +230,10 @@ export default function NotificationsScreen() {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>
-        <Ionicons name="notifications-off" size={48} color="#4B5563" />
+        <Ionicons name="notifications-off" size={48} color={COLORS.textMuted} />
       </View>
-      <Text style={styles.emptyTitle}>No Notifications</Text>
-      <Text style={styles.emptySubtitle}>When you receive notifications, they'll appear here.</Text>
+      <Text style={[styles.emptyTitle, { color: COLORS.textPrimary }]}>No Notifications</Text>
+      <Text style={[styles.emptySubtitle, { color: COLORS.textSecondary }]}>When you receive notifications, they'll appear here.</Text>
     </View>
   );
 
@@ -203,7 +245,6 @@ export default function NotificationsScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Notifications</Text>
           {unreadCount > 0 && (
@@ -212,10 +253,9 @@ export default function NotificationsScreen() {
             </View>
           )}
         </View>
-        
         <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => router.push('/notification-settings')}
+          style={styles.settingsButton} 
+          onPress={() => router.push('/notification-settings' as any)} // 🟢 برای جلوگیری از ارور تایپ‌اسکریپت
         >
           <Ionicons name="settings" size={22} color="#FFFFFF" />
         </TouchableOpacity>
@@ -230,18 +270,20 @@ export default function NotificationsScreen() {
         </Animated.View>
       )}
 
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
-        renderItem={renderNotification}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00D4AA" colors={['#00D4AA']} />
-        }
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
+      {loading ? (
+        <View style={styles.emptyState}><ActivityIndicator color={COLORS.accent} size="large" /></View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          renderItem={renderNotification}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00D4AA" />}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logo-mark.svg — square monogram, favicon-ready
+  ─────────────────────────────────────────────────────────────────────────
+  Intrinsic size: 256×256 (1:1). Pure vector — no text, no font dependency.
+  Designed to read at 16×16 (browser favicon) all the way up to splash.
+  Use this for favicons, OG meta, app icons, and anywhere a square mark is
+  required.
+  ─────────────────────────────────────────────────────────────────────────
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="256" height="256"
+     viewBox="0 0 256 256"
+     fill="none"
+     role="img"
+     aria-labelledby="nx-mark-title">
+  <title id="nx-mark-title">NEXPEC</title>
+
+  <defs>
+    <linearGradient id="nx-mark-only-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#00CFD5"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#nx-mark-only-grad)"/>
+  <path d="M72 184 V72 L184 184 V72"
+        stroke="#FFFFFF"
+        stroke-width="20"
+        stroke-linecap="square"
+        stroke-linejoin="miter"
+        fill="none"/>
+</svg>

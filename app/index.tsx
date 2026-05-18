@@ -1,45 +1,74 @@
 // app/index.tsx
-import { ActivityIndicator, View, Text } from 'react-native';
-import { Redirect } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export default function Index() {
   const { session, role, loading } = useAuth();
+  const router = useRouter();
+  const navigationState = useRootNavigationState();
 
-  // 1. Wait for auth to load
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0B1426' }}>
-        <ActivityIndicator size="large" color="#10B981" />
-      </View>
-    );
-  }
+  // This acts as our "lock" so the redirect only happens ONCE
+  const hasRedirected = useRef(false);
 
-  // 2. Not logged in? Send to login
-  if (!session) {
-    return <Redirect href="/(auth)/login" />;
-  }
+  // Reset the lock if they log out
+  useEffect(() => {
+    if (!session) {
+      hasRedirected.current = false;
+    }
+  }, [session]);
 
-  // 3. Logged in? Route by role using declarative redirects
-  // Debug: Log the role to console for troubleshooting
-  console.log('Current user role:', role);
-  
-  // Handle admin role (for senior workspace)
-  if (role === 'admin') {
-    return <Redirect href="/(senior)/inbox" />;
-  }
-  
-  // Handle client role (for client dashboard)
-  if (role === 'client') {
-    return <Redirect href="/(tabs)/client-dashboard" />;
-  }
-  
-  // Handle inspector role (for inspector dashboard)
-  if (role === 'inspector') {
-    return <Redirect href="/(tabs)" />;
-  }
+  useEffect(() => {
+    // 1. Wait for Expo Router to be fully ready
+    if (!navigationState?.key) return;
 
-  // Fallback for unknown roles - route to inspector dashboard
-  console.warn('Unknown role detected:', role, 'Routing to inspector dashboard');
-  return <Redirect href="/(tabs)" />;
+    // 2. Wait for auth to load
+    if (loading) return;
+
+    // 3. If we already redirected them, DO NOTHING. (This stops the loop!)
+    if (hasRedirected.current) return;
+
+    // Lock the door!
+    hasRedirected.current = true;
+
+    // Not logged in? Send to login
+    if (!session) {
+      router.replace('/(auth)/sign-in');
+      return;
+    }
+
+    // Logged in? Route by exactly your role logic
+    console.log('Current user role:', role);
+    
+    if (role === 'admin' || role === 'super_admin') {
+      router.replace('/(admin)/dashboard');
+    } else if (role === 'client') {
+      router.replace('/(tabs)/client-dashboard');
+    } else if (role === 'inspector') {
+      router.replace('/(tabs)');
+    } else if (role === 'agency') {
+      router.replace('/(tabs)/agency-dashboard');
+    } else {
+      console.warn('Unknown role detected:', role, 'Routing to inspector dashboard');
+      router.replace('/(tabs)');
+    }
+
+  }, [loading, session, role, navigationState?.key]);
+
+  // While it calculates, show your exact loading screen
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#10B981" />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#0B1426' 
+  }
+});

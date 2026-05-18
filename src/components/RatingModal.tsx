@@ -34,10 +34,12 @@ export const RatingModal: React.FC<RatingModalProps> = ({ project, onComplete })
     setIsLoading(true);
 
     try {
+      // ★ Schema-fix: project_id/reviewer_id/reviewee_id are phantom —
+      //   real columns are job_id/client_id/inspector_id.
       const { error } = await supabase.from('reviews').insert({
-        project_id: project.id,
-        reviewer_id: project.client_id,
-        reviewee_id: project.inspector_id,
+        job_id: project.id,
+        client_id: project.client_id,
+        inspector_id: project.inspector_id,
         rating,
         comment: comment.trim(),
         created_at: new Date().toISOString()

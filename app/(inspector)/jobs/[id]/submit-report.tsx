@@ -13,6 +13,12 @@ import * as Sharing from 'expo-sharing'; // ✅ Required for opening downloaded 
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+// ★ Phase 3 / Task 2 — offline-first outbox.
+//   The report row + evidence photo go through enqueue* helpers so
+//   the submission survives network drops mid-flight. Document upload
+//   stays synchronous (different bucket / signature flow / freshly-
+//   picked file means the inspector is actively engaged anyway).
+import { enqueueReportSave, enqueuePhotoUpload } from '@/lib/offline';
 
 // Match your app's theme colors
 const COLORS = {
@@ -155,27 +161,19 @@ export default function SubmitReportScreen() {
     setLoading(true);
 
     try {
-      let photoUrl = null;
-      let docUrl = null;
+      let docUrl: string | null = null;
 
-      // 1. Upload Photo (if exists)
-      if (image) {
-        const fileName = `photos/${user.id}/${Date.now()}.jpg`;
-        const response = await fetch(image);
-        const blob = await response.blob();
-        await supabase.storage.from('inspection-photos').upload(fileName, blob);
-        const { data } = supabase.storage.from('inspection-photos').getPublicUrl(fileName);
-        photoUrl = data.publicUrl;
-      }
-
-      // 2. Upload Document (if exists)
+      // 1. Upload Document (if exists) — kept synchronous because
+      //    job-documents is a different bucket than inspection-photos
+      //    and the document URL must be known at report-row insert
+      //    time. The doc picker flow already implies the user is
+      //    actively engaged.
       if (document) {
         const fileExt = document.name.split('.').pop();
         const docName = `reports/${user.id}/${Date.now()}.${fileExt}`;
         const response = await fetch(document.uri);
         const blob = await response.blob();
 
-        // Upload to the NEW bucket created in Step 1
         const { error: uploadError } = await supabase.storage
           .from('job-documents')
           .upload(docName, blob);
@@ -186,21 +184,40 @@ export default function SubmitReportScreen() {
         docUrl = data.publicUrl;
       }
 
-      // 3. Save Report to Database (UPDATED: includes signature)
-      const { error } = await supabase.from('inspection_reports').insert({
-        job_id: jobId,
+      // 2. Enqueue the report row insert. Returns immediately even
+      //    when offline; the sync engine drains when connectivity
+      //    returns. client_op_id makes this idempotent server-side.
+      const reportOpId = await enqueueReportSave({
+        job_id: jobId!,
         inspector_id: user.id,
         notes: notes.trim(),
-        photo_url: photoUrl,
-        final_report_doc: docUrl,
-        signature: signature, // ✅ Base64 signature included
+        final_report_doc: docUrl ?? undefined,
+        signature: signature, // base64 PNG data URI
       });
 
-      if (error) throw error;
+      // 3. If a photo was attached, enqueue its upload — linked to
+      //    the report op so the handler can patch the resulting URL
+      //    onto the report row when the upload completes.
+      if (image) {
+        await enqueuePhotoUpload({
+          bucket: 'inspection-photos',
+          job_id: jobId!,
+          local_file_path: image,
+          mime_type: 'image/jpeg',
+          link_to_report_id: reportOpId,
+        });
+      }
 
-      // 4. Update Job Status
-      await supabase.from('jobs').update({ status: 'under_review' }).eq('id', jobId);
-
+      // 4. NX-JOB-001 closure — the previous line here tried to set
+      //    jobs.status to 'under_review'. That value is NOT in the
+      //    jobs_status_check enum (open|assigned|in_progress|completed|
+      //    cancelled|disputed) AND inspectors have no UPDATE permission
+      //    on jobs.status under the post-NX-AUTH-003 RLS — the call was
+      //    silently RLS-denied and the inspector saw a misleading
+      //    "Success" Alert anyway. Per the Mandate's state machine,
+      //    submitting a report does not change jobs.status; the report
+      //    row's existence is the "client review pending" signal and
+      //    payment success drives final completion.
       Alert.alert('Success', 'Report submitted successfully!', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/my-jobs') }
       ]);

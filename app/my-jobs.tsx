@@ -20,7 +20,7 @@ interface Job {
   title: string;
   location: string;
   status: string;
-  payout_amount: number;
+  payout_amount_cents: number;        // ★ Task 4
   created_at: string;
 }
 
@@ -44,7 +44,7 @@ export default function MyJobsScreen() {
 
       const { data, error } = await supabase
         .from('jobs')
-        .select('id, title, location, status, payout_amount, created_at')
+        .select('id, title, location, status, payout_amount_cents, created_at')
         .eq('inspector_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -64,12 +64,13 @@ export default function MyJobsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // ★ Task 4: dummy seed data uses *_cents columns. 1000 dollars = 100000 cents.
       const { error } = await supabase.from('jobs').insert([{
           title: 'API-653 Storage Tank Inspection',
           location: 'Montreal Refinery, QC',
           status: 'open',
-          client_price: 1000,
-          payout_amount: 300,
+          client_price_cents: 100000,
+          payout_amount_cents: 30000,
           inspector_id: user.id,
       }]);
 
@@ -88,11 +89,12 @@ export default function MyJobsScreen() {
   };
 
   const renderJobCard = ({ item }: { item: Job }) => {
+    // ★ Task 4: payout_amount_cents is integer cents — divide by 100.
     const formattedPrice = new Intl.NumberFormat('en-CA', {
       style: 'currency',
       currency: 'CAD',
       minimumFractionDigits: 0,
-    }).format(item.payout_amount);
+    }).format((item.payout_amount_cents ?? 0) / 100);
 
     // 🔴 بررسی اینکه آیا کار تمام شده است یا نه
     const isCompleted = item.status === 'completed';
@@ -149,7 +151,7 @@ export default function MyJobsScreen() {
             <TouchableOpacity 
               style={[styles.fillButton, { flex: 1, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#3B82F6' }]}
               onPress={() => {
-                router.push({ pathname: '/chat', params: { jobId: item.id, projectTitle: item.title } });
+                router.push(`/chat/${item.id}`);
               }}
             >
               <Ionicons name="chatbubbles-outline" size={18} color="#3B82F6" />

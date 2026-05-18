@@ -35,9 +35,39 @@ export default function JobDetailsScreen() {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [approvalData, setApprovalData] = useState<any>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   useEffect(() => {
     if (jobId) fetchJob();
+  }, [jobId]);
+
+  useEffect(() => {
+    const checkApproval = async () => {
+      if (!jobId) {
+          setDebugError("No ID found in params");
+          return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('inspection_reports')
+          .select('is_client_approved')
+          .eq('job_id', jobId)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          setApprovalData(data);
+        } else {
+          setDebugError("No report found in DB for this Job ID");
+        }
+      } catch (err: any) {
+        console.error("Fetch error:", err);
+        setDebugError(err.message);
+      }
+    };
+    checkApproval();
   }, [jobId]);
 
   const fetchJob = async () => {
@@ -50,6 +80,7 @@ export default function JobDetailsScreen() {
 
       if (error) throw error;
       setJob(data);
+
     } catch (error) {
       console.log('Error fetching job:', error);
     } finally {
@@ -62,21 +93,8 @@ export default function JobDetailsScreen() {
     setProcessing(true);
 
     try {
-      // Assign the job to the current user (Inspector)
-      const { error } = await supabase
-        .from('jobs')
-        .update({
-          contractor_id: user.id,
-          status: 'assigned',
-        })
-        .eq('id', jobId);
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'You have accepted this job!', [
-        { text: 'Go to My Jobs', onPress: () => router.replace('/(tabs)/my-jobs') }
-      ]);
-
+      // Navigate to the apply form instead of direct DB update
+      router.push(`/(inspector)/jobs/${jobId}/apply`);
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
@@ -177,15 +195,31 @@ export default function JobDetailsScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Status Message if already assigned */}
-        {job?.status !== 'open' && (
-          <View style={styles.statusBox}>
-            <Ionicons name="information-circle-outline" size={24} color={COLORS.textSecondary} />
-            <Text style={styles.statusText}>
-              This job is currently {job?.status.replace('_', ' ')}.
-            </Text>
-          </View>
-        )}
+         {/* Status Message if already assigned */}
+         {job?.status !== 'open' && (
+           <View style={styles.statusBox}>
+             <Ionicons name="information-circle-outline" size={24} color={COLORS.textSecondary} />
+             <Text style={styles.statusText}>
+               This job is currently {job?.status.replace('_', ' ')}.
+             </Text>
+           </View>
+         )}
+
+         {/* X-RAY DEBUGGER */}
+         {debugError && (
+           <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+             <Text style={{ color: 'white', fontWeight: 'bold' }}>⚠️ DEBUG ERROR:</Text>
+             <Text style={{ color: 'white' }}>{debugError}</Text>
+           </View>
+         )}
+
+         {/* INSPECTOR VIEW: CLIENT APPROVAL BANNER */}
+         {approvalData?.is_client_approved && (
+           <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 12, marginTop: 16, marginBottom: 24, borderLeftWidth: 4, borderLeftColor: '#10B981' }}>
+             <Text style={{ color: '#10B981', fontWeight: 'bold', fontSize: 16 }}>✅ Final Approval Received</Text>
+             <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 4 }}>The client has reviewed and officially closed this job. Payout will be processed shortly.</Text>
+           </View>
+         )}
 
       </ScrollView>
     </SafeAreaView>

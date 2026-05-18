@@ -276,8 +276,20 @@ export default function DashboardScreen() {
   const handleMyContracts = () => router.push('/(tabs)/my-jobs' as any); // ✅ Updated to correct route
   const handleMessages = () => router.push('/messages' as any); // ✅ Updated to messages route
   const handleNotifications = () => router.push('/notifications' as any);
-  const handleViewAllApplications = () => router.push('/applications' as any);
-  const handleApplicationPress = (id: string) => router.push(`/applications/${id}` as any);
+  // ★ NX-DEEPLINK-003 — `/applications` and `/applications/<id>` have no
+  //   on-disk backing in `app/`. Inspector-side "View applications"
+  //   conceptually maps to "the jobs I'm working on / applied to" which is
+  //   the existing my-jobs screen. Individual rows route to the underlying
+  //   job detail (the canonical inspector destination) instead of a
+  //   nonexistent application detail page.
+  const handleViewAllApplications = () => router.push('/(tabs)/my-jobs' as any);
+  const handleApplicationPress = (jobId: string | null | undefined) => {
+    if (!jobId) {
+      router.push('/(tabs)/my-jobs' as any);
+      return;
+    }
+    router.push(`/jobs/${jobId}` as any);
+  };
 
   // ============================================
   // Loading State
@@ -506,7 +518,7 @@ export default function DashboardScreen() {
                     styles.activityItem,
                     index === recentApplications.length - 1 && styles.activityItemLast
                   ]}
-                  onPress={() => handleApplicationPress(application.id)}
+                  onPress={() => handleApplicationPress(application.job?.id)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.activityLeft}>

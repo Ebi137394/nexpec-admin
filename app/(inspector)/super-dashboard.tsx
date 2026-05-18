@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, Platform, StatusBar }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../src/lib/supabase';
+// ★ Consolidation: canonical supabase client @/lib/supabase.
+import { supabase } from '@/lib/supabase';
 
 // --- Secure Chat Components ---
 import ChatFAB from '../../components/chat/ChatFAB';

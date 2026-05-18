@@ -52,7 +52,7 @@ interface Inspector {
   bio: string | null;
   is_verified: boolean;
   is_available: boolean;
-  hourly_rate: number | null;
+  hourly_rate_cents: number | null;   // ★ Task 4
   years_experience: number;
   skills: string[];
   ndt_methods: string[];
@@ -459,7 +459,7 @@ const InspectorCard: React.FC<InspectorCardProps> = ({ inspector, onPress }) => 
           {/* Rate */}
           <View style={styles.rateContainer}>
             <Text style={styles.rateValue}>
-              {inspector.hourly_rate ? `$${inspector.hourly_rate}` : '-'}
+              {inspector.hourly_rate_cents ? `$${(inspector.hourly_rate_cents / 100).toFixed(0)}` : '-'}
             </Text>
             <Text style={styles.rateLabel}>/hr</Text>
           </View>
@@ -859,7 +859,7 @@ export default function ExploreScreen() {
             bio,
             is_verified,
             is_available,
-            hourly_rate,
+            hourly_rate_cents,
             years_experience,
             skills,
             ndt_methods,
@@ -921,11 +921,11 @@ export default function ExploreScreen() {
             ascending = false;
             break;
           case 'price_low':
-            orderBy = 'hourly_rate';
+            orderBy = 'hourly_rate_cents';
             ascending = true;
             break;
           case 'price_high':
-            orderBy = 'hourly_rate';
+            orderBy = 'hourly_rate_cents';
             ascending = false;
             break;
         }
@@ -947,7 +947,7 @@ export default function ExploreScreen() {
           bio: profile.bio,
           is_verified: profile.is_verified || false,
           is_available: profile.is_available || false,
-          hourly_rate: profile.hourly_rate,
+          hourly_rate_cents: profile.hourly_rate_cents,
           years_experience: profile.years_experience || 0,
           skills: profile.skills || [],
           ndt_methods: profile.ndt_methods || [],

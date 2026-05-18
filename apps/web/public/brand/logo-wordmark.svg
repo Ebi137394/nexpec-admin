@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logo-wordmark.svg — NEXPEC primary mark + wordmark
+  ─────────────────────────────────────────────────────────────────────────
+  Intrinsic size: 480×96 (5:1). Vector — no rasters embedded.
+  Mark: rounded-square monogram with a violet→cyan diagonal gradient and
+        a white chamfered "N" stroke. Matches the inline SVG mark used by
+        the React <Logo /> component byte-for-byte.
+  Wordmark: "NEXPEC" set in semibold sans with -0.025em tracking.
+        font-family falls through ui-sans-serif → system-ui → -apple-system
+        → "Helvetica Neue" → Arial. The Next.js host pages load Geist Sans,
+        which the SVG inherits when injected inline; when loaded as <img>
+        the browser falls back to the platform default sans (San Francisco
+        on macOS, Segoe on Windows). For pixel-identical rendering across
+        every host context, path-trace the wordmark in Figma and replace
+        the <text> element with the resulting <path>.
+  ─────────────────────────────────────────────────────────────────────────
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="480" height="96"
+     viewBox="0 0 480 96"
+     fill="none"
+     role="img"
+     aria-labelledby="nx-title">
+  <title id="nx-title">NEXPEC</title>
+
+  <defs>
+    <linearGradient id="nx-mark-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#00CFD5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Mark ─────────────────────────────────────────────────────── -->
+  <g transform="translate(0, 16)">
+    <rect width="64" height="64" rx="16" fill="url(#nx-mark-grad)"/>
+    <path d="M18 46 V18 L46 46 V18"
+          stroke="#FFFFFF"
+          stroke-width="4.8"
+          stroke-linecap="square"
+          stroke-linejoin="miter"
+          fill="none"/>
+  </g>
+
+  <!-- ── Wordmark ──────────────────────────────────────────────────── -->
+  <text x="84"
+        y="64"
+        fill="#FFFFFF"
+        font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, &quot;Helvetica Neue&quot;, Arial, sans-serif"
+        font-weight="600"
+        font-size="44"
+        letter-spacing="-1.1"
+        dominant-baseline="alphabetic">NEXPEC</text>
+</svg>

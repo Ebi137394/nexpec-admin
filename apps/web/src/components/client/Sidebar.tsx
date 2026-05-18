@@ -23,6 +23,8 @@ import {
   MessageCircle,
   FolderOpen,
   AlertTriangle,
+  Scale,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -65,8 +67,15 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: 'Legal',
+    items: [
+      { label: 'Contracts', href: '/client/contracts', icon: Scale },
+    ],
+  },
+  {
     title: 'System',
     items: [
+      { label: 'Team', href: '/client/team', icon: Users },
       { label: 'Branding', href: '/client/branding-settings', icon: Palette },
       { label: 'Settings', href: '/client/settings', icon: Settings },
     ],

@@ -34,23 +34,37 @@ export async function fetchMyConversations(
     } = await supabase.auth.getUser();
     if (!user) return [];
 
-    let q = supabase
-      .from('conversations')
-      .select(
-        // Joined job title for job_* rooms; user_id is the caller so we
-        // don't need a profile join here.
+    const buildBase = (projection: string) => {
+      let q = supabase
+        .from('conversations')
+        .select(projection)
+        .eq('user_id', user.id)
+        .order('last_message_at', { ascending: false })
+        .limit(opts.limit ?? 50);
+      if (opts.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind);
+      return q;
+    };
+
+    // Wide projection w/ jobs join
+    {
+      const { data, error } = await buildBase(
         'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title)',
-      )
-      .eq('user_id', user.id)
-      .order('last_message_at', { ascending: false })
-      .limit(opts.limit ?? 50);
+      );
+      if (!error && data) {
+        return (data as unknown as Array<Record<string, unknown>>).map(toRow);
+      }
+      if (error && typeof console !== 'undefined') {
+        console.warn('[fetchMyConversations wide] failed:', error.message);
+      }
+    }
 
-    if (opts.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind);
-
-    const { data, error } = await q;
+    // Narrow — no joins
+    const { data, error } = await buildBase(
+      'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at',
+    );
     if (error || !data) {
       if (error && typeof console !== 'undefined') {
-        console.warn('[fetchMyConversations] failed:', error.message);
+        console.warn('[fetchMyConversations narrow] failed:', error.message);
       }
       return [];
     }
@@ -79,21 +93,50 @@ export async function fetchAdminConversations(
     } = await supabase.auth.getUser();
     if (!user) return [];
 
-    let q = supabase
-      .from('conversations')
-      .select(
+    const buildBase = (projection: string) => {
+      let q = supabase
+        .from('conversations')
+        .select(projection)
+        .order('last_message_at', { ascending: false })
+        .limit(opts.limit ?? 100);
+      if (opts.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind);
+      if (opts.status && opts.status !== 'all') q = q.eq('status', opts.status);
+      return q;
+    };
+
+    // Wide projection w/ joins
+    {
+      const { data, error } = await buildBase(
         'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email)',
-      )
-      .order('last_message_at', { ascending: false })
-      .limit(opts.limit ?? 100);
+      );
+      if (!error && data) {
+        return (data as unknown as Array<Record<string, unknown>>).map(toRow);
+      }
+      if (error && typeof console !== 'undefined') {
+        console.warn('[fetchAdminConversations wide] failed:', error.message);
+      }
+    }
 
-    if (opts.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind);
-    if (opts.status && opts.status !== 'all') q = q.eq('status', opts.status);
+    // Mid projection — drop profiles
+    {
+      const { data, error } = await buildBase(
+        'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title)',
+      );
+      if (!error && data) {
+        return (data as unknown as Array<Record<string, unknown>>).map(toRow);
+      }
+      if (error && typeof console !== 'undefined') {
+        console.warn('[fetchAdminConversations mid] failed:', error.message);
+      }
+    }
 
-    const { data, error } = await q;
+    // Narrow — no joins
+    const { data, error } = await buildBase(
+      'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at',
+    );
     if (error || !data) {
       if (error && typeof console !== 'undefined') {
-        console.warn('[fetchAdminConversations] failed:', error.message);
+        console.warn('[fetchAdminConversations narrow] failed:', error.message);
       }
       return [];
     }
@@ -109,22 +152,63 @@ export async function fetchAdminConversations(
 export async function fetchConversationDetail(
   id: string,
 ): Promise<ConversationRow | null> {
+  // Two-phase fetch:
+  //   1. Wide projection with jobs + profiles joins (admin queue needs this)
+  //   2. Narrow fallback without profiles join (in case the FK constraint
+  //      name doesn't match exactly — e.g. dashboard-applied schemas may
+  //      have a differently-named constraint, which causes PostgREST to
+  //      return a 400 and we'd otherwise redirect-loop back to the inbox.)
+  //   3. Bare-minimum fallback if even the jobs join fails
   try {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from('conversations')
-      .select(
-        'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email)',
-      )
-      .eq('id', id)
-      .maybeSingle();
-    if (error || !data) {
+
+    // Phase 1 — wide projection
+    {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(
+          'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email)',
+        )
+        .eq('id', id)
+        .maybeSingle();
+      if (!error && data) return toRow(data as unknown as Record<string, unknown>);
       if (error && typeof console !== 'undefined') {
-        console.warn('[fetchConversationDetail] failed:', error.message);
+        console.warn('[fetchConversationDetail wide] failed:', error.message);
       }
-      return null;
     }
-    return toRow(data as unknown as Record<string, unknown>);
+
+    // Phase 2 — drop the profiles join (named FK might not exist)
+    {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(
+          'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title)',
+        )
+        .eq('id', id)
+        .maybeSingle();
+      if (!error && data) return toRow(data as unknown as Record<string, unknown>);
+      if (error && typeof console !== 'undefined') {
+        console.warn('[fetchConversationDetail mid] failed:', error.message);
+      }
+    }
+
+    // Phase 3 — bare minimum, no joins at all
+    {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(
+          'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at',
+        )
+        .eq('id', id)
+        .maybeSingle();
+      if (error || !data) {
+        if (error && typeof console !== 'undefined') {
+          console.warn('[fetchConversationDetail narrow] failed:', error.message);
+        }
+        return null;
+      }
+      return toRow(data as unknown as Record<string, unknown>);
+    }
   } catch (e) {
     if (typeof console !== 'undefined') {
       console.warn('[fetchConversationDetail] threw:', e);
@@ -159,18 +243,29 @@ export async function fetchConversationMessages(
     const rows = data as unknown as Array<Record<string, unknown>>;
 
     // Sign each attachment path (stored as bucket key) to a short-lived URL.
+    // Legacy rows may already have a full URL stored in attachment_url (from
+    // the old single-bucket design). Detect and pass through unchanged in
+    // that case — only treat as a bucket path if it looks like one.
     const out: MessageRow[] = [];
     for (const r of rows) {
       const attachmentPath = (r.attachment_url as string | null) ?? null;
       let signedUrl: string | null = null;
       if (attachmentPath) {
-        try {
-          const { data: signed } = await supabase.storage
-            .from('chat_attachments')
-            .createSignedUrl(attachmentPath, 60 * 60); // 1h
-          signedUrl = signed?.signedUrl ?? null;
-        } catch {
-          signedUrl = null;
+        if (/^https?:\/\//i.test(attachmentPath)) {
+          // Legacy: full URL stored directly — use as-is
+          signedUrl = attachmentPath;
+        } else {
+          try {
+            const { data: signed, error: signErr } = await supabase.storage
+              .from('chat_attachments')
+              .createSignedUrl(attachmentPath, 60 * 60); // 1h
+            if (signErr && typeof console !== 'undefined') {
+              console.warn('[fetchConversationMessages] signedUrl failed:', signErr.message);
+            }
+            signedUrl = signed?.signedUrl ?? null;
+          } catch {
+            signedUrl = null;
+          }
         }
       }
       out.push({

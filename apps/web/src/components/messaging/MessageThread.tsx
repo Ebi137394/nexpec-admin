@@ -31,54 +31,78 @@ export function MessageThread({
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   // Recompute supabase client once. Env values come from NEXT_PUBLIC_*.
-  const supabase = useMemo(
-    () =>
-      createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      ),
-    [],
-  );
+  // If env vars are missing we silently degrade to "no realtime, but the
+  // thread still renders the server-fetched initial messages". This is
+  // critical — historically a missing env var would throw at module init
+  // and crash the entire page, making rooms look "broken" on click.
+  const supabase = useMemo(() => {
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !anon) return null;
+      return createBrowserClient(url, anon);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.warn('[MessageThread] createBrowserClient failed:', e);
+      }
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`messages:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const r = payload.new as Record<string, unknown>;
-          // Skip messages this client just inserted — those will already be
-          // in state via the server-action redirect / revalidate. We dedupe
-          // on id to be safe.
-          setMessages((prev) => {
-            const id = String(r.id);
-            if (prev.some((m) => m.id === id)) return prev;
-            const next: MessageRow = {
-              id,
-              conversationId: String(r.conversation_id),
-              senderId: String(r.sender_id),
-              senderRole: ((r.sender_role as string | null) ?? null) as SenderRole | null,
-              content: (r.content as string | null) ?? null,
-              attachmentUrl: (r.attachment_url as string | null) ?? null,
-              attachmentType: (r.attachment_type as string | null) ?? null,
-              attachmentName: (r.attachment_name as string | null) ?? null,
-              isRead: Boolean(r.is_read),
-              createdAt: String(r.created_at ?? new Date().toISOString()),
-            };
-            return [...prev, next];
-          });
-        },
-      )
-      .subscribe();
+    if (!supabase) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`messages:${conversationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            try {
+              const r = payload.new as Record<string, unknown>;
+              setMessages((prev) => {
+                const id = String(r.id);
+                if (prev.some((m) => m.id === id)) return prev;
+                const next: MessageRow = {
+                  id,
+                  conversationId: String(r.conversation_id),
+                  senderId: String(r.sender_id),
+                  senderRole: ((r.sender_role as string | null) ?? null) as SenderRole | null,
+                  content: (r.content as string | null) ?? null,
+                  attachmentUrl: (r.attachment_url as string | null) ?? null,
+                  attachmentType: (r.attachment_type as string | null) ?? null,
+                  attachmentName: (r.attachment_name as string | null) ?? null,
+                  isRead: Boolean(r.is_read),
+                  createdAt: String(r.created_at ?? new Date().toISOString()),
+                };
+                return [...prev, next];
+              });
+            } catch (e) {
+              if (typeof console !== 'undefined') {
+                console.warn('[MessageThread] realtime handler failed:', e);
+              }
+            }
+          },
+        )
+        .subscribe();
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.warn('[MessageThread] subscribe failed:', e);
+      }
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        if (channel) supabase.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
     };
   }, [conversationId, supabase]);
 

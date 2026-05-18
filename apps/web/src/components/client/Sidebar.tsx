@@ -18,6 +18,8 @@ import {
   PlusCircle,
   FileCheck2,
   Settings,
+  Wallet,
+  Palette,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -35,6 +37,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Overview',
     items: [
       { label: 'Dashboard', href: '/client/dashboard', icon: LayoutDashboard },
+      { label: 'Finance', href: '/client/finance', icon: Wallet },
     ],
   },
   {
@@ -53,6 +56,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'System',
     items: [
+      { label: 'Branding', href: '/client/branding-settings', icon: Palette },
       { label: 'Settings', href: '/client/settings', icon: Settings },
     ],
   },

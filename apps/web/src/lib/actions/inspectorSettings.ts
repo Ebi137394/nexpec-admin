@@ -75,6 +75,33 @@ const UpdateInspectorSchema = z.object({
   ndtMethods: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
   // Certifications: comma-separated string parsed into an array (MVP).
   certifications: z.string().trim().max(4000).optional().or(z.literal('')),
+
+  // ── JURISDICTION (Sprint 8A) — parity with mobile profile/edit ────────
+  // FK to country_codes.code; profiles_country_of_residence_fk RESTRICTs
+  // on delete so an unknown code raises a clean violation.
+  countryOfResidence: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .length(2, { message: 'Country code must be ISO 3166-1 alpha-2.' })
+    .optional()
+    .or(z.literal('')),
+  // 60-item caps mirror profiles_work_authorized_countries_cap and
+  // profiles_sponsored_countries_cap CHECK constraints.
+  workAuthorizedCountries: z
+    .array(z.string().trim().toUpperCase().length(2))
+    .max(60)
+    .default([]),
+  openToSponsoredWork: z
+    .preprocess(
+      (v) => v === 'on' || v === 'true' || v === true,
+      z.boolean(),
+    )
+    .default(false),
+  sponsoredCountries: z
+    .array(z.string().trim().toUpperCase().length(2))
+    .max(60)
+    .default([]),
 });
 
 function buildRedirect(params: Record<string, string>): string {
@@ -87,6 +114,16 @@ export async function updateInspectorSettings(
 ): Promise<void> {
   const specialtySlugs = formData.getAll('specialtySlugs').map(String);
   const ndtMethods = formData.getAll('ndtMethods').map(String);
+  // CountryMultiSelect emits one hidden input per selected code with the
+  // shared field name; getAll() returns the array we expect.
+  const workAuthorizedCountries = formData
+    .getAll('workAuthorizedCountries')
+    .map(String)
+    .filter((s) => s.length > 0);
+  const sponsoredCountries = formData
+    .getAll('sponsoredCountries')
+    .map(String)
+    .filter((s) => s.length > 0);
 
   const parsed = UpdateInspectorSchema.safeParse({
     fullName: formData.get('fullName'),
@@ -105,6 +142,10 @@ export async function updateInspectorSettings(
     specialtySlugs,
     ndtMethods,
     certifications: formData.get('certifications'),
+    countryOfResidence: formData.get('countryOfResidence') ?? '',
+    workAuthorizedCountries,
+    openToSponsoredWork: formData.get('openToSponsoredWork'),
+    sponsoredCountries,
   });
 
   if (!parsed.success) {
@@ -130,6 +171,13 @@ export async function updateInspectorSettings(
   // STRICT ALLOWLIST. Never expand this object with admin-controlled columns.
   // Form fields not in parsed.data are stripped by Zod, but the explicit
   // construction here is the second line of defense.
+  // De-dupe + cap jurisdiction arrays defensively. Zod already enforces
+  // the 60-item ceiling, but Set dedup is cheap insurance.
+  const dedupedAuth = Array.from(new Set(parsed.data.workAuthorizedCountries)).slice(0, 60);
+  const dedupedSponsored = parsed.data.openToSponsoredWork
+    ? Array.from(new Set(parsed.data.sponsoredCountries)).slice(0, 60)
+    : []; // Clear sponsored list when toggle is off — matches mobile behaviour.
+
   const update: Record<string, unknown> = {
     full_name: parsed.data.fullName,
     headline: parsed.data.headline?.trim() || null,
@@ -150,6 +198,11 @@ export async function updateInspectorSettings(
     specialty_slugs: parsed.data.specialtySlugs,
     ndt_methods: parsed.data.ndtMethods,
     certifications: certsArr,
+    // ── Jurisdiction (Sprint 8A) ────────────────────────────────────────
+    country_of_residence: parsed.data.countryOfResidence?.trim() || null,
+    work_authorized_countries: dedupedAuth,
+    open_to_sponsored_work: parsed.data.openToSponsoredWork,
+    sponsored_countries: dedupedSponsored,
     updated_at: new Date().toISOString(),
   };
 

@@ -17,7 +17,12 @@ import {
 import { fetchInspectorProfile } from '@/lib/data/inspectorProfile';
 import { NDT_METHOD_CHOICES } from '@/lib/data/inspectorProfile.types';
 import { updateInspectorSettings } from '@/lib/actions/inspectorSettings';
+import { uploadAvatar } from '@/lib/actions/uploadAvatar';
 import { COMMON_SPECIALTIES } from '@/lib/data/clientJobs.types';
+import { fetchCountries } from '@/lib/data/countries';
+import { CountryMultiSelect } from '@/components/forms/CountryMultiSelect';
+import Image from 'next/image';
+import { Camera, Globe2 } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Inspector settings',
@@ -31,7 +36,10 @@ interface PageProps {
 
 export default async function InspectorSettingsPage({ searchParams }: PageProps) {
   const qp = await searchParams;
-  const profile = await fetchInspectorProfile();
+  const [profile, countries] = await Promise.all([
+    fetchInspectorProfile(),
+    fetchCountries(),
+  ]);
   if (!profile) redirect('/inspector/dashboard');
 
   const specialtySet = new Set(profile.specialtySlugs);
@@ -63,6 +71,75 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           Profile saved.
         </Banner>
       )}
+
+      {/* Avatar upload — separate <form> because file uploads + standard
+          form submits can't share the same multipart request without
+          colliding on submit-button targets. */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <header className="mb-6">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+            Avatar
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Profile picture admin sees when vetting your applications.
+            Stored in the public <span className="font-mono">avatars</span> bucket.
+          </p>
+        </header>
+        <form
+          action={uploadAvatar}
+          encType="multipart/form-data"
+          className="flex flex-col items-start gap-4 sm:flex-row sm:items-center"
+        >
+          <input type="hidden" name="returnTo" value="/inspector/settings" />
+          <div
+            className="relative inline-flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-cyan-glow ring-2 ring-white/[0.06]"
+            aria-hidden
+          >
+            {profile.avatarUrl ? (
+              <Image
+                src={profile.avatarUrl}
+                alt={profile.fullName ?? 'Avatar'}
+                width={80}
+                height={80}
+                className="h-full w-full object-cover"
+                unoptimized
+              />
+            ) : (
+              <span className="font-display text-2xl font-semibold text-white">
+                {(profile.fullName || profile.email || '?')
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-1 flex-col gap-2">
+            <label
+              htmlFor="avatar"
+              className="group inline-flex w-fit cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+            >
+              <Camera className="h-4 w-4" strokeWidth={1.75} />
+              Choose new avatar
+            </label>
+            <input
+              id="avatar"
+              name="avatar"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+            />
+            <p className="text-[11px] text-zinc-500">
+              JPEG, PNG, WebP, or GIF · max 5 MB · square crops look best.
+            </p>
+            <button
+              type="submit"
+              className="btn-primary mt-2 inline-flex w-fit items-center gap-2"
+            >
+              Upload avatar
+              <span aria-hidden>→</span>
+            </button>
+          </div>
+        </form>
+      </section>
 
       <form action={updateInspectorSettings} className="space-y-6">
         {/* Identity */}
@@ -250,6 +327,54 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
             }
             placeholder="250"
             hint="Used by the open-jobs feed to filter listings outside your range."
+          />
+        </Section>
+
+        {/* Jurisdiction — Sprint 8A parity with mobile profile/edit */}
+        <Section
+          title="Jurisdiction"
+          subtitle="Where you're legally authorised to work. Used by the job-feed matcher to filter listings to inspections you can actually accept."
+        >
+          <CountryMultiSelect
+            name="countryOfResidence"
+            label="Country of residence"
+            countries={countries}
+            defaultSelected={
+              profile.countryOfResidence ? [profile.countryOfResidence] : []
+            }
+            single
+            placeholder="Pick your country of residence"
+            hint="Used for tax + KYC purposes. References country_codes(code)."
+          />
+          <CountryMultiSelect
+            name="workAuthorizedCountries"
+            label="Work-authorised countries"
+            countries={countries}
+            defaultSelected={profile.workAuthorizedCountries}
+            placeholder="Add countries you can legally work in"
+            hint="Up to 60. Only jobs in these countries appear in your feed (unless you opt into sponsored work below)."
+          />
+
+          <label className="group flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm font-medium text-zinc-300 transition-colors hover:border-accent-amber/40 hover:bg-white/[0.04] has-[:checked]:border-accent-amber/40 has-[:checked]:bg-accent-amber/10 has-[:checked]:text-accent-amber">
+            <input
+              type="checkbox"
+              name="openToSponsoredWork"
+              defaultChecked={profile.openToSponsoredWork}
+              className="h-4 w-4 shrink-0 rounded border-white/20 bg-transparent text-accent-amber focus:ring-accent-amber/40 focus:ring-offset-0"
+            />
+            <span className="flex-1 inline-flex items-center gap-2">
+              <Globe2 className="h-4 w-4" strokeWidth={1.75} />
+              Open to sponsored work (visa assist / relocation)
+            </span>
+          </label>
+
+          <CountryMultiSelect
+            name="sponsoredCountries"
+            label="Sponsored-work destinations"
+            countries={countries}
+            defaultSelected={profile.sponsoredCountries}
+            placeholder="Countries you'd consider with sponsorship"
+            hint="Only relevant when sponsored-work is enabled above. Cleared automatically when the toggle is off."
           />
         </Section>
 

@@ -50,14 +50,14 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Identity',
     items: [
-      { label: 'Compliance', href: '/inspector/compliance', icon: ShieldCheck, badge: 'soon' },
-      { label: 'Wallet & payouts', href: '/inspector/wallet', icon: Wallet, badge: 'soon' },
+      { label: 'Compliance', href: '/inspector/compliance', icon: ShieldCheck },
+      { label: 'Wallet & payouts', href: '/inspector/wallet', icon: Wallet },
     ],
   },
   {
     title: 'System',
     items: [
-      { label: 'Settings', href: '/inspector/settings', icon: Settings, badge: 'soon' },
+      { label: 'Settings', href: '/inspector/settings', icon: Settings },
     ],
   },
 ];

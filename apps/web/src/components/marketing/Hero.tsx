@@ -3,6 +3,8 @@
 import { motion } from 'framer-motion';
 import { ArrowRight, ShieldCheck, ScanLine, FileCheck2 } from 'lucide-react';
 import { MagneticButton } from '@/components/ui/MagneticButton';
+import { ImagePlaceholder } from '@/components/ImagePlaceholder';
+import { HERO_WIDE } from '@/lib/assets-manifest';
 
 /**
  * Hero — the visual centerpiece. Composed of:
@@ -90,17 +92,31 @@ export function Hero() {
           <Chip icon={<FileCheck2 className="h-4 w-4" />} label="Cryptographically signed reports" />
         </motion.ul>
 
-        {/*
-          Previously: a wide hero feature image rendered via <ImagePlaceholder
-          slot={HERO_WIDE} />. The placeholder layer's z-10 inner content
-          (asset-slot label, dimensions, AI prompt, dashed border, L-bracket
-          marks) painted on TOP of the real /og/landing.png because
-          next/image's fill mode produced an absolutely-positioned <img>
-          with no explicit z-index, losing the stacking context to the
-          placeholder's z-10 caption. The OG image remains used by social
-          shares via the metadata block in page.tsx; we just removed the
-          on-page render so the marketing hero stays clean copy-first.
-        */}
+        {/* ── Wide hero feature image ─────────────────────────────────
+            Slot manifest: HERO_WIDE. Renders /og/landing.png in production.
+            The placeholder chrome (asset-slot caption, AI prompt, dashed
+            border, L-bracket marks) is pinned to its own stacking context
+            via `isolate` in ImagePlaceholder.tsx and the real Image is
+            promoted to z-10 — so when the file exists, the image paints
+            cleanly over the placeholder with zero bleed-through.
+            ──────────────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 1.4, ease: 'easeOut' }}
+          className="relative mx-auto mt-20 w-full max-w-6xl"
+        >
+          {/* glow underlay */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-x-4 -inset-y-6 -z-10 rounded-[2rem] bg-gradient-to-b from-violet/20 via-violet/10 to-cyan-glow/10 blur-2xl"
+          />
+          <ImagePlaceholder
+            slot={HERO_WIDE}
+            priority
+            className="shadow-[0_50px_120px_-30px_rgba(124,58,237,0.5)] ring-1 ring-white/[0.08]"
+          />
+        </motion.div>
       </div>
     </section>
   );

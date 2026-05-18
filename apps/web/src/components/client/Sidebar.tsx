@@ -20,6 +20,9 @@ import {
   Settings,
   Wallet,
   Palette,
+  MessageCircle,
+  FolderOpen,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -45,12 +48,20 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     items: [
       { label: 'My jobs', href: '/client/jobs', icon: Briefcase },
       { label: 'Post a job', href: '/client/jobs/new', icon: PlusCircle },
+      { label: 'Documents', href: '/client/documents', icon: FolderOpen },
     ],
   },
   {
     title: 'Deliverables',
     items: [
       { label: 'Completed reports', href: '/client/reports', icon: FileCheck2 },
+    ],
+  },
+  {
+    title: 'Support',
+    items: [
+      { label: 'Messages', href: '/client/messages', icon: MessageCircle },
+      { label: 'Disputes', href: '/client/disputes', icon: AlertTriangle },
     ],
   },
   {

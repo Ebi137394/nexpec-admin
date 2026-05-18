@@ -13,6 +13,8 @@ import {
   Receipt,
   AlertTriangle,
   Settings,
+  MessageCircle,
+  FolderOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -49,6 +51,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     items: [
       { label: 'Jobs', href: '/admin/jobs', icon: Briefcase },
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
+      { label: 'Messages', href: '/admin/messages', icon: MessageCircle },
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
     ],
@@ -59,6 +62,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Users', href: '/admin/users', icon: Users },
       { label: 'Organizations', href: '/admin/orgs', icon: Building2 },
       { label: 'Compliance', href: '/admin/compliance', icon: ShieldCheck },
+      { label: 'Documents', href: '/admin/documents', icon: FolderOpen },
     ],
   },
   {

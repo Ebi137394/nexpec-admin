@@ -17,6 +17,8 @@ import {
   Wallet,
   Settings,
   Briefcase,
+  MessageCircle,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -54,6 +56,13 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Compliance', href: '/inspector/compliance', icon: ShieldCheck },
       { label: 'Work experience', href: '/inspector/experience', icon: Briefcase },
       { label: 'Wallet & payouts', href: '/inspector/wallet', icon: Wallet },
+    ],
+  },
+  {
+    title: 'Support',
+    items: [
+      { label: 'Messages', href: '/inspector/messages', icon: MessageCircle },
+      { label: 'Disputes', href: '/inspector/disputes', icon: AlertTriangle },
     ],
   },
   {

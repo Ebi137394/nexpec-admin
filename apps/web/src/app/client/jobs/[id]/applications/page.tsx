@@ -25,6 +25,7 @@ import {
   MapPin,
   CalendarClock,
   Users,
+  ExternalLink,
 } from 'lucide-react';
 import {
   fetchClientJob,
@@ -218,16 +219,29 @@ function Card({
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-800/70 to-ink-900/40 p-5">
       <header className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-[12px] font-semibold text-white"
+        {/* Inspector identity links to the public profile page so the client
+            can review certificates, CV, past work before accepting. GR2: the
+            /p/[userId] page strictly filters sensitive fields. */}
+        <Link
+          href={`/p/${app.applicantId}`}
+          aria-label={`View ${insp?.fullName ?? 'inspector'}'s public profile`}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-[12px] font-semibold text-white transition-transform hover:scale-105"
         >
           {initials}
-        </span>
+        </Link>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">
-            {insp?.fullName || insp?.email?.split('@')[0] || 'Inspector'}
-          </p>
+          <Link
+            href={`/p/${app.applicantId}`}
+            className="group/name inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-violet-glow"
+          >
+            <span className="truncate">
+              {insp?.fullName || insp?.email?.split('@')[0] || 'Inspector'}
+            </span>
+            <ExternalLink
+              className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100"
+              strokeWidth={2}
+            />
+          </Link>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
             {insp?.ratingAverage !== null && insp?.ratingAverage !== undefined && (
               <span className="inline-flex items-center gap-1">

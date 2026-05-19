@@ -20,6 +20,7 @@ import {
   Briefcase,
   MessageCircle,
   AlertTriangle,
+  FileCheck2,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -64,6 +65,12 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
     items: [
       { labelKey: 'messages', href: '/inspector/messages', icon: MessageCircle },
       { labelKey: 'disputes', href: '/inspector/disputes', icon: AlertTriangle },
+    ],
+  },
+  {
+    titleKey: 'legal',
+    items: [
+      { labelKey: 'contracts', href: '/inspector/contracts', icon: FileCheck2 },
     ],
   },
   {

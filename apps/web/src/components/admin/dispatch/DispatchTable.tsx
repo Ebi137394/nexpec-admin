@@ -1,8 +1,17 @@
 import Link from 'next/link';
-import { MapPin, Clock3, ArrowUpRight } from 'lucide-react';
-import { formatCents } from '@nexpec/shared-core';
+import { MapPin, Clock3, ArrowUpRight, MessageSquare, Gavel } from 'lucide-react';
 import type { DispatchJob } from '@/lib/data/dispatchQueue';
 import { cn } from '@/lib/cn';
+
+// Local safe formatter — handles null/undefined/NaN.
+function fmtCents(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(v) / 100);
+}
 
 interface DispatchTableProps {
   jobs: DispatchJob[];
@@ -85,7 +94,7 @@ function JobBlock({
               Job posted payout
             </p>
             <p className="font-mono text-base font-semibold text-zinc-200">
-              {formatCents(job.posted_payout_cents)}
+              {fmtCents(job.posted_payout_cents)}
             </p>
           </div>
         )}
@@ -108,53 +117,93 @@ function JobBlock({
                 active ? 'bg-violet/10' : 'hover:bg-white/[0.03]',
               )}
             >
-              <Link
-                href={href}
-                replace
-                scroll={false}
-                className="flex items-center gap-4 px-5 py-4"
-              >
-                {/* Selection dot */}
-                <span
-                  className={cn(
-                    'inline-flex h-2 w-2 shrink-0 rounded-full transition-colors',
-                    active ? 'bg-violet-glow shadow-glow' : 'bg-white/10',
-                  )}
-                />
-
-                {/* Applicant */}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white">
-                    {app.applicant_name ?? 'Unknown inspector'}
-                  </p>
-                  <p className="truncate font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                    {app.applicant_email ?? app.applicant_id ?? '—'}
-                  </p>
-                </div>
-
-                {/* Inspector's bid */}
-                <div className="hidden shrink-0 text-right sm:block">
-                  <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
-                    Inspector bid
-                  </p>
-                  <p className="font-mono text-sm font-semibold text-zinc-200">
-                    {formatCents(app.payout_amount_cents)}
-                  </p>
-                </div>
-
-                {/* CTA */}
-                <span
-                  className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-                    active
-                      ? 'border-violet/50 bg-violet/20 text-white'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-300 group-hover:border-violet/40 group-hover:text-white',
-                  )}
+              <div className="flex flex-col gap-3 px-5 py-4">
+                <Link
+                  href={href}
+                  replace
+                  scroll={false}
+                  className="flex items-center gap-4"
                 >
-                  {active ? 'Editing' : 'Dispatch'}
-                  <ArrowUpRight className="h-3 w-3" />
-                </span>
-              </Link>
+                  {/* Selection dot */}
+                  <span
+                    className={cn(
+                      'inline-flex h-2 w-2 shrink-0 rounded-full transition-colors',
+                      active ? 'bg-violet-glow shadow-glow' : 'bg-white/10',
+                    )}
+                  />
+
+                  {/* Applicant — name + link to profile for admin due diligence */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-white">
+                      {app.applicant_name ?? 'Unknown inspector'}
+                    </p>
+                    <p className="truncate font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
+                      {app.applicant_email ?? app.applicant_id ?? '—'}
+                    </p>
+                  </div>
+
+                  {/* Inspector's counter-bid — the ACTUAL bid from the apply form */}
+                  <div className="hidden shrink-0 text-right sm:block">
+                    <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
+                      <Gavel className="h-2.5 w-2.5" strokeWidth={2} />
+                      Inspector bid
+                    </p>
+                    <p className="font-mono text-sm font-semibold text-cyan-glow">
+                      {app.bid_amount_cents != null
+                        ? fmtCents(app.bid_amount_cents)
+                        : 'No counter — accepts admin price'}
+                    </p>
+                  </div>
+
+                  {/* Admin-set payout, if previously committed */}
+                  {app.payout_amount_cents != null && (
+                    <div className="hidden shrink-0 text-right sm:block">
+                      <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+                        Admin payout
+                      </p>
+                      <p className="font-mono text-sm font-semibold text-zinc-200">
+                        {fmtCents(app.payout_amount_cents)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* CTA */}
+                  <span
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                      active
+                        ? 'border-violet/50 bg-violet/20 text-white'
+                        : 'border-white/10 bg-white/[0.02] text-zinc-300 group-hover:border-violet/40 group-hover:text-white',
+                    )}
+                  >
+                    {active ? 'Editing' : 'Dispatch'}
+                    <ArrowUpRight className="h-3 w-3" />
+                  </span>
+                </Link>
+
+                {/* Cover note — admin sees the inspector's pitch */}
+                {app.cover_note && (
+                  <div className="ml-5 flex items-start gap-2 rounded-lg border border-white/[0.04] bg-white/[0.015] px-3 py-2">
+                    <MessageSquare
+                      className="mt-0.5 h-3 w-3 shrink-0 text-zinc-500"
+                      strokeWidth={1.75}
+                    />
+                    <p className="line-clamp-3 text-xs leading-relaxed text-zinc-300">
+                      {app.cover_note}
+                    </p>
+                  </div>
+                )}
+
+                {/* Profile link — admin due diligence */}
+                {app.applicant_id && (
+                  <Link
+                    href={`/p/${app.applicant_id}`}
+                    className="ml-5 inline-flex w-fit items-center gap-1 text-[11px] font-semibold text-violet-glow hover:text-white"
+                  >
+                    View inspector profile →
+                  </Link>
+                )}
+              </div>
             </li>
           );
         })}

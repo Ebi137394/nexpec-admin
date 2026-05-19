@@ -208,6 +208,50 @@ export default async function SubmitReportPage({
           </label>
         </Section>
 
+        {/* Section: Signed documents — link-based (avoids 5MB+ uploads). */}
+        <Section
+          title="Signed documents (optional)"
+          subtitle="Paste a URL to the signed PDFs, scanned forms, or DocuSign envelope so the admin and client can verify the paperwork. Use Google Drive, OneDrive, Dropbox — anywhere with a stable link. Add notes if any sheet is unsigned or missing."
+        >
+          <div>
+            <label
+              htmlFor="signedDocsUrl"
+              className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500"
+            >
+              Signed-documents URL
+            </label>
+            <input
+              id="signedDocsUrl"
+              name="signedDocsUrl"
+              type="url"
+              inputMode="url"
+              maxLength={2048}
+              placeholder="https://drive.google.com/drive/folders/…"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
+            />
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              Make sure the link permission is set to &ldquo;anyone with the
+              link can view&rdquo;. Otherwise admin can&rsquo;t verify.
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="signedDocsNotes"
+              className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500"
+            >
+              Notes on signed / unsigned documents
+            </label>
+            <textarea
+              id="signedDocsNotes"
+              name="signedDocsNotes"
+              rows={2}
+              maxLength={1000}
+              placeholder="e.g. Page 4 of the safety checklist was unsigned — client signed everything else."
+              className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
+            />
+          </div>
+        </Section>
+
         {/* Section: Attestation */}
         <Section
           title="Attestation"

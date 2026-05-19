@@ -108,15 +108,17 @@ export async function createJob(formData: FormData): Promise<void> {
     const msg = parsed.error.issues[0]?.message ?? 'Could not post — check the form.';
     redirect(buildErrorRedirect('/client/jobs/new', msg));
   }
+  // TS doesn't model redirect()'s throw — re-bind so .input is non-optional below.
+  const input = parsed.data;
 
   const supabase = await createSupabaseServerClient();
   const {
-    data: { user },
+    data: { user: maybeUser },
   } = await supabase.auth.getUser();
-  if (!user) {
-    // Middleware should already have caught this, but defence in depth.
+  if (!maybeUser) {
     redirect('/sign-in?next=' + encodeURIComponent('/client/jobs/new'));
   }
+  const user = maybeUser;
 
   // Slugify free-form custom specialties and merge with the curated checkbox slugs
   function toSlug(s: string): string {
@@ -129,17 +131,49 @@ export async function createJob(formData: FormData): Promise<void> {
       .replace(/^-|-$/g, '')
       .slice(0, 120);
   }
-  const customSlugs = (parsed.data.customSpecialties ?? '')
+  const customSlugs = (input.customSpecialties ?? '')
     .split(',')
     .map(toSlug)
     .filter((v) => v.length > 0);
   const mergedSpecialties = Array.from(
-    new Set([...parsed.data.specialties, ...customSlugs]),
+    new Set([...input.specialties, ...customSlugs]),
   ).slice(0, 300);
 
-  const clientOpId = parsed.data.clientOpId && parsed.data.clientOpId.length > 0
-    ? parsed.data.clientOpId
-    : null;
+  // Deterministic op_id derived from content + a 60-second bucket. If the
+  // form is submitted twice (React Strict Mode dev double-fire, browser
+  // retry, double-click), both submissions hash to the SAME op_id and the
+  // DB's unique partial index on jobs.client_op_id rejects the second.
+  // The client-supplied UUID (if any) wins; we fall back to the deterministic
+  // hash so we always have an idempotency key.
+  async function deterministicOpId(): Promise<string> {
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const seed =
+      user.id +
+      '|' +
+      input.title.trim().toLowerCase() +
+      '|' +
+      input.description.trim().toLowerCase().slice(0, 200) +
+      '|' +
+      input.locationCity.trim().toLowerCase() +
+      '|' +
+      String(input.budgetDollars) +
+      '|' +
+      String(minuteBucket);
+    const buf = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(seed),
+    );
+    const hex = Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    // Format the first 32 hex chars as a UUID
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  }
+
+  const clientOpId =
+    input.clientOpId && input.clientOpId.length > 0
+      ? input.clientOpId
+      : await deterministicOpId();
 
   // ── DEDUP A: idempotency token (cross-deploy guarantee) ────────────────
   // If a job with this client_op_id already exists for this user, redirect
@@ -180,11 +214,11 @@ export async function createJob(formData: FormData): Promise<void> {
     const dup = (recent ?? []).find(
       (r) =>
         String((r as { title?: unknown }).title ?? '').trim() ===
-          parsed.data.title.trim() &&
+          input.title.trim() &&
         String((r as { description?: unknown }).description ?? '').trim() ===
-          parsed.data.description.trim() &&
+          input.description.trim() &&
         String((r as { location_city?: unknown }).location_city ?? '').trim() ===
-          parsed.data.locationCity.trim(),
+          input.locationCity.trim(),
     );
     if (dup && (dup as { id?: string }).id) {
       revalidatePath('/client/jobs');
@@ -199,17 +233,17 @@ export async function createJob(formData: FormData): Promise<void> {
 
   const insert: Record<string, unknown> = {
     client_id: user.id,
-    title: parsed.data.title,
-    description: parsed.data.description,
-    location_city: parsed.data.locationCity,
-    budget_cents: parsed.data.budgetDollars * 100,
-    urgency: parsed.data.urgency,
-    job_type: parsed.data.jobType,
+    title: input.title,
+    description: input.description,
+    location_city: input.locationCity,
+    budget_cents: input.budgetDollars * 100,
+    urgency: input.urgency,
+    job_type: input.jobType,
     specialty_slugs: mergedSpecialties,
     // Explicit so we don't trip the jobs_status_check vs DEFAULT mismatch.
     status: 'open' as const,
     // ── CCI flag (Sprint 12 hotfix) ────────────────────────────────────
-    requires_cci: parsed.data.requiresCci,
+    requires_cci: input.requiresCci,
     // ── Idempotency (Sprint 13) ─────────────────────────────────────────
     // jobs.client_op_id has a unique partial index from
     // 20260518310000_admin_pricing_and_dedup.sql. A second insert with the
@@ -263,7 +297,7 @@ export async function createJob(formData: FormData): Promise<void> {
     await supabase.rpc('notify_admins', {
       p_kind: 'job_moderated',
       p_title: 'New job posted',
-      p_body: parsed.data.title.slice(0, 140),
+      p_body: input.title.slice(0, 140),
       p_link: '/admin/jobs?inspect=' + data.id,
       p_job_id: data.id,
     });

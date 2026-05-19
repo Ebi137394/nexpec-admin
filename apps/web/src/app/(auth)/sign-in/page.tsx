@@ -6,6 +6,7 @@ import { AuthField } from '@/components/auth/AuthField';
 import { Divider } from '@/components/auth/Divider';
 import { OAuthRow } from '@/components/auth/OAuthRow';
 import { SubmitButton } from '@/components/auth/SubmitButton';
+import { RoleTabs } from '@/components/auth/RoleTabs';
 
 export const metadata: Metadata = {
   title: 'Sign in',
@@ -21,14 +22,18 @@ interface PageProps {
     error?: string;
     email?: string;
     next?: string;
+    role?: string;
   }>;
 }
+
+const PUBLIC_ROLES = new Set(['inspector', 'client', 'agency']);
 
 export default async function SignInPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const error = params.error;
   const prefillEmail = params.email ?? '';
   const next = params.next ?? '';
+  const role = params.role && PUBLIC_ROLES.has(params.role) ? params.role : '';
 
   return (
     <AuthCard
@@ -36,13 +41,20 @@ export default async function SignInPage({ searchParams }: PageProps) {
       subtitle={
         <>
           New here?{' '}
-          <Link href="/sign-up" className="text-violet-glow hover:text-white">
+          <Link
+            href={role ? `/sign-up?role=${role}` : '/sign-up'}
+            className="text-violet-glow hover:text-white"
+          >
             Create an account
           </Link>
           .
         </>
       }
     >
+      <RoleTabs
+        active={role as 'inspector' | 'client' | 'agency' | '' | undefined}
+        basePath="/sign-in"
+      />
       <OAuthRow />
       <Divider label="or continue with email" />
 

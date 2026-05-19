@@ -8,7 +8,12 @@ export interface DispatchApplication {
   applicant_id: string | null;
   applicant_name: string | null;
   applicant_email: string | null;
+  /** Admin-set payout, if any (DispatchEditor writes this). */
   payout_amount_cents: number | null;
+  /** Inspector's own counter-bid from the apply form (bid_amount_cents). */
+  bid_amount_cents: number | null;
+  /** Cover note from the apply form. Adds context for the admin. */
+  cover_note: string | null;
   created_at: string | null;
 }
 

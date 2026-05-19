@@ -6,6 +6,7 @@ import { AuthField } from '@/components/auth/AuthField';
 import { Divider } from '@/components/auth/Divider';
 import { OAuthRow } from '@/components/auth/OAuthRow';
 import { SubmitButton } from '@/components/auth/SubmitButton';
+import { RoleTabs } from '@/components/auth/RoleTabs';
 
 export const metadata: Metadata = {
   title: 'Create an account',
@@ -99,11 +100,16 @@ export default async function SignUpPage({ searchParams }: PageProps) {
         </>
       }
     >
+      <RoleTabs
+        active={role as 'inspector' | 'client' | 'agency' | '' | undefined}
+        basePath="/sign-up"
+      />
+
       <OAuthRow />
       <Divider label="or sign up with email" />
 
       <form action={signUp} className="space-y-4">
-        {role && <input type="hidden" name="role" value={role} />}
+        <input type="hidden" name="role" value={role || 'client'} />
         <AuthField
           label="Full name"
           name="fullName"

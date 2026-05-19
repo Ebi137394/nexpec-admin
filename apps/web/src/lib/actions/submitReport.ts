@@ -58,6 +58,14 @@ const SubmitSchema = z.object({
   attestation: z.literal('on', {
     message: 'You must check the attestation box.',
   }),
+  signedDocsUrl: z
+    .string()
+    .trim()
+    .max(2048)
+    .url({ message: 'Signed-docs link must be a valid URL.' })
+    .optional()
+    .or(z.literal('')),
+  signedDocsNotes: z.string().trim().max(1000).optional().or(z.literal('')),
 });
 
 function buildFormUrl(jobId: string, params: Record<string, string>): string {
@@ -80,6 +88,8 @@ export async function submitInspectionReport(formData: FormData): Promise<void> 
     summary: formData.get('summary'),
     attestInspectorName: formData.get('attestInspectorName'),
     attestation: formData.get('attestation'),
+    signedDocsUrl: formData.get('signedDocsUrl') ?? '',
+    signedDocsNotes: formData.get('signedDocsNotes') ?? '',
   });
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message ?? 'Could not submit — check the form.';
@@ -87,7 +97,14 @@ export async function submitInspectionReport(formData: FormData): Promise<void> 
       buildFormUrl(String(formData.get('jobId') ?? ''), { error: msg }),
     );
   }
-  const { jobId, result, summary, attestInspectorName } = parsed.data;
+  const {
+    jobId,
+    result,
+    summary,
+    attestInspectorName,
+    signedDocsUrl,
+    signedDocsNotes,
+  } = parsed.data;
 
   // 2. Auth.
   const supabase = await createSupabaseServerClient();
@@ -207,18 +224,32 @@ export async function submitInspectionReport(formData: FormData): Promise<void> 
       inspectorName: attestInspectorName,
       attestedAt: new Date().toISOString(),
     },
-  };
+    // Stash the signed-doc link + notes inside the doc so they survive
+    // even if the columns aren't added to inspection_reports yet.
+    signedDocs:
+      signedDocsUrl || signedDocsNotes
+        ? {
+            url: signedDocsUrl || null,
+            notes: signedDocsNotes || null,
+          }
+        : undefined,
+  } as FinalReportDoc;
 
   // 7. INSERT the inspection_reports row. Inspector writes ONLY the
   //    columns admin/client will later mutate — never sets technical_approved
   //    / financial_approved / is_published / is_client_approved.
-  const insert = {
+  const insert: Record<string, unknown> = {
     job_id: jobId,
     inspector_id: user.id,
     status: 'pending',
     photo_url: evidence[0]?.path ?? null, // first photo path, for backwards-compat
     notes: summary,
     final_report_doc: JSON.stringify(doc),
+    // Best-effort: if the columns exist (migration 20260518340000 applied),
+    // they get written. If not, PostgREST will drop unknown keys silently
+    // for the row-level insert and the link still lives in doc.signedDocs.
+    signed_docs_url: signedDocsUrl || null,
+    signed_docs_notes: signedDocsNotes || null,
   };
 
   const { data: insertedReport, error: insertErr } = await supabase

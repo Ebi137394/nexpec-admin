@@ -46,9 +46,13 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
   if (jobIds.length === 0) return { jobs: [], total: 0 };
 
   // 2. CLIENT_SELECTED applications across those jobs.
+  //    Includes `bid_amount_cents` (inspector's counter-bid) + cover note so
+  //    admin can see what the inspector proposed before locking the spread.
   const { data: rawApps, error: appsErr } = await supabase
     .from('applications')
-    .select('id, job_id, applicant_id, payout_amount_cents, created_at')
+    .select(
+      'id, job_id, applicant_id, payout_amount_cents, bid_amount_cents, cover_note, created_at',
+    )
     .eq('status', 'CLIENT_SELECTED')
     .in('job_id', jobIds);
 
@@ -100,6 +104,8 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
       applicant_name: profile?.full_name ?? null,
       applicant_email: profile?.email ?? null,
       payout_amount_cents: (a.payout_amount_cents as number | null) ?? null,
+      bid_amount_cents: (a.bid_amount_cents as number | null) ?? null,
+      cover_note: (a.cover_note as string | null) ?? null,
       created_at: (a.created_at as string | null) ?? null,
     });
     appsByJob.set(jobId, list);

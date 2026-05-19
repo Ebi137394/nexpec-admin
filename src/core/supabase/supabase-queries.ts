@@ -177,7 +177,8 @@ export async function fetchDashboardData(userId: string): Promise<{ data: Dashbo
     supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('contractor_id', userId).in('status', ACTIVE_STATUSES),
     supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('contractor_id', userId).in('status', COMPLETED_STATUSES),
     supabase.from('proposals').select('*', { count: 'exact', head: true }).eq('contractor_id', userId).eq('status', 'pending'), // ✅ FIX: Count from proposals table using contractor_id
-    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('read', false)
+    // v3 columns: recipient_id, is_read (migration 20260518400000).
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('recipient_id', userId).eq('is_read', false)
   ]);
   
   // ✅ Debug logging

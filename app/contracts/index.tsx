@@ -146,6 +146,14 @@ interface Contract {
   job?: { id: string; title?: string | null } | null;
   client?: ProfileLite | null;
   contractor?: ProfileLite | null;
+  // ── V3 SYNC ───────────────────────────────────────────────────────
+  //  When true, this Contract was projected from inspector_job_contracts_view
+  //  (the blind-pricing-safe view introduced by web migration
+  //  20260518370000). Signing/uploading these is gated to the web
+  //  portal — mobile only READS them. See handleSign for the gate.
+  //  We never store the source row's client_price_cents here because
+  //  the SELECT below doesn't reference that column (GR2 — blind pricing).
+  _isJobContract?: boolean;
 }
 
 const TABS: Array<{ key: TabKey; label: string }> = [
@@ -199,6 +207,13 @@ const statusMeta = (s?: string | null) => {
       return { label: 'Draft', color: C.textMuted, icon: Edit3 };
     case 'pending_signature':
       return { label: 'Pending Signature', color: C.warning, icon: Hourglass };
+    // V3 sub-states from job_contracts state machine (web migration
+    // 20260518370000). Different labels so the inspector knows whether
+    // they OR the client need to act.
+    case 'pending_client_signature':
+      return { label: 'Awaiting Client', color: C.warning, icon: Hourglass };
+    case 'pending_inspector_signature':
+      return { label: 'Your Signature', color: C.warning, icon: Hourglass };
     case 'active':
       return { label: 'Active', color: C.success, icon: BadgeCheck };
     // ★ Treat 'signed' and 'in_progress' visually like 'active' so System A
@@ -207,6 +222,8 @@ const statusMeta = (s?: string | null) => {
       return { label: 'Signed', color: C.success, icon: BadgeCheck };
     case 'in_progress':
       return { label: 'In Progress', color: C.success, icon: BadgeCheck };
+    case 'fully_executed':
+      return { label: 'Executed', color: C.success, icon: BadgeCheck };
     case 'completed':
       return { label: 'Completed', color: C.cyan, icon: CheckCircle2 };
     case 'cancelled':
@@ -216,18 +233,86 @@ const statusMeta = (s?: string | null) => {
   }
 };
 
+/**
+ * Project a row from `inspector_job_contracts_view` into the legacy
+ * Contract shape used by the Hub. We do NOT touch the UI — instead we
+ * adapt the data so the same render path applies.
+ *
+ * Critical: `total_amount_cents` is mapped from `inspector_payout_cents`.
+ * The view never exposes `client_price_cents`, so the inspector seeing
+ * this Hub never accidentally learns the client-side price. GR2 is
+ * enforced at the projection layer above and at the DB view layer.
+ */
+function mapJobContractViewRow(r: {
+  id: string;
+  job_id: string | null;
+  job_title: string | null;
+  inspector_id: string;
+  client_id: string;
+  status: string | null;
+  inspector_payout_cents: number | null;
+  body_md: string | null;
+  client_signed_at: string | null;
+  inspector_signed_at: string | null;
+  client_signer_typed_name: string | null;
+  inspector_signer_typed_name: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}): Contract {
+  return {
+    // Prefix the id so it can never collide with a legacy contracts.id.
+    // The card's keyExtractor uses this id; nothing else depends on
+    // its exact shape.
+    id: `jc:${r.id}`,
+    job_id: r.job_id,
+    client_id: r.client_id,
+    contractor_id: r.inspector_id,
+    status: (r.status ?? 'pending_signature') as string,
+    // INSPECTOR-SAFE money. Web's inspector_job_contracts_view enforces
+    // this projection at the DB layer; we honor it here.
+    total_amount_cents: r.inspector_payout_cents ?? null,
+    contract_text: r.body_md ?? null,
+    document_url: null,
+    external_link: null,
+    // The "signature" field on the legacy schema was a base64 image; v3
+    // tracks the typed name instead. Surface the typed name as a stable
+    // truthy marker so the SigPiece component shows "Signed".
+    client_signature: r.client_signer_typed_name ?? null,
+    contractor_signature: r.inspector_signer_typed_name ?? null,
+    client_signed_at: r.client_signed_at,
+    contractor_signed_at: r.inspector_signed_at,
+    signed_at: r.inspector_signed_at ?? r.client_signed_at,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    job: r.job_id ? { id: r.job_id, title: r.job_title ?? null } : null,
+    client: null,
+    contractor: null,
+    _isJobContract: true,
+  };
+}
+
 const tabContains = (tab: TabKey, status?: string | null): boolean => {
   switch (tab) {
     case 'pending':
-      return status === 'draft' || status === 'pending_signature';
+      // V3 (web migration 20260518370000) introduces two pending sub-states.
+      // Both belong in the Pending lane — the inspector wants to see them
+      // whether THEY need to sign or the client does.
+      return (
+        status === 'draft' ||
+        status === 'pending_signature' ||
+        status === 'pending_client_signature' ||
+        status === 'pending_inspector_signature'
+      );
     case 'active':
       // ★ System A (Sign Job Agreement) writes status='signed' on insert.
       //   Treat 'signed' and 'in_progress' as live/active so freshly-signed
       //   contracts land in the Active tab instead of disappearing.
+      //   V3 'fully_executed' joins the same lane.
       return (
         status === 'active' ||
         status === 'signed' ||
-        status === 'in_progress'
+        status === 'in_progress' ||
+        status === 'fully_executed'
       );
     case 'completed':
       return status === 'completed' || status === 'cancelled';
@@ -327,7 +412,8 @@ export default function ContractsScreen() {
       setError(null);
       const filterCol = isClientRole ? 'client_id' : 'contractor_id';
 
-      const { data, error: qErr } = await supabase
+      // ── 1) Legacy `contracts` table (System A — uploaded addenda) ──
+      const legacyPromise = supabase
         .from('contracts')
         .select(
           `*,
@@ -339,15 +425,88 @@ export default function ContractsScreen() {
         .order('updated_at', { ascending: false })
         .limit(100);
 
-      if (qErr) throw qErr;
-      setContracts((data ?? []) as Contract[]);
+      // ── 2) V3 job_contracts (binding per-job agreement, blind pricing) ──
+      //   Reads exclusively from the projected view introduced by web
+      //   migration 20260518370000. The view's column whitelist is the
+      //   guarantor of GR2 (Strict price visibility):
+      //
+      //     • inspector_job_contracts_view exposes inspector_payout_cents
+      //       and DOES NOT expose client_price_cents.
+      //     • client_job_contracts_view is the mirror for client portal.
+      //     • The base job_contracts table is admin-only at row level.
+      //
+      //   We project only the columns we need — any future column added
+      //   to the view stays out of the wire payload unless we choose it.
+      //   We never name client_price_cents in this list. If a developer
+      //   later tries to add it here, the GR2 audit will flag it.
+      //
+      //   Mobile is inspector-only per the Sync Ledger, so we only run
+      //   this branch for the inspector role. (A client running this app
+      //   in dev would still get their legacy contracts via path 1.)
+      const isInspectorRole = userRole === 'inspector';
+      const viewPromise = isInspectorRole
+        ? supabase
+            .from('inspector_job_contracts_view')
+            .select(
+              [
+                'id',
+                'job_id',
+                'job_title',
+                'inspector_id',
+                'client_id',
+                'status',
+                'inspector_payout_cents',
+                'body_md',
+                'client_signed_at',
+                'inspector_signed_at',
+                'client_signer_typed_name',
+                'inspector_signer_typed_name',
+                'created_at',
+                'updated_at',
+              ].join(', '),
+            )
+            .eq('inspector_id', userId)
+            .order('updated_at', { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: null, error: null } as const);
+
+      const [legacyRes, viewRes] = await Promise.all([legacyPromise, viewPromise]);
+
+      if (legacyRes.error) throw legacyRes.error;
+      const legacyRows = (legacyRes.data ?? []) as Contract[];
+
+      // The view query may be a no-op for non-inspectors; tolerate either
+      // shape and never let a view error break the legacy fetch.
+      let viewRows: Contract[] = [];
+      if (viewRes && !('error' in viewRes && viewRes.error) && Array.isArray(viewRes.data)) {
+        viewRows = viewRes.data.map((r: any) =>
+          mapJobContractViewRow(r),
+        );
+      } else if (viewRes && 'error' in viewRes && viewRes.error) {
+        // The view might not be deployed in this environment yet (e.g. dev
+        // pointing at a pre-v3 DB). Log it loudly but don't fail the page —
+        // legacy rows still render.
+        console.warn(
+          '[contracts] inspector_job_contracts_view unavailable:',
+          (viewRes.error as { message?: string }).message,
+        );
+      }
+
+      // Merge — view rows first (newest signing flow takes top), then legacy.
+      // Sort by updated_at desc so the Hub always shows the freshest activity.
+      const merged = [...viewRows, ...legacyRows].sort((a, b) => {
+        const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return tb - ta;
+      });
+      setContracts(merged);
     } catch (err: any) {
       console.log('contracts fetch error:', err);
       setError(err?.message ?? 'Failed to load contracts');
     } finally {
       setLoading(false);
     }
-  }, [userId, user, isClientRole]);
+  }, [userId, user, isClientRole, userRole]);
 
   useEffect(() => {
     let alive = true;
@@ -361,7 +520,13 @@ export default function ContractsScreen() {
     };
   }, [fetchContracts]);
 
-  // Realtime — refetch on any insert/update we can read
+  // Realtime — refetch on any insert/update we can read.
+  // Listen to BOTH the legacy `contracts` table and the v3 `job_contracts`
+  // base table. Note: the base table is admin-only at row level, but
+  // Realtime publication events fire regardless of RLS (the consumer
+  // filter is up to us). The downstream fetchContracts() call hits the
+  // inspector view, so we never leak base-table column values into the
+  // wire payload.
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
@@ -369,6 +534,11 @@ export default function ContractsScreen() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'contracts' },
+        () => fetchContracts(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'job_contracts' },
         () => fetchContracts(),
       )
       .subscribe();
@@ -448,6 +618,17 @@ export default function ContractsScreen() {
   // ── REAL upload — DocumentPicker + Supabase Storage ──
   const handleUploadFile = useCallback(
     async (contract: Contract) => {
+      // V3 job_contracts don't accept addenda uploads via this Hub —
+      // those go through the web admin surface. Block the upload to
+      // avoid silently writing a document_url update against a contract
+      // id that no longer exists in the legacy `contracts` table.
+      if (contract._isJobContract) {
+        Alert.alert(
+          'Manage on the web',
+          'Job-contract documents are managed by the admin team on the web portal.',
+        );
+        return;
+      }
       try {
         const result = await DocumentPicker.getDocumentAsync({
           type: ['application/pdf', 'image/*', 'application/msword',
@@ -525,6 +706,18 @@ export default function ContractsScreen() {
   const handleSign = useCallback(
     (contract: Contract) => {
       if (!userId) return;
+      // V3 job_contracts sign on the web. The SignaturePadModal would
+      // write to the legacy `contracts` table, which would orphan the
+      // signature relative to the v3 row and corrupt audit. Surface a
+      // clear message instead.
+      if (contract._isJobContract) {
+        Alert.alert(
+          'Sign on the web',
+          'This is a binding job-contract. Please open nexpecapp.com on a desktop browser to review and sign it — the legal signing flow lives there.',
+          [{ text: 'OK', style: 'default' }],
+        );
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       setSignTarget(contract);
     },

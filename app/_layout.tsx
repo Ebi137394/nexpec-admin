@@ -109,6 +109,9 @@ function AuthGate() {
       'review-report',
       'rate-inspector',
       'map',
+      // Mobile Sprint 1 · Lane 4 — dev-only pre-flight diagnostic at
+      // /diagnostics. Read-only schema probe, safe to ship.
+      'diagnostics',
       // — Folder-backed segments with dynamic children —
       'profile',       // app/profile/* (11 sub-screens: edit, certifications,
                        //  experience, skills, rates, payments, security,
@@ -168,6 +171,28 @@ function AuthGate() {
       }
     };
 
+    // ════════════════════════════════════════════════════════════════
+    //  Multi-role mobile app (reverted from inspector-only block).
+    //
+    //  The mobile app serves four buyer/operator roles end-to-end —
+    //  inspector, client, agency, enterprise — plus admin + super_admin
+    //  for operators. Each role has its own (tabs) dashboard that's
+    //  already built on disk. AuthGate's job is to route, not gate.
+    //
+    //  Routing matrix (applied by branches #2 and #3 below):
+    //
+    //    inspector            → /(tabs) (inspector home)
+    //    client               → /(tabs)/client-dashboard
+    //    agency | enterprise  → /(tabs)/agency-dashboard
+    //    admin                → /(admin)/admin-inbox
+    //    super_admin          → /(admin)/dashboard
+    //
+    //  Role-of-truth: profiles.role. Web v3 migration
+    //  20260519010000_apply_onboarding_role_rpc.sql fixed the OAuth-time
+    //  role-loss bug, so by the time we read `role` here we can trust it
+    //  reflects what the user actually picked at signup.
+    // ════════════════════════════════════════════════════════════════
+
     // 🛑 STRICT ROLE ENFORCEMENT: Super Admins belong ONLY in (super-admin) OR allowed shared routes
     if (isAuthenticated && role === 'super_admin' && !inAdminGroup && !inAllowedRoute) {
       safeNavigate('/(admin)/dashboard');
@@ -194,7 +219,7 @@ function AuthGate() {
 //   established admin-tier folder. Future Phase 2b rename of (super-admin)
 //   → (admin) will sweep this reference along with all other (super-admin)
 //   refs in one pass.
-else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
+      else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
       else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
       else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
       else safeNavigate('/(tabs)');
@@ -209,7 +234,7 @@ else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
 //   established admin-tier folder. Future Phase 2b rename of (super-admin)
 //   → (admin) will sweep this reference along with all other (super-admin)
 //   refs in one pass.
-else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
+    else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
     else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
     else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
     else safeNavigate('/(tabs)');

@@ -49,16 +49,34 @@ const BRAND = {
 /** ─────────────────────────────────────────────────────────
  *  Types
  *  ────────────────────────────────────────────────────── */
+// ════════════════════════════════════════════════════════════════════════════
+//  Schema alignment — Mobile Sprint 1 · Lane 1
+//
+//  Post-migration columns (web v3, 20260518400000_notifications_nuke_and_rebuild):
+//    recipient_id | kind | title | body | link_href | job_id | is_read | created_at
+//
+//  Legacy columns (pre-v3) were: user_id | type | read | message | link
+//  We accept both shapes in the type as `?` fields so any straggler rows from
+//  older RPCs don't crash the screen, but **all reads/writes use v3 names**.
+// ════════════════════════════════════════════════════════════════════════════
 type NotificationRow = {
   id: string;
-  user_id?: string | null;
+  // v3 canonical fields
+  recipient_id?: string | null;
+  kind?: string | null;
   title?: string | null;
   body?: string | null;
-  message?: string | null;
-  type?: string | null;
-  read?: boolean | null;
+  link_href?: string | null;
+  job_id?: string | null;
+  is_read?: boolean | null;
   created_at?: string | null;
   data?: any;
+  // Legacy shadow fields (only present on un-migrated rows from old triggers).
+  // Read-only — never write these.
+  user_id?: string | null;
+  type?: string | null;
+  message?: string | null;
+  read?: boolean | null;
   link?: string | null;
   route?: string | null;
 };
@@ -132,7 +150,11 @@ const getNotificationMeta = (
   return { icon: 'notifications', color: BRAND.primary, label: 'Update' };
 };
 
-const isRead = (n: NotificationRow): boolean => !!n.read;
+// v3 read-flag with legacy fallback for any straggler rows.
+const isRead = (n: NotificationRow): boolean => !!(n.is_read ?? n.read);
+
+// v3 kind with legacy fallback for getNotificationMeta callsites.
+const kindOf = (n: NotificationRow): string | null | undefined => n.kind ?? n.type;
 
 /** ─────────────────────────────────────────────────────────
  *  Screen — Inspector Notification Center
@@ -184,10 +206,13 @@ export default function InspectorNotificationsScreen() {
         return;
       }
 
+      // v3: filter by recipient_id (defence-in-depth alongside RLS).
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
+        .select(
+          'id, kind, title, body, link_href, job_id, is_read, created_at, data',
+        )
+        .eq('recipient_id', user.id)
         .order('created_at', { ascending: false })
         .limit(80);
 
@@ -209,14 +234,14 @@ export default function InspectorNotificationsScreen() {
 
   const markAsRead = async (id: string) => {
     if (!id) return;
-    // Optimistic update
+    // Optimistic update — flip v3 is_read locally.
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ is_read: true })
         .eq('id', id);
       if (error) console.log('mark read error', error);
     } catch (e) {
@@ -232,13 +257,13 @@ export default function InspectorNotificationsScreen() {
       if (!user) return;
 
       // Optimistic
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
 
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
+        .update({ is_read: true })
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
 
       if (error) console.log('mark all read error', error);
     } catch (e) {
@@ -269,7 +294,27 @@ export default function InspectorNotificationsScreen() {
   const handleNotificationPress = (n: NotificationRow) => {
     if (!isRead(n)) markAsRead(n.id);
 
-    // ── 1) Legacy data-based routing (preserved verbatim) ──
+    // ── 1) v3 canonical: top-level link_href + job_id ──
+    //   nx_notify writes these directly on the row. Prefer them over the
+    //   legacy `data` blob whenever they're populated.
+    if (n.link_href) {
+      try {
+        router.push(n.link_href as any);
+        return;
+      } catch (e) {
+        console.log('notification link_href routing error', e);
+      }
+    }
+    if (n.job_id) {
+      try {
+        router.push(`/job-details/${n.job_id}` as any);
+        return;
+      } catch (e) {
+        console.log('notification job_id routing error', e);
+      }
+    }
+
+    // ── 2) Legacy data-based routing (preserved verbatim for back-compat) ──
     let parsedData: any = n.data;
     if (typeof parsedData === 'string') {
       try {
@@ -296,7 +341,7 @@ export default function InspectorNotificationsScreen() {
       console.log('notification data routing error', e);
     }
 
-    // ── 2) Forward-compatible fallback for newer payloads ──
+    // ── 3) Forward-compatible fallback for newer payloads (legacy) ──
     const target = n.route || n.link;
     if (target) {
       try {
@@ -515,7 +560,9 @@ const NotificationCard = ({
   notification: NotificationRow;
   onPress: () => void;
 }) => {
-  const meta = getNotificationMeta(notification.type);
+  // v3: prefer `kind`; fall back to legacy `type` only if a straggler row
+  // from a pre-migration trigger ever lands in this list.
+  const meta = getNotificationMeta(kindOf(notification));
   const read = isRead(notification);
   const timeAgo = formatTimeAgo(notification.created_at);
   const body = notification.body || notification.message || '';

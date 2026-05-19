@@ -121,27 +121,47 @@ export async function sendNotificationWithSettingsCheck(
 }
 
 /**
- * Creates a notification record in the database
- * @param notificationData - Notification data
+ * Creates a notification record via the v3 `nx_notify` RPC.
+ *
+ * Web v3 (migration 20260518400000) revoked client INSERT on
+ * `public.notifications`; the only legal write path is the SECURITY DEFINER
+ * `nx_notify(p_recipient, p_title, p_body, p_kind, p_link, p_job_id)`
+ * function, which also bumps `profiles.unread_notifications_count`.
+ *
+ * The legacy direct-insert version of this helper silently failed against
+ * the v3 schema (the `type`/`user_id` columns no longer exist), which is why
+ * mobile-triggered notifications stopped delivering. This wrapper preserves
+ * the old call sites by accepting the legacy field names and translating
+ * them on the wire.
+ *
+ * @param notificationData - Legacy-shape payload; translated to v3 RPC args.
  */
 export async function createNotification(notificationData: {
+  /** Recipient user id (v3 column: recipient_id). */
   user_id: string;
+  /** Category key — maps to v3 `kind` (e.g. 'dispute_update'). */
   type: string;
   title: string;
   body: string;
-  data?: any;
+  /** Optional structured payload — may carry { jobId?: string } for routing. */
+  data?: { jobId?: string; projectId?: string; link?: string } | null;
 }): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('notifications')
-      .insert([{
-        ...notificationData,
-        created_at: new Date().toISOString(),
-        is_read: false
-      }]);
+    const jobId =
+      notificationData.data?.jobId ?? notificationData.data?.projectId ?? null;
+    const link = notificationData.data?.link ?? null;
+
+    const { error } = await supabase.rpc('nx_notify', {
+      p_recipient: notificationData.user_id,
+      p_title: notificationData.title,
+      p_body: notificationData.body,
+      p_kind: notificationData.type,
+      p_link: link,
+      p_job_id: jobId,
+    });
 
     if (error) {
-      console.error('Error creating notification:', error);
+      console.error('Error creating notification:', error.message);
     }
   } catch (error) {
     console.error('Error creating notification:', error);

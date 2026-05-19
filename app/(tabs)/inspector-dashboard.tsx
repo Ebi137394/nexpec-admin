@@ -161,12 +161,14 @@ export default function DashboardScreen() {
           .eq('contractor_id', user.id)
           .in('status', COMPLETED_CONTRACT_STATUSES),
         
-        // 5. Notifications
+        // 5. Notifications — v3 columns: recipient_id, is_read
+        //    (Migration 20260518400000 renamed user_id → recipient_id and
+        //    read → is_read; legacy names would COUNT zero post-migration.)
         supabase
           .from('notifications')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('read', false),
+          .eq('recipient_id', user.id)
+          .eq('is_read', false),
       ]);
 
       const [activeRes, completedRes, pendingRes, earningsRes, notifRes] = results;

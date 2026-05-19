@@ -427,11 +427,12 @@ export default function AgencyDashboard() {
         .eq('client_id', user.id)
         .order('created_at', { ascending: false });
 
+      // v3 columns (migration 20260518400000): recipient_id, is_read
       const notifPromise = supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
 
       const [{ data: profileRow }, { data: jobsRow, error: jobsErr }, { count: notifCount }] =
         await Promise.all([profilePromise, jobsPromise, notifPromise]);

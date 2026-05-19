@@ -34,7 +34,11 @@ interface Job {
   location: string;
   job_type: string;
   payout_amount_cents?: number | null;   // ★ Task 4 — Inspector sees payout
-  client_price_cents?: number | null;    // ★ Task 4 — hidden from inspector UI
+  // GR2 (Strict price visibility): client_price_cents is intentionally
+  // OMITTED from this interface. The inspector fetcher's projection
+  // allowlist never names it, so the wire never carries it. If a future
+  // dev adds the field here it MUST also be added to the SELECT — and
+  // doing so would itself be a GR2 violation. Don't.
   rate_type?: 'hourly' | 'daily' | 'fixed' | null;
   description: string;
   requirements: string[];
@@ -167,9 +171,39 @@ export default function InspectorJobDetailScreen() {
   };
 
   const fetchJob = async () => {
+    // ── GR2 (Strict price visibility) — INSPECTOR FETCHER ─────────────
+    //   The inspector MUST NOT receive client_price_cents over the wire.
+    //   The previous `select('*')` shipped every column on `jobs`,
+    //   including client_price_cents and budget_min_cents/budget_max_cents
+    //   that are client-budget metadata.
+    //
+    //   Allowlist below is the exact union of columns referenced by this
+    //   file's render path (id/title/location/status/etc. + the inspector-
+    //   safe money columns payout_amount_cents + rate_type). If a future
+    //   patch adds a new render reference, add the column here EXPLICITLY
+    //   — never bring back `select('*')`. The Sync Ledger calls this out
+    //   as a Golden Rule (#2).
     const { data, error } = await supabase
       .from('jobs')
-      .select('*')
+      .select(
+        [
+          'id',
+          'title',
+          'company_name',
+          'location',
+          'job_type',
+          'rate_type',
+          'payout_amount_cents',
+          'description',
+          'requirements',
+          'scheduled_date',
+          'completed_at',
+          'created_at',
+          'status',
+          'client_id',
+          'contractor_id',
+        ].join(', '),
+      )
       .eq('id', id)
       .single();
 
@@ -178,7 +212,7 @@ export default function InspectorJobDetailScreen() {
       return;
     }
 
-    setJob(data);
+    setJob(data as any);
   };
 
 const fetchApplication = async (uid: string) => {

@@ -52,15 +52,28 @@ const COLORS = {
   textDark: '#475569',
 };
 
-// 🟢 تغییر مهم: نوع data رو به any تغییر دادیم تا بتونه هم استرینگ بگیره هم آبجکت
+// Mobile Sprint 1 · Lane 1 — v3 schema alignment.
+// Web migration 20260518400000_notifications_nuke_and_rebuild renamed:
+//   type → kind, user_id → recipient_id, read → is_read,
+//   message → body, link → link_href; added job_id top-level.
+// We tolerate both shapes on the row in case a straggler from the old
+// trigger ever appears, but writes ALWAYS use v3 names.
 interface Notification {
   id: string;
-  type: string;
+  // v3 columns
+  kind?: string | null;
+  recipient_id?: string | null;
+  is_read?: boolean | null;
+  link_href?: string | null;
+  job_id?: string | null;
+  // Shared columns (kept v3 names)
   title: string;
   body: string;
   created_at: string;
-  read: boolean;
-  data?: any; 
+  // Legacy shadow (read-only — never written by mobile)
+  type?: string | null;
+  read?: boolean | null;
+  data?: any;
 }
 
 export default function NotificationsScreen() {
@@ -73,13 +86,16 @@ export default function NotificationsScreen() {
   const fetchNotifications = async () => {
     if (!user?.id) return;
     try {
+      // v3 columns: recipient_id, is_read, kind, body, link_href, job_id
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
+        .select(
+          'id, kind, title, body, link_href, job_id, is_read, created_at, data',
+        )
+        .eq('recipient_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (!error) setNotifications(data || []);
+      if (!error) setNotifications((data as Notification[]) || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -94,7 +110,8 @@ export default function NotificationsScreen() {
     }, [user?.id])
   );
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // v3 read-flag with legacy fallback for any straggler rows
+  const unreadCount = notifications.filter((n) => !(n.is_read ?? n.read)).length;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -103,14 +120,15 @@ export default function NotificationsScreen() {
 
   const markAsRead = async (id: string) => {
     try {
+      // v3 column: is_read
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
+        .update({ is_read: true })
         .eq('id', id);
 
       if (!error) {
-        setNotifications(prev =>
-          prev.map(n => (n.id === id ? { ...n, read: true } : n))
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
         );
       }
     } catch (error) {
@@ -121,13 +139,15 @@ export default function NotificationsScreen() {
   const markAllAsRead = async () => {
     try {
       if (!user?.id) return;
+      // v3 columns: recipient_id, is_read
       const { error } = await supabase
         .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id);
+        .update({ is_read: true })
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
 
       if (!error) {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       }
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
@@ -205,27 +225,33 @@ export default function NotificationsScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const renderNotification = ({ item, index }: { item: Notification; index: number }) => (
-    <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
-      <TouchableOpacity
-        style={[styles.notificationItem, !item.read && styles.unreadItem]}
-        onPress={() => handleNotificationPress(item)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.iconContainer, { backgroundColor: getIconBackground(item.type) }]}>
-          {getIcon(item.type)}
-        </View>
-        <View style={styles.notificationContent}>
-          <View style={styles.notificationHeader}>
-            <Text style={[styles.notificationTitle, { color: COLORS.textPrimary }]} numberOfLines={1}>{item.title}</Text>
-            <Text style={[styles.timestamp, { color: COLORS.textSecondary }]}>{formatTimestamp(item.created_at)}</Text>
+  const renderNotification = ({ item, index }: { item: Notification; index: number }) => {
+    // v3 with legacy fallback in case any straggler row from the old
+    // trigger ever lands in the result set.
+    const read = !!(item.is_read ?? item.read);
+    const kind = item.kind ?? item.type ?? '';
+    return (
+      <Animated.View entering={FadeInDown.delay(index * 50).duration(400)}>
+        <TouchableOpacity
+          style={[styles.notificationItem, !read && styles.unreadItem]}
+          onPress={() => handleNotificationPress(item)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: getIconBackground(kind) }]}>
+            {getIcon(kind)}
           </View>
-          <Text style={[styles.notificationMessage, { color: COLORS.textSecondary }]} numberOfLines={2}>{item.body}</Text>
-        </View>
-        {!item.read && <View style={[styles.unreadDot, { backgroundColor: COLORS.accent }]} />}
-      </TouchableOpacity>
-    </Animated.View>
-  );
+          <View style={styles.notificationContent}>
+            <View style={styles.notificationHeader}>
+              <Text style={[styles.notificationTitle, { color: COLORS.textPrimary }]} numberOfLines={1}>{item.title}</Text>
+              <Text style={[styles.timestamp, { color: COLORS.textSecondary }]}>{formatTimestamp(item.created_at)}</Text>
+            </View>
+            <Text style={[styles.notificationMessage, { color: COLORS.textSecondary }]} numberOfLines={2}>{item.body}</Text>
+          </View>
+          {!read && <View style={[styles.unreadDot, { backgroundColor: COLORS.accent }]} />}
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>

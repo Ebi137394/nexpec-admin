@@ -204,39 +204,105 @@ export async function signUpWithProfileAndOAuth(formData: FormData): Promise<voi
 
 /* ─── 4) Apply the cookie after OAuth callback ───────────────────────── */
 
-/** Called from /auth/callback after the session is established. */
-export async function applyOnboardingCookieToProfile(): Promise<void> {
+/**
+ * Result of applying the onboarding cookie. The callback uses
+ * `appliedRole` to pick a destination — preferring this value over a
+ * fresh profile re-read avoids a tiny but real race where the cookie
+ * UPSERT and the destination resolver read different rows from
+ * different replicas.
+ */
+export interface ApplyOnboardingResult {
+  appliedRole: string | null;
+  error: string | null;
+}
+
+/**
+ * Called from /auth/callback after the session is established.
+ *
+ * Why this is an RPC (apply_onboarding_role) instead of a plain UPDATE:
+ *
+ * The old implementation did `supabase.from('profiles').update({ role }).eq('id', uid)`.
+ * That call ran with the user's JWT and was silently filtered out by the
+ * column-level RLS lockdown on `profiles.role` (only admins can flip
+ * role). The UPDATE returned success with 0 rows affected and no error,
+ * so the bug was completely invisible until users noticed they kept
+ * landing on the wrong portal.
+ *
+ * The RPC runs SECURITY DEFINER, enforces the role allow-list and the
+ * one-way "no demoting an admin/inspector via signup" guard inside the
+ * function body, and returns the final canonical role so the callback
+ * can route on first-paint without a second profile fetch.
+ *
+ * The migration that ships this RPC is
+ * supabase/migrations/20260519010000_apply_onboarding_role_rpc.sql.
+ */
+export async function applyOnboardingCookieToProfile(): Promise<ApplyOnboardingResult> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(ONBOARD_COOKIE)?.value;
+  if (!raw) return { appliedRole: null, error: null };
+
+  // Always clear the cookie — whether the apply succeeds or fails, we
+  // don't want the stale payload reapplied on a subsequent visit.
+  cookieStore.delete(ONBOARD_COOKIE);
+
+  let meta: Record<string, unknown>;
   try {
-    const cookieStore = await cookies();
-    const raw = cookieStore.get(ONBOARD_COOKIE)?.value;
-    if (!raw) return;
-    cookieStore.delete(ONBOARD_COOKIE);
-
-    const meta = JSON.parse(raw) as Record<string, unknown>;
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Best-effort merge into profiles. The BEFORE INSERT trigger covers new
-    // users; existing rows just get the new metadata fields filled in.
-    const update: Record<string, unknown> = {
-      full_name: meta.full_name ?? undefined,
-      role: meta.role ?? meta.onboarding_role ?? undefined,
-      onboarding_role: meta.onboarding_role ?? undefined,
-      company_name: meta.company_name ?? undefined,
-      contact_person_name: meta.contact_person_name ?? undefined,
-      terms_accepted_at: meta.terms_accepted_at ?? undefined,
-      terms_version: meta.terms_version ?? undefined,
-      specialty_slugs: meta.specialty_slugs ?? undefined,
-      onboarding_completed_at: new Date().toISOString(),
-    };
-    Object.keys(update).forEach(
-      (k) => update[k] === undefined && delete update[k],
-    );
-    await supabase.from('profiles').update(update).eq('id', user.id);
-  } catch {
-    /* ignore — onboarding cookie missing or malformed; fall through */
+    meta = JSON.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    console.error('[applyOnboardingCookieToProfile] cookie JSON parse failed:', err);
+    return { appliedRole: null, error: 'Onboarding cookie was malformed.' };
   }
+
+  const role =
+    (typeof meta.role === 'string' && meta.role) ||
+    (typeof meta.onboarding_role === 'string' && meta.onboarding_role) ||
+    null;
+  if (!role) {
+    return { appliedRole: null, error: 'Onboarding cookie missing role.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { appliedRole: null, error: 'No authenticated user at callback.' };
+  }
+
+  // Retry briefly to absorb the race window between auth.users INSERT and
+  // the BEFORE INSERT trigger on profiles completing on the read replica.
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await supabase.rpc('apply_onboarding_role', {
+      p_role: role,
+      p_full_name: (meta.full_name as string | undefined) ?? null,
+      p_company_name: (meta.company_name as string | undefined) ?? null,
+      p_contact_person_name: (meta.contact_person_name as string | undefined) ?? null,
+      p_specialty_slugs:
+        (meta.specialty_slugs as string[] | undefined) ?? null,
+      p_terms_accepted_at:
+        (meta.terms_accepted_at as string | undefined) ?? null,
+      p_terms_version: (meta.terms_version as string | undefined) ?? null,
+    });
+
+    if (!error && data) {
+      const row = Array.isArray(data)
+        ? (data[0] as { applied_role?: string } | undefined)
+        : (data as { applied_role?: string });
+      const appliedRole = row?.applied_role ?? role;
+      return { appliedRole, error: null };
+    }
+
+    lastError = error?.message ?? 'Unknown RPC error';
+    // Linear backoff — 200ms, 400ms — capped at 2 retries.
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+  }
+
+  console.error(
+    '[applyOnboardingCookieToProfile] apply_onboarding_role failed after 3 attempts:',
+    lastError,
+  );
+  return { appliedRole: null, error: lastError };
 }

@@ -25,6 +25,8 @@ import {
   AlertTriangle,
   FolderOpen,
   Settings,
+  ArrowLeft,
+  LayoutDashboard,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchMyNotifications } from '@/lib/data/notifications';
@@ -132,9 +134,44 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
     ['Earlier', earlierList],
   ];
 
+  // Detect role to point the "back" link at the right dashboard.
+  let backHref = '/';
+  let backLabel = 'Home';
+  try {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+    const role = ((prof as { role?: unknown } | null)?.role ?? '')
+      .toString()
+      .toLowerCase();
+    if (role === 'admin' || role === 'super_admin') {
+      backHref = '/admin/dashboard';
+      backLabel = 'Admin dashboard';
+    } else if (role === 'inspector') {
+      backHref = '/inspector/dashboard';
+      backLabel = 'Inspector dashboard';
+    } else if (['client', 'agency', 'enterprise'].includes(role)) {
+      backHref = '/client/dashboard';
+      backLabel = 'Client dashboard';
+    }
+  } catch {
+    /* fall through to root */
+  }
+
   return (
     <main className="container-narrow py-10">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {/* Back link — explicit so users always have a way out of the feed. */}
+      <Link
+        href={backHref}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 transition-colors hover:text-violet-glow"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+        Back to {backLabel}
+      </Link>
+
+      <header className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
             Notifications
@@ -214,6 +251,21 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
             <p className="mt-1 text-[11px] text-zinc-600">
               Activity will appear here in real time — no refresh needed.
             </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <Link
+                href={backHref}
+                className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-4 py-2 text-xs font-semibold text-violet-glow hover:bg-violet/20"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={2} />
+                {backLabel}
+              </Link>
+              <Link
+                href="/admin/diagnostics"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 hover:border-violet/30 hover:text-white"
+              >
+                System diagnostics
+              </Link>
+            </div>
           </div>
         ) : (
           orderedBuckets.map(([label, list]) =>

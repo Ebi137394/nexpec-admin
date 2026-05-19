@@ -15,7 +15,7 @@ import {
 } from '@/lib/data/jobsModeration';
 import { JobsModerationTable } from '@/components/admin/jobs/JobsModerationTable';
 import { JobsStatusFilter } from '@/components/admin/jobs/JobsStatusFilter';
-import { JobModerationDrawer } from '@/components/admin/jobs/JobModerationDrawer';
+import { JobModerationPanel } from '@/components/admin/jobs/JobModerationPanel';
 import { Pagination } from '@/components/admin/audit/Pagination';
 import type {
   ModerationJobDetail,
@@ -33,6 +33,8 @@ interface PageProps {
     status?: string;
     page?: string;
     inspect?: string;
+    error?: string;
+    ok?: string;
   }>;
 }
 
@@ -120,13 +122,19 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         pageSize={pageSize}
       />
 
-      {/* Only mount the drawer when we have a real job to inspect. Mounting
-          it with job=null forced the client component to evaluate hooks +
-          effects against null, which (depending on imported helpers like
-          formatCents) could throw during SSR. Conditional mount = zero
-          risk of null-prop SSR errors. */}
+      {sp.ok && (
+        <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
+          Decision recorded: <span className="font-mono">{sp.ok}</span>
+        </div>
+      )}
+
+      {/* Pure server-rendered panel — no client component, no hydration risk. */}
       {inspected && (
-        <JobModerationDrawer job={inspected} timeline={timeline} />
+        <JobModerationPanel
+          job={inspected}
+          timeline={timeline}
+          errorMessage={sp.error}
+        />
       )}
     </div>
   );

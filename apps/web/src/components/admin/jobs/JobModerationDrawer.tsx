@@ -14,7 +14,17 @@ import {
   Link2,
   Gavel,
 } from 'lucide-react';
-import { formatCents, type JobModerationDecision } from '@nexpec/shared-core';
+import { type JobModerationDecision } from '@nexpec/shared-core';
+
+// Local safe formatter — avoids any null-handling drift from shared-core.
+function fmtCents(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '$0.00';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(v) / 100);
+}
 import {
   reviewJob,
   reviewJobInitialState,
@@ -273,13 +283,13 @@ function Body({
           <div>
             <dt className="text-zinc-500">Client price</dt>
             <dd className="mt-0.5 font-mono font-semibold text-zinc-200">
-              {formatCents(job.client_price_cents)}
+              {fmtCents(job.client_price_cents)}
             </dd>
           </div>
           <div>
             <dt className="text-zinc-500">Inspector payout</dt>
             <dd className="mt-0.5 font-mono font-semibold text-cyan-glow">
-              {formatCents(job.payout_amount_cents)}
+              {fmtCents(job.payout_amount_cents)}
             </dd>
           </div>
         </dl>

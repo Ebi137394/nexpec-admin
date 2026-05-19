@@ -1,5 +1,9 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  app/admin/jobs/page.tsx — Jobs Moderation (Sprint 4: drawer live)
+//  app/admin/jobs/page.tsx — Jobs Moderation
+//
+//  Defensive on every wire: invalid inspect ids never reach the drawer,
+//  the drawer is conditionally mounted (instead of always-mounted-with-null),
+//  and every fetcher is wrapped in try/catch at the data layer.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
@@ -13,9 +17,16 @@ import { JobsModerationTable } from '@/components/admin/jobs/JobsModerationTable
 import { JobsStatusFilter } from '@/components/admin/jobs/JobsStatusFilter';
 import { JobModerationDrawer } from '@/components/admin/jobs/JobModerationDrawer';
 import { Pagination } from '@/components/admin/audit/Pagination';
+import type {
+  ModerationJobDetail,
+  ModerationTimelineEvent,
+} from '@/lib/data/jobsModeration.types';
 
 export const metadata: Metadata = { title: 'Jobs Moderation' };
 export const dynamic = 'force-dynamic';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface PageProps {
   searchParams: Promise<{
@@ -31,12 +42,50 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
   const page = parseInt(sp.page ?? '1', 10) || 1;
   const status = isJobStatus(sp.status) ? sp.status : undefined;
 
-  const [{ jobs, total, totalPages, pageSize }, inspected, timeline] =
-    await Promise.all([
-      fetchJobsModerationPage({ page, status }),
-      sp.inspect ? fetchModerationJob(sp.inspect) : Promise.resolve(null),
-      sp.inspect ? fetchModerationTimeline(sp.inspect) : Promise.resolve([]),
-    ]);
+  // Validate inspect param before passing it to the fetchers. If it isn't a
+  // UUID, ignore it entirely — Postgres throws on malformed UUIDs and we
+  // don't want that surfacing as a 500.
+  const inspectId =
+    sp.inspect && UUID_RE.test(sp.inspect) ? sp.inspect : null;
+
+  // Fetch each piece independently and tolerate any failure. We wrap the
+  // Promise.all so even a thrown rejection from a poorly-typed RPC can't
+  // collapse the whole page.
+  let jobs: Awaited<ReturnType<typeof fetchJobsModerationPage>>['jobs'] = [];
+  let total = 0;
+  let totalPages = 1;
+  let pageSize = 25;
+  let inspected: ModerationJobDetail | null = null;
+  let timeline: ModerationTimelineEvent[] = [];
+
+  try {
+    const result = await fetchJobsModerationPage({ page, status });
+    jobs = result.jobs;
+    total = result.total;
+    totalPages = result.totalPages;
+    pageSize = result.pageSize;
+  } catch (e) {
+    if (typeof console !== 'undefined') {
+      console.error('[admin/jobs] fetchJobsModerationPage threw:', e);
+    }
+  }
+
+  if (inspectId) {
+    try {
+      inspected = await fetchModerationJob(inspectId);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.error('[admin/jobs] fetchModerationJob threw:', e);
+      }
+    }
+    try {
+      timeline = await fetchModerationTimeline(inspectId);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.error('[admin/jobs] fetchModerationTimeline threw:', e);
+      }
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -62,7 +111,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         </p>
       </div>
 
-      <JobsModerationTable jobs={jobs} selectedId={sp.inspect ?? null} />
+      <JobsModerationTable jobs={jobs} selectedId={inspectId} />
 
       <Pagination
         page={page}
@@ -71,7 +120,14 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         pageSize={pageSize}
       />
 
-      <JobModerationDrawer job={inspected} timeline={timeline} />
+      {/* Only mount the drawer when we have a real job to inspect. Mounting
+          it with job=null forced the client component to evaluate hooks +
+          effects against null, which (depending on imported helpers like
+          formatCents) could throw during SSR. Conditional mount = zero
+          risk of null-prop SSR errors. */}
+      {inspected && (
+        <JobModerationDrawer job={inspected} timeline={timeline} />
+      )}
     </div>
   );
 }

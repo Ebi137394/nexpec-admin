@@ -1,9 +1,18 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { formatCents } from '@nexpec/shared-core';
 import type { ModerationJob } from '@/lib/data/jobsModeration';
 import { JobStatusBadge } from './JobStatusBadge';
 import { cn } from '@/lib/cn';
+
+// Local safe formatter — handles null/undefined/NaN gracefully.
+function fmtCents(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '$0.00';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(v) / 100);
+}
 
 interface JobsModerationTableProps {
   jobs: ModerationJob[];
@@ -94,7 +103,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
                   <Link href={href} replace scroll={false}>
                     <p className="font-mono text-sm font-semibold text-zinc-200">
-                      {formatCents(job.client_price_cents)}
+                      {fmtCents(job.client_price_cents)}
                     </p>
                   </Link>
                 </td>
@@ -106,7 +115,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                     className="flex items-center justify-end gap-2"
                   >
                     <p className="font-mono text-sm font-semibold text-cyan-glow">
-                      {formatCents(job.payout_amount_cents)}
+                      {fmtCents(job.payout_amount_cents)}
                     </p>
                     <ChevronRight
                       className={cn(

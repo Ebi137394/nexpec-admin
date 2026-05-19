@@ -20,6 +20,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchReviewsForUser } from '@/lib/data/reviews';
 import { StarRating } from '@/components/reviews/StarRating';
 import { ReviewCard } from '@/components/reviews/ReviewCard';
+import { BackButton } from '@/components/BackButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,6 +109,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   return (
     <main className="container-narrow py-12 sm:py-16">
+      {/* Back to the previous page (applications list, admin drawer, etc.) */}
+      <div className="mb-6">
+        <BackButton fallbackHref="/" label="Back" />
+      </div>
+
       {/* Profile header */}
       <section className="rounded-3xl border border-white/[0.08] bg-gradient-to-b from-ink-800/60 to-ink-900/40 p-6 sm:p-10">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start">

@@ -23,6 +23,10 @@ import {
   Users,
 } from 'lucide-react';
 import { reviewJobSimple } from '@/lib/actions/jobModerationSimple';
+import {
+  adminCounterApplication,
+  adminForwardApplication,
+} from '@/lib/actions/negotiation';
 import type {
   ModerationJobDetail,
   ModerationTimelineEvent,
@@ -215,6 +219,122 @@ export function JobModerationPanel({
                       </p>
                     </div>
                   )}
+                  {/* Negotiation state — what's the current standing? */}
+                  {a.negotiation_status === 'admin_countered' && (
+                    <div className="mt-2 rounded-lg border border-accent-amber/30 bg-accent-amber/10 p-3 text-xs text-accent-amber">
+                      You sent a counter:{' '}
+                      <span className="font-mono font-semibold">
+                        {fmtCents(a.admin_counter_cents)}
+                      </span>
+                      . Awaiting inspector response.
+                      {a.admin_comment && (
+                        <p className="mt-1 text-[11px] opacity-90">
+                          “{a.admin_comment}”
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {a.negotiation_status === 'counter_accepted' && (
+                    <div className="mt-2 rounded-lg border border-accent-green/30 bg-accent-green/10 p-3 text-xs text-accent-green">
+                      Inspector ACCEPTED your counter of{' '}
+                      <span className="font-mono font-semibold">
+                        {fmtCents(a.admin_counter_cents)}
+                      </span>
+                      . Forward to the client.
+                      {a.inspector_decision_note && (
+                        <p className="mt-1 text-[11px] opacity-90">
+                          “{a.inspector_decision_note}”
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {a.negotiation_status === 'counter_rejected' && (
+                    <div className="mt-2 rounded-lg border border-accent-red/30 bg-accent-red/10 p-3 text-xs text-accent-red">
+                      Inspector REJECTED your counter. Send a new one or
+                      move on.
+                      {a.inspector_decision_note && (
+                        <p className="mt-1 text-[11px] opacity-90">
+                          “{a.inspector_decision_note}”
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Admin actions: counter / forward */}
+                  {a.status === 'pending' && (
+                    <details className="mt-2 rounded-lg border border-violet/25 bg-violet/[0.04]">
+                      <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase tracking-industrial text-violet-glow">
+                        Send counter-offer to inspector ↔
+                      </summary>
+                      <form
+                        action={adminCounterApplication}
+                        className="space-y-2 px-3 pb-3"
+                      >
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="jobId" value={job.id} />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+                              Counter (USD whole dollars)
+                            </span>
+                            <input
+                              type="number"
+                              name="counterDollars"
+                              min={0}
+                              step={1}
+                              required
+                              defaultValue={
+                                a.admin_counter_cents != null
+                                  ? String(Math.round(a.admin_counter_cents / 100))
+                                  : ''
+                              }
+                              placeholder="e.g. 1200"
+                              className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 font-mono text-sm text-white"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+                              Comment to inspector
+                            </span>
+                            <input
+                              type="text"
+                              name="comment"
+                              maxLength={2000}
+                              placeholder="Optional context"
+                              defaultValue={a.admin_comment ?? ''}
+                              className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm text-white"
+                            />
+                          </label>
+                        </div>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-2 rounded-full bg-violet px-3 py-1.5 text-[11px] font-semibold uppercase tracking-industrial text-white hover:bg-violet/90"
+                        >
+                          Send counter
+                        </button>
+                      </form>
+                    </details>
+                  )}
+
+                  {(a.negotiation_status === 'counter_accepted' ||
+                    a.negotiation_status === null ||
+                    a.negotiation_status === 'none') &&
+                    a.status === 'pending' && (
+                      <form
+                        action={adminForwardApplication}
+                        className="mt-2"
+                      >
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <input type="hidden" name="jobId" value={job.id} />
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-2 rounded-full bg-accent-green px-3 py-1.5 text-[11px] font-semibold uppercase tracking-industrial text-white hover:bg-accent-green/90"
+                        >
+                          Forward to client
+                        </button>
+                      </form>
+                    )}
+
                   {a.applicant_id && (
                     <Link
                       href={`/p/${a.applicant_id}`}

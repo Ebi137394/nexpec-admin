@@ -163,6 +163,13 @@ export interface ModerationApplicant {
   bid_amount_cents: number | null;
   payout_amount_cents: number | null;
   cover_note: string | null;
+  // Negotiation loop (sprint 14)
+  admin_counter_cents: number | null;
+  admin_comment: string | null;
+  negotiation_status: string | null;
+  inspector_decision: string | null;
+  inspector_decision_note: string | null;
+  inspector_decision_at: string | null;
   created_at: string | null;
 }
 
@@ -177,21 +184,36 @@ export async function fetchModerationApplicants(
   if (!jobId) return [];
   try {
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from('applications')
-      .select(
-        'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, created_at',
-      )
-      .eq('job_id', jobId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (error || !data) {
-      if (error && typeof console !== 'undefined') {
-        console.warn('[fetchModerationApplicants] failed:', error.message);
+
+    // Cascading SELECT — try wide projection first, then narrower if any
+    // of the negotiation columns don't exist yet.
+    const WIDE =
+      'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, admin_counter_cents, admin_comment, negotiation_status, inspector_decision, inspector_decision_note, inspector_decision_at, created_at';
+    const MID =
+      'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, created_at';
+    const NARROW = 'id, applicant_id, status, created_at';
+
+    let data: Array<Record<string, unknown>> | null = null;
+    for (const proj of [WIDE, MID, NARROW]) {
+      const res = await supabase
+        .from('applications')
+        .select(proj)
+        .eq('job_id', jobId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!res.error && res.data) {
+        data = res.data as unknown as Array<Record<string, unknown>>;
+        break;
       }
-      return [];
+      if (res.error && typeof console !== 'undefined') {
+        console.warn(
+          '[fetchModerationApplicants] projection failed:',
+          res.error.message,
+        );
+      }
     }
-    const rows = data as Array<Record<string, unknown>>;
+    if (!data) return [];
+    const rows = data;
     // Hydrate inspector names
     const ids = Array.from(
       new Set(
@@ -232,6 +254,12 @@ export async function fetchModerationApplicants(
         bid_amount_cents: (r.bid_amount_cents as number | null) ?? null,
         payout_amount_cents: (r.payout_amount_cents as number | null) ?? null,
         cover_note: (r.cover_note as string | null) ?? null,
+        admin_counter_cents: (r.admin_counter_cents as number | null) ?? null,
+        admin_comment: (r.admin_comment as string | null) ?? null,
+        negotiation_status: (r.negotiation_status as string | null) ?? null,
+        inspector_decision: (r.inspector_decision as string | null) ?? null,
+        inspector_decision_note: (r.inspector_decision_note as string | null) ?? null,
+        inspector_decision_at: (r.inspector_decision_at as string | null) ?? null,
         created_at: (r.created_at as string | null) ?? null,
       };
     });

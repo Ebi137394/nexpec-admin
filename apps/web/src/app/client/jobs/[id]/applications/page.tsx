@@ -305,6 +305,25 @@ function Card({
         </p>
       )}
 
+      {/* Quick-ask CTA — clients can't message inspectors (GR7), but they
+          CAN message admin about an inspector via the job-scoped chat. */}
+      <div className="mt-4 rounded-xl border border-violet/25 bg-violet/[0.04] p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
+          Need more info on this inspector?
+        </p>
+        <p className="mt-1 text-xs text-zinc-300">
+          Open the admin chat for this job. Ask for additional docs, CV
+          details, or a reference check. Admin relays. (GR7: no direct
+          client↔inspector messaging.)
+        </p>
+        <Link
+          href={`/client/messages?openJob=${jobId}`}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
+        >
+          Ask admin about this inspector →
+        </Link>
+      </div>
+
       {/* Action row — hidden once the application is closed-out. */}
       {!isClosed && (
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">

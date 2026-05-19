@@ -166,7 +166,9 @@ export function NotificationBellLive({
     };
   }, [supabase, userId]);
 
-  // Realtime subscription.
+  // Realtime subscription. Logs the SUBSCRIBED/CHANNEL_ERROR status to the
+  // browser console so we can verify the publication is wired without
+  // having to read server logs.
   useEffect(() => {
     if (!supabase || !userId) return;
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -176,7 +178,7 @@ export function NotificationBellLive({
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'notifications',
             filter: `recipient_id=eq.${userId}`,
@@ -244,10 +246,23 @@ export function NotificationBellLive({
             }
           },
         )
-        .subscribe();
+        .subscribe((status, err) => {
+          if (typeof console !== 'undefined') {
+            console.log(
+              `[NotificationBellLive] channel notifications:${userId} →`,
+              status,
+              err ?? '',
+            );
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(
+              '[NotificationBellLive] realtime degraded — falling back to 25s polling',
+            );
+          }
+        });
     } catch (e) {
       if (typeof console !== 'undefined') {
-        console.warn('[NotificationBellLive] subscribe failed:', e);
+        console.warn('[NotificationBellLive] subscribe threw:', e);
       }
     }
     return () => {

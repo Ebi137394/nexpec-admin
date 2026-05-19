@@ -224,11 +224,13 @@ function Body({
   state: ReviewJobActionState;
   formAction: (formData: FormData) => void;
 }) {
-  const showNotesRequired = decision !== 'approved';
+  // Admin = god mode. Notes are ALWAYS optional. Payout is recommended on
+  // approve (GR1) but never enforced — admin can ship a $0 pro-bono job or
+  // come back to set the price later. UI hints these things; nothing blocks.
+  const showNotesRequired = false;
   const showPayoutInput = decision === 'approved';
   const payoutDollarsNum = payoutDollars.trim() === '' ? NaN : Number(payoutDollars);
-  const payoutValid =
-    Number.isFinite(payoutDollarsNum) && payoutDollarsNum > 0;
+  const payoutFilled = Number.isFinite(payoutDollarsNum) && payoutDollarsNum >= 0;
   const clientBudgetDollars =
     typeof job.client_price_cents === 'number' && job.client_price_cents > 0
       ? Math.round(job.client_price_cents / 100)
@@ -364,8 +366,8 @@ function Body({
             What the platform pays the inspector on a signed report. Stored as{' '}
             <span className="font-mono text-zinc-300">inspector_payout_cents</span>
             . <span className="text-zinc-300">Clients never see this value</span>
-            ; inspectors never see the client&rsquo;s budget. Set it now —
-            approval is blocked until you do.
+            ; inspectors never see the client&rsquo;s budget. Recommended but
+            optional — you can approve without a price and set it later.
           </p>
           {clientBudgetDollars !== null && (
             <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-zinc-400">
@@ -395,12 +397,7 @@ function Body({
               className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 font-mono text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-violet/30"
             />
           </div>
-          {!payoutValid && payoutDollars.trim() !== '' && (
-            <p className="mt-1.5 text-[11px] text-accent-red">
-              Enter a positive whole number.
-            </p>
-          )}
-          {clientBudgetDollars !== null && payoutValid && (
+          {clientBudgetDollars !== null && payoutFilled && (
             <p className="mt-1.5 text-[11px] text-zinc-500">
               Platform spread: ${' '}
               <span className="font-mono text-zinc-300">
@@ -455,7 +452,7 @@ function Body({
         </div>
       )}
 
-      <ReviewSubmit decision={decision} blocked={showPayoutInput && !payoutValid} />
+      <ReviewSubmit decision={decision} blocked={false} />
     </form>
   );
 }

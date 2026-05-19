@@ -37,30 +37,28 @@ export async function reviewJob(
 
   const supabase = await createSupabaseServerClient();
 
-  // GR1 — when approving, the admin MUST set the inspector payout. The form
-  // sends `inspectorPayoutDollars` only when decision === 'approved'.
+  // GR1 — admin sets the inspector payout. NO cap, NO floor, NO requirement
+  // to fill it. Admin is the platform; they can approve a $0 pro-bono job
+  // or a $5M one without us second-guessing. If they leave it blank, we
+  // simply skip the pricing RPC and let approval proceed.
   if (parsed.data.p_decision === 'approved') {
     const rawPayout = String(formData.get('inspectorPayoutDollars') ?? '').trim();
-    const payoutDollars = rawPayout === '' ? NaN : Number(rawPayout);
-    if (!Number.isFinite(payoutDollars) || payoutDollars <= 0) {
-      return {
-        ok: false,
-        error: 'Set the inspector payout (USD whole dollars) before approving — Golden Rule 1.',
-      };
-    }
-    if (payoutDollars > 1_000_000) {
-      return { ok: false, error: 'Inspector payout exceeds the $1M platform cap.' };
-    }
-    const cents = Math.round(payoutDollars * 100);
-    const { error: priceErr } = await supabase.rpc('admin_set_job_pricing', {
-      p_job_id: parsed.data.p_job_id,
-      p_inspector_payout_cents: cents,
-    });
-    if (priceErr) {
-      return {
-        ok: false,
-        error: `Could not set inspector payout: ${priceErr.message}`,
-      };
+    if (rawPayout !== '') {
+      const payoutDollars = Number(rawPayout);
+      if (Number.isFinite(payoutDollars) && payoutDollars >= 0) {
+        const cents = Math.round(payoutDollars * 100);
+        const { error: priceErr } = await supabase.rpc('admin_set_job_pricing', {
+          p_job_id: parsed.data.p_job_id,
+          p_inspector_payout_cents: cents,
+        });
+        if (priceErr) {
+          return {
+            ok: false,
+            error: `Could not set inspector payout: ${priceErr.message}`,
+          };
+        }
+      }
+      // If the number doesn't parse, silently skip — admin can fix later.
     }
   }
 

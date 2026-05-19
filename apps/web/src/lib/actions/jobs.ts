@@ -141,20 +141,60 @@ export async function createJob(formData: FormData): Promise<void> {
     ? parsed.data.clientOpId
     : null;
 
-  // Idempotency: if a job with this client_op_id already exists for this
-  // user, redirect to it instead of inserting a duplicate. This stops the
-  // "submitted once, got 3 rows" bug at its source.
+  // ── DEDUP A: idempotency token (cross-deploy guarantee) ────────────────
+  // If a job with this client_op_id already exists for this user, redirect
+  // to it instead of inserting a duplicate.
   if (clientOpId) {
-    const { data: existing } = await supabase
-      .from('jobs')
-      .select('id')
-      .eq('client_op_id', clientOpId)
-      .eq('client_id', user.id)
-      .maybeSingle();
-    if (existing && (existing as { id?: string }).id) {
-      revalidatePath('/client/jobs');
-      redirect('/client/jobs?created=' + encodeURIComponent((existing as { id: string }).id));
+    try {
+      const { data: existing } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('client_op_id', clientOpId)
+        .eq('client_id', user.id)
+        .maybeSingle();
+      if (existing && (existing as { id?: string }).id) {
+        revalidatePath('/client/jobs');
+        redirect(
+          '/client/jobs?created=' +
+            encodeURIComponent((existing as { id: string }).id),
+        );
+      }
+    } catch {
+      /* ignore — column may not exist yet, fall through to content-hash check */
     }
+  }
+
+  // ── DEDUP B: content-hash + time window ────────────────────────────────
+  // Belt-and-suspenders. If the user navigated back and resubmitted the
+  // same form (different op_id, same content), this catches it. Window is
+  // 90 seconds because a user resubmitting on purpose >1m later is fine.
+  try {
+    const windowStart = new Date(Date.now() - 90_000).toISOString();
+    const { data: recent } = await supabase
+      .from('jobs')
+      .select('id, title, description, location_city, created_at')
+      .eq('client_id', user.id)
+      .gte('created_at', windowStart)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const dup = (recent ?? []).find(
+      (r) =>
+        String((r as { title?: unknown }).title ?? '').trim() ===
+          parsed.data.title.trim() &&
+        String((r as { description?: unknown }).description ?? '').trim() ===
+          parsed.data.description.trim() &&
+        String((r as { location_city?: unknown }).location_city ?? '').trim() ===
+          parsed.data.locationCity.trim(),
+    );
+    if (dup && (dup as { id?: string }).id) {
+      revalidatePath('/client/jobs');
+      redirect(
+        '/client/jobs?created=' +
+          encodeURIComponent((dup as { id: string }).id),
+      );
+    }
+  } catch {
+    /* ignore — proceed to insert */
   }
 
   const insert: Record<string, unknown> = {
@@ -212,7 +252,28 @@ export async function createJob(formData: FormData): Promise<void> {
     );
   }
 
+  // ── NOTIFICATION FALLBACK ──────────────────────────────────────────────
+  // The notify_on_job_change DB trigger (migration 20260518280000) should
+  // fire admin notifications automatically. But if that migration hasn't
+  // been applied to this tenant yet, the bell stays dark. We belt-and-
+  // suspender call notify_admins() directly here so admins get pinged
+  // regardless. Safe to call: notify_safe / notify_admins both swallow
+  // their own errors and never block the user response.
+  try {
+    await supabase.rpc('notify_admins', {
+      p_kind: 'job_moderated',
+      p_title: 'New job posted',
+      p_body: parsed.data.title.slice(0, 140),
+      p_link: '/admin/jobs?inspect=' + data.id,
+      p_job_id: data.id,
+    });
+  } catch {
+    /* ignore — RPC may not exist on this tenant; the SQL trigger covers it */
+  }
+
   // Revalidate the list so the new row appears without a hard reload.
   revalidatePath('/client/jobs');
+  revalidatePath('/admin/jobs');
+  revalidatePath('/notifications');
   redirect('/client/jobs?created=' + encodeURIComponent(data.id));
 }

@@ -26,6 +26,7 @@ import {
   CalendarClock,
   Users,
   ExternalLink,
+  MessageSquareQuote,
 } from 'lucide-react';
 import {
   fetchClientJob,
@@ -39,6 +40,7 @@ import {
   selectApplication,
   rejectApplication,
 } from '@/lib/actions/applications';
+import { openJobChat } from '@/lib/actions/messages';
 
 export const metadata: Metadata = {
   title: 'Applications',
@@ -300,29 +302,40 @@ function Card({
       </div>
 
       {app.coverNote && (
-        <p className="mt-3 whitespace-pre-line text-pretty text-sm leading-relaxed text-zinc-300">
-          {app.coverNote}
-        </p>
+        <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+          <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+            <MessageSquareQuote className="h-3 w-3" strokeWidth={1.75} />
+            Inspector&rsquo;s Cover Note
+          </p>
+          <p className="mt-2 whitespace-pre-line text-pretty text-sm leading-relaxed text-zinc-200">
+            {app.coverNote}
+          </p>
+        </div>
       )}
 
-      {/* Quick-ask CTA — clients can't message inspectors (GR7), but they
-          CAN message admin about an inspector via the job-scoped chat. */}
-      <div className="mt-4 rounded-xl border border-violet/25 bg-violet/[0.04] p-3">
+      {/* Quick-ask CTA — opens the job-scoped Client↔Admin chat. */}
+      <form
+        action={openJobChat}
+        className="mt-4 rounded-xl border border-violet/25 bg-violet/[0.04] p-3"
+      >
+        <input type="hidden" name="jobId" value={jobId} />
+        <input type="hidden" name="kind" value="job_client_admin" />
+        <input type="hidden" name="returnToBase" value="/client/messages" />
         <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
           Need more info on this inspector?
         </p>
         <p className="mt-1 text-xs text-zinc-300">
           Open the admin chat for this job. Ask for additional docs, CV
-          details, or a reference check. Admin relays. (GR7: no direct
-          client↔inspector messaging.)
+          details, or a reference check. Admin relays — all conversations
+          stay scoped to this project.
         </p>
-        <Link
-          href={`/client/messages?openJob=${jobId}`}
+        <button
+          type="submit"
           className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
         >
           Ask admin about this inspector →
-        </Link>
-      </div>
+        </button>
+      </form>
 
       {/* Action row — hidden once the application is closed-out. */}
       {!isClosed && (

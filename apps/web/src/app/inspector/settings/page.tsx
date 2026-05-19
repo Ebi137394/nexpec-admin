@@ -19,7 +19,12 @@ import { NDT_METHOD_CHOICES } from '@/lib/data/inspectorProfile.types';
 import { updateInspectorSettings } from '@/lib/actions/inspectorSettings';
 import { uploadAvatar } from '@/lib/actions/uploadAvatar';
 import { uploadResume, deleteResume } from '@/lib/actions/uploadResume';
-import { COMMON_SPECIALTIES } from '@/lib/data/clientJobs.types';
+import {
+  createInspectorCertificate,
+  deleteInspectorCertificate,
+} from '@/lib/actions/inspectorCertificates';
+import { fetchMyInspectorCertificates } from '@/lib/data/inspectorCertificates';
+import { SPECIALTY_GROUPS } from '@/lib/data/specialtyTaxonomy';
 import { fetchCountries } from '@/lib/data/countries';
 import { CountryMultiSelect } from '@/components/forms/CountryMultiSelect';
 import Image from 'next/image';
@@ -50,9 +55,10 @@ interface PageProps {
 
 export default async function InspectorSettingsPage({ searchParams }: PageProps) {
   const qp = await searchParams;
-  const [profile, countries] = await Promise.all([
+  const [profile, countries, certificates] = await Promise.all([
     fetchInspectorProfile(),
     fetchCountries(),
+    fetchMyInspectorCertificates(),
   ]);
   // If the profile fetch failed (RLS, missing column, etc), do NOT redirect
   // silently — that's the "click does nothing" UX we keep getting bitten by.
@@ -484,28 +490,54 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           </div>
         </Section>
 
-        {/* Specialties */}
+        {/* Specialties — comprehensive grouped taxonomy (200+) + custom add */}
         <Section
           title="Specialties"
-          subtitle="Drives which jobs surface in your feed."
+          subtitle="Drives which jobs surface in your feed. Pick everything you cover — admin uses these for matching."
         >
-          <fieldset>
-            <legend className="sr-only">Specialty slugs</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {COMMON_SPECIALTIES.map((s) => (
-                <ChipCheckbox
-                  key={s.slug}
-                  name="specialtySlugs"
-                  value={s.slug}
-                  label={s.label}
-                  defaultChecked={specialtySet.has(s.slug)}
-                />
-              ))}
-            </div>
-          </fieldset>
+          {SPECIALTY_GROUPS.map((group) => (
+            <fieldset key={group.title} className="space-y-2">
+              <legend className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
+                {group.title}
+              </legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {group.items.map((s) => (
+                  <ChipCheckbox
+                    key={s.slug}
+                    name="specialtySlugs"
+                    value={s.slug}
+                    label={s.label}
+                    defaultChecked={specialtySet.has(s.slug)}
+                  />
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] p-4">
+            <label
+              htmlFor="customSpecialties"
+              className="block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400"
+            >
+              Don&rsquo;t see your specialty? Add custom ones (comma-separated)
+            </label>
+            <input
+              id="customSpecialties"
+              name="customSpecialties"
+              type="text"
+              defaultValue={(profile.specialtySlugs ?? [])
+                .filter((s) => !SPECIALTY_GROUPS.some((g) => g.items.some((i) => i.slug === s)))
+                .join(', ')}
+              placeholder="e.g. Subsea robotic inspection, NORSOK M-501, custom-discipline"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
+            />
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              Free-form. Each comma-separated item is saved as a slug on your
+              profile and is searchable by admin.
+            </p>
+          </div>
         </Section>
 
-        {/* NDT Methods */}
+        {/* NDT Methods — checkbox grid + custom add */}
         <Section
           title="NDT methods"
           subtitle="Standardised method codes admin uses for matching."
@@ -524,12 +556,33 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               ))}
             </div>
           </fieldset>
+          <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] p-4">
+            <label
+              htmlFor="customNdtMethods"
+              className="block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400"
+            >
+              Add custom NDT methods (comma-separated)
+            </label>
+            <input
+              id="customNdtMethods"
+              name="customNdtMethods"
+              type="text"
+              defaultValue={(profile.ndtMethods ?? [])
+                .filter((s) => !NDT_METHOD_CHOICES.some((m) => m.slug === s))
+                .join(', ')}
+              placeholder="e.g. shearography, gamma backscatter, custom-method"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
+            />
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              Each item is saved as a method code on your profile.
+            </p>
+          </div>
         </Section>
 
-        {/* Certifications */}
+        {/* Certifications — keep the legacy text list for back-compat */}
         <Section
-          title="Certifications"
-          subtitle="Comma-separated list — e.g. API 510, ASNT Level II UT, CWI."
+          title="Certification tags (text-only)"
+          subtitle="Optional quick-tag list. For documents and expiry tracking, use the Certificates section below."
         >
           <Textarea
             name="certifications"
@@ -537,7 +590,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
             rows={3}
             maxLength={4000}
             placeholder="API 510, API 570, API 653, ASNT Level II UT"
-            hint="Each comma-separated item becomes a tag on your profile. File uploads land in the next sprint."
+            hint="Comma-separated. Saved as profile tags. Per-cert files live in the next section."
           />
         </Section>
 
@@ -664,6 +717,139 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           </button>
         </div>
       </form>
+
+      {/* ─── Certificates manager (separate from the main profile form) ── */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <header className="mb-6">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+            Certificates ({certificates.length})
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Upload individual certificate files (PDF / Word / image) with
+            issuing body, certificate number and expiry. Stored privately in{' '}
+            <span className="font-mono">inspector_certificates</span>. Admins
+            can view; clients never see the file itself.
+          </p>
+        </header>
+
+        {/* Existing certs list */}
+        {certificates.length > 0 && (
+          <ul className="mb-6 divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-white/[0.06]">
+            {certificates.map((c) => {
+              const expired =
+                c.expiryDate && new Date(c.expiryDate) < new Date();
+              const expiringSoon =
+                c.expiryDate &&
+                !expired &&
+                new Date(c.expiryDate).getTime() - Date.now() <
+                  60 * 24 * 60 * 60 * 1000;
+              return (
+                <li key={c.id} className="flex items-start gap-3 p-4 sm:p-5">
+                  <FileText className="mt-0.5 h-5 w-5 shrink-0 text-violet-glow" strokeWidth={1.75} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {c.name}
+                      </p>
+                      {c.certificateNo && (
+                        <span className="font-mono text-[10px] text-zinc-500">
+                          #{c.certificateNo}
+                        </span>
+                      )}
+                      {expired && (
+                        <span className="rounded-full border border-accent-red/30 bg-accent-red/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-red">
+                          Expired
+                        </span>
+                      )}
+                      {!expired && expiringSoon && (
+                        <span className="rounded-full border border-accent-amber/30 bg-accent-amber/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-amber">
+                          Expiring soon
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      {c.issuingBody ?? 'Unknown issuer'}
+                      {c.issueDate ? ` · issued ${c.issueDate}` : ''}
+                      {c.expiryDate ? ` · expires ${c.expiryDate}` : ''}
+                    </p>
+                    {c.notes && (
+                      <p className="mt-1 line-clamp-2 text-[11px] text-zinc-500">
+                        {c.notes}
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
+                      {c.fileSignedUrl && (
+                        <a
+                          href={c.fileSignedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
+                        >
+                          View file
+                          <ExternalLink className="h-3 w-3" strokeWidth={1.75} />
+                        </a>
+                      )}
+                      <form action={deleteInspectorCertificate}>
+                        <input type="hidden" name="id" value={c.id} />
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:border-accent-red/40 hover:bg-accent-red/10 hover:text-accent-red"
+                        >
+                          <Trash2 className="h-3 w-3" strokeWidth={1.75} />
+                          Remove
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* Create-new form */}
+        <form
+          action={createInspectorCertificate}
+          encType="multipart/form-data"
+          className="space-y-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:p-5"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
+            Add a certificate
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Name" name="name" required placeholder="API 510" />
+            <Field label="Issuing body" name="issuingBody" placeholder="American Petroleum Institute" />
+            <Field label="Certificate number" name="certificateNo" placeholder="510-12345" />
+            <Field label="Issue date" name="issueDate" type="date" />
+            <Field label="Expiry date" name="expiryDate" type="date" />
+            <div>
+              <label
+                htmlFor="certFile"
+                className="block text-[10px] font-semibold uppercase tracking-industrial text-zinc-500"
+              >
+                File (PDF / Word / image)
+              </label>
+              <input
+                id="certFile"
+                name="file"
+                type="file"
+                accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp"
+                className="mt-2 block w-full text-xs text-zinc-300 file:mr-3 file:rounded-full file:border-0 file:bg-violet file:px-4 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-violet/90"
+              />
+              <p className="mt-1 text-[10px] text-zinc-500">Optional. Max 15 MB.</p>
+            </div>
+          </div>
+          <Textarea name="notes" rows={2} maxLength={1000} placeholder="Notes (optional)" />
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm hover:bg-violet/90"
+            >
+              Add certificate
+            </button>
+          </div>
+        </form>
+      </section>
 
       {/* Read-only system facts */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">

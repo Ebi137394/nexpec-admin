@@ -104,43 +104,83 @@ export async function fetchAdminConversations(
       return q;
     };
 
-    // Wide projection w/ joins
+    let rows: ConversationRow[] = [];
+    let hydratedFromJoin = false;
+
+    // Phase 1 — wide projection with profile join (best case)
     {
       const { data, error } = await buildBase(
         'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email, role)',
       );
       if (!error && data) {
-        return (data as unknown as Array<Record<string, unknown>>).map(toRow);
-      }
-      if (error && typeof console !== 'undefined') {
+        rows = (data as unknown as Array<Record<string, unknown>>).map(toRow);
+        hydratedFromJoin = rows.some((r) => r.userLabel || r.userRole);
+      } else if (error && typeof console !== 'undefined') {
         console.warn('[fetchAdminConversations wide] failed:', error.message);
       }
     }
 
-    // Mid projection — drop profiles
-    {
+    // Phase 2 — drop profiles join (FK constraint name may not exist)
+    if (rows.length === 0) {
       const { data, error } = await buildBase(
         'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title)',
       );
       if (!error && data) {
-        return (data as unknown as Array<Record<string, unknown>>).map(toRow);
-      }
-      if (error && typeof console !== 'undefined') {
+        rows = (data as unknown as Array<Record<string, unknown>>).map(toRow);
+      } else if (error && typeof console !== 'undefined') {
         console.warn('[fetchAdminConversations mid] failed:', error.message);
       }
     }
 
-    // Narrow — no joins
-    const { data, error } = await buildBase(
-      'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at',
-    );
-    if (error || !data) {
-      if (error && typeof console !== 'undefined') {
-        console.warn('[fetchAdminConversations narrow] failed:', error.message);
+    // Phase 3 — no joins at all
+    if (rows.length === 0) {
+      const { data, error } = await buildBase(
+        'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at',
+      );
+      if (error || !data) {
+        if (error && typeof console !== 'undefined') {
+          console.warn('[fetchAdminConversations narrow] failed:', error.message);
+        }
+        return [];
       }
-      return [];
+      rows = (data as unknown as Array<Record<string, unknown>>).map(toRow);
     }
-    return (data as unknown as Array<Record<string, unknown>>).map(toRow);
+
+    // SAFETY NET — if the join didn't hydrate userLabel/userRole, batch-fetch
+    // them. This is the part that makes "I can't tell client vs inspector"
+    // actually work regardless of FK constraint state.
+    if (!hydratedFromJoin) {
+      const userIds = Array.from(
+        new Set(rows.map((r) => r.userId).filter(Boolean)),
+      );
+      if (userIds.length > 0) {
+        const { data: profs, error: profErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role')
+          .in('id', userIds);
+        if (!profErr && profs) {
+          const byId = new Map<string, { full_name?: string | null; email?: string | null; role?: string | null }>();
+          for (const p of profs as Array<Record<string, unknown>>) {
+            byId.set(String(p.id), {
+              full_name: (p.full_name as string | null) ?? null,
+              email: (p.email as string | null) ?? null,
+              role: (p.role as string | null) ?? null,
+            });
+          }
+          rows = rows.map((r) => {
+            const found = byId.get(r.userId);
+            if (!found) return r;
+            return {
+              ...r,
+              userLabel: r.userLabel ?? (found.full_name || found.email || null),
+              userRole: r.userRole ?? (found.role ?? null),
+            };
+          });
+        }
+      }
+    }
+
+    return rows;
   } catch (e) {
     if (typeof console !== 'undefined') {
       console.warn('[fetchAdminConversations] threw:', e);

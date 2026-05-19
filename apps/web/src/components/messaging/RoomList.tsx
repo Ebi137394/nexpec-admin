@@ -77,13 +77,13 @@ export function RoomList({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    {viewerIsAdmin && partyChip && <PartyChip chip={partyChip} />}
                     <p className="truncate text-sm font-semibold text-white">
-                      {viewerIsAdmin && r.userLabel
-                        ? r.userLabel
+                      {viewerIsAdmin
+                        ? r.userLabel ?? '(no name on file)'
                         : r.title || CONVERSATION_KIND_LABELS[r.kind]}
                     </p>
-                    {partyChip && <PartyChip chip={partyChip} />}
                   </div>
                   <p className="shrink-0 text-[11px] text-zinc-500">
                     {formatRelative(r.lastMessageAt)}
@@ -94,11 +94,11 @@ export function RoomList({
                     without opening them. */}
                 {viewerIsAdmin ? (
                   <p className="mt-0.5 truncate text-xs text-zinc-500">
-                    {partyChip ? partyChip.contextLabel : null}
+                    {partyChip ? partyChip.contextLabel : CONVERSATION_KIND_LABELS[r.kind]}
                     {r.jobTitle ? (
                       <>
-                        {partyChip ? ' · ' : ''}
-                        <span className="text-zinc-400">{r.jobTitle}</span>
+                        {' · '}
+                        <span className="text-zinc-300">Job: {r.jobTitle}</span>
                       </>
                     ) : null}
                   </p>

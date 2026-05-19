@@ -101,8 +101,13 @@ const UpdateInspectorSchema = z.object({
     .preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean())
     .optional(),
   // Specialty slugs + NDT methods arrive as repeated form fields.
-  specialtySlugs: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
-  ndtMethods: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  // 300-cap because the curated taxonomy alone has 200+ items, and the
+  // custom-add text input may push the total higher.
+  specialtySlugs: z.array(z.string().trim().min(1).max(120)).max(300).default([]),
+  ndtMethods: z.array(z.string().trim().min(1).max(120)).max(200).default([]),
+  // Free-form overflow inputs — comma-separated strings parsed below.
+  customSpecialties: z.string().trim().max(4000).optional().or(z.literal('')),
+  customNdtMethods: z.string().trim().max(4000).optional().or(z.literal('')),
   // Certifications: comma-separated string parsed into an array (MVP).
   certifications: z.string().trim().max(4000).optional().or(z.literal('')),
 
@@ -186,6 +191,8 @@ export async function updateInspectorSettings(
     isAvailable: formData.get('isAvailable'),
     specialtySlugs,
     ndtMethods,
+    customSpecialties: formData.get('customSpecialties') ?? '',
+    customNdtMethods: formData.get('customNdtMethods') ?? '',
     certifications: formData.get('certifications'),
     countryOfResidence: formData.get('countryOfResidence') ?? '',
     workAuthorizedCountries,
@@ -221,6 +228,33 @@ export async function updateInspectorSettings(
     .filter((s) => s.length > 0 && s.length <= 200)
     .slice(0, 40);
 
+  // Merge curated checkbox slugs with free-form custom entries.
+  // Custom entries are slugified (lowercase, kebab-case) so they fit
+  // the same `specialty_slugs` text[] as the curated taxonomy.
+  function toSlug(s: string): string {
+    return s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 120);
+  }
+  function splitCsv(s: string | undefined | null): string[] {
+    if (!s) return [];
+    return s
+      .split(',')
+      .map(toSlug)
+      .filter((v) => v.length > 0);
+  }
+  const mergedSpecialties = Array.from(
+    new Set([...parsed.data.specialtySlugs, ...splitCsv(parsed.data.customSpecialties)]),
+  ).slice(0, 300);
+  const mergedNdtMethods = Array.from(
+    new Set([...parsed.data.ndtMethods, ...splitCsv(parsed.data.customNdtMethods)]),
+  ).slice(0, 200);
+
   // STRICT ALLOWLIST. Never expand this object with admin-controlled columns.
   // Form fields not in parsed.data are stripped by Zod, but the explicit
   // construction here is the second line of defense.
@@ -248,8 +282,8 @@ export async function updateInspectorSettings(
     travel_radius_km: parsed.data.travelRadiusKm ?? null,
     availability_status: parsed.data.availabilityStatus ?? 'offline',
     is_available: parsed.data.isAvailable ?? true,
-    specialty_slugs: parsed.data.specialtySlugs,
-    ndt_methods: parsed.data.ndtMethods,
+    specialty_slugs: mergedSpecialties,
+    ndt_methods: mergedNdtMethods,
     certifications: certsArr,
     // ── Jurisdiction (Sprint 8A) ────────────────────────────────────────
     country_of_residence: parsed.data.countryOfResidence?.trim() || null,

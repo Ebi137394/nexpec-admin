@@ -33,6 +33,7 @@ import type {
   ModerationTimelineEvent,
 } from '@/lib/data/jobsModeration.types';
 import type { ModerationApplicant } from '@/lib/data/jobsModeration';
+import type { AdminJobContractRow } from '@/lib/data/jobContracts';
 import { JobStatusBadge } from './JobStatusBadge';
 
 // Local safe formatter (no shared-core dependency).
@@ -49,6 +50,7 @@ interface Props {
   job: ModerationJobDetail;
   timeline: ModerationTimelineEvent[];
   applicants?: ModerationApplicant[];
+  jobContract?: AdminJobContractRow | null;
   /** Optional ?error= query param to show inline after a failed action. */
   errorMessage?: string;
 }
@@ -57,6 +59,7 @@ export function JobModerationPanel({
   job,
   timeline,
   applicants = [],
+  jobContract = null,
   errorMessage,
 }: Props) {
   const existingPayoutCents =
@@ -423,6 +426,149 @@ export function JobModerationPanel({
             </ul>
           )}
         </section>
+
+        {/* Contract status — admin sees both signatures + both prices */}
+        {jobContract && (
+          <section className="rounded-xl border border-violet/30 bg-gradient-to-br from-violet/[0.08] to-cyan-glow/[0.04] p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Gavel className="h-4 w-4 text-violet-glow" strokeWidth={1.75} />
+                <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+                  Job contract
+                </p>
+              </div>
+              <span
+                className={
+                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ' +
+                  (jobContract.status === 'fully_executed'
+                    ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                    : jobContract.status === 'voided'
+                      ? 'border-accent-red/30 bg-accent-red/10 text-accent-red'
+                      : 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber')
+                }
+              >
+                {jobContract.status.replaceAll('_', ' ')}
+              </span>
+            </div>
+
+            {/* Both prices — admin-only view */}
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
+                  Client price
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-violet-glow">
+                  {fmtCents(jobContract.clientPriceCents)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
+                  Inspector payout
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-cyan-glow">
+                  {fmtCents(jobContract.inspectorPayoutCents)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
+                  Platform spread
+                </p>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-white">
+                  {fmtCents(jobContract.spreadCents)}
+                </p>
+              </div>
+            </div>
+
+            {/* Signatures */}
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div
+                className={
+                  'rounded-lg border p-3 ' +
+                  (jobContract.clientSignedAt
+                    ? 'border-accent-green/30 bg-accent-green/[0.06]'
+                    : 'border-accent-amber/30 bg-accent-amber/[0.06]')
+                }
+              >
+                <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-400">
+                  Client signature
+                </p>
+                {jobContract.clientSignedAt ? (
+                  <>
+                    <p className="mt-1 text-xs font-medium text-white">
+                      Signed · {jobContract.clientName ?? 'Client'}
+                    </p>
+                    <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
+                      {new Date(jobContract.clientSignedAt).toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-xs text-accent-amber">
+                    Pending — client has not signed
+                  </p>
+                )}
+              </div>
+              <div
+                className={
+                  'rounded-lg border p-3 ' +
+                  (jobContract.inspectorSignedAt
+                    ? 'border-accent-green/30 bg-accent-green/[0.06]'
+                    : 'border-accent-amber/30 bg-accent-amber/[0.06]')
+                }
+              >
+                <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-400">
+                  Inspector signature
+                </p>
+                {jobContract.inspectorSignedAt ? (
+                  <>
+                    <p className="mt-1 text-xs font-medium text-white">
+                      Signed · {jobContract.inspectorName ?? 'Inspector'}
+                    </p>
+                    <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
+                      {new Date(jobContract.inspectorSignedAt).toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-1 text-xs text-accent-amber">
+                    Pending — inspector has not signed
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Open the contract */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {jobContract.customContractUrl && (
+                <a
+                  href={jobContract.customContractUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 text-[11px] font-semibold text-cyan-glow hover:bg-cyan-glow/20"
+                >
+                  Open uploaded contract
+                  <ExternalLink className="h-3 w-3" strokeWidth={2} />
+                </a>
+              )}
+              <Link
+                href={`/admin/jobs?inspect=${job.id}#moderation`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
+              >
+                Contract id ·{' '}
+                <span className="font-mono">{jobContract.id.slice(0, 8)}</span>
+              </Link>
+            </div>
+
+            {jobContract.contractTextMd && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-[11px] font-semibold text-zinc-300 hover:text-white">
+                  Show full agreement text →
+                </summary>
+                <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-white/[0.04] bg-ink-950/40 p-3 font-sans text-[11px] leading-relaxed text-zinc-300">
+                  {jobContract.contractTextMd}
+                </pre>
+              </details>
+            )}
+          </section>
+        )}
 
         {/* Timeline */}
         <section>

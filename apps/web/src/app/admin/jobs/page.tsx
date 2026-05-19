@@ -16,6 +16,10 @@ import {
   isJobStatus,
   type ModerationApplicant,
 } from '@/lib/data/jobsModeration';
+import {
+  fetchAdminJobContractForJob,
+  type AdminJobContractRow,
+} from '@/lib/data/jobContracts';
 import { JobsModerationTable } from '@/components/admin/jobs/JobsModerationTable';
 import { JobsStatusFilter } from '@/components/admin/jobs/JobsStatusFilter';
 import { JobModerationPanel } from '@/components/admin/jobs/JobModerationPanel';
@@ -63,6 +67,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
   let inspected: ModerationJobDetail | null = null;
   let timeline: ModerationTimelineEvent[] = [];
   let applicants: ModerationApplicant[] = [];
+  let jobContract: AdminJobContractRow | null = null;
 
   try {
     const result = await fetchJobsModerationPage({ page, status });
@@ -96,6 +101,13 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
     } catch (e) {
       if (typeof console !== 'undefined') {
         console.error('[admin/jobs] fetchModerationApplicants threw:', e);
+      }
+    }
+    try {
+      jobContract = await fetchAdminJobContractForJob(inspectId);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.error('[admin/jobs] fetchAdminJobContractForJob threw:', e);
       }
     }
   }
@@ -132,6 +144,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
             job={inspected}
             timeline={timeline}
             applicants={applicants}
+            jobContract={jobContract}
             errorMessage={sp.error}
           />
         </div>

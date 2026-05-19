@@ -8,6 +8,7 @@
 
 import { cookies } from 'next/headers';
 import { getRequestConfig } from 'next-intl/server';
+import type { AbstractIntlMessages } from 'next-intl';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, isValidLocale } from './config';
 
 export default getRequestConfig(async () => {
@@ -15,11 +16,13 @@ export default getRequestConfig(async () => {
   const raw = cookieStore.get(LOCALE_COOKIE)?.value;
   const locale = isValidLocale(raw) ? raw : DEFAULT_LOCALE;
 
-  let messages: Record<string, unknown>;
+  let messages: AbstractIntlMessages;
   try {
-    messages = (await import(`../../messages/${locale}.json`)).default;
+    messages = (await import(`../../messages/${locale}.json`))
+      .default as AbstractIntlMessages;
   } catch {
-    messages = (await import(`../../messages/${DEFAULT_LOCALE}.json`)).default;
+    messages = (await import(`../../messages/${DEFAULT_LOCALE}.json`))
+      .default as AbstractIntlMessages;
   }
 
   return { locale, messages };

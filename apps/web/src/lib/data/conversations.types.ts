@@ -29,6 +29,7 @@ export interface ConversationRow {
   jobTitle: string | null;     // joined from jobs when scoped
   userId: string;
   userLabel: string | null;    // joined from profiles (full_name fallback to email)
+  userRole: string | null;     // joined from profiles.role — for admin party chip
   title: string | null;
   status: ConversationStatus;
   lastMessageAt: string | null;

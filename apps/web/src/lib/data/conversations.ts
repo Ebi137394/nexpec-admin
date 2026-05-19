@@ -107,7 +107,7 @@ export async function fetchAdminConversations(
     // Wide projection w/ joins
     {
       const { data, error } = await buildBase(
-        'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email)',
+        'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email, role)',
       );
       if (!error && data) {
         return (data as unknown as Array<Record<string, unknown>>).map(toRow);
@@ -167,7 +167,7 @@ export async function fetchConversationDetail(
       const { data, error } = await supabase
         .from('conversations')
         .select(
-          'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email)',
+          'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at, jobs(title), profiles!conversations_user_id_fkey(full_name, email, role)',
         )
         .eq('id', id)
         .maybeSingle();
@@ -294,7 +294,11 @@ export async function fetchConversationMessages(
 
 function toRow(r: Record<string, unknown>): ConversationRow {
   const jobsJoin = r.jobs as { title?: string | null } | null;
-  const profilesJoin = (r.profiles ?? null) as { full_name?: string | null; email?: string | null } | null;
+  const profilesJoin = (r.profiles ?? null) as {
+    full_name?: string | null;
+    email?: string | null;
+    role?: string | null;
+  } | null;
   return {
     id: String(r.id),
     kind: r.kind as ConversationKind,
@@ -303,6 +307,7 @@ function toRow(r: Record<string, unknown>): ConversationRow {
     userId: String(r.user_id),
     userLabel:
       profilesJoin?.full_name ?? profilesJoin?.email ?? null,
+    userRole: profilesJoin?.role ?? null,
     title: (r.title as string | null) ?? null,
     status: (r.status as ConversationStatus) ?? 'open',
     lastMessageAt: (r.last_message_at as string | null) ?? null,

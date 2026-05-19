@@ -16,6 +16,7 @@ import {
   PlusCircle,
   Calendar,
   MapPin,
+  AlertCircle,
 } from 'lucide-react';
 import { fetchInspectorProfile } from '@/lib/data/inspectorProfile';
 import { fetchInspectorWorkExperience } from '@/lib/data/inspectorWorkExperience';
@@ -44,7 +45,31 @@ export default async function InspectorExperiencePage({
     fetchInspectorProfile(),
     fetchInspectorWorkExperience(),
   ]);
-  if (!profile) redirect('/inspector/dashboard');
+  if (!profile) {
+    return (
+      <div className="rounded-3xl border border-accent-red/30 bg-accent-red/5 p-8 text-center">
+        <AlertCircle className="mx-auto h-10 w-10 text-accent-red" strokeWidth={1.5} />
+        <h1 className="mt-4 font-display text-xl font-semibold text-white">
+          Couldn&rsquo;t load your profile
+        </h1>
+        <p className="mt-2 max-w-md mx-auto text-sm text-zinc-400">
+          The profile fetch failed — usually a missing column. Run{' '}
+          <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px]">
+            20260518290000_inspector_profile_safety_net.sql
+          </code>{' '}
+          in Supabase, then refresh.
+        </p>
+        <div className="mt-5">
+          <Link
+            href="/inspector/dashboard"
+            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 hover:border-violet/40 hover:text-white"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const flash = sp.error
     ? { tone: 'error' as const, msg: sp.error }

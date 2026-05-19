@@ -54,7 +54,36 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
     fetchInspectorProfile(),
     fetchCountries(),
   ]);
-  if (!profile) redirect('/inspector/dashboard');
+  // If the profile fetch failed (RLS, missing column, etc), do NOT redirect
+  // silently — that's the "click does nothing" UX we keep getting bitten by.
+  // Show an in-page error with the migration to run.
+  if (!profile) {
+    return (
+      <div className="rounded-3xl border border-accent-red/30 bg-accent-red/5 p-8 text-center">
+        <AlertCircle className="mx-auto h-10 w-10 text-accent-red" strokeWidth={1.5} />
+        <h1 className="mt-4 font-display text-xl font-semibold text-white">
+          Couldn&rsquo;t load your profile
+        </h1>
+        <p className="mt-2 max-w-md mx-auto text-sm text-zinc-400">
+          Your account exists but the profile query failed — usually because the
+          inspector-profile safety-net migration hasn&rsquo;t been applied yet.
+          Ask an admin to run{' '}
+          <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px]">
+            20260518290000_inspector_profile_safety_net.sql
+          </code>{' '}
+          in Supabase.
+        </p>
+        <div className="mt-5">
+          <Link
+            href="/inspector/dashboard"
+            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 hover:border-violet/40 hover:text-white"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const specialtySet = new Set(profile.specialtySlugs);
   const ndtSet = new Set(profile.ndtMethods);

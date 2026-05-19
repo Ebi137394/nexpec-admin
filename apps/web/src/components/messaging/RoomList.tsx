@@ -56,7 +56,7 @@ export function RoomList({
         // like "click does nothing" to the user.
         if (!r.id) return null;
         const href = `${linkBase}/${r.id}`;
-        const partyChip = viewerIsAdmin ? deriveAdminPartyChip(r.kind) : null;
+        const partyChip = viewerIsAdmin ? deriveAdminPartyChip(r.kind, r.userRole) : null;
         return (
           <li key={r.id} className="relative">
             {/* Stretched link wraps the whole row. position:absolute + inset-0
@@ -139,31 +139,52 @@ interface AdminPartyChip {
   Icon: typeof Building2;
 }
 
-function deriveAdminPartyChip(kind: ConversationKind): AdminPartyChip {
-  switch (kind) {
-    case 'job_client_admin':
-      return {
-        label: 'Client',
-        contextLabel: 'Client side · job chat',
-        tone: 'violet',
-        Icon: Building2,
-      };
-    case 'job_inspector_admin':
-      return {
-        label: 'Inspector',
-        contextLabel: 'Inspector side · job chat',
-        tone: 'cyan',
-        Icon: HardHat,
-      };
-    case 'help_support':
-    default:
-      return {
-        label: 'Support',
-        contextLabel: 'Direct help & support',
-        tone: 'amber',
-        Icon: ShieldCheck,
-      };
+function deriveAdminPartyChip(
+  kind: ConversationKind,
+  userRole: string | null,
+): AdminPartyChip {
+  if (kind === 'job_client_admin') {
+    return {
+      label: 'Client',
+      contextLabel: 'Client side · job chat',
+      tone: 'violet',
+      Icon: Building2,
+    };
   }
+  if (kind === 'job_inspector_admin') {
+    return {
+      label: 'Inspector',
+      contextLabel: 'Inspector side · job chat',
+      tone: 'cyan',
+      Icon: HardHat,
+    };
+  }
+  // help_support — kind alone doesn't tell us who's writing. Use the joined
+  // profile role to differentiate (a Help & Support room from a CLIENT looks
+  // different from one from an INSPECTOR).
+  const role = (userRole ?? '').toLowerCase();
+  if (role === 'inspector') {
+    return {
+      label: 'Inspector',
+      contextLabel: 'Inspector · Help & Support',
+      tone: 'cyan',
+      Icon: HardHat,
+    };
+  }
+  if (role === 'client' || role === 'agency' || role === 'enterprise') {
+    return {
+      label: 'Client',
+      contextLabel: 'Client · Help & Support',
+      tone: 'violet',
+      Icon: Building2,
+    };
+  }
+  return {
+    label: 'Support',
+    contextLabel: 'Direct help & support',
+    tone: 'amber',
+    Icon: ShieldCheck,
+  };
 }
 
 function PartyChip({ chip }: { chip: AdminPartyChip }) {

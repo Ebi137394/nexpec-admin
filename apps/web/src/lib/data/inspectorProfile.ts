@@ -27,51 +27,77 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
     } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(
-        [
-          // Identity
-          'id', 'email', 'full_name', 'headline', 'bio',
-          'professional_title', 'phone', 'avatar_url',
-          // Experience + rates (legacy + sprint 11 rich rates)
-          'years_of_experience', 'hourly_rate_cents', 'response_time_hours',
-          'currency', 'travel_rate_cents', 'overtime_multiplier',
-          'weekend_multiplier', 'holiday_multiplier', 'payment_terms',
-          'minimum_engagement_hours',
-          // Resume / CV
-          'resume_url', 'resume_path',
-          // Skills + specialties
-          'specialty_slugs', 'ndt_methods', 'certifications',
-          // Geography
-          'location_city', 'location_province', 'travel_radius_km',
-          'country_of_residence', 'work_authorized_countries',
-          'open_to_sponsored_work', 'sponsored_countries',
-          // Availability
-          'is_available', 'availability_status',
-          // Wallet
-          'balance_cents', 'stripe_connect_id', 'stripe_connect_status',
-          'stripe_connect_payouts_enabled', 'stripe_connect_onboarded_at',
-          // Verification
-          'verification_status', 'verified_at', 'rejection_reason',
-          // Stats
-          'rating_average', 'rating_count', 'completed_jobs_count',
-          'total_jobs', 'reviews_count', 'recommend_percent',
-          // Meta
-          'created_at', 'last_active',
-        ].join(', '),
-      )
-      .eq('id', user.id)
-      .maybeSingle();
+    // Three-phase cascading SELECT — if a column doesn't exist in this
+    // tenant's schema (because a migration hasn't been applied), the wide
+    // query 400s and PostgREST returns an error. We fall through to a
+    // narrower projection so the page can still render. This is the same
+    // pattern used by fetchConversationDetail.
+    const WIDE = [
+      'id', 'email', 'full_name', 'headline', 'bio',
+      'professional_title', 'phone', 'avatar_url',
+      'years_of_experience', 'hourly_rate_cents', 'response_time_hours',
+      'currency', 'travel_rate_cents', 'overtime_multiplier',
+      'weekend_multiplier', 'holiday_multiplier', 'payment_terms',
+      'minimum_engagement_hours',
+      'resume_url', 'resume_path',
+      'specialty_slugs', 'ndt_methods', 'certifications',
+      'location_city', 'location_province', 'travel_radius_km',
+      'country_of_residence', 'work_authorized_countries',
+      'open_to_sponsored_work', 'sponsored_countries',
+      'is_available', 'availability_status',
+      'balance_cents', 'stripe_connect_id', 'stripe_connect_status',
+      'stripe_connect_payouts_enabled', 'stripe_connect_onboarded_at',
+      'verification_status', 'verified_at', 'rejection_reason',
+      'rating_average', 'rating_count', 'completed_jobs_count',
+      'total_jobs', 'reviews_count', 'recommend_percent',
+      'created_at', 'last_active',
+    ].join(', ');
 
-    if (error || !data) {
-      if (error && typeof console !== 'undefined') {
-        console.warn('[fetchInspectorProfile] failed:', error.message);
+    // Mid: drop sprint-11 + sponsorship + stats columns that may be missing
+    const MID = [
+      'id', 'email', 'full_name', 'headline', 'bio',
+      'phone', 'avatar_url',
+      'years_of_experience', 'hourly_rate_cents', 'response_time_hours',
+      'resume_path',
+      'specialty_slugs', 'ndt_methods', 'certifications',
+      'location_city', 'location_province', 'travel_radius_km',
+      'is_available', 'availability_status',
+      'verification_status', 'rejection_reason',
+      'created_at',
+    ].join(', ');
+
+    // Narrow: only columns guaranteed to exist on every install
+    const NARROW = 'id, email, full_name, created_at';
+
+    let data: Record<string, unknown> | null = null;
+
+    {
+      const r = await supabase.from('profiles').select(WIDE).eq('id', user.id).maybeSingle();
+      if (!r.error && r.data) {
+        data = r.data as unknown as Record<string, unknown>;
+      } else if (r.error && typeof console !== 'undefined') {
+        console.warn('[fetchInspectorProfile wide] failed:', r.error.message);
       }
-      return null;
     }
+    if (!data) {
+      const r = await supabase.from('profiles').select(MID).eq('id', user.id).maybeSingle();
+      if (!r.error && r.data) {
+        data = r.data as unknown as Record<string, unknown>;
+      } else if (r.error && typeof console !== 'undefined') {
+        console.warn('[fetchInspectorProfile mid] failed:', r.error.message);
+      }
+    }
+    if (!data) {
+      const r = await supabase.from('profiles').select(NARROW).eq('id', user.id).maybeSingle();
+      if (!r.error && r.data) {
+        data = r.data as unknown as Record<string, unknown>;
+      } else if (r.error && typeof console !== 'undefined') {
+        console.warn('[fetchInspectorProfile narrow] failed:', r.error.message);
+      }
+    }
+    if (!data) return null;
 
-    const r = data as unknown as Record<string, unknown>;
+    const r = data;
 
     // Sign the resume URL if a private bucket path is stored.
     const resumePath = (r.resume_path as string | null) ?? null;

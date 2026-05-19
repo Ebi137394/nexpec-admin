@@ -8,6 +8,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { applyOnboardingCookieToProfile } from '@/lib/auth/onboardingActions';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -29,6 +30,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // If the user just came through the multi-step onboarding wizard, the
+  // role + profile metadata is in the nx_onboard cookie. Apply it now.
+  try {
+    await applyOnboardingCookieToProfile();
+  } catch {
+    /* best-effort */
+  }
+
   // Resolve role to decide destination.
   const {
     data: { user },
@@ -43,7 +52,12 @@ export async function GET(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .maybeSingle();
-    dest = profile?.role === 'super_admin' ? '/admin/dashboard' : '/';
+    const role = ((profile as { role?: string } | null)?.role ?? '').toLowerCase();
+    if (role === 'super_admin' || role === 'admin') dest = '/admin/dashboard';
+    else if (role === 'inspector') dest = '/inspector/dashboard';
+    else if (['client', 'agency', 'enterprise'].includes(role))
+      dest = '/client/dashboard';
+    else dest = '/';
   }
 
   return NextResponse.redirect(new URL(dest, origin));

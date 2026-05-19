@@ -72,11 +72,23 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
 
   const [decision, setDecision] = useState<JobModerationDecision>('approved');
   const [notes, setNotes] = useState('');
+  // GR1 — inspector payout the admin commits at approval time. Defaults to
+  // any prior value already stored on the job (in dollars).
+  const [payoutDollars, setPayoutDollars] = useState<string>('');
 
   useEffect(() => {
     setDecision('approved');
     setNotes('');
-  }, [job?.id]);
+    const existing =
+      job?.payout_amount_cents ??
+      (job as unknown as { inspector_payout_cents?: number | null })?.inspector_payout_cents ??
+      null;
+    setPayoutDollars(
+      typeof existing === 'number' && existing > 0
+        ? String(Math.round(existing / 100))
+        : '',
+    );
+  }, [job?.id, job?.payout_amount_cents, job]);
 
   const [state, formAction] = useActionState<ReviewJobActionState, FormData>(
     reviewJob,
@@ -166,6 +178,8 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
                   setDecision={setDecision}
                   notes={notes}
                   setNotes={setNotes}
+                  payoutDollars={payoutDollars}
+                  setPayoutDollars={setPayoutDollars}
                   state={state}
                   formAction={formAction}
                 />
@@ -194,6 +208,8 @@ function Body({
   setDecision,
   notes,
   setNotes,
+  payoutDollars,
+  setPayoutDollars,
   state,
   formAction,
 }: {
@@ -203,14 +219,31 @@ function Body({
   setDecision: (d: JobModerationDecision) => void;
   notes: string;
   setNotes: (v: string) => void;
+  payoutDollars: string;
+  setPayoutDollars: (v: string) => void;
   state: ReviewJobActionState;
   formAction: (formData: FormData) => void;
 }) {
   const showNotesRequired = decision !== 'approved';
+  const showPayoutInput = decision === 'approved';
+  const payoutDollarsNum = payoutDollars.trim() === '' ? NaN : Number(payoutDollars);
+  const payoutValid =
+    Number.isFinite(payoutDollarsNum) && payoutDollarsNum > 0;
+  const clientBudgetDollars =
+    typeof job.client_price_cents === 'number' && job.client_price_cents > 0
+      ? Math.round(job.client_price_cents / 100)
+      : null;
   return (
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="jobId" value={job.id} />
       <input type="hidden" name="decision" value={decision} />
+      {showPayoutInput && (
+        <input
+          type="hidden"
+          name="inspectorPayoutDollars"
+          value={payoutDollars}
+        />
+      )}
 
       {/* Job summary */}
       <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
@@ -316,6 +349,76 @@ function Body({
         </div>
       </section>
 
+      {/* Inspector payout — GR1: admin sets the price BEFORE inspectors see it. */}
+      {showPayoutInput && (
+        <section className="rounded-2xl border border-violet/30 bg-gradient-to-br from-violet/[0.08] to-violet/[0.02] p-5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-violet/20 text-violet-glow ring-1 ring-inset ring-violet/40">
+              <Gavel className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </span>
+            <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow">
+              Inspector payout · Golden Rule 1
+            </p>
+          </div>
+          <p className="mt-2 text-xs text-zinc-400">
+            What the platform pays the inspector on a signed report. Stored as{' '}
+            <span className="font-mono text-zinc-300">inspector_payout_cents</span>
+            . <span className="text-zinc-300">Clients never see this value</span>
+            ; inspectors never see the client&rsquo;s budget. Set it now —
+            approval is blocked until you do.
+          </p>
+          {clientBudgetDollars !== null && (
+            <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-zinc-400">
+              <span className="text-zinc-500">Client budget (admin-only view):</span>
+              <span className="font-mono font-semibold text-zinc-200">
+                ${clientBudgetDollars.toLocaleString()}
+              </span>
+            </p>
+          )}
+          <label
+            htmlFor="inspector-payout"
+            className="mt-4 block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400"
+          >
+            Inspector payout (USD whole dollars)
+          </label>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-mono text-sm text-zinc-500">$</span>
+            <input
+              id="inspector-payout"
+              type="number"
+              min={1}
+              max={1000000}
+              step={1}
+              value={payoutDollars}
+              onChange={(e) => setPayoutDollars(e.target.value)}
+              placeholder="e.g. 1500"
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 font-mono text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.06] focus:outline-none focus:ring-2 focus:ring-violet/30"
+            />
+          </div>
+          {!payoutValid && payoutDollars.trim() !== '' && (
+            <p className="mt-1.5 text-[11px] text-accent-red">
+              Enter a positive whole number.
+            </p>
+          )}
+          {clientBudgetDollars !== null && payoutValid && (
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+              Platform spread: ${' '}
+              <span className="font-mono text-zinc-300">
+                {(clientBudgetDollars - Math.round(payoutDollarsNum)).toLocaleString()}
+              </span>{' '}
+              ({clientBudgetDollars > 0
+                ? Math.round(
+                    ((clientBudgetDollars - Math.round(payoutDollarsNum)) /
+                      clientBudgetDollars) *
+                      100,
+                  )
+                : 0}
+              %). Hidden from both parties.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Notes */}
       <section>
         <label htmlFor="job-mod-notes" className="block">
@@ -352,7 +455,7 @@ function Body({
         </div>
       )}
 
-      <ReviewSubmit decision={decision} />
+      <ReviewSubmit decision={decision} blocked={showPayoutInput && !payoutValid} />
     </form>
   );
 }
@@ -402,7 +505,13 @@ function DecisionRadio({
   );
 }
 
-function ReviewSubmit({ decision }: { decision: JobModerationDecision }) {
+function ReviewSubmit({
+  decision,
+  blocked,
+}: {
+  decision: JobModerationDecision;
+  blocked: boolean;
+}) {
   const { pending } = useFormStatus();
   const label =
     decision === 'approved'
@@ -410,15 +519,23 @@ function ReviewSubmit({ decision }: { decision: JobModerationDecision }) {
       : decision === 'edits_requested'
         ? 'Confirm — request edits'
         : 'Confirm — reject (cancel)';
+  const disabled = pending || blocked;
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="btn-primary group w-full justify-center disabled:opacity-60 disabled:hover:bg-violet disabled:hover:shadow-glow"
-    >
-      <Gavel className="h-4 w-4" />
-      {pending ? 'Recording…' : label}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="submit"
+        disabled={disabled}
+        className="btn-primary group w-full justify-center disabled:opacity-60 disabled:hover:bg-violet disabled:hover:shadow-glow"
+      >
+        <Gavel className="h-4 w-4" />
+        {pending ? 'Recording…' : label}
+      </button>
+      {blocked && (
+        <p className="text-center text-[11px] text-accent-amber">
+          Set the inspector payout above to enable approval.
+        </p>
+      )}
+    </div>
   );
 }
 

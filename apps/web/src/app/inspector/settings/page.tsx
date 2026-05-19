@@ -36,7 +36,27 @@ import {
   Trash2,
   Briefcase,
   ExternalLink,
+  Check,
+  Radio,
+  BookOpen,
+  Flame,
+  Paintbrush,
+  Container,
+  Wind,
+  Database,
+  Cog,
+  Zap,
+  Building2,
+  Fuel,
+  FlaskConical,
+  Sun,
+  Anchor,
+  ArrowUp,
+  Plane,
+  ShieldCheck as ShieldCheck2,
+  Layers,
 } from 'lucide-react';
+import { TagInput } from '@/components/forms/TagInput';
 import {
   CURRENCY_CHOICES,
   PAYMENT_TERMS,
@@ -96,18 +116,29 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · Settings
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          Your profile
-        </h1>
-        <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
-          What admin sees when deciding job matches, and what (limited
-          fields) the client sees on a recommended candidate. Payout
-          status, verification, and ratings are administered separately.
-        </p>
+      <header className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-br from-violet/[0.10] via-ink-900/40 to-ink-900/20 p-6 sm:p-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet/15 blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-cyan-glow/10 blur-3xl"
+        />
+        <div className="relative">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-glow shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
+            Inspector Portal · Settings
+          </p>
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            Your profile
+          </h1>
+          <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
+            What admin sees when deciding job matches, and what (limited
+            fields) the client sees on a recommended candidate. Payout
+            status, verification, and ratings are administered separately.
+          </p>
+        </div>
       </header>
 
       {qp.error && (
@@ -490,60 +521,118 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           </div>
         </Section>
 
-        {/* Specialties — comprehensive grouped taxonomy (200+) + custom add */}
+        {/* Specialties — premium grouped taxonomy (200+) + tag input */}
         <Section
           title="Specialties"
           subtitle="Drives which jobs surface in your feed. Pick everything you cover — admin uses these for matching."
         >
-          {SPECIALTY_GROUPS.map((group) => (
-            <fieldset key={group.title} className="space-y-2">
-              <legend className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-                {group.title}
-              </legend>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {group.items.map((s) => (
-                  <ChipCheckbox
-                    key={s.slug}
-                    name="specialtySlugs"
-                    value={s.slug}
-                    label={s.label}
-                    defaultChecked={specialtySet.has(s.slug)}
-                  />
-                ))}
+          {/* Selected-total chip — quick at-a-glance counter for the entire section */}
+          {(() => {
+            const totalSelected = SPECIALTY_GROUPS.reduce(
+              (acc, g) => acc + g.items.filter((i) => specialtySet.has(i.slug)).length,
+              0,
+            );
+            return (
+              <div className="flex items-center justify-between rounded-2xl border border-violet/20 bg-gradient-to-r from-violet/10 to-transparent px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-violet/20 text-violet-glow ring-1 ring-inset ring-violet/40">
+                    <Layers className="h-4 w-4" strokeWidth={1.75} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {totalSelected} {totalSelected === 1 ? 'specialty' : 'specialties'} selected
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      Across {SPECIALTY_GROUPS.length} disciplines · {SPECIALTY_GROUPS.reduce((a, g) => a + g.items.length, 0)}+ options
+                    </p>
+                  </div>
+                </div>
+                <span className="hidden rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow sm:inline">
+                  Live preview
+                </span>
               </div>
-            </fieldset>
-          ))}
-          <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] p-4">
-            <label
-              htmlFor="customSpecialties"
-              className="block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400"
-            >
-              Don&rsquo;t see your specialty? Add custom ones (comma-separated)
-            </label>
-            <input
-              id="customSpecialties"
+            );
+          })()}
+
+          {SPECIALTY_GROUPS.map((group) => {
+            const Icon = specialtyGroupIcon(group.title);
+            const selectedInGroup = group.items.filter((i) =>
+              specialtySet.has(i.slug),
+            ).length;
+            return (
+              <fieldset
+                key={group.title}
+                className="space-y-3 rounded-2xl border border-white/[0.05] bg-white/[0.01] p-4 sm:p-5"
+              >
+                <legend className="flex items-center gap-2 px-2">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-violet/10 text-violet-glow ring-1 ring-inset ring-violet/25">
+                    <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </span>
+                  <span className="text-[11px] font-semibold uppercase tracking-industrial text-zinc-200">
+                    {group.title}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-zinc-400">
+                    {group.items.length}
+                  </span>
+                  {selectedInGroup > 0 && (
+                    <span className="rounded-full border border-violet/30 bg-violet/15 px-2 py-0.5 text-[10px] font-semibold text-violet-glow">
+                      {selectedInGroup} selected
+                    </span>
+                  )}
+                </legend>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.items.map((s) => (
+                    <ChipCheckbox
+                      key={s.slug}
+                      name="specialtySlugs"
+                      value={s.slug}
+                      label={s.label}
+                      defaultChecked={specialtySet.has(s.slug)}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            );
+          })}
+
+          {/* Custom specialties — premium TagInput */}
+          <div className="rounded-2xl border border-dashed border-violet/25 bg-gradient-to-br from-violet/[0.04] to-transparent p-5">
+            <TagInput
               name="customSpecialties"
-              type="text"
+              title="Don't see your specialty? Add your own"
+              hint="Type your specialty and press Enter (or comma). Each tag is saved on your profile and is searchable by admin."
+              placeholder="e.g. Subsea robotic inspection"
+              maxItems={50}
               defaultValue={(profile.specialtySlugs ?? [])
                 .filter((s) => !SPECIALTY_GROUPS.some((g) => g.items.some((i) => i.slug === s)))
+                .map((s) => s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
                 .join(', ')}
-              placeholder="e.g. Subsea robotic inspection, NORSOK M-501, custom-discipline"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
             />
-            <p className="mt-1.5 text-[11px] text-zinc-500">
-              Free-form. Each comma-separated item is saved as a slug on your
-              profile and is searchable by admin.
-            </p>
           </div>
         </Section>
 
-        {/* NDT Methods — checkbox grid + custom add */}
+        {/* NDT Methods — same polish, smaller scale */}
         <Section
           title="NDT methods"
           subtitle="Standardised method codes admin uses for matching."
         >
-          <fieldset>
-            <legend className="sr-only">NDT methods</legend>
+          <fieldset className="space-y-3 rounded-2xl border border-white/[0.05] bg-white/[0.01] p-4 sm:p-5">
+            <legend className="flex items-center gap-2 px-2">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-glow/10 text-cyan-glow ring-1 ring-inset ring-cyan-glow/25">
+                <Radio className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-industrial text-zinc-200">
+                Method codes
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-zinc-400">
+                {NDT_METHOD_CHOICES.length}
+              </span>
+              {ndtSet.size > 0 && (
+                <span className="rounded-full border border-cyan-glow/30 bg-cyan-glow/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-glow">
+                  {[...ndtSet].filter((s) => NDT_METHOD_CHOICES.some((m) => m.slug === s)).length} selected
+                </span>
+              )}
+            </legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {NDT_METHOD_CHOICES.map((m) => (
                 <ChipCheckbox
@@ -556,26 +645,19 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               ))}
             </div>
           </fieldset>
-          <div className="rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.02] p-4">
-            <label
-              htmlFor="customNdtMethods"
-              className="block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400"
-            >
-              Add custom NDT methods (comma-separated)
-            </label>
-            <input
-              id="customNdtMethods"
+
+          <div className="rounded-2xl border border-dashed border-cyan-glow/25 bg-gradient-to-br from-cyan-glow/[0.04] to-transparent p-5">
+            <TagInput
               name="customNdtMethods"
-              type="text"
+              title="Add custom NDT methods"
+              hint="Type a method name and press Enter. Use for niche or proprietary methods not in the standard list."
+              placeholder="e.g. Shearography"
+              maxItems={30}
               defaultValue={(profile.ndtMethods ?? [])
                 .filter((s) => !NDT_METHOD_CHOICES.some((m) => m.slug === s))
+                .map((s) => s.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()))
                 .join(', ')}
-              placeholder="e.g. shearography, gamma backscatter, custom-method"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
             />
-            <p className="mt-1.5 text-[11px] text-zinc-500">
-              Each item is saved as a method code on your profile.
-            </p>
           </div>
         </Section>
 
@@ -1074,17 +1156,57 @@ function ChipCheckbox({
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="group flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] has-[:checked]:border-violet/40 has-[:checked]:bg-violet/10 has-[:checked]:text-white">
+    <label className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-br from-white/[0.025] to-white/[0.005] px-3 py-2.5 text-sm text-zinc-300 transition-all duration-200 hover:-translate-y-px hover:border-violet/30 hover:from-white/[0.06] hover:to-white/[0.02] hover:text-white hover:shadow-[0_4px_12px_-4px_rgba(124,58,237,0.25)] has-[:checked]:border-violet/50 has-[:checked]:from-violet/15 has-[:checked]:to-violet/5 has-[:checked]:text-white has-[:checked]:shadow-[0_0_0_1px_rgba(124,58,237,0.30)] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-violet/40">
       <input
         type="checkbox"
         name={name}
         value={value}
         defaultChecked={defaultChecked}
-        className="h-4 w-4 shrink-0 rounded border-white/20 bg-transparent text-violet focus:ring-violet/40 focus:ring-offset-0"
+        className="peer sr-only"
       />
-      <span className="flex-1">{label}</span>
+      {/* Custom checkbox box with animated check icon */}
+      <span
+        aria-hidden
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/15 bg-white/[0.04] transition-all duration-200 peer-checked:border-violet-glow peer-checked:bg-gradient-to-br peer-checked:from-violet peer-checked:to-violet-glow peer-checked:shadow-[0_0_8px_rgba(124,58,237,0.5)]"
+      >
+        <Check
+          className="h-3 w-3 text-white opacity-0 transition-all duration-200 peer-checked:opacity-100"
+          strokeWidth={3}
+        />
+      </span>
+      <span className="flex-1 leading-tight">{label}</span>
+      {/* Subtle violet ring overlay when hovered (purely decorative) */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-xl opacity-0 ring-1 ring-inset ring-violet/0 transition-opacity duration-200 group-hover:opacity-100 group-hover:ring-violet/10"
+      />
     </label>
   );
+}
+
+/** Match a SPECIALTY_GROUPS title to a Lucide icon. */
+function specialtyGroupIcon(title: string) {
+  switch (title) {
+    case 'NDT methods':                          return Radio;
+    case 'API standards':                        return BookOpen;
+    case 'Welding & joining':                    return Flame;
+    case 'Coatings & corrosion':                 return Paintbrush;
+    case 'Pressure equipment & boilers':         return Container;
+    case 'Piping & pipelines':                   return Wind;
+    case 'Storage tanks':                        return Database;
+    case 'Mechanical & rotating':                return Cog;
+    case 'Electrical & instrumentation':         return Zap;
+    case 'Civil & structural':                   return Building2;
+    case 'Oil & gas — upstream':                 return Fuel;
+    case 'Oil & gas — downstream / process':     return FlaskConical;
+    case 'Power & renewables':                   return Sun;
+    case 'Marine & offshore':                    return Anchor;
+    case 'Lifting & rigging':                    return ArrowUp;
+    case 'Aerospace & defense':                  return Plane;
+    case 'Quality, safety & systems':            return ShieldCheck2;
+    case 'Special domains':
+    default:                                     return Layers;
+  }
 }
 
 function Banner({

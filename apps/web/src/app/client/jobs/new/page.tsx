@@ -13,9 +13,11 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, AlertCircle, ShieldCheck, Check } from 'lucide-react';
 import { createJob } from '@/lib/actions/jobs';
-import { COMMON_SPECIALTIES } from '@/lib/data/clientJobs.types';
+import { SPECIALTY_GROUPS } from '@/lib/data/specialtyTaxonomy';
+import { TagInput } from '@/components/forms/TagInput';
+import { PostJobSubmit } from '@/components/client/PostJobSubmit';
 
 export const metadata: Metadata = {
   title: 'Post a job',
@@ -64,8 +66,18 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {/* Form */}
+      {/* Form. clientOpId guarantees one job per submission even if the user
+          double-clicks or the browser retries — the DB has a unique partial
+          index on jobs.client_op_id (migration 20260518310000). */}
       <form action={createJob} className="space-y-8">
+        <input
+          type="hidden"
+          name="clientOpId"
+          // crypto.randomUUID() is available in modern browsers AND Node 19+.
+          // We generate it server-side here so the value is stable across
+          // hydration and only one ID exists per form render.
+          value={typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}
+        />
         {/* Section: scope */}
         <Section
           title="Scope"
@@ -129,30 +141,61 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
           </div>
         </Section>
 
-        {/* Section: specialties */}
+        {/* Section: specialties — full 200+ taxonomy + custom add */}
         <Section
           title="Specialties"
-          subtitle="Pick what's relevant. Inspectors filter their feed by these tags."
+          subtitle="Pick everything relevant. Inspectors filter their feed by these tags — the more accurate, the better your matches."
         >
-          <fieldset>
-            <legend className="sr-only">Specialties</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {COMMON_SPECIALTIES.map((s) => (
-                <label
-                  key={s.slug}
-                  className="group flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] has-[:checked]:border-violet/40 has-[:checked]:bg-violet/10 has-[:checked]:text-white"
-                >
-                  <input
-                    type="checkbox"
-                    name="specialties"
-                    value={s.slug}
-                    className="h-4 w-4 shrink-0 rounded border-white/20 bg-transparent text-violet focus:ring-violet/40 focus:ring-offset-0"
-                  />
-                  <span className="flex-1">{s.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {SPECIALTY_GROUPS.map((group) => (
+            <fieldset
+              key={group.title}
+              className="space-y-3 rounded-2xl border border-white/[0.05] bg-white/[0.01] p-4 sm:p-5"
+            >
+              <legend className="flex items-center gap-2 px-2">
+                <span className="text-[11px] font-semibold uppercase tracking-industrial text-zinc-200">
+                  {group.title}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-zinc-400">
+                  {group.items.length}
+                </span>
+              </legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {group.items.map((s) => (
+                  <label
+                    key={s.slug}
+                    className="group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-br from-white/[0.025] to-white/[0.005] px-3 py-2.5 text-sm text-zinc-300 transition-all duration-200 hover:-translate-y-px hover:border-violet/30 hover:from-white/[0.06] hover:to-white/[0.02] hover:text-white has-[:checked]:border-violet/50 has-[:checked]:from-violet/15 has-[:checked]:to-violet/5 has-[:checked]:text-white has-[:checked]:shadow-[0_0_0_1px_rgba(124,58,237,0.30)]"
+                  >
+                    <input
+                      type="checkbox"
+                      name="specialties"
+                      value={s.slug}
+                      className="peer sr-only"
+                    />
+                    <span
+                      aria-hidden
+                      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-white/15 bg-white/[0.04] transition-all duration-200 peer-checked:border-violet-glow peer-checked:bg-gradient-to-br peer-checked:from-violet peer-checked:to-violet-glow peer-checked:shadow-[0_0_8px_rgba(124,58,237,0.5)]"
+                    >
+                      <Check
+                        className="h-3 w-3 text-white opacity-0 transition-all duration-200 peer-checked:opacity-100"
+                        strokeWidth={3}
+                      />
+                    </span>
+                    <span className="flex-1 leading-tight">{s.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+
+          <div className="rounded-2xl border border-dashed border-violet/25 bg-gradient-to-br from-violet/[0.04] to-transparent p-5">
+            <TagInput
+              name="customSpecialties"
+              title="Need a specialty that's not listed?"
+              hint="Type any specialty and press Enter (or comma). Admin will tag the matching inspectors."
+              placeholder="e.g. Subsea robotic inspection"
+              maxItems={20}
+            />
+          </div>
         </Section>
 
         {/* Section: requirements (CCI flag) */}
@@ -183,19 +226,18 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
           </label>
         </Section>
 
-        {/* Submit */}
+        {/* Submit. PostJobSubmit is a client component that disables the
+            button after first click so the browser can't re-post even on
+            slow networks. Combined with the DB-side client_op_id unique
+            partial index, triple-submission is impossible. */}
         <div className="flex flex-col items-stretch gap-3 border-t border-white/[0.06] pt-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-zinc-500">
-            Posting goes into <span className="text-zinc-300">moderation</span>{' '}
-            before reaching inspectors. Average clearance: under 1 business hour.
+            <span className="font-mono">GR1</span> · Posting goes into{' '}
+            <span className="text-zinc-300">moderation</span> before reaching
+            inspectors. Admin sets the inspector payout during review — you
+            never see that figure, the inspector never sees your budget.
           </p>
-          <button
-            type="submit"
-            className="btn-primary inline-flex items-center justify-center gap-2"
-          >
-            Post for moderation
-            <span aria-hidden>→</span>
-          </button>
+          <PostJobSubmit />
         </div>
       </form>
     </div>

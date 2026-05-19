@@ -45,7 +45,18 @@ const CreateJobSchema = z.object({
   urgency: z.enum(URGENCY_VALUES).default('normal'),
   jobType: z.enum(JOB_TYPES).default('on_site'),
   // Specialties arrive as an array of slugs via repeated form fields.
-  specialties: z.array(z.string().trim().min(1)).default([]),
+  // Cap raised to 300 because the new SPECIALTY_GROUPS taxonomy alone is 200+.
+  specialties: z.array(z.string().trim().min(1).max(120)).max(300).default([]),
+  // Free-form overflow (comma-separated). Parsed + merged into specialty_slugs.
+  customSpecialties: z.string().trim().max(4000).optional().or(z.literal('')),
+  // Idempotency token — UUID generated client-side at form render. The DB
+  // has a unique partial index on jobs.client_op_id so a re-post becomes
+  // a no-op at the storage layer.
+  clientOpId: z
+    .string()
+    .uuid({ message: 'Invalid op id' })
+    .optional()
+    .or(z.literal('')),
 
   // ── CCI flag (Sprint 12 hotfix) ─────────────────────────────────────
   // Single boolean — when true, this job needs a CCI-certified inspector.
@@ -87,6 +98,8 @@ export async function createJob(formData: FormData): Promise<void> {
     urgency: formData.get('urgency') ?? 'normal',
     jobType: formData.get('jobType') ?? 'on_site',
     specialties: rawSpecialties,
+    customSpecialties: formData.get('customSpecialties') ?? '',
+    clientOpId: formData.get('clientOpId') ?? '',
     // Checkbox: present in formData as "on" when checked, absent when not.
     requiresCci: formData.get('requiresCci'),
   });
@@ -105,6 +118,45 @@ export async function createJob(formData: FormData): Promise<void> {
     redirect('/sign-in?next=' + encodeURIComponent('/client/jobs/new'));
   }
 
+  // Slugify free-form custom specialties and merge with the curated checkbox slugs
+  function toSlug(s: string): string {
+    return s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 120);
+  }
+  const customSlugs = (parsed.data.customSpecialties ?? '')
+    .split(',')
+    .map(toSlug)
+    .filter((v) => v.length > 0);
+  const mergedSpecialties = Array.from(
+    new Set([...parsed.data.specialties, ...customSlugs]),
+  ).slice(0, 300);
+
+  const clientOpId = parsed.data.clientOpId && parsed.data.clientOpId.length > 0
+    ? parsed.data.clientOpId
+    : null;
+
+  // Idempotency: if a job with this client_op_id already exists for this
+  // user, redirect to it instead of inserting a duplicate. This stops the
+  // "submitted once, got 3 rows" bug at its source.
+  if (clientOpId) {
+    const { data: existing } = await supabase
+      .from('jobs')
+      .select('id')
+      .eq('client_op_id', clientOpId)
+      .eq('client_id', user.id)
+      .maybeSingle();
+    if (existing && (existing as { id?: string }).id) {
+      revalidatePath('/client/jobs');
+      redirect('/client/jobs?created=' + encodeURIComponent((existing as { id: string }).id));
+    }
+  }
+
   const insert: Record<string, unknown> = {
     client_id: user.id,
     title: parsed.data.title,
@@ -113,16 +165,16 @@ export async function createJob(formData: FormData): Promise<void> {
     budget_cents: parsed.data.budgetDollars * 100,
     urgency: parsed.data.urgency,
     job_type: parsed.data.jobType,
-    specialty_slugs: parsed.data.specialties,
+    specialty_slugs: mergedSpecialties,
     // Explicit so we don't trip the jobs_status_check vs DEFAULT mismatch.
     status: 'open' as const,
     // ── CCI flag (Sprint 12 hotfix) ────────────────────────────────────
-    // Backed by jobs.requires_cci BOOLEAN NOT NULL DEFAULT false
-    // (20260518150000_add_requires_cci_to_jobs.sql).
     requires_cci: parsed.data.requiresCci,
-    // moderation_status, sponsorship_offered, accepts_remote_inspectors,
-    // is_senior_review, applications_count — all fall through to their
-    // schema defaults.
+    // ── Idempotency (Sprint 13) ─────────────────────────────────────────
+    // jobs.client_op_id has a unique partial index from
+    // 20260518310000_admin_pricing_and_dedup.sql. A second insert with the
+    // same id is rejected; we treat 23505 as "already posted" → redirect.
+    client_op_id: clientOpId,
   };
 
   const { data, error } = await supabase
@@ -132,6 +184,20 @@ export async function createJob(formData: FormData): Promise<void> {
     .single();
 
   if (error || !data) {
+    // Postgres unique_violation → treat as already-posted. Look up the
+    // existing row and redirect to it instead of bouncing the user back.
+    if (error?.code === '23505' && clientOpId) {
+      const { data: existing } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('client_op_id', clientOpId)
+        .eq('client_id', user.id)
+        .maybeSingle();
+      if (existing && (existing as { id?: string }).id) {
+        revalidatePath('/client/jobs');
+        redirect('/client/jobs?created=' + encodeURIComponent((existing as { id: string }).id));
+      }
+    }
     if (typeof console !== 'undefined') {
       console.error('[createJob] insert failed', {
         code: error?.code,
@@ -141,10 +207,6 @@ export async function createJob(formData: FormData): Promise<void> {
     redirect(
       buildErrorRedirect(
         '/client/jobs/new',
-        // Don't echo raw DB errors to the form. Common cases that
-        // actually do matter to the user (e.g. RLS denial) surface as
-        // either 401 from middleware before the action runs, OR as the
-        // generic message below.
         'Could not post the job. Try again, or contact support if this persists.',
       ),
     );

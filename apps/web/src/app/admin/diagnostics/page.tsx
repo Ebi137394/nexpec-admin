@@ -20,8 +20,11 @@ import {
   Bell,
   Users,
   Briefcase,
+  Send,
+  Zap,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { pingAllAdmins, pingAllInspectors } from '@/lib/actions/diagnostics';
 
 export const metadata: Metadata = { title: 'System Diagnostics' };
 export const dynamic = 'force-dynamic';
@@ -33,7 +36,12 @@ interface SmokeReport {
   my_unread_count?: number;
 }
 
-export default async function AdminDiagnosticsPage() {
+interface PageProps {
+  searchParams?: Promise<{ ok?: string; error?: string }>;
+}
+
+export default async function AdminDiagnosticsPage({ searchParams }: PageProps) {
+  const sp = (await searchParams) ?? {};
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -114,6 +122,52 @@ export default async function AdminDiagnosticsPage() {
           Use this to verify migrations landed and triggers fire.
         </p>
       </header>
+
+      {/* Action banners */}
+      {sp.ok && (
+        <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
+          ✅ Action complete: <span className="font-mono">{sp.ok}</span>. Check
+          your bell within the next 5 seconds.
+        </div>
+      )}
+      {sp.error && (
+        <div className="rounded-2xl border border-accent-red/30 bg-accent-red/10 p-4 text-sm text-accent-red">
+          ❌ {decodeURIComponent(sp.error)}
+        </div>
+      )}
+
+      {/* One-click test actions */}
+      <section className="rounded-3xl border border-violet/25 bg-gradient-to-br from-violet/[0.08] to-transparent p-6 sm:p-8">
+        <header className="mb-5">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+            One-click tests
+          </h2>
+          <p className="mt-1 text-xs text-zinc-400">
+            Fire a notification right now without leaving the browser. If your
+            bell badge increments within a few seconds, the pipeline is healthy.
+          </p>
+        </header>
+        <div className="flex flex-wrap gap-3">
+          <form action={pingAllAdmins}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm transition-colors hover:bg-violet/90"
+            >
+              <Send className="h-3 w-3" strokeWidth={2} />
+              Ping all admins
+            </button>
+          </form>
+          <form action={pingAllInspectors}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-glow/40 bg-cyan-glow/10 px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-cyan-glow hover:bg-cyan-glow/20"
+            >
+              <Zap className="h-3 w-3" strokeWidth={2} />
+              Notify inspectors about every open job
+            </button>
+          </form>
+        </div>
+      </section>
 
       {/* Smoke probe */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">

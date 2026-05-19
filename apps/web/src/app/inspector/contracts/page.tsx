@@ -21,6 +21,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchMyAssignments, fetchContractById } from '@/lib/data/contracts';
 import { signContractAssignment } from '@/lib/actions/contracts';
 import { CONTRACT_KIND_LABELS, type ContractKind } from '@/lib/data/contracts.types';
+import { fetchMyInspectorJobContracts } from '@/lib/data/jobContracts';
 
 export const metadata: Metadata = { title: 'Contracts' };
 export const dynamic = 'force-dynamic';
@@ -39,8 +40,11 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
   if (!user) redirect('/sign-in?next=' + encodeURIComponent('/inspector/contracts'));
 
   const assignments = await fetchMyAssignments();
+  const jobContracts = await fetchMyInspectorJobContracts();
   const unsignedRequired = assignments.filter((a) => a.required && !a.signedAt);
   const returnTo = '/inspector/contracts';
+  const fmtCents = (v: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v / 100);
 
   const contractsById = new Map<string, Awaited<ReturnType<typeof fetchContractById>>>();
   for (const a of assignments) {
@@ -91,6 +95,68 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
           </p>
         </div>
       )}
+
+      {/* JOB CONTRACTS — inspector view, blind to client price */}
+      {jobContracts.length > 0 && (
+        <section>
+          <h2 className="mb-4 font-display text-xl font-semibold tracking-tight text-white">
+            Job contracts ({jobContracts.length})
+          </h2>
+          <ul className="space-y-3">
+            {jobContracts.map((c) => {
+              const needsYou = c.status === 'pending_inspector_signature';
+              const fullyExecuted = c.status === 'fully_executed';
+              return (
+                <li
+                  key={c.id}
+                  className={`rounded-3xl border p-5 ${
+                    needsYou
+                      ? 'border-cyan-glow/40 bg-cyan-glow/[0.06]'
+                      : fullyExecuted
+                        ? 'border-accent-green/30 bg-accent-green/[0.04]'
+                        : 'border-white/[0.06] bg-white/[0.01]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white">
+                        {c.jobTitle ?? 'Inspection contract'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-zinc-500">
+                        Client: {c.clientName ?? '—'}
+                      </p>
+                      <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 font-mono text-[11px] font-semibold text-cyan-glow">
+                        Your payout · {fmtCents(c.inspectorPayoutCents)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+                        needsYou
+                          ? 'border-cyan-glow/40 bg-cyan-glow/15 text-cyan-glow'
+                          : fullyExecuted
+                            ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                            : 'border-white/10 bg-white/[0.04] text-zinc-400'
+                      }`}
+                    >
+                      {c.status.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/inspector/contracts/job/${c.id}`}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-glow px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-ink-950 shadow-sm hover:bg-cyan-glow/90"
+                  >
+                    {needsYou ? 'Review & sign' : 'Open contract'}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      <h2 className="font-display text-xl font-semibold tracking-tight text-white">
+        Legal agreements ({assignments.length})
+      </h2>
 
       {assignments.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.01] p-12 text-center">

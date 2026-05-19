@@ -27,6 +27,7 @@ import {
   adminCounterApplication,
   adminForwardApplication,
 } from '@/lib/actions/negotiation';
+import { generateJobContract } from '@/lib/actions/jobContracts';
 import type {
   ModerationJobDetail,
   ModerationTimelineEvent,
@@ -334,6 +335,79 @@ export function JobModerationPanel({
                         </button>
                       </form>
                     )}
+
+                  {/* Generate job contract — enabled for CLIENT_SELECTED apps */}
+                  {a.status === 'CLIENT_SELECTED' && (
+                    <details className="mt-2 rounded-lg border border-cyan-glow/30 bg-cyan-glow/[0.05]">
+                      <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase tracking-industrial text-cyan-glow">
+                        Generate binding job contract →
+                      </summary>
+                      <form
+                        action={generateJobContract}
+                        className="space-y-2 px-3 pb-3"
+                      >
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <label className="block">
+                            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+                              Client price (USD)
+                            </span>
+                            <input
+                              type="number"
+                              name="clientPriceDollars"
+                              min={0}
+                              step={1}
+                              required
+                              placeholder="Visible to client"
+                              className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 font-mono text-sm text-white"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+                              Inspector payout (USD)
+                            </span>
+                            <input
+                              type="number"
+                              name="inspectorPayoutDollars"
+                              min={0}
+                              step={1}
+                              required
+                              defaultValue={
+                                a.bid_amount_cents != null
+                                  ? String(Math.round(a.bid_amount_cents / 100))
+                                  : a.admin_counter_cents != null
+                                    ? String(Math.round(a.admin_counter_cents / 100))
+                                    : ''
+                              }
+                              placeholder="Visible to inspector"
+                              className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 font-mono text-sm text-cyan-glow"
+                            />
+                          </label>
+                        </div>
+                        <label className="block">
+                          <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
+                            Custom contract URL (optional — overrides template)
+                          </span>
+                          <input
+                            type="url"
+                            name="customContractUrl"
+                            placeholder="https://drive.google.com/…  or  https://docusign.net/…"
+                            className="mt-1 w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm text-white"
+                          />
+                        </label>
+                        <p className="text-[10px] text-zinc-500">
+                          🔒 Blind pricing enforced at the DB view layer.
+                          Client and inspector see ONLY their own column.
+                        </p>
+                        <button
+                          type="submit"
+                          className="inline-flex items-center gap-2 rounded-full bg-cyan-glow px-3 py-1.5 text-[11px] font-semibold uppercase tracking-industrial text-ink-950 hover:bg-cyan-glow/90"
+                        >
+                          Generate contract
+                        </button>
+                      </form>
+                    </details>
+                  )}
 
                   {a.applicant_id && (
                     <Link

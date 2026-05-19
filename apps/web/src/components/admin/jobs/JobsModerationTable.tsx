@@ -54,7 +54,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
         <tbody className="divide-y divide-white/[0.04]">
           {jobs.map((job) => {
             const active = job.id === selectedId;
-            const href = `?inspect=${job.id}`;
+            const href = `?inspect=${job.id}#moderation`;
             return (
               <tr
                 key={job.id}
@@ -64,14 +64,14 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                 )}
               >
                 <td className="whitespace-nowrap px-4 py-3 align-top">
-                  <Link href={href} replace scroll={false} className="block">
+                  <Link href={href} replace className="block">
                     <time className="font-mono text-xs text-zinc-400">
                       {formatTimestamp(job.updated_at ?? job.created_at)}
                     </time>
                   </Link>
                 </td>
                 <td className="px-4 py-3 align-top">
-                  <Link href={href} replace scroll={false}>
+                  <Link href={href} replace>
                     <JobStatusBadge status={job.status} />
                     {job.payout_status && job.payout_status !== 'unpaid' && (
                       <span className="ml-2 font-mono text-[9px] uppercase tracking-industrial text-zinc-500">
@@ -81,7 +81,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                   </Link>
                 </td>
                 <td className="px-4 py-3 align-top">
-                  <Link href={href} replace scroll={false} className="block">
+                  <Link href={href} replace className="block">
                     <p className="line-clamp-2 max-w-xs text-sm font-medium text-white group-hover:text-white">
                       {job.title ?? 'Untitled job'}
                     </p>
@@ -91,17 +91,17 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 align-top">
-                  <Link href={href} replace scroll={false}>
+                  <Link href={href} replace>
                     <p className="text-sm text-zinc-200">{job.client_name ?? '—'}</p>
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 align-top">
-                  <Link href={href} replace scroll={false}>
+                  <Link href={href} replace>
                     <p className="text-sm text-zinc-200">{job.contractor_name ?? '—'}</p>
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
-                  <Link href={href} replace scroll={false}>
+                  <Link href={href} replace>
                     <p className="font-mono text-sm font-semibold text-zinc-200">
                       {fmtCents(job.client_price_cents)}
                     </p>

@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import {
   fetchJobsModerationPage,
   fetchModerationJob,
@@ -106,6 +107,35 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         </p>
       </header>
 
+      {sp.ok && (
+        <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
+          Decision recorded: <span className="font-mono">{sp.ok}</span>
+        </div>
+      )}
+
+      {/* Moderation panel renders ABOVE the table when ?inspect=… is set.
+          Anchor id="moderation" so the click-from-table navigation can
+          jump to it. Pure server component — zero hydration risk. */}
+      {inspected ? (
+        <div id="moderation" className="scroll-mt-24">
+          <JobModerationPanel
+            job={inspected}
+            timeline={timeline}
+            errorMessage={sp.error}
+          />
+        </div>
+      ) : inspectId ? (
+        <div className="rounded-2xl border border-accent-amber/30 bg-accent-amber/10 p-6">
+          <p className="font-semibold text-accent-amber">
+            Couldn&rsquo;t load that job (id: <span className="font-mono text-xs">{inspectId}</span>)
+          </p>
+          <p className="mt-1 text-xs text-zinc-400">
+            The row might have been deleted or your session lost SELECT
+            permission. <Link href="/admin/jobs" className="underline">Clear inspect param</Link>.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <JobsStatusFilter />
         <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
@@ -121,21 +151,6 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         total={total}
         pageSize={pageSize}
       />
-
-      {sp.ok && (
-        <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
-          Decision recorded: <span className="font-mono">{sp.ok}</span>
-        </div>
-      )}
-
-      {/* Pure server-rendered panel — no client component, no hydration risk. */}
-      {inspected && (
-        <JobModerationPanel
-          job={inspected}
-          timeline={timeline}
-          errorMessage={sp.error}
-        />
-      )}
     </div>
   );
 }

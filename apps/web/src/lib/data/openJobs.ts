@@ -32,12 +32,33 @@ export type { OpenJobRow, InspectorApplicationStatus };
 
 const DEFAULT_LIMIT = 50;
 
+export interface OpenJobFilters {
+  /** Match any of these specialty slugs (case-insensitive). */
+  specialties?: string[];
+  /** Substring match on jobs.location_city (case-insensitive). */
+  city?: string;
+  /** Exact match on jobs.urgency. */
+  urgency?: 'low' | 'normal' | 'high' | 'critical';
+  /** Restrict to jobs that accept remote inspectors. */
+  remoteOnly?: boolean;
+  /** Restrict to jobs offering visa/sponsorship. */
+  sponsorshipOnly?: boolean;
+  /** Filter by jobs.job_type (e.g. on_site / remote / hybrid). */
+  jobType?: string;
+  /** Only jobs scheduled on/after this date (ISO). */
+  scheduledFrom?: string;
+  /** Only jobs scheduled on/before this date (ISO). */
+  scheduledTo?: string;
+  /** Free-text search across title + description. */
+  q?: string;
+}
+
 /**
  * Fetch the inspector job feed for the current authenticated inspector.
  * Returns [] on auth failure or DB error — never throws to the caller.
  */
 export async function fetchOpenJobs(
-  opts: { limit?: number } = {},
+  opts: { limit?: number; filters?: OpenJobFilters } = {},
 ): Promise<OpenJobRow[]> {
   try {
     const supabase = await createSupabaseServerClient();
@@ -49,7 +70,8 @@ export async function fetchOpenJobs(
     // 1. JOBS — strict projection. GOLDEN_RULE_2 enforced here.
     //    DO NOT add budget_cents, client_price_cents, or spread columns
     //    to this SELECT. Future maintainers: see the type file header.
-    const { data: rawJobs, error: jobsErr } = await supabase
+    const f = opts.filters ?? {};
+    let q = supabase
       .from('jobs')
       .select(
         [
@@ -74,7 +96,39 @@ export async function fetchOpenJobs(
       )
       .eq('status', 'open')
       .eq('moderation_status', 'approved')
-      .is('deleted_at', null)
+      .is('deleted_at', null);
+
+    if (f.specialties && f.specialties.length > 0) {
+      // Array overlap — jobs.specialty_slugs is a text[].
+      q = q.overlaps('specialty_slugs', f.specialties);
+    }
+    if (f.city && f.city.trim().length > 0) {
+      q = q.ilike('location_city', `%${f.city.trim()}%`);
+    }
+    if (f.urgency) {
+      q = q.eq('urgency', f.urgency);
+    }
+    if (f.remoteOnly) {
+      q = q.eq('accepts_remote_inspectors', true);
+    }
+    if (f.sponsorshipOnly) {
+      q = q.neq('sponsorship_offered', 'none');
+    }
+    if (f.jobType) {
+      q = q.eq('job_type', f.jobType);
+    }
+    if (f.scheduledFrom) {
+      q = q.gte('scheduled_date', f.scheduledFrom);
+    }
+    if (f.scheduledTo) {
+      q = q.lte('scheduled_date', f.scheduledTo);
+    }
+    if (f.q && f.q.trim().length > 0) {
+      const term = f.q.trim().replace(/[%_]/g, '');
+      q = q.or(`title.ilike.%${term}%,description.ilike.%${term}%`);
+    }
+
+    const { data: rawJobs, error: jobsErr } = await q
       .order('created_at', { ascending: false })
       .limit(opts.limit ?? DEFAULT_LIMIT);
 

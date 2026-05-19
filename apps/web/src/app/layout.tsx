@@ -22,6 +22,9 @@
 
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
+import { isRTL } from '@/i18n/config';
 import './globals.css';
 
 const fontSans = Inter({
@@ -86,19 +89,28 @@ export const viewport: Viewport = {
   colorScheme: 'dark',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // i18n: locale comes from the NEXT_LOCALE cookie via src/i18n/request.ts.
+  // We set <html lang> + <html dir> dynamically so Arabic (and future RTL
+  // languages) flip text direction at the document root.
+  const locale = await getLocale();
+  const messages = await getMessages();
+  const dir = isRTL(locale) ? 'rtl' : 'ltr';
   return (
     <html
-      lang="en"
+      lang={locale}
+      dir={dir}
       className={`${fontSans.variable} ${fontMono.variable}`}
       suppressHydrationWarning
     >
       <body className="antialiased" suppressHydrationWarning>
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

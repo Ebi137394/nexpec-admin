@@ -9,6 +9,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   LayoutDashboard,
   Compass,
@@ -25,56 +26,57 @@ import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/cn';
 
 interface NavItem {
-  label: string;
+  labelKey: string;
   href: string;
   icon: LucideIcon;
   badge?: 'soon' | 'beta';
 }
 
-const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
+const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
   {
-    title: 'Overview',
+    titleKey: 'overview',
     items: [
-      { label: 'Dashboard', href: '/inspector/dashboard', icon: LayoutDashboard },
+      { labelKey: 'dashboard', href: '/inspector/dashboard', icon: LayoutDashboard },
     ],
   },
   {
-    title: 'Find work',
+    titleKey: 'findWork',
     items: [
-      { label: 'Open jobs', href: '/inspector/jobs', icon: Compass },
+      { labelKey: 'openJobs', href: '/inspector/jobs', icon: Compass },
     ],
   },
   {
-    title: 'My work',
+    titleKey: 'myWork',
     items: [
-      { label: 'Active assignments', href: '/inspector/assignments', icon: ClipboardList },
+      { labelKey: 'activeAssignments', href: '/inspector/assignments', icon: ClipboardList },
     ],
   },
   {
-    title: 'Identity',
+    titleKey: 'identity',
     items: [
-      { label: 'Compliance', href: '/inspector/compliance', icon: ShieldCheck },
-      { label: 'Work experience', href: '/inspector/experience', icon: Briefcase },
-      { label: 'Wallet & payouts', href: '/inspector/wallet', icon: Wallet },
+      { labelKey: 'compliance', href: '/inspector/compliance', icon: ShieldCheck },
+      { labelKey: 'workExperience', href: '/inspector/experience', icon: Briefcase },
+      { labelKey: 'walletPayouts', href: '/inspector/wallet', icon: Wallet },
     ],
   },
   {
-    title: 'Support',
+    titleKey: 'support',
     items: [
-      { label: 'Messages', href: '/inspector/messages', icon: MessageCircle },
-      { label: 'Disputes', href: '/inspector/disputes', icon: AlertTriangle },
+      { labelKey: 'messages', href: '/inspector/messages', icon: MessageCircle },
+      { labelKey: 'disputes', href: '/inspector/disputes', icon: AlertTriangle },
     ],
   },
   {
-    title: 'System',
+    titleKey: 'system',
     items: [
-      { label: 'Settings', href: '/inspector/settings', icon: Settings },
+      { labelKey: 'settings', href: '/inspector/settings', icon: Settings },
     ],
   },
 ];
 
 export function Sidebar() {
   const pathname = usePathname() ?? '/';
+  const t = useTranslations('nav');
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-white/[0.06] bg-ink-900/60 backdrop-blur-xl lg:block">
@@ -83,16 +85,16 @@ export function Sidebar() {
         <div className="border-b border-white/[0.06] px-6 py-5">
           <Logo variant="wordmark" size="md" />
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Inspector Portal
+            {t('inspectorPortal')}
           </p>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Inspector navigation">
           {NAV.map((section) => (
-            <div key={section.title} className="mb-5">
+            <div key={section.titleKey} className="mb-5">
               <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
-                {section.title}
+                {t(section.titleKey)}
               </p>
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
@@ -117,7 +119,7 @@ export function Sidebar() {
                           )}
                           strokeWidth={1.75}
                         />
-                        <span className="flex-1">{item.label}</span>
+                        <span className="flex-1">{t(item.labelKey)}</span>
                         {item.badge === 'soon' && (
                           <span className="rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
                             soon

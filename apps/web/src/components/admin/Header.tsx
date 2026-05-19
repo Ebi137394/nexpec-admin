@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { SignOutButton } from './SignOutButton';
 import { NotificationBellGate } from '@/components/notifications/NotificationBellGate';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 
 interface HeaderProps {
   /** Display name from profiles.full_name or email fallback. */
@@ -54,8 +55,12 @@ export function Header({
           </span>
         </div>
 
-        {/* Right: bell + user pill + sign-out */}
+        {/* Right: locale + bell + user pill + sign-out */}
         <div className="flex items-center gap-3">
+          {/* Language switcher (cookie-driven, no URL change) */}
+          <Suspense fallback={null}>
+            <LocaleSwitcher />
+          </Suspense>
           {/* Notification bell — wraps in Suspense so a slow profiles read
               never blocks header render. Falls back to an inert bell shape. */}
           <Suspense

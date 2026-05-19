@@ -17,6 +17,7 @@ import {
   Wallet,
   ShieldCheck,
   ArrowUpRight,
+  Briefcase,
 } from 'lucide-react';
 import { fetchInspectorDashboardMetrics } from '@/lib/data/inspectorDashboardMetrics';
 
@@ -31,29 +32,37 @@ const NEXT_ACTIONS = [
     label: 'Browse open jobs',
     href: '/inspector/jobs',
     icon: Compass,
-    helper: 'Filter by specialty, geography, sponsorship support.',
-    state: 'soon' as const,
+    helper: 'Filter by specialty, city, urgency, sponsorship, schedule.',
   },
   {
     label: 'Active assignments',
-    href: '/inspector/jobs?status=assigned',
+    href: '/inspector/assignments',
     icon: ClipboardList,
     helper: 'Submit reports, attach evidence, sign-off scope.',
-    state: 'soon' as const,
   },
   {
     label: 'Wallet & payouts',
     href: '/inspector/wallet',
     icon: Wallet,
     helper: 'Stripe Connect onboarding + balance reconciliation.',
-    state: 'soon' as const,
   },
   {
     label: 'Compliance & credentials',
     href: '/inspector/compliance',
     icon: ShieldCheck,
     helper: 'Upload certs, refresh expiring tickets.',
-    state: 'soon' as const,
+  },
+  {
+    label: 'Profile & CV',
+    href: '/inspector/settings',
+    icon: Briefcase,
+    helper: 'Specialties, NDT methods, languages, CV/Resume upload.',
+  },
+  {
+    label: 'Work experience',
+    href: '/inspector/experience',
+    icon: Briefcase,
+    helper: 'Past projects, employers, references.',
   },
 ];
 
@@ -112,12 +121,12 @@ export default async function InspectorDashboardPage() {
           What you can do here
         </p>
         <h2 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white">
-          Four surfaces, end-to-end.
+          Every surface, one click away.
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Each surface inherits this shell. Open-jobs browse + apply lands
-          first (Sprint 5), then the report-submission flow, then wallet /
-          compliance.
+          Browse open jobs, manage assignments, upload your CV, reconcile
+          payouts, and refresh credentials. The mobile app mirrors the same
+          flows for field operations.
         </p>
 
         <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -135,11 +144,6 @@ export default async function InspectorDashboardPage() {
                     <span className="text-sm font-medium text-zinc-200 group-hover:text-white">
                       {item.label}
                     </span>
-                    {item.state === 'soon' && (
-                      <span className="rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
-                        soon
-                      </span>
-                    )}
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-zinc-500">
                     {item.helper}

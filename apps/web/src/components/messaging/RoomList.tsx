@@ -9,8 +9,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
-import { MessageCircle, ShieldCheck, Briefcase, ChevronRight } from 'lucide-react';
-import type { ConversationRow } from '@/lib/data/conversations.types';
+import { MessageCircle, ShieldCheck, Briefcase, ChevronRight, HardHat, Building2 } from 'lucide-react';
+import type { ConversationRow, ConversationKind } from '@/lib/data/conversations.types';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
 interface Props {
@@ -56,6 +56,7 @@ export function RoomList({
         // like "click does nothing" to the user.
         if (!r.id) return null;
         const href = `${linkBase}/${r.id}`;
+        const partyChip = viewerIsAdmin ? deriveAdminPartyChip(r.kind) : null;
         return (
           <li key={r.id} className="relative">
             {/* Stretched link wraps the whole row. position:absolute + inset-0
@@ -76,18 +77,36 @@ export function RoomList({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-white">
-                    {viewerIsAdmin && r.userLabel
-                      ? r.userLabel
-                      : r.title || CONVERSATION_KIND_LABELS[r.kind]}
-                  </p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-white">
+                      {viewerIsAdmin && r.userLabel
+                        ? r.userLabel
+                        : r.title || CONVERSATION_KIND_LABELS[r.kind]}
+                    </p>
+                    {partyChip && <PartyChip chip={partyChip} />}
+                  </div>
                   <p className="shrink-0 text-[11px] text-zinc-500">
                     {formatRelative(r.lastMessageAt)}
                   </p>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-zinc-500">
-                  {subtitle}
-                </p>
+                {/* Admin view: show "Client · Help & Support" or
+                    "Inspector · Job: foo" so the operator can tell rooms apart
+                    without opening them. */}
+                {viewerIsAdmin ? (
+                  <p className="mt-0.5 truncate text-xs text-zinc-500">
+                    {partyChip ? partyChip.contextLabel : null}
+                    {r.jobTitle ? (
+                      <>
+                        {partyChip ? ' · ' : ''}
+                        <span className="text-zinc-400">{r.jobTitle}</span>
+                      </>
+                    ) : null}
+                  </p>
+                ) : (
+                  <p className="mt-0.5 truncate text-xs text-zinc-500">
+                    {subtitle}
+                  </p>
+                )}
                 {r.lastMessagePreview && (
                   <p className="mt-1 line-clamp-1 text-[12px] text-zinc-400">
                     {r.lastMessagePreview}
@@ -108,6 +127,59 @@ export function RoomList({
         );
       })}
     </ul>
+  );
+}
+
+/* ─── party chip — only shown to admins so they can tell who's writing ── */
+
+interface AdminPartyChip {
+  label: string;        // "Client" | "Inspector" | "Support"
+  contextLabel: string; // "Direct support" | "Job chat · client side" etc.
+  tone: 'violet' | 'cyan' | 'amber';
+  Icon: typeof Building2;
+}
+
+function deriveAdminPartyChip(kind: ConversationKind): AdminPartyChip {
+  switch (kind) {
+    case 'job_client_admin':
+      return {
+        label: 'Client',
+        contextLabel: 'Client side · job chat',
+        tone: 'violet',
+        Icon: Building2,
+      };
+    case 'job_inspector_admin':
+      return {
+        label: 'Inspector',
+        contextLabel: 'Inspector side · job chat',
+        tone: 'cyan',
+        Icon: HardHat,
+      };
+    case 'help_support':
+    default:
+      return {
+        label: 'Support',
+        contextLabel: 'Direct help & support',
+        tone: 'amber',
+        Icon: ShieldCheck,
+      };
+  }
+}
+
+function PartyChip({ chip }: { chip: AdminPartyChip }) {
+  const cls =
+    chip.tone === 'violet'
+      ? 'border-violet/30 bg-violet/10 text-violet-glow'
+      : chip.tone === 'cyan'
+        ? 'border-cyan-glow/30 bg-cyan-glow/10 text-cyan-glow'
+        : 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber';
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${cls}`}
+    >
+      <chip.Icon className="h-2.5 w-2.5" strokeWidth={2} />
+      {chip.label}
+    </span>
   );
 }
 

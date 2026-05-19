@@ -43,21 +43,47 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const { userId } = await params;
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(
-      // STRICT public projection — see GR2 note in the file header.
-      'id, full_name, headline, bio, avatar_url, role, company_name, location_city, location_province, verification_status, rating_average, rating_count, recommend_percent, completed_jobs_count, total_jobs, created_at',
-    )
-    .eq('id', userId)
-    .maybeSingle();
 
-  if (error || !data) {
+  // CASCADING PROJECTION — if any column in the wide SELECT doesn't exist
+  // in this tenant's schema (company_name, recommend_percent, total_jobs
+  // were the prior suspects), PostgREST returns 400 and we'd render
+  // "Profile not found" even though the row exists. Three phases:
+  //   WIDE  → all known public columns
+  //   MID   → minus the optional/newer ones
+  //   NARROW → bare minimum that exists on every install
+  const WIDE =
+    'id, full_name, headline, bio, avatar_url, role, company_name, location_city, location_province, verification_status, rating_average, rating_count, recommend_percent, completed_jobs_count, total_jobs, created_at';
+  const MID =
+    'id, full_name, headline, bio, avatar_url, role, location_city, verification_status, rating_average, rating_count, completed_jobs_count, created_at';
+  const NARROW = 'id, full_name, avatar_url, role, created_at';
+
+  let data: Record<string, unknown> | null = null;
+  for (const proj of [WIDE, MID, NARROW]) {
+    const res = await supabase
+      .from('profiles')
+      .select(proj)
+      .eq('id', userId)
+      .maybeSingle();
+    if (!res.error && res.data) {
+      data = res.data as unknown as Record<string, unknown>;
+      break;
+    }
+    if (res.error && typeof console !== 'undefined') {
+      console.warn('[public profile] projection failed:', res.error.message);
+    }
+  }
+
+  if (!data) {
     return (
       <main className="container-narrow py-24">
         <h1 className="font-display text-3xl text-white">Profile not found</h1>
         <p className="mt-3 text-sm text-zinc-400">
-          That profile doesn&apos;t exist, or the user has hidden it.
+          That profile doesn&apos;t exist, or RLS hasn&apos;t been opened for
+          cross-role profile reads. Ask an admin to apply the latest
+          profiles-RLS migration.
+        </p>
+        <p className="mt-2 text-[11px] text-zinc-600">
+          User id: <span className="font-mono">{userId}</span>
         </p>
         <Link
           href="/"

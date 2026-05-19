@@ -154,6 +154,95 @@ export async function fetchJobsModerationPage(
   }
 }
 
+export interface ModerationApplicant {
+  id: string;
+  applicant_id: string | null;
+  applicant_name: string | null;
+  applicant_email: string | null;
+  status: string;
+  bid_amount_cents: number | null;
+  payout_amount_cents: number | null;
+  cover_note: string | null;
+  created_at: string | null;
+}
+
+/**
+ * Fetch every application tied to a job, with the inspector's bid + cover
+ * note + identity. Used by the Job Moderation panel so admin can see what
+ * each inspector proposed — without leaving the page.
+ */
+export async function fetchModerationApplicants(
+  jobId: string,
+): Promise<ModerationApplicant[]> {
+  if (!jobId) return [];
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('applications')
+      .select(
+        'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, created_at',
+      )
+      .eq('job_id', jobId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error || !data) {
+      if (error && typeof console !== 'undefined') {
+        console.warn('[fetchModerationApplicants] failed:', error.message);
+      }
+      return [];
+    }
+    const rows = data as Array<Record<string, unknown>>;
+    // Hydrate inspector names
+    const ids = Array.from(
+      new Set(
+        rows
+          .map((r) => (r.applicant_id as string | null) ?? null)
+          .filter((v): v is string => !!v),
+      ),
+    );
+    const profileMap = new Map<
+      string,
+      { name: string | null; email: string | null }
+    >();
+    if (ids.length > 0) {
+      try {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', ids);
+        for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
+          profileMap.set(String(p.id), {
+            name: (p.full_name as string | null) ?? null,
+            email: (p.email as string | null) ?? null,
+          });
+        }
+      } catch {
+        /* ignore — show ids only */
+      }
+    }
+    return rows.map((r) => {
+      const aid = (r.applicant_id as string | null) ?? null;
+      const prof = aid ? profileMap.get(aid) ?? null : null;
+      return {
+        id: String(r.id),
+        applicant_id: aid,
+        applicant_name: prof?.name ?? null,
+        applicant_email: prof?.email ?? null,
+        status: String(r.status ?? 'pending'),
+        bid_amount_cents: (r.bid_amount_cents as number | null) ?? null,
+        payout_amount_cents: (r.payout_amount_cents as number | null) ?? null,
+        cover_note: (r.cover_note as string | null) ?? null,
+        created_at: (r.created_at as string | null) ?? null,
+      };
+    });
+  } catch (e) {
+    if (typeof console !== 'undefined') {
+      console.warn('[fetchModerationApplicants] threw:', e);
+    }
+    return [];
+  }
+}
+
 export async function fetchModerationJob(
   jobId: string,
 ): Promise<ModerationJobDetail | null> {

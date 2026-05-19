@@ -12,7 +12,9 @@ import {
   fetchJobsModerationPage,
   fetchModerationJob,
   fetchModerationTimeline,
+  fetchModerationApplicants,
   isJobStatus,
+  type ModerationApplicant,
 } from '@/lib/data/jobsModeration';
 import { JobsModerationTable } from '@/components/admin/jobs/JobsModerationTable';
 import { JobsStatusFilter } from '@/components/admin/jobs/JobsStatusFilter';
@@ -60,6 +62,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
   let pageSize = 25;
   let inspected: ModerationJobDetail | null = null;
   let timeline: ModerationTimelineEvent[] = [];
+  let applicants: ModerationApplicant[] = [];
 
   try {
     const result = await fetchJobsModerationPage({ page, status });
@@ -86,6 +89,13 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
     } catch (e) {
       if (typeof console !== 'undefined') {
         console.error('[admin/jobs] fetchModerationTimeline threw:', e);
+      }
+    }
+    try {
+      applicants = await fetchModerationApplicants(inspectId);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.error('[admin/jobs] fetchModerationApplicants threw:', e);
       }
     }
   }
@@ -121,6 +131,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
           <JobModerationPanel
             job={inspected}
             timeline={timeline}
+            applicants={applicants}
             errorMessage={sp.error}
           />
         </div>

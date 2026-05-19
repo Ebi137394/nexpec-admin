@@ -18,12 +18,16 @@ import {
   X,
   Link2,
   AlertCircle,
+  MessageSquare,
+  ExternalLink,
+  Users,
 } from 'lucide-react';
 import { reviewJobSimple } from '@/lib/actions/jobModerationSimple';
 import type {
   ModerationJobDetail,
   ModerationTimelineEvent,
 } from '@/lib/data/jobsModeration.types';
+import type { ModerationApplicant } from '@/lib/data/jobsModeration';
 import { JobStatusBadge } from './JobStatusBadge';
 
 // Local safe formatter (no shared-core dependency).
@@ -39,11 +43,17 @@ function fmtCents(v: number | null | undefined): string {
 interface Props {
   job: ModerationJobDetail;
   timeline: ModerationTimelineEvent[];
+  applicants?: ModerationApplicant[];
   /** Optional ?error= query param to show inline after a failed action. */
   errorMessage?: string;
 }
 
-export function JobModerationPanel({ job, timeline, errorMessage }: Props) {
+export function JobModerationPanel({
+  job,
+  timeline,
+  applicants = [],
+  errorMessage,
+}: Props) {
   const existingPayoutCents =
     job.payout_amount_cents ??
     ((job as unknown as { inspector_payout_cents?: number | null })
@@ -129,6 +139,95 @@ export function JobModerationPanel({ job, timeline, errorMessage }: Props) {
               </dd>
             </div>
           </dl>
+        </section>
+
+        {/* Applicants — inspector bids + cover notes visible to admin only */}
+        <section className="rounded-xl border border-cyan-glow/25 bg-cyan-glow/[0.04] p-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-cyan-glow" strokeWidth={1.75} />
+            <p className="text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
+              Inspector applications · {applicants.length}
+            </p>
+          </div>
+          {applicants.length === 0 ? (
+            <p className="mt-2 text-xs text-zinc-500">
+              No inspectors have applied yet.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-3">
+              {applicants.map((a) => (
+                <li
+                  key={a.id}
+                  className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {a.applicant_name ?? a.applicant_email ?? a.applicant_id ?? '—'}
+                      </p>
+                      <span
+                        className={
+                          'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ' +
+                          (a.status === 'CLIENT_SELECTED'
+                            ? 'border-cyan-glow/30 bg-cyan-glow/10 text-cyan-glow'
+                            : a.status === 'accepted' || a.status === 'hired'
+                              ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                              : a.status === 'rejected' || a.status === 'withdrawn'
+                                ? 'border-white/10 bg-white/[0.04] text-zinc-400'
+                                : 'border-violet/30 bg-violet/10 text-violet-glow')
+                        }
+                      >
+                        {a.status}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-3">
+                      {/* Inspector's counter-bid (or "no counter") */}
+                      <div className="text-right">
+                        <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
+                          Inspector bid
+                        </p>
+                        <p className="font-mono text-sm font-semibold text-cyan-glow">
+                          {a.bid_amount_cents != null
+                            ? fmtCents(a.bid_amount_cents)
+                            : 'no counter'}
+                        </p>
+                      </div>
+                      {a.payout_amount_cents != null && (
+                        <div className="text-right">
+                          <p className="text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
+                            Admin payout
+                          </p>
+                          <p className="font-mono text-sm font-semibold text-zinc-200">
+                            {fmtCents(a.payout_amount_cents)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {a.cover_note && (
+                    <div className="mt-2 flex items-start gap-2 rounded-lg border border-white/[0.04] bg-ink-950/30 px-3 py-2">
+                      <MessageSquare
+                        className="mt-0.5 h-3 w-3 shrink-0 text-zinc-500"
+                        strokeWidth={1.75}
+                      />
+                      <p className="text-xs leading-relaxed text-zinc-300">
+                        {a.cover_note}
+                      </p>
+                    </div>
+                  )}
+                  {a.applicant_id && (
+                    <Link
+                      href={`/p/${a.applicant_id}`}
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-violet-glow hover:text-white"
+                    >
+                      View inspector profile
+                      <ExternalLink className="h-3 w-3" strokeWidth={2} />
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* Timeline */}

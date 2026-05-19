@@ -110,6 +110,62 @@ export function NotificationBellLive({
     return () => document.removeEventListener('mousedown', handle);
   }, [open]);
 
+  // Polling fallback — even if Realtime isn't enabled on the notifications
+  // table, we still refresh the badge every 25 seconds AND whenever the tab
+  // regains focus. This ensures the bell never stays cold.
+  useEffect(() => {
+    if (!supabase || !userId) return;
+
+    let stopped = false;
+    async function refresh() {
+      try {
+        const { data: profile } = await supabase!
+          .from('profiles')
+          .select('unread_notifications_count')
+          .eq('id', userId)
+          .maybeSingle();
+        if (stopped) return;
+        const n = (profile as { unread_notifications_count?: unknown } | null)
+          ?.unread_notifications_count;
+        if (typeof n === 'number') setCount(n);
+
+        const { data: rows } = await supabase!
+          .from('notifications')
+          .select('id, kind, title, body, link_href, is_read, created_at')
+          .eq('recipient_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(8);
+        if (stopped || !Array.isArray(rows)) return;
+        setRecent(
+          rows.map((r: Record<string, unknown>) => ({
+            id: String(r.id),
+            kind: String(r.kind ?? 'system'),
+            title: String(r.title ?? ''),
+            body: (r.body as string | null) ?? null,
+            linkHref: (r.link_href as string | null) ?? null,
+            isRead: Boolean(r.is_read),
+            createdAt: String(r.created_at ?? ''),
+          })),
+        );
+      } catch (e) {
+        if (typeof console !== 'undefined') {
+          console.warn('[NotificationBell poll] refresh failed:', e);
+        }
+      }
+    }
+
+    // initial refresh + interval
+    refresh();
+    const interval = setInterval(refresh, 25_000);
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [supabase, userId]);
+
   // Realtime subscription.
   useEffect(() => {
     if (!supabase || !userId) return;

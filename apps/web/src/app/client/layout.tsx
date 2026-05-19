@@ -80,7 +80,7 @@ export default async function ClientLayout({
         className="pointer-events-none fixed -top-40 right-0 -z-10 h-[400px] w-[600px] rounded-full bg-violet/10 blur-[100px]"
       />
 
-      <Sidebar />
+      <Sidebar role={normalisedRole} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header userLabel={userLabel} organizations={[]} />

@@ -82,8 +82,28 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   },
 ];
 
-export function Sidebar() {
+/**
+ * Maps a profile role to the portal label shown under the logo. Anyone
+ * routed into the /client portal layout (client/agency/enterprise) sees
+ * their own role's branding — onboarding personality persists past signup.
+ */
+function portalLabelForRole(role: string | null | undefined): string {
+  const normalised = (role ?? '').toString().trim().toLowerCase();
+  if (normalised === 'agency') return 'Agency Portal';
+  if (normalised === 'enterprise') return 'Enterprise Portal';
+  if (normalised === 'admin' || normalised === 'super_admin') {
+    return 'Operator Portal';
+  }
+  return 'Client Portal';
+}
+
+interface SidebarProps {
+  role?: string | null;
+}
+
+export function Sidebar({ role }: SidebarProps = {}) {
   const pathname = usePathname() ?? '/';
+  const portalLabel = portalLabelForRole(role);
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-white/[0.06] bg-ink-900/60 backdrop-blur-xl lg:block">
@@ -92,7 +112,7 @@ export function Sidebar() {
         <div className="border-b border-white/[0.06] px-6 py-5">
           <Logo variant="wordmark" size="md" />
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Client Portal
+            {portalLabel}
           </p>
         </div>
 

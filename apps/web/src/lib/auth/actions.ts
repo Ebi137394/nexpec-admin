@@ -28,7 +28,7 @@ const SignInSchema = z.object({
  * by an existing operator. If an unknown role arrives, we fall through
  * to the default 'client'.
  */
-const PUBLIC_SIGNUP_ROLES = ['client', 'inspector', 'agency'] as const;
+const PUBLIC_SIGNUP_ROLES = ['client', 'inspector', 'agency', 'enterprise'] as const;
 
 const SignUpSchema = z.object({
   email: z.string().email({ message: 'Enter a valid email address.' }),

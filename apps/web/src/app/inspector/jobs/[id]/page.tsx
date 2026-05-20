@@ -29,8 +29,15 @@ import {
   XCircle,
   Clock,
   Building2,
+  PenLine,
+  ShieldAlert,
+  ClipboardCheck,
+  Hourglass,
+  Eye,
 } from 'lucide-react';
 import { fetchInspectorJob } from '@/lib/data/inspectorJobDetail';
+import { fetchInspectorReport } from '@/lib/data/inspectorReport';
+import type { InspectorReport } from '@/lib/data/inspectorReport.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import type {
   InspectorJobDetail,
@@ -53,6 +60,8 @@ interface PageProps {
     already?: string;
     withdrawn?: string;
     error?: string;
+    already_reported?: string;
+    report_submitted?: string;
   }>;
 }
 
@@ -62,7 +71,14 @@ export default async function InspectorJobDetailPage({
 }: PageProps) {
   const { id } = await params;
   const qp = await searchParams;
-  const job = await fetchInspectorJob(id);
+
+  // Fetch job + report in parallel — the report drives the workflow CTA
+  // ("Submit Report" vs "Awaiting admin review"). fetchInspectorReport
+  // returns null cheaply when nothing is there yet, so this is free.
+  const [job, report] = await Promise.all([
+    fetchInspectorJob(id),
+    fetchInspectorReport(id),
+  ]);
   if (!job) notFound();
 
   return (
@@ -116,10 +132,20 @@ export default async function InspectorJobDetailPage({
             </div>
           </div>
 
-          {/* Primary CTA — context-aware */}
-          <PrimaryAction job={job} />
+          {/* Primary CTA — context-aware (apply / withdraw / submit report) */}
+          <PrimaryAction job={job} report={report} />
         </div>
       </header>
+
+      {/*
+        Workflow panel — surfaces the inspector's CURRENT action on this job.
+        Hidden by default; renders only when the inspector is hired and the
+        job is in an active state. This is the fix for the UX black hole
+        where a hired inspector landed here and had no path to submit their
+        report from the job detail page (the only CTA lived on the
+        assignments dashboard card, which the user often bypassed).
+      */}
+      <InspectorWorkflowPanel job={job} report={report} />
 
       {/*
         Pending-review CTA — renders only when the job is completed AND the
@@ -153,6 +179,19 @@ export default async function InspectorJobDetailPage({
       {qp.withdrawn && (
         <Banner tone="zinc" icon={<XCircle className="h-5 w-5" />}>
           Application withdrawn. You can re-apply if the job is still open.
+        </Banner>
+      )}
+      {qp.already_reported && (
+        <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
+          You&apos;ve already submitted a report for this inspection. Admin
+          will review it and route it back to the client. The payout
+          releases on final sign-off.
+        </Banner>
+      )}
+      {qp.report_submitted && (
+        <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
+          Report submitted. You&apos;ll receive a notification once admin
+          completes the review.
         </Banner>
       )}
 
@@ -242,15 +281,79 @@ export default async function InspectorJobDetailPage({
 
 /* ─── primary CTA — context-aware ────────────────────────────────────── */
 
-function PrimaryAction({ job }: { job: InspectorJobDetail }) {
-  // Already applied — link to status panel below (anchor).
-  if (job.myApplication) {
+function PrimaryAction({
+  job,
+  report,
+}: {
+  job: InspectorJobDetail;
+  report: InspectorReport | null;
+}) {
+  const myApp = job.myApplication;
+  const isHired =
+    myApp?.status === 'hired' || myApp?.status === 'accepted';
+  const isActive =
+    job.status === 'in_progress' || job.status === 'assigned';
+
+  // HIGHEST PRIORITY — hired + active job + no report = "Submit Report" CTA.
+  // This is the case where the user lands after signing the contract and
+  // needs to actually do the work. Before this fix, it rendered a useless
+  // "Application status below ↓" pill and left the user stranded.
+  if (isHired && isActive && !report) {
+    return (
+      <Link
+        href={`/inspector/jobs/${job.id}/submit-report`}
+        className="inline-flex items-center gap-2 self-start rounded-xl bg-cyan-glow px-5 py-2.5 text-sm font-bold uppercase tracking-industrial text-ink-900 transition hover:bg-cyan-glow/90 sm:self-auto"
+      >
+        <PenLine className="h-4 w-4" strokeWidth={2} />
+        Submit Inspection Report
+      </Link>
+    );
+  }
+
+  // Hired + active + report already submitted = badge, no button (no edits
+  // until Sprint 6.5 ships revision support).
+  if (isHired && isActive && report) {
+    return (
+      <div className="inline-flex items-center gap-2 self-start rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-industrial text-cyan-glow sm:self-auto">
+        <Hourglass className="h-3.5 w-3.5" strokeWidth={2} />
+        Report submitted · awaiting admin review
+      </div>
+    );
+  }
+
+  // Hired + completed = inspection done; review CTA is on the
+  // PendingReviewCallout below the header.
+  if (isHired && job.status === 'completed') {
+    return (
+      <div className="inline-flex items-center gap-2 self-start rounded-full border border-accent-green/30 bg-accent-green/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-industrial text-accent-green sm:self-auto">
+        <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+        Inspection complete
+      </div>
+    );
+  }
+
+  // Hired + disputed = escalation. Link to the disputes board.
+  if (isHired && job.status === 'disputed') {
+    return (
+      <Link
+        href="/inspector/disputes"
+        className="inline-flex items-center gap-2 self-start rounded-xl border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red transition hover:bg-accent-red/15 sm:self-auto"
+      >
+        <ShieldAlert className="h-4 w-4" strokeWidth={2} />
+        Dispute open · view
+      </Link>
+    );
+  }
+
+  // Pre-hire application — link to status panel below.
+  if (myApp) {
     return (
       <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-zinc-400">
         Application status below ↓
       </div>
     );
   }
+
   // Job closed to new applications.
   if (!job.isOpenForApplications) {
     return (
@@ -259,6 +362,7 @@ function PrimaryAction({ job }: { job: InspectorJobDetail }) {
       </div>
     );
   }
+
   // Open + no application yet.
   return (
     <Link
@@ -268,6 +372,210 @@ function PrimaryAction({ job }: { job: InspectorJobDetail }) {
       Apply now
       <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
     </Link>
+  );
+}
+
+/* ─── workflow panel — current-action guidance + Submit Report CTA ───── */
+
+function InspectorWorkflowPanel({
+  job,
+  report,
+}: {
+  job: InspectorJobDetail;
+  report: InspectorReport | null;
+}) {
+  const myApp = job.myApplication;
+  const isHired = myApp?.status === 'hired' || myApp?.status === 'accepted';
+
+  // Only render when the inspector is engaged on the job. Pre-hire and
+  // non-applicant views get nothing — the application panel + apply CTA
+  // are the right surfaces for those.
+  if (!isHired) return null;
+
+  // ── State 1: Hired, job active, NOT submitted yet ──────────────────
+  if (
+    (job.status === 'in_progress' || job.status === 'assigned') &&
+    !report
+  ) {
+    return (
+      <section className="rounded-3xl border border-cyan-glow/30 bg-gradient-to-b from-cyan-glow/[0.08] to-cyan-glow/[0.02] p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-glow/40 bg-cyan-glow/10 text-cyan-glow">
+              <ClipboardCheck className="h-5 w-5" strokeWidth={2} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
+                Your Action · Cleared to begin work
+              </p>
+              <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">
+                Complete the inspection, then submit your signed report.
+              </h2>
+              <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-zinc-300">
+                The contract is fully executed. There&apos;s no separate
+                &quot;start&quot; step — head to the site, complete the work
+                described in the Scope below, and come back here to submit
+                your signed report. Admin reviews your report and routes it
+                to the client; your{' '}
+                <span className="font-semibold text-cyan-glow">
+                  {formatPayout(job.inspectorPayoutCents)}
+                </span>{' '}
+                payout releases on final sign-off.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/inspector/jobs/${job.id}/submit-report`}
+            className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl bg-cyan-glow px-5 py-3 text-sm font-bold uppercase tracking-industrial text-ink-900 transition hover:bg-cyan-glow/90"
+          >
+            <PenLine className="h-4 w-4" strokeWidth={2} />
+            Submit Report
+          </Link>
+        </div>
+
+        {/* Lightweight 3-step explainer */}
+        <ol className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StepTile
+            n={1}
+            title="On-site work"
+            body="Carry out the inspection per the Scope below."
+            done
+          />
+          <StepTile
+            n={2}
+            title="Submit report"
+            body="Upload photos, write the summary, attest with your name."
+            active
+          />
+          <StepTile
+            n={3}
+            title="Admin review"
+            body="Admin verifies and routes to the client. Payout released."
+          />
+        </ol>
+      </section>
+    );
+  }
+
+  // ── State 2: Hired, job active, report ALREADY submitted ───────────
+  if (
+    (job.status === 'in_progress' || job.status === 'assigned') &&
+    report
+  ) {
+    return (
+      <section className="rounded-3xl border border-violet/30 bg-gradient-to-b from-violet/[0.07] to-violet/[0.02] p-6 sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet/40 bg-violet/10 text-violet-glow">
+              <Hourglass className="h-5 w-5" strokeWidth={2} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+                Report submitted · awaiting admin review
+              </p>
+              <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">
+                Sit tight — admin is reviewing your submission.
+              </h2>
+              <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-zinc-300">
+                Submitted{' '}
+                <span className="font-mono text-zinc-200">
+                  {formatRelative(report.createdAt)}
+                </span>
+                . Once admin signs off and the client confirms, your{' '}
+                <span className="font-semibold text-violet-glow">
+                  {formatPayout(job.inspectorPayoutCents)}
+                </span>{' '}
+                payout releases to Stripe Connect. You&apos;ll receive a
+                notification at every state change.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/inspector/jobs/${job.id}/submit-report`}
+            className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs font-semibold text-zinc-300 transition hover:border-violet/40 hover:text-white"
+          >
+            <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+            View submission
+          </Link>
+        </div>
+
+        <ol className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StepTile n={1} title="On-site work" body="Done." done />
+          <StepTile n={2} title="Submit report" body="Submitted." done />
+          <StepTile
+            n={3}
+            title="Admin review"
+            body="In progress — typically within 48 hours."
+            active
+          />
+        </ol>
+      </section>
+    );
+  }
+
+  // ── State 3: completed — quiet success line. The PendingReviewCallout
+  // handles the next action (leave review for the client).
+  if (job.status === 'completed') {
+    return (
+      <section className="rounded-3xl border border-accent-green/30 bg-gradient-to-b from-accent-green/[0.08] to-accent-green/[0.02] p-5 sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-green/40 bg-accent-green/10 text-accent-green">
+            <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+              Inspection complete
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-300">
+              Report approved and delivered to the client. Payout is on
+              track. Leave a review below to close the loop.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return null;
+}
+
+function StepTile({
+  n,
+  title,
+  body,
+  done,
+  active,
+}: {
+  n: number;
+  title: string;
+  body: string;
+  done?: boolean;
+  active?: boolean;
+}) {
+  const ring = done
+    ? 'border-accent-green/40 bg-accent-green/[0.06]'
+    : active
+      ? 'border-cyan-glow/40 bg-cyan-glow/[0.06]'
+      : 'border-white/[0.06] bg-white/[0.02]';
+  const numCls = done
+    ? 'border-accent-green/50 bg-accent-green/15 text-accent-green'
+    : active
+      ? 'border-cyan-glow/50 bg-cyan-glow/15 text-cyan-glow'
+      : 'border-white/10 bg-white/[0.04] text-zinc-500';
+  return (
+    <div className={`rounded-2xl border p-4 ${ring}`}>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex h-6 w-6 items-center justify-center rounded-full border font-mono text-[11px] font-bold ${numCls}`}
+        >
+          {done ? '✓' : n}
+        </span>
+        <p className="text-xs font-semibold uppercase tracking-industrial text-white">
+          {title}
+        </p>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">{body}</p>
+    </div>
   );
 }
 

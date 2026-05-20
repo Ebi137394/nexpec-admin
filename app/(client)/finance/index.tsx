@@ -267,15 +267,13 @@ export default function FinanceHubScreen() {
           <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Quick Actions')}</Text>
           <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             {/*
-              Budget Overview, Invoice Approver, Compliance Vault are
-              scaffolded buttons whose destination screens haven't shipped
-              yet (no /client/finance/{budget|invoices|compliance}.tsx
-              files exist). Disabled + "Coming soon" alert prevents a 404
-              hit. Restore the router.push when those screens ship.
+              Budget Overview is LIVE as of the M1 Financial Suite (Round 1).
+              Invoice Approver + Compliance Vault still scaffolded — kept
+              behind the "Coming soon" alert until their rounds ship.
             */}
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)', opacity: 0.55 }]}
-              onPress={() => Alert.alert(t('Coming soon'), t('Budget Overview ships in a future release.'))}
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
+              onPress={() => router.push('/(client)/finance/budget' as any)}
             >
               <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
                 <Ionicons name="cash-outline" size={24} color="#10B981" />

@@ -23,6 +23,7 @@ import {
   Building2,
   ScrollText,
   ShieldCheck,
+  BarChart3,
 } from 'lucide-react';
 import { fetchClientFinance } from '@/lib/data/clientFinance';
 import type {
@@ -123,6 +124,32 @@ export default async function ClientFinancePage() {
           </ul>
         )}
       </section>
+
+      {/* Budget Overview CTA — links to the live spend tracker (M1 Financial Suite) */}
+      <Link
+        href="/client/budget"
+        className="group flex flex-wrap items-center gap-5 rounded-3xl border border-violet/30 bg-gradient-to-r from-violet/[0.08] via-violet/[0.04] to-transparent p-6 transition-colors hover:border-violet/50 hover:from-violet/[0.12] sm:p-8"
+      >
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
+          <BarChart3 className="h-6 w-6" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
+            New · Financial Suite
+          </p>
+          <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-white">
+            Budget Overview
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Live spend tracker — committed budget, escrow holds, paid-out
+            amounts, 12-month trend, and top inspectors by spend.
+          </p>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-violet-glow transition-colors group-hover:bg-violet/20">
+          Open
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
+        </span>
+      </Link>
 
       {/* Payment methods + invoices CTA */}
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">

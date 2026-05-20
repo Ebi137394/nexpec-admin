@@ -48,6 +48,11 @@ type PipelineKind =
   | 'awarded_pending_contract'
   | 'awaiting_their_signature'
   | 'awaiting_admin_approval'
+  // Safety net: contract is fully_executed but the parent jobs.status
+  // hasn't advanced to 'in_progress' yet. The self-heal trigger should
+  // make this state momentary, but if anything skips the trigger we want
+  // the inspector to see the work instead of staring at an empty board.
+  | 'kickoff_pending'
   // Admin gates (V3 contract state machine — admin holds 3 signoffs)
   | 'admin_open_dispute'
   | 'admin_pending_signoff'
@@ -186,7 +191,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
     });
   } else if (tone === 'inspector') {
     // INSPECTOR
-    const [counterRes, contractRes, acceptedRes] = await Promise.all([
+    const [counterRes, contractRes, acceptedRes, executedRes] = await Promise.all([
       supabase
         .from('applications')
         .select(
@@ -210,6 +215,18 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         .in('status', ['accepted', 'selected'])
         .order('updated_at', { ascending: false })
         .limit(15),
+      // SAFETY NET: every fully_executed contract for this inspector. We
+      // cross-check the job's status in code and only surface a kickoff_
+      // pending row when the job hasn't advanced yet — i.e. the self-heal
+      // trigger somehow didn't fire. In steady state this returns rows
+      // that we silently drop, which is fine.
+      supabase
+        .from('inspector_job_contracts_view')
+        .select('id, job_id, status, inspector_payout_cents, updated_at')
+        .eq('inspector_id', user.id)
+        .eq('status', 'fully_executed')
+        .order('updated_at', { ascending: false })
+        .limit(15),
     ]);
 
     const counters = (counterRes.data ?? []) as Array<{
@@ -231,15 +248,53 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
       bid_amount_cents: number | null;
       updated_at: string | null;
     }>;
+    const executed = (executedRes.data ?? []) as Array<{
+      id: string;
+      job_id: string | null;
+      inspector_payout_cents: number | null;
+      updated_at: string | null;
+    }>;
 
     const contractJobIds = new Set(
       contracts.map((c) => c.job_id).filter((id): id is string => !!id),
     );
 
+    // Identify executed-but-not-advanced jobs by reading jobs.status for
+    // exactly those job_ids. We DON'T surface a kickoff row if jobs.status
+    // is already in_progress / completed / disputed / cancelled — the
+    // self-heal worked or the job moved on.
+    const executedJobIds = executed
+      .map((c) => c.job_id)
+      .filter((id): id is string => !!id);
+    const jobStatusByJobId = new Map<string, string | null>();
+    if (executedJobIds.length > 0) {
+      const { data: statusRows } = await supabase
+        .from('jobs')
+        .select('id, status')
+        .in('id', executedJobIds);
+      (statusRows as Array<{ id: string; status: string | null }> | null)?.forEach(
+        (r) => jobStatusByJobId.set(r.id, r.status ?? null),
+      );
+    }
+    const stalledExecuted = executed.filter((c) => {
+      if (!c.job_id) return false;
+      const s = jobStatusByJobId.get(c.job_id);
+      // Surface only when the job is genuinely parked in a pre-execution
+      // state. If the trigger worked (status = in_progress) we don't need
+      // a pipeline row — the assignments fetcher will show it under
+      // In Progress.
+      return s !== 'in_progress'
+          && s !== 'completed'
+          && s !== 'disputed'
+          && s !== 'cancelled'
+          && s !== 'refunded';
+    });
+
     await hydrateTitles([
       ...counters.map((c) => c.job_id),
       ...contracts.map((c) => c.job_id),
       ...accepted.map((a) => a.job_id),
+      ...stalledExecuted.map((c) => c.job_id),
     ]);
 
     contracts.forEach((c) => {
@@ -277,6 +332,18 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         updatedAt: a.updated_at,
         routeTo: `/inspector/jobs/${a.job_id}`,
         ctaLabel: 'View',
+      });
+    });
+    stalledExecuted.forEach((c) => {
+      collected.push({
+        id: `kp:${c.id}`,
+        kind: 'kickoff_pending',
+        jobId: c.job_id,
+        jobTitle: c.job_id ? titleByJobId.get(c.job_id) ?? null : null,
+        amountCents: c.inspector_payout_cents,
+        updatedAt: c.updated_at,
+        routeTo: c.job_id ? `/inspector/jobs/${c.job_id}` : `/inspector/contracts`,
+        ctaLabel: 'Begin',
       });
     });
   }
@@ -411,11 +478,15 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
 
   // Priority sort — most-actionable first.
   const priority: Record<PipelineKind, number> = {
+    // Inspector ranks: signature first, then counter-offers, then a
+    // kickoff-pending row (contract fully executed but the job didn't
+    // advance) so the user sees it before the cooler awarded-pending rows.
     awaiting_your_signature: 0,
     counter_offer_received: 1,
-    awarded_pending_contract: 2,
-    awaiting_their_signature: 3,
-    awaiting_admin_approval: 4,
+    kickoff_pending: 2,
+    awarded_pending_contract: 3,
+    awaiting_their_signature: 4,
+    awaiting_admin_approval: 5,
     // Admin gates — disputes hottest, milestone requests warm, approvals coolest.
     admin_open_dispute: 0,
     admin_pending_signoff: 1,
@@ -511,6 +582,12 @@ const KIND_META: Record<
     label: 'Awaiting Admin Approval',
     tone: 'cyan',
     Icon: ShieldCheck,
+  },
+  kickoff_pending: {
+    // "Your contract is fully signed and the job is yours — kick it off."
+    label: 'Contract Signed · Begin Work',
+    tone: 'cyan',
+    Icon: CheckCheck,
   },
   // ── Admin gates ─────────────────────────────────────────────────────
   admin_open_dispute: {

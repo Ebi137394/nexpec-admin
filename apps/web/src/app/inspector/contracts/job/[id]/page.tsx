@@ -164,8 +164,7 @@ export default async function InspectorJobContractPage({
         </p>
         <p className="mt-1 text-xs text-zinc-400">
           Released to your Stripe Connect account after you and admin sign
-          off on the final report. The client&rsquo;s budget is set
-          separately by NEXPEC and is not visible to you.
+          off on the final report.
         </p>
       </section>
 

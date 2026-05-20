@@ -71,6 +71,7 @@ export type PipelineKind =
   | 'awaiting_their_signature'  // buyer: client signed, inspector hasn't
   | 'counter_offer_received'    // inspector: applications.admin_countered
   | 'awarded_pending_contract'  // inspector: applications.accepted, no contract yet
+  | 'kickoff_pending'           // inspector: contract fully_executed but jobs.status didn't advance
   // ── ADMIN GATES (V3 contract state machine — admin holds 3 signoffs) ──
   | 'admin_pending_approval'    // jobs.pending_approval — admin moderation queue
   | 'admin_pending_contract'    // application selected, no job_contract row issued
@@ -234,7 +235,9 @@ export function PipelineSection({ userId, userRole }: Props) {
         // 2. Contracts pending the inspector's signature.
         // 3. Applications accepted/selected but no contract yet
         //    (admin still preparing the binding agreement).
-        const [counterRes, contractRes, acceptedRes] = await Promise.all([
+        // 4. SAFETY NET — fully_executed contracts whose parent job
+        //    didn't advance to in_progress (self-heal trigger bypass).
+        const [counterRes, contractRes, acceptedRes, executedRes] = await Promise.all([
           supabase
             .from('applications')
             .select('id, job_id, admin_counter_cents, bid_amount_cents, updated_at')
@@ -254,6 +257,13 @@ export function PipelineSection({ userId, userRole }: Props) {
             .select('id, job_id, bid_amount_cents, status, updated_at')
             .eq('applicant_id', userId)
             .in('status', ['accepted', 'selected'])
+            .order('updated_at', { ascending: false })
+            .limit(15),
+          supabase
+            .from('inspector_job_contracts_view')
+            .select('id, job_id, status, inspector_payout_cents, updated_at')
+            .eq('inspector_id', userId)
+            .eq('status', 'fully_executed')
             .order('updated_at', { ascending: false })
             .limit(15),
         ]);
@@ -277,6 +287,12 @@ export function PipelineSection({ userId, userRole }: Props) {
           bid_amount_cents: number | null;
           updated_at: string | null;
         }>;
+        const executedRows = (executedRes.data ?? []) as Array<{
+          id: string;
+          job_id: string | null;
+          inspector_payout_cents: number | null;
+          updated_at: string | null;
+        }>;
 
         // Suppress duplicates: if an accepted application already has a
         // contract pending, prefer the contract row (more actionable).
@@ -284,10 +300,38 @@ export function PipelineSection({ userId, userRole }: Props) {
           contractRows.map((c) => c.job_id).filter(Boolean) as string[],
         );
 
+        // Identify fully_executed contracts whose job STILL hasn't advanced.
+        // We surface a kickoff_pending row only for those — when the self-
+        // heal trigger worked, jobs.status is in_progress and the
+        // assignments screen already shows it under In Progress.
+        const executedJobIds = executedRows
+          .map((c) => c.job_id)
+          .filter(Boolean) as string[];
+        const jobStatusByJobId = new Map<string, string | null>();
+        if (executedJobIds.length > 0) {
+          const { data: statusRows } = await supabase
+            .from('jobs')
+            .select('id, status')
+            .in('id', executedJobIds);
+          (statusRows as Array<{ id: string; status: string | null }> | null)?.forEach(
+            (r) => jobStatusByJobId.set(r.id, r.status ?? null),
+          );
+        }
+        const stalledExecuted = executedRows.filter((c) => {
+          if (!c.job_id) return false;
+          const s = jobStatusByJobId.get(c.job_id);
+          return s !== 'in_progress'
+              && s !== 'completed'
+              && s !== 'disputed'
+              && s !== 'cancelled'
+              && s !== 'refunded';
+        });
+
         const allJobIds = [
           ...counterRows.map((r) => r.job_id),
           ...contractRows.map((r) => r.job_id),
           ...acceptedRows.map((r) => r.job_id),
+          ...stalledExecuted.map((r) => r.job_id),
         ].filter(Boolean) as string[];
         await hydrateJobTitles(allJobIds);
 
@@ -326,6 +370,18 @@ export function PipelineSection({ userId, userRole }: Props) {
             updatedAt: a.updated_at,
             routeTo: `/(inspector)/jobs/${a.job_id}`,
             ctaLabel: 'View',
+          });
+        });
+        stalledExecuted.forEach((c) => {
+          collected.push({
+            id: `kp:${c.id}`,
+            kind: 'kickoff_pending',
+            jobId: c.job_id,
+            jobTitle: c.job_id ? titleCache.current.get(c.job_id) ?? null : null,
+            amountCents: c.inspector_payout_cents,
+            updatedAt: c.updated_at,
+            routeTo: c.job_id ? `/(inspector)/jobs/${c.job_id}` : `/(inspector)/dashboard`,
+            ctaLabel: 'Begin',
           });
         });
       } else if (admin) {
@@ -482,9 +538,12 @@ export function PipelineSection({ userId, userRole }: Props) {
       const priorityOrder: Record<PipelineKind, number> = {
         awaiting_your_signature: 0,
         counter_offer_received: 1,
-        awarded_pending_contract: 2,
-        awaiting_their_signature: 3,
-        awaiting_admin_approval: 4,
+        // kickoff_pending = the contract is fully signed but the job didn't
+        // advance. Inspector should see this near the top so they begin work.
+        kickoff_pending: 2,
+        awarded_pending_contract: 3,
+        awaiting_their_signature: 4,
+        awaiting_admin_approval: 5,
         // Admin gates — disputes hottest, milestone requests warm,
         // approvals coolest (still must clear, but not blocking money).
         admin_open_dispute: 0,
@@ -595,6 +654,12 @@ const KIND_META: Record<
     tone: C.cyan,
     toneDim: C.cyanDim,
     icon: 'shield-checkmark',
+  },
+  kickoff_pending: {
+    label: 'Contract Signed · Begin Work',
+    tone: C.cyan,
+    toneDim: C.cyanDim,
+    icon: 'checkmark-done-circle',
   },
   // ── Admin gates ───────────────────────────────────────────────────────
   admin_open_dispute: {

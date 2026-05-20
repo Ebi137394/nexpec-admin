@@ -29,22 +29,10 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { ScopeTemplateFormState } from './scopeTemplates.types';
 
-// ─── Action result shapes ─────────────────────────────────────────────────────
-
-export interface ScopeTemplateFormState {
-  ok: boolean;
-  error: string | null;
-  fieldErrors: Partial<Record<string, string>>;
-  created?: { id: string; slug: string };
-  updated?: { id: string; slug: string; newVersion: number };
-}
-
-export const scopeTemplateInitialState: ScopeTemplateFormState = {
-  ok: false,
-  error: null,
-  fieldErrors: {},
-};
+// Action result shape + initial-state constant live in scopeTemplates.types.ts —
+// Next.js 15 enforces async-only exports from any `'use server'` file.
 
 // ─── Validators ───────────────────────────────────────────────────────────────
 

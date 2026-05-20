@@ -42,9 +42,11 @@ import {
 import {
   createScopeTemplateAction,
   updateScopeTemplateAction,
+} from '@/lib/actions/scopeTemplates';
+import {
   scopeTemplateInitialState,
   type ScopeTemplateFormState,
-} from '@/lib/actions/scopeTemplates';
+} from '@/lib/actions/scopeTemplates.types';
 import {
   CCI_TIER_LABELS,
   type CciCredentialTier,

@@ -76,6 +76,19 @@ interface Props {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Route helpers — one choke point per role so future contributors don't
+//  reinvent the URL shape and 404 themselves.
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Build an admin-side inspect URL for an individual job. The admin section
+ * intentionally has NO /admin/jobs/[id]/page.tsx — inspection happens via
+ * a drawer on /admin/jobs?inspect=<jobId>. Routing anywhere else 404s.
+ */
+function adminJobInspectHref(jobId: string): string {
+  return `/admin/jobs?inspect=${encodeURIComponent(jobId)}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Server-side fetcher
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
@@ -413,6 +426,12 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
 
     await hydrateTitles(acceptedApps.map((a) => a.job_id));
 
+    // ROUTING NOTE — The web admin section deliberately has NO
+    // /admin/jobs/[id]/page.tsx route. The canonical inspection surface
+    // is /admin/jobs?inspect=<jobId>, a drawer that opens above the
+    // moderation table. Same operator-anchored pattern used by
+    // compliance and disputes. Every admin pipeline row routes through
+    // adminJobInspectHref() so we have ONE choke point for this rule.
     openDisputes.forEach((j) => {
       collected.push({
         id: `ad-dispute:${j.id}`,
@@ -421,6 +440,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         jobTitle: j.title,
         amountCents: j.client_price_cents,
         updatedAt: j.updated_at,
+        // Disputes have their own dedicated drawer keyed by jobId.
         routeTo: `/admin/disputes?jobId=${j.id}`,
         ctaLabel: 'Mediate',
       });
@@ -433,7 +453,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         jobTitle: j.title,
         amountCents: j.client_price_cents,
         updatedAt: j.updated_at,
-        routeTo: `/admin/jobs/${j.id}`,
+        routeTo: adminJobInspectHref(j.id),
         ctaLabel: 'Review',
       });
     });
@@ -445,7 +465,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         jobTitle: titleByJobId.get(a.job_id) ?? null,
         amountCents: a.bid_amount_cents,
         updatedAt: a.updated_at,
-        routeTo: `/admin/jobs/${a.job_id}`,
+        routeTo: adminJobInspectHref(a.job_id),
         ctaLabel: 'Issue',
       });
     });
@@ -457,7 +477,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         jobTitle: j.title,
         amountCents: j.client_price_cents,
         updatedAt: j.updated_at,
-        routeTo: `/admin/jobs/${j.id}`,
+        routeTo: adminJobInspectHref(j.id),
         ctaLabel: 'Approve',
       });
     });
@@ -470,7 +490,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         jobTitle: r.payload?.job_title ?? null,
         amountCents: r.payload?.amount_cents ?? null,
         updatedAt: r.created_at,
-        routeTo: jobId ? `/admin/jobs/${jobId}` : `/admin/dashboard`,
+        routeTo: jobId ? adminJobInspectHref(jobId) : `/admin/dashboard`,
         ctaLabel: 'Action',
       });
     });

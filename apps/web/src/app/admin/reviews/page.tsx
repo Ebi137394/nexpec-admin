@@ -308,8 +308,10 @@ function ReviewCard({ row }: { row: ModerationReviewRow }) {
           role={row.reviewee?.role ?? null}
         />
         {row.job?.id ? (
+          // /admin/jobs has NO dynamic [id] route — inspection is a drawer
+          // keyed by the ?inspect= search param. Anything else 404s.
           <Link
-            href={`/admin/jobs/${row.job.id}`}
+            href={`/admin/jobs?inspect=${encodeURIComponent(row.job.id)}`}
             className="ml-auto truncate rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] font-medium text-zinc-300 hover:border-violet/40 hover:text-white"
           >
             {row.job.title ?? 'Open job'}

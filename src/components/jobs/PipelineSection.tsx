@@ -476,7 +476,10 @@ export function PipelineSection({ userId, userRole }: Props) {
             jobTitle: j.title,
             amountCents: j.client_price_cents,
             updatedAt: j.updated_at,
-            routeTo: `/(admin)/jobs/${j.id}`,
+            // Land on the dedicated disputes board (built same day as this
+            // pipeline). Operator gets the resolution picker + escrow
+            // diff in one screen instead of generic job detail.
+            routeTo: `/(admin)/disputes`,
             ctaLabel: 'Mediate',
           });
         });

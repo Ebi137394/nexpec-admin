@@ -50,6 +50,8 @@ import {
   CURRENCIES,
   DEFAULT_FINANCIAL_SETTINGS,
   OVERTIME_MULTIPLIERS,
+  WEEKEND_MULTIPLIERS,
+  HOLIDAY_MULTIPLIERS,
   PAYMENT_TERMS_OPTIONS,
   formatCurrency,
   parseCurrencyInput,
@@ -465,6 +467,8 @@ export default function RatesScreen(): React.JSX.Element {
           currency,
           tax_id,
           overtime_multiplier,
+          weekend_multiplier,
+          holiday_multiplier,
           minimum_hours,
           payment_terms_days,
           accepts_credit_card,
@@ -487,6 +491,9 @@ export default function RatesScreen(): React.JSX.Element {
           currency: (data.currency as Currency) || 'USD',
           tax_id: data.tax_id || '',
           overtime_multiplier: data.overtime_multiplier?.toString() || '1.5',
+          // Mobile parity 2026-05-20 — Sprint 11 schema columns.
+          weekend_multiplier: (data as any).weekend_multiplier?.toString() || '1.5',
+          holiday_multiplier: (data as any).holiday_multiplier?.toString() || '2.0',
           minimum_hours: data.minimum_hours?.toString() || '4',
           payment_terms_days: data.payment_terms_days?.toString() || '30',
           accepts_credit_card: data.accepts_credit_card || false,
@@ -572,6 +579,17 @@ export default function RatesScreen(): React.JSX.Element {
       if (userError) throw userError;
       if (!user) throw new Error('No authenticated user found');
 
+      // ── DB CHECK constraints (mirroring web Sprint 11) ────────────
+      //   profiles.overtime_multiplier 1.00–5.00
+      //   profiles.weekend_multiplier  1.00–5.00
+      //   profiles.holiday_multiplier  1.00–5.00
+      // We clamp here so the row update never round-trips a CHECK violation.
+      const clampMul = (v: string, def: number): number => {
+        const n = parseFloat(v);
+        if (!Number.isFinite(n)) return def;
+        return Math.min(5, Math.max(1, n));
+      };
+
       const updates: FinancialUpdatePayload = {
         // ★ Task 4: hourly_rate column is now hourly_rate_cents (bigint).
         hourly_rate_cents: toCents(parseCurrencyInput(formData.hourly_rate)),
@@ -580,7 +598,10 @@ export default function RatesScreen(): React.JSX.Element {
         travel_rate_unit: formData.travel_rate_unit,
         currency: formData.currency,
         tax_id: formData.tax_id.trim() || null,
-        overtime_multiplier: parseFloat(formData.overtime_multiplier) || 1.5,
+        overtime_multiplier: clampMul(formData.overtime_multiplier, 1.5),
+        // Mobile parity 2026-05-20 — Sprint 11 schema columns.
+        weekend_multiplier: clampMul(formData.weekend_multiplier, 1.5),
+        holiday_multiplier: clampMul(formData.holiday_multiplier, 2.0),
         minimum_hours: parseFloat(formData.minimum_hours) || 4,
         payment_terms_days: parseInt(formData.payment_terms_days, 10) || 30,
         accepts_credit_card: formData.accepts_credit_card,
@@ -719,6 +740,26 @@ export default function RatesScreen(): React.JSX.Element {
               options={OVERTIME_MULTIPLIERS}
               onSelect={(value) => updateFormField('overtime_multiplier', value)}
               icon={<Percent size={16} color={COLORS.textSecondary} />}
+            />
+
+            {/* Mobile parity 2026-05-20 — web Sprint 11 schema columns
+                profiles.weekend_multiplier + holiday_multiplier. Same
+                SelectField shape as overtime; CHECK 1.00–5.00 enforced
+                at the DB layer and clamped at save time. */}
+            <SelectField
+              label="Weekend Multiplier"
+              value={formData.weekend_multiplier}
+              options={WEEKEND_MULTIPLIERS}
+              onSelect={(value) => updateFormField('weekend_multiplier', value)}
+              icon={<Calendar size={16} color={COLORS.textSecondary} />}
+            />
+
+            <SelectField
+              label="Holiday Multiplier"
+              value={formData.holiday_multiplier}
+              options={HOLIDAY_MULTIPLIERS}
+              onSelect={(value) => updateFormField('holiday_multiplier', value)}
+              icon={<Calendar size={16} color={COLORS.warning} />}
             />
 
             <View style={styles.inputGroup}>

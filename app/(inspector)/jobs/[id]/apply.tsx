@@ -113,13 +113,16 @@ export default function SubmitProposalScreen() {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    // Validate cover letter
+    // Validate cover letter — bounds match the web inspectorApply action
+    // (apps/web/src/lib/actions/inspectorApply.ts) so admins + clients
+    // see consistent message length limits regardless of where the bid
+    // was submitted from.
     if (!coverLetter.trim()) {
       newErrors.coverLetter = 'Please write a cover letter';
     } else if (coverLetter.trim().length < 50) {
       newErrors.coverLetter = 'Cover letter must be at least 50 characters';
-    } else if (coverLetter.trim().length > 2000) {
-      newErrors.coverLetter = 'Cover letter must be less than 2000 characters';
+    } else if (coverLetter.trim().length > 4000) {
+      newErrors.coverLetter = 'Cover letter must be less than 4000 characters';
     }
 
     setErrors(newErrors);
@@ -290,10 +293,10 @@ export default function SubmitProposalScreen() {
                 <Text
                   style={[
                     styles.characterCount,
-                    characterCount > 2000 && styles.characterCountError,
+                    characterCount > 4000 && styles.characterCountError,
                   ]}
                 >
-                  {characterCount}/2000
+                  {characterCount}/4000
                 </Text>
               </View>
               <Text style={styles.sectionSubtitle}>

@@ -1,30 +1,6 @@
-// ─── Voice Drafter ───
-export type VoiceDrafterState =
-  | 'idle'
-  | 'recording'
-  | 'processing'
-  | 'completed'
-  | 'error';
-
-export interface VoiceDraftResult {
-  id: string;
-  rawDuration: number;        // seconds recorded
-  transcribedText: string;
-  confidence: number;          // 0-1
-  timestamp: number;
-  fieldTarget?: string;        // which form field to auto-fill
-}
-
-export interface VoiceDrafterProps {
-  /** Which form field this drafter targets */
-  targetFieldId?: string;
-  /** Callback when transcription is ready */
-  onTranscriptionReady: (result: VoiceDraftResult) => void;
-  /** Optional: position override */
-  position?: { bottom: number; right: number };
-  /** Disable the button externally */
-  disabled?: boolean;
-}
+// VoiceDrafter types (VoiceDrafterState / VoiceDraftResult / VoiceDrafterProps)
+// were removed 2026-05-20 along with the VoiceDrafter component and the
+// useVoiceRecorder hook. No remaining consumers.
 
 // ─── Equipment Wallet ───
 export type CalibrationStatus = 'valid' | 'expiring_soon' | 'expired';

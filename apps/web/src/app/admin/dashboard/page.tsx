@@ -19,6 +19,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { fetchDashboardMetrics } from '@/lib/data/dashboardMetrics';
+import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -54,6 +55,17 @@ export default async function AdminDashboardPage() {
           credentials in the browser.
         </p>
       </header>
+
+      {/*
+        Admin Pipeline — surfaces the 5 admin signoff gates on the home
+        screen: open disputes (hottest red), completed jobs awaiting
+        admin sign-off (amber), milestone release requests (amber),
+        accepted applications needing contract issuance (violet), and
+        pending approval queue (cyan). Self-suppresses when nothing is
+        pending. Strictly additive — no sidebar changes (2026-05-20
+        UX directive).
+      */}
+      <PipelineSection tone="admin" />
 
       {/* Critical alert ribbon */}
       {(metrics.criticalLast24h ?? 0) > 0 && (

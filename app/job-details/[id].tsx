@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { jobFieldsForRole } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 // ============================================
@@ -72,9 +73,18 @@ export default function JobDetailsScreen() {
 
   const fetchJob = async () => {
     try {
+      // GR2 (Strict price visibility) — multi-role screen. Resolve role
+      // first; default to inspector projection if unknown.
+      const { data: { user: _u } } = await supabase.auth.getUser();
+      let _role: string | null = null;
+      if (_u?.id) {
+        const { data: _p } = await supabase
+          .from('profiles').select('role').eq('id', _u.id).maybeSingle();
+        _role = (_p as { role?: string } | null)?.role ?? null;
+      }
       const { data, error } = await supabase
         .from('jobs')
-        .select('*')
+        .select(jobFieldsForRole(_role))
         .eq('id', jobId)
         .single();
 

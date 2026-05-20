@@ -62,6 +62,19 @@ interface Application {
   id: string;
   status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
   created_at: string;
+  // ── NEGOTIATION LOOP (Mobile parity 2026-05-20) ────────────────────
+  //   Web migration 20260518350000_negotiation_loop_and_apps_rls.sql
+  //   added these columns to public.applications. When the admin sends
+  //   a counter, negotiation_status flips to 'admin_countered' and the
+  //   inspector mobile UI surfaces a Counter Offer card.
+  bid_amount_cents?: number | null;
+  admin_counter_cents?: number | null;
+  admin_comment?: string | null;
+  admin_countered_at?: string | null;
+  negotiation_status?: 'none' | 'admin_countered' | 'counter_accepted' | 'counter_rejected' | null;
+  inspector_decision?: 'accepted' | 'rejected' | null;
+  inspector_decision_note?: string | null;
+  inspector_decision_at?: string | null;
 }
 
 // =============================================================================
@@ -337,9 +350,123 @@ const fetchApplication = async (uid: string) => {
     router.push(`/jobs/${id}/contract`);
   };
 
+  // ── NEGOTIATION LOOP (Mobile parity 2026-05-20) ───────────────────────
+  //   Web migration 20260518350000 introduced two SECURITY DEFINER RPCs:
+  //     admin_counter_application(p_application_id, p_counter_cents, p_comment)
+  //     inspector_respond_to_counter(p_application_id, p_decision, p_note)
+  //   This handler invokes the inspector-side RPC and re-fetches the row
+  //   so the UI flips to the post-decision state immediately. We do NOT
+  //   touch admin counter logic on mobile — that's a web admin surface.
+  const [counterSubmitting, setCounterSubmitting] = useState(false);
+  const handleCounterResponse = useCallback(
+    async (decision: 'accepted' | 'rejected') => {
+      if (!application?.id || counterSubmitting) return;
+      const promptLabel =
+        decision === 'accepted'
+          ? 'Accept counter offer?'
+          : 'Decline counter offer?';
+      const promptBody =
+        decision === 'accepted'
+          ? 'Your bid will be replaced with the admin\'s counter amount. This is binding.'
+          : 'The job will return to its open state and the admin can offer a new counter.';
+      Alert.alert(promptLabel, promptBody, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: decision === 'accepted' ? 'Accept' : 'Decline',
+          style: decision === 'accepted' ? 'default' : 'destructive',
+          onPress: async () => {
+            setCounterSubmitting(true);
+            try {
+              const { data, error } = await supabase.rpc(
+                'inspector_respond_to_counter',
+                {
+                  p_application_id: application.id,
+                  p_decision: decision,
+                  p_note: null,
+                },
+              );
+              if (error) throw error;
+              // Refetch the row so UI shows the post-decision state.
+              const {
+                data: { user: u },
+              } = await supabase.auth.getUser();
+              if (u?.id) await fetchApplication(u.id);
+            } catch (err: any) {
+              Alert.alert(
+                'Could not record decision',
+                err?.message ?? 'Please try again in a moment.',
+              );
+            } finally {
+              setCounterSubmitting(false);
+            }
+          },
+        },
+      ]);
+    },
+    [application?.id, counterSubmitting],
+  );
+
   const navigateToExpenses = () => {
     router.push(`/jobs/${id}/expenses`);
   };
+
+  // ── MILESTONE RELEASE REQUEST (2026-05-20) ──────────────────────────
+  //   Surfaces the "ask admin to release a milestone payout" flow.
+  //   Backed by public.request_milestone_release(uuid, bigint, text) —
+  //   migration 20260520170000_request_milestone_release_rpc.sql.
+  //
+  //   The RPC writes an audit_events row and notifies admins. It does
+  //   NOT execute a payout — admins continue to handle the actual money
+  //   movement via the existing process-payout flow. Separation of
+  //   request from execution matches the codebase's house pattern.
+  //
+  //   Idempotency: server-side 10-minute window prevents accidental
+  //   double-taps. Client also disables the CTA while submitting.
+  const [milestoneModalVisible, setMilestoneModalVisible] = useState(false);
+  const [milestoneAmount, setMilestoneAmount] = useState('');
+  const [milestoneNote, setMilestoneNote] = useState('');
+  const [milestoneSubmitting, setMilestoneSubmitting] = useState(false);
+  const handleRequestMilestone = useCallback(async () => {
+    if (!id || milestoneSubmitting) return;
+    const trimmedAmount = milestoneAmount.trim();
+    const cents = trimmedAmount
+      ? Math.round(parseFloat(trimmedAmount) * 100)
+      : null;
+    if (trimmedAmount && (!Number.isFinite(cents) || (cents ?? 0) < 0)) {
+      Alert.alert('Invalid amount', 'Enter a non-negative dollar amount, or leave blank to request the full milestone.');
+      return;
+    }
+    setMilestoneSubmitting(true);
+    try {
+      const { error } = await supabase.rpc('request_milestone_release', {
+        p_job_id: String(id).trim(),
+        p_amount_cents: cents,
+        p_note: milestoneNote.trim() || null,
+      });
+      if (error) throw error;
+      setMilestoneModalVisible(false);
+      setMilestoneAmount('');
+      setMilestoneNote('');
+      Alert.alert(
+        'Request sent',
+        'Admin has been notified and will review the milestone release. You\'ll get a notification when they respond.',
+      );
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      // Surface known server-side guards with friendly copy.
+      if (msg.includes('already pending')) {
+        Alert.alert('Already pending', 'You already submitted a request in the last 10 minutes. Please wait before retrying.');
+      } else if (msg.includes('only the assigned inspector')) {
+        Alert.alert('Not allowed', 'Only the assigned inspector can request a milestone release on this job.');
+      } else if (msg.includes('must be in_progress')) {
+        Alert.alert('Job not active', 'You can only request a milestone release on a job that\'s in progress or completed.');
+      } else {
+        Alert.alert('Could not send request', msg || 'Please try again in a moment.');
+      }
+    } finally {
+      setMilestoneSubmitting(false);
+    }
+  }, [id, milestoneAmount, milestoneNote, milestoneSubmitting]);
 
   // ── NX-JOB-002 closure ───────────────────────────────────────────────
   // Tapping "Start Inspection" is the canonical user-facing moment the
@@ -654,6 +781,32 @@ const fetchApplication = async (uid: string) => {
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
 
+            {/*
+              Request Milestone Release — only shown when the job is
+              actually billable (in_progress or completed). Calls
+              request_milestone_release RPC, which creates an audit row
+              and notifies admins. Doesn't move money — admin still
+              executes the payout via the existing process-payout flow.
+            */}
+            {(job?.status === 'in_progress' || job?.status === 'completed') && (
+              <TouchableOpacity
+                style={styles.toolButton}
+                onPress={() => setMilestoneModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.toolButtonIcon, { backgroundColor: '#F4C43020' }]}>
+                  <Ionicons name="cash-outline" size={24} color="#F4C430" />
+                </View>
+                <View style={styles.toolButtonInfo}>
+                  <Text style={styles.toolButtonTitle}>Request Milestone Release</Text>
+                  <Text style={styles.toolButtonSubtitle}>
+                    Ask admin to release a milestone payout
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
+
              {/* Chat with Admin Button */}
              <TouchableOpacity
                style={styles.toolButton}
@@ -850,6 +1003,172 @@ const fetchApplication = async (uid: string) => {
         </View>
       )}
       
+      {/* ── COUNTER OFFER CARD (Mobile parity 2026-05-20) ─────────────────
+            Appears when the admin has issued a counter via the web
+            admin surface. Reads applications.admin_counter_cents +
+            admin_comment + admin_countered_at. Accept/Decline call the
+            inspector_respond_to_counter RPC. Once the inspector responds,
+            negotiation_status flips to counter_accepted/counter_rejected
+            and this card swaps to its "decision recorded" pill. */}
+      {application && !isHired && application.negotiation_status === 'admin_countered' && (
+        <View style={{
+          marginHorizontal: 16,
+          marginBottom: 12,
+          padding: 16,
+          borderRadius: 18,
+          backgroundColor: 'rgba(244, 196, 48, 0.08)',
+          borderWidth: 1,
+          borderColor: 'rgba(244, 196, 48, 0.40)',
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <Ionicons name="cash-outline" size={16} color="#F4C430" />
+            <Text style={{
+              color: '#F4C430',
+              fontSize: 10,
+              fontWeight: '800',
+              letterSpacing: 1.4,
+            }}>
+              ADMIN COUNTER OFFER
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 28,
+              fontWeight: '800',
+              letterSpacing: -0.6,
+            }}>
+              ${((application.admin_counter_cents ?? 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            </Text>
+            {application.bid_amount_cents ? (
+              <Text style={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 13,
+                textDecorationLine: 'line-through',
+              }}>
+                ${((application.bid_amount_cents ?? 0) / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </Text>
+            ) : null}
+          </View>
+          {application.admin_comment ? (
+            <View style={{
+              marginTop: 10,
+              padding: 10,
+              borderRadius: 10,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.06)',
+            }}>
+              <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12.5, lineHeight: 18 }}>
+                {application.admin_comment}
+              </Text>
+            </View>
+          ) : null}
+          {application.admin_countered_at ? (
+            <Text style={{
+              color: 'rgba(255,255,255,0.45)',
+              fontSize: 10.5,
+              marginTop: 10,
+              fontStyle: 'italic',
+            }}>
+              Sent {new Date(application.admin_countered_at).toLocaleString()}
+            </Text>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                borderRadius: 12,
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.10)',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                opacity: counterSubmitting ? 0.5 : 1,
+              }}
+              disabled={counterSubmitting}
+              onPress={() => handleCounterResponse('rejected')}
+            >
+              <Ionicons name="close-circle-outline" size={15} color="#FCA5A5" />
+              <Text style={{ color: '#FCA5A5', fontSize: 13, fontWeight: '700' }}>Decline</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                flex: 1.4,
+                paddingVertical: 12,
+                borderRadius: 12,
+                backgroundColor: '#F4C430',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                shadowColor: '#F4C430',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.4,
+                shadowRadius: 10,
+                elevation: 6,
+                opacity: counterSubmitting ? 0.5 : 1,
+              }}
+              disabled={counterSubmitting}
+              onPress={() => handleCounterResponse('accepted')}
+            >
+              {counterSubmitting ? (
+                <ActivityIndicator size="small" color="#1F1300" />
+              ) : (
+                <Ionicons name="checkmark-circle" size={16} color="#1F1300" />
+              )}
+              <Text style={{ color: '#1F1300', fontSize: 13, fontWeight: '800', letterSpacing: 0.3 }}>
+                Accept Counter
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Post-decision pill for the negotiation. Shows after the inspector
+          has responded but before dispatch resolves the application. */}
+      {application && !isHired && application.negotiation_status === 'counter_accepted' && (
+        <View style={{
+          marginHorizontal: 16,
+          marginBottom: 12,
+          padding: 14,
+          borderRadius: 14,
+          backgroundColor: 'rgba(16, 249, 149, 0.08)',
+          borderWidth: 1,
+          borderColor: 'rgba(16, 249, 149, 0.30)',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <Ionicons name="checkmark-circle" size={18} color="#10F995" />
+          <Text style={{ flex: 1, color: '#10F995', fontSize: 12.5, fontWeight: '700' }}>
+            Counter accepted · awaiting dispatch confirmation
+          </Text>
+        </View>
+      )}
+      {application && !isHired && application.negotiation_status === 'counter_rejected' && (
+        <View style={{
+          marginHorizontal: 16,
+          marginBottom: 12,
+          padding: 14,
+          borderRadius: 14,
+          backgroundColor: 'rgba(148, 163, 184, 0.08)',
+          borderWidth: 1,
+          borderColor: 'rgba(148, 163, 184, 0.30)',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+        }}>
+          <Ionicons name="time-outline" size={18} color="#94A3B8" />
+          <Text style={{ flex: 1, color: '#94A3B8', fontSize: 12.5, fontWeight: '700' }}>
+            Counter declined · admin may revise
+          </Text>
+        </View>
+      )}
+
       {/* Show Status if Applied */}
       {application && !isHired && (
         <View style={styles.actionBar}>
@@ -865,6 +1184,156 @@ const fetchApplication = async (uid: string) => {
         onRequestClose={() => setIsInspectionModalVisible(false)}
       >
         <InspectionScreen onClose={() => setIsInspectionModalVisible(false)} />
+      </Modal>
+
+      {/*
+        Milestone Release Request modal — premium dark-theme form with
+        gold accent to telegraph "money". Amount is optional; blank
+        means "full remaining milestone". Note is optional context for
+        the admin to read in the audit log + notification.
+      */}
+      <Modal
+        visible={milestoneModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMilestoneModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(2, 4, 32, 0.92)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: '#0A0D2C',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            borderTopWidth: 1,
+            borderColor: 'rgba(244, 196, 48, 0.30)',
+            padding: 20,
+            paddingBottom: 36,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <View style={{
+                width: 36, height: 36, borderRadius: 11,
+                backgroundColor: 'rgba(244, 196, 48, 0.18)',
+                borderWidth: 1, borderColor: 'rgba(244, 196, 48, 0.35)',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Ionicons name="cash-outline" size={18} color="#F4C430" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  color: '#F4C430', fontSize: 10, fontWeight: '800', letterSpacing: 1.4,
+                }}>
+                  MILESTONE RELEASE
+                </Text>
+                <Text style={{
+                  color: '#FFF', fontSize: 16, fontWeight: '800', marginTop: 1,
+                }}>
+                  Request a payout
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setMilestoneModalVisible(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{
+              color: '#94A3B8', fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: 18,
+            }}>
+              Admin will be notified and will review the request against
+              your job's milestone schedule. Payouts continue to flow
+              through Stripe — this just signals admin to release.
+            </Text>
+
+            <Text style={{
+              color: '#F4C430', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
+            }}>
+              AMOUNT (USD) — optional
+            </Text>
+            <TextInput
+              value={milestoneAmount}
+              onChangeText={setMilestoneAmount}
+              placeholder="e.g. 1500.00 — leave blank for full milestone"
+              placeholderTextColor="#475569"
+              keyboardType="decimal-pad"
+              editable={!milestoneSubmitting}
+              style={{
+                backgroundColor: '#070A24',
+                borderWidth: 1, borderColor: '#1A1D3C',
+                borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
+                color: '#FFF', fontSize: 15, fontWeight: '600',
+                marginBottom: 14,
+              }}
+            />
+
+            <Text style={{
+              color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
+            }}>
+              NOTE FOR ADMIN — optional
+            </Text>
+            <TextInput
+              value={milestoneNote}
+              onChangeText={setMilestoneNote}
+              placeholder="e.g. Milestone 1 of 3 complete; on-site report uploaded."
+              placeholderTextColor="#475569"
+              multiline
+              numberOfLines={3}
+              editable={!milestoneSubmitting}
+              maxLength={500}
+              style={{
+                backgroundColor: '#070A24',
+                borderWidth: 1, borderColor: '#1A1D3C',
+                borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
+                color: '#FFF', fontSize: 13, fontWeight: '500',
+                minHeight: 80, textAlignVertical: 'top',
+                marginBottom: 18,
+              }}
+            />
+
+            <TouchableOpacity
+              onPress={handleRequestMilestone}
+              disabled={milestoneSubmitting}
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: '#F4C430',
+                paddingVertical: 14,
+                borderRadius: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: milestoneSubmitting ? 0.6 : 1,
+                shadowColor: '#F4C430',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.4,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
+            >
+              {milestoneSubmitting ? (
+                <ActivityIndicator size="small" color="#1F1300" />
+              ) : (
+                <Ionicons name="send" size={15} color="#1F1300" />
+              )}
+              <Text style={{
+                color: '#1F1300', fontSize: 14, fontWeight: '800', letterSpacing: 0.3,
+              }}>
+                {milestoneSubmitting ? 'Sending…' : 'Send request to admin'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={{
+              color: '#475569', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 12,
+            }}>
+              Your request will be visible to admin in the audit log.
+              You can submit one request every 10 minutes.
+            </Text>
+          </View>
+        </View>
       </Modal>
 
       {/* ★ Inspector's read-only view of their published report.

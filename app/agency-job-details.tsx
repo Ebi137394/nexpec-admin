@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams, useFocusEffect } from 'expo-router
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star, CheckCircle, XCircle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 const C = { bg: '#020420', card: '#0A0D2C', border: '#1E293B', primary: '#7C3AED', primaryMuted: 'rgba(124, 58, 237, 0.12)', primaryBorder: 'rgba(124, 58, 237, 0.28)', text: '#FFFFFF', textSec: '#94A3B8', textMuted: '#64748B', inputBg: '#0A0E2E', success: '#10B981', successBg: 'rgba(16, 185, 129, 0.10)', error: '#EF4444', errorBg: 'rgba(239, 68, 68, 0.08)', warning: '#F59E0B', warningBg: 'rgba(245, 158, 11, 0.10)', blue: '#3B82F6' };
@@ -159,7 +160,8 @@ export default function JobDetailsScreen() {
     if (!isRefresh) setLoading(true);
     
     try {
-      const { data: jobData } = await supabase.from('jobs').select('*').eq('id', id).single();
+      // GR2: agency is a buyer-tier role — no payout columns over the wire.
+      const { data: jobData } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('id', id).single();
       setJob(jobData);
       
       // ★ HIRE-008: canonical applications table. Legacy view still

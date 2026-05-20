@@ -51,6 +51,15 @@ interface FormData {
   //   sponsorship_offered defaults to 'none' (client must opt in).
   jobCountry: string | null;
   sponsorshipOffered: SponsorshipOffered;
+  // ★ CCI FLAG (Sprint 12 hotfix — mobile parity 2026-05-20).
+  //   When ON, only inspectors holding a valid CCI tier credential are
+  //   eligible to be dispatched against this job. Writes to
+  //   jobs.requires_cci BOOLEAN NOT NULL DEFAULT false. The full
+  //   compliance-mode flow at /post-compliance-job remains the
+  //   regulator-grade variant; this checkbox is the lightweight
+  //   "I just need a credentialed inspector" toggle for the standard
+  //   posting lane.
+  requiresCci: boolean;
 }
 
 interface FormErrors {
@@ -96,6 +105,7 @@ const initialForm: FormData = {
   specialtySlugs: [],
   jobCountry: null,
   sponsorshipOffered: 'none',
+  requiresCci: false,
 };
 
 function validateForm(form: FormData): FormErrors {
@@ -291,6 +301,10 @@ export default function CreateJobScreen() {
         estimated_duration: form.estimatedDuration || null,
         urgency: form.urgency,
         status: 'pending_approval',
+        // ★ CCI FLAG — Sprint 12 hotfix mirror. Boolean column on jobs.
+        //   When true, the admin matching pool is restricted to inspectors
+        //   holding a valid CCI tier credential.
+        requires_cci: form.requiresCci,
       };
       
       const { error } = await supabase.from('jobs').insert(payload);
@@ -353,6 +367,94 @@ export default function CreateJobScreen() {
                 </Text>
               </View>
               <ChevronRight size={16} color="#A78BFA" />
+            </TouchableOpacity>
+
+            {/* ★ CCI FLAG — Sprint 12 hotfix · mobile parity 2026-05-20.
+                Lightweight credential gate for the standard posting lane:
+                when ON, the inspector matching pool is restricted to
+                holders of a valid CCI tier credential. Distinct from
+                the full /post-compliance-job flow above (regulator-grade
+                affidavit + evidence chain). Writes jobs.requires_cci. */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => updateField('requiresCci', !form.requiresCci)}
+              style={{
+                backgroundColor: form.requiresCci
+                  ? 'rgba(244, 196, 48, 0.10)'
+                  : 'rgba(255, 255, 255, 0.02)',
+                borderColor: form.requiresCci
+                  ? 'rgba(244, 196, 48, 0.45)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                borderWidth: 1,
+                borderRadius: 14,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                marginBottom: 18,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 9,
+                  backgroundColor: form.requiresCci
+                    ? 'rgba(244, 196, 48, 0.20)'
+                    : 'rgba(255, 255, 255, 0.04)',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Shield
+                  size={16}
+                  color={form.requiresCci ? '#F4C430' : '#94A3B8'}
+                  strokeWidth={2}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 12.5,
+                    fontWeight: '800',
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  Require CCI-certified inspector
+                </Text>
+                <Text
+                  style={{
+                    color: '#94A3B8',
+                    fontSize: 10.5,
+                    marginTop: 2,
+                    lineHeight: 14,
+                  }}
+                >
+                  Restrict matching to inspectors holding a valid CCI tier credential.
+                </Text>
+              </View>
+              <View
+                style={{
+                  width: 36,
+                  height: 22,
+                  borderRadius: 11,
+                  backgroundColor: form.requiresCci ? '#F4C430' : 'rgba(255,255,255,0.10)',
+                  padding: 2,
+                  justifyContent: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    backgroundColor: '#FFFFFF',
+                    transform: [{ translateX: form.requiresCci ? 14 : 0 }],
+                  }}
+                />
+              </View>
             </TouchableOpacity>
 
             <SectionHeader icon={FileText} title="Basic Details" subtitle="Describe the inspection scope" step={1} />

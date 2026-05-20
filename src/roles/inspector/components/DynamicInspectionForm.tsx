@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 
-// ─── Import VoiceDrafter ───
-import VoiceDrafter from './VoiceDrafter';
-import type { VoiceDraftResult } from './types/inspectorTools.types';
+// VoiceDrafter removed 2026-05-20 per product directive. The form is
+// now typed entry only — no voice-to-text affordance.
 
 // ─── Import JSA Modal ───
 import JSAModal from './safety/JSAModal';
@@ -21,47 +20,11 @@ const DynamicInspectionForm: React.FC = () => {
   // ─── Your existing form state ───
   const [findings, setFindings] = useState('');
   const [recommendations, setRecommendations] = useState('');
-  const [activeVoiceField, setActiveVoiceField] = useState<string>('findings');
-  
+  // activeVoiceField + handleTranscriptionReady removed 2026-05-20 along
+  // with the VoiceDrafter component. Typed entry only from here.
+
   // ─── JSA Modal state ───
   const [isJSAModalVisible, setIsJSAModalVisible] = useState(false);
-
-  // ─── Handle AI transcription result ───
-  const handleTranscriptionReady = useCallback(
-    (result: VoiceDraftResult) => {
-      const targetField = result.fieldTarget || activeVoiceField;
-
-      switch (targetField) {
-        case 'findings':
-          setFindings((prev) =>
-            prev
-              ? `${prev}\n\n${result.transcribedText}`
-              : result.transcribedText
-          );
-          break;
-        case 'recommendations':
-          setRecommendations((prev) =>
-            prev
-              ? `${prev}\n\n${result.transcribedText}`
-              : result.transcribedText
-          );
-          break;
-        default:
-          // Extend for other fields
-          setFindings((prev) =>
-            prev
-              ? `${prev}\n\n${result.transcribedText}`
-              : result.transcribedText
-          );
-      }
-
-      console.log(
-        `[Form] Inserted ${result.transcribedText.length} chars into "${targetField}" ` +
-          `(confidence: ${(result.confidence * 100).toFixed(1)}%)`
-      );
-    },
-    [activeVoiceField]
-  );
 
   return (
     <KeyboardAvoidingView
@@ -145,14 +108,7 @@ const DynamicInspectionForm: React.FC = () => {
         {/* ─── Rest of your form sections ─── */}
       </ScrollView>
 
-      {/* ═══════════════════════════════════════════
-          VOICE DRAFTER — Floating over the form
-          ═══════════════════════════════════════════ */}
-      <VoiceDrafter
-        targetFieldId={activeVoiceField}
-        onTranscriptionReady={handleTranscriptionReady}
-        position={{ bottom: 90, right: 20 }}
-      />
+      {/* VoiceDrafter floating affordance removed 2026-05-20 per product directive. */}
 
       {/* ═══════════════════════════════════════════
           JSA MODAL — Safety checklist modal

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, Image,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform
+  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -37,6 +38,104 @@ interface ChatMessage {
   };
   created_at: string;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+//  AudioPlayerBubble — tap-to-play voice notes (Mobile parity 2026-05-20)
+//
+//  Lightweight inline player. Loads the remote URL with expo-av on tap,
+//  plays once, releases the Sound on unload/finish. We deliberately keep
+//  this stateless across messages — no global registry — so each note is
+//  independent and there's no "stop the other one to play this one"
+//  bookkeeping. Cheap enough for chat threads under a few hundred items.
+// ────────────────────────────────────────────────────────────────────────────
+const AudioPlayerBubble: React.FC<{ url: string; tint: string }> = ({ url, tint }) => {
+  const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // Best-effort cleanup if the message unmounts mid-playback.
+      soundRef.current?.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    };
+  }, []);
+
+  const handleToggle = async () => {
+    try {
+      if (playing && soundRef.current) {
+        await soundRef.current.pauseAsync();
+        setPlaying(false);
+        return;
+      }
+      if (!soundRef.current) {
+        setLoading(true);
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: true },
+        );
+        soundRef.current = sound;
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (!status.isLoaded) return;
+          if (status.didJustFinish) {
+            setPlaying(false);
+            soundRef.current?.unloadAsync().catch(() => {});
+            soundRef.current = null;
+          }
+        });
+        setLoading(false);
+        setPlaying(true);
+      } else {
+        await soundRef.current.playAsync();
+        setPlaying(true);
+      }
+    } catch (err) {
+      console.warn('[audio-player] toggle failed:', err);
+      setLoading(false);
+      setPlaying(false);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handleToggle}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+        minWidth: 140,
+      }}
+      activeOpacity={0.75}
+    >
+      <View
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: tint === '#FFFFFF' ? 'rgba(255,255,255,0.18)' : 'rgba(124,58,237,0.18)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={tint} />
+        ) : (
+          <Ionicons name={playing ? 'pause' : 'play'} size={16} color={tint} />
+        )}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: tint, fontSize: 12, fontWeight: '700' }}>
+          {playing ? 'Playing voice note…' : loading ? 'Loading…' : 'Voice note'}
+        </Text>
+        <Text style={{ color: tint, opacity: 0.6, fontSize: 10, marginTop: 1 }}>
+          Tap to {playing ? 'pause' : 'play'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 export default function JobChatScreen() {
   const params = useLocalSearchParams();
@@ -243,8 +342,29 @@ export default function JobChatScreen() {
   const sendMessage = async (content: string = inputText, fileUrl?: string, fileType?: string) => {
     if (!user?.id || (!content.trim() && !fileUrl)) return;
     try {
-      const finalContent = content.trim() || (fileUrl ? '[Attachment]' : '');
-      const { data, error } = await supabase.from('messages').insert({ job_id: actualJobId, sender_id: user.id, content: finalContent }).select().single();
+      // ★ MOBILE PARITY 2026-05-20 — previously this INSERT dropped the
+      //   file_url / file_type columns, so attachments + voice messages
+      //   silently disappeared after upload. Restored here. A voice note
+      //   carries an `[Audio]` placeholder for content so the unread-list
+      //   preview shows something meaningful; the actual playback URL
+      //   lives on file_url with file_type === 'audio/m4a' (or similar).
+      const isAudio = !!fileType && fileType.startsWith('audio');
+      const placeholder = isAudio ? '[Audio]' : fileUrl ? '[Attachment]' : '';
+      const finalContent = content.trim() || placeholder;
+
+      const payload: Record<string, unknown> = {
+        job_id: actualJobId,
+        sender_id: user.id,
+        content: finalContent,
+      };
+      if (fileUrl) payload.file_url = fileUrl;
+      if (fileType) payload.file_type = fileType;
+
+      const { data, error } = await supabase
+        .from('messages')
+        .insert(payload)
+        .select()
+        .single();
       if (error) throw error;
       if (data) {
         setMessages(prev => [...prev, data]);
@@ -290,17 +410,32 @@ export default function JobChatScreen() {
 
   const renderMessage = (message: ChatMessage) => {
     const isMyMessage = message.sender_id === user?.id;
+    const isAudio = !!message.file_type && message.file_type.startsWith('audio');
+    const isImage = !!message.file_type && message.file_type.includes('image');
     return (
       <View key={message.id} style={[styles.messageRow, isMyMessage ? styles.myMessageRow : styles.otherMessageRow]}>
         <View style={[styles.messageBubble, isMyMessage ? styles.myBubble : styles.otherBubble]}>
           {message.file_url && (
-            message.file_type?.includes('image') ? (
+            isImage ? (
               <Image source={{ uri: message.file_url }} style={styles.messageImage} resizeMode="cover" />
+            ) : isAudio ? (
+              // ★ MOBILE PARITY 2026-05-20 — voice-note player. Tap to
+              //   play the uploaded m4a. We instantiate a fresh expo-av
+              //   Sound per tap (no global state needed for a chat thread)
+              //   so multiple notes can replay independently.
+              <AudioPlayerBubble
+                url={message.file_url}
+                tint={isMyMessage ? '#FFFFFF' : COLORS.textPrimary}
+              />
             ) : (
-              <View style={styles.attachmentContainer}>
+              <TouchableOpacity
+                style={styles.attachmentContainer}
+                onPress={() => Linking.openURL(message.file_url!).catch(() => {})}
+              >
                 <Ionicons name="document-text" size={24} color={COLORS.textMuted} />
-                <Text style={styles.attachmentText}>Attachment</Text>
-              </View>
+                <Text style={styles.attachmentText}>Open attachment</Text>
+                <Ionicons name="open-outline" size={14} color={COLORS.textMuted} />
+              </TouchableOpacity>
             )
           )}
           {message.content.trim() ? (

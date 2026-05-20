@@ -109,6 +109,20 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
           <Text style={styles.verifiedText}>Verified</Text>
         </View>
       </View>
+
+      {/* Negotiations Inbox — entry point to cross-job counter-offer center */}
+      <TouchableOpacity
+        style={[styles.certCard, { borderColor: 'rgba(245,158,11,0.28)', marginTop: 0 }]}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(inspector)/negotiations' as any)}
+      >
+        <Ionicons name="swap-horizontal-outline" size={20} color="#F59E0B" />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Text style={styles.certLabel}>Negotiations Inbox</Text>
+          <Text style={styles.certValue}>Counter-offers awaiting your response</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+      </TouchableOpacity>
     </ScrollView>
   );
 });

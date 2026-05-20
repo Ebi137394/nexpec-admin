@@ -135,15 +135,11 @@ export default function ProfileScreen() {
         throw profileError;
       }
 
-      // ★ Normalize 'enterprise' → 'agency' so the JSX role branches
-      //   (sections at lines 489+) render the agency view for enterprise
-      //   SSO users. Track _originalRole separately so user-facing labels
-      //   can still say "Enterprise" instead of "Agency". The DB row
-      //   stays 'enterprise'; only the in-memory profile sees 'agency'.
-      if (profileData && (profileData as any).role === 'enterprise') {
-        (profileData as any)._originalRole = 'enterprise';
-        (profileData as any).role = 'agency';
-      }
+      // Enterprise is now a first-class role. The JSX branches below
+      // are extended to render enterprise alongside agency where the
+      // surfaces are functionally identical (jobs-posted stats, etc.),
+      // and the enterprise-dashboard tab owns the dashboard surface.
+      // No in-memory rewrite of role required anymore.
 
       setProfile(profileData || {
         id: user.id,
@@ -175,13 +171,12 @@ export default function ProfileScreen() {
         .eq('id', userId)
         .maybeSingle() as any;
 
-      // ★ Normalize 'enterprise' → 'agency' so the agency stats branch
-      //   below (jobs-posted count, agency rating from reviews) fires
-      //   for enterprise SSO users. Mirrors app/(tabs)/_layout.tsx.
-      const rawRole = profileData?.role || 'inspector';
-      const userRole = rawRole === 'enterprise' ? 'agency' : rawRole;
+      // All three buyer roles (client / agency / enterprise) share the
+      // same posted-jobs stats branch — counts come from the same
+      // jobs.client_id filter regardless of tier.
+      const userRole = profileData?.role || 'inspector';
 
-      if (userRole === 'client' || userRole === 'agency') {
+      if (userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') {
         // ★ Count this user's posted jobs. We split by role rather than
         //   using .or() because PostgREST silently returns 0 when one of
         //   the OR'd columns doesn't exist on the table — that's what
@@ -462,7 +457,7 @@ export default function ProfileScreen() {
           {/* Name & Email */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
             <Text style={[styles.name, { color: colors.text }]}>
-              {profile?.full_name || (profile?.role === 'client' ? 'Client' : (profile as any)?._originalRole === 'enterprise' ? 'Enterprise' : profile?.role === 'agency' ? 'Agency' : 'Inspector')}
+              {profile?.full_name || (profile?.role === 'client' ? 'Client' : profile?.role === 'enterprise' ? 'Enterprise' : profile?.role === 'agency' ? 'Agency' : 'Inspector')}
             </Text>
             {profile?.verification_status === 'verified' && (
               // NEXPEC Purple Checkmark
@@ -476,7 +471,7 @@ export default function ProfileScreen() {
             <View style={styles.vettedBadge}>
               <Ionicons name="shield-checkmark" size={16} color="#10B981" />
               <Text style={styles.vettedText}>
-                {profile?.role === 'client' ? 'Verified Client' : (profile as any)?._originalRole === 'enterprise' ? 'Verified Enterprise' : profile?.role === 'agency' ? 'Verified Agency' : 'Vetted Inspector'}
+                {profile?.role === 'client' ? 'Verified Client' : profile?.role === 'enterprise' ? 'Verified Enterprise' : profile?.role === 'agency' ? 'Verified Agency' : 'Vetted Inspector'}
               </Text>
             </View>
           )}
@@ -499,7 +494,7 @@ export default function ProfileScreen() {
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.text }]}>{stats.inspections}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              {profile?.role === 'client' ? t('Jobs Posted') : profile?.role === 'agency' ? t('Active Contracts') : t('Inspections')}
+              {profile?.role === 'client' ? t('Jobs Posted') : profile?.role === 'enterprise' ? t('Engagements') : profile?.role === 'agency' ? t('Active Contracts') : t('Inspections')}
             </Text>
           </View>
           
@@ -519,7 +514,7 @@ export default function ProfileScreen() {
               {stats.rating > 0 && <Ionicons name="star" size={16} color="#F59E0B" />}
             </View>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              {profile?.role === 'client' ? t('Company Rating') : (profile as any)?._originalRole === 'enterprise' ? t('Enterprise Rating') : profile?.role === 'agency' ? t('Agency Rating') : t('Rating')}
+              {profile?.role === 'client' ? t('Company Rating') : profile?.role === 'enterprise' ? t('Enterprise Rating') : profile?.role === 'agency' ? t('Agency Rating') : t('Rating')}
             </Text>
           </View>
           
@@ -561,7 +556,7 @@ export default function ProfileScreen() {
         )}
 
         {/* 🏢 Company Overview — Agency Only */}
-        {(profile?.role === 'agency') && (
+        {(profile?.role === 'agency' || profile?.role === 'enterprise') && (
           <Animated.View
             entering={FadeInDown.delay(250).springify()}
             style={styles.section}
@@ -611,7 +606,7 @@ export default function ProfileScreen() {
         >
           <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Quick Actions')}</Text>
           <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            {profile?.role === 'agency' ? (
+            {(profile?.role === 'agency' || profile?.role === 'enterprise') ? (
               <>
                 {/* Agency Quick Actions */}
                 <TouchableOpacity

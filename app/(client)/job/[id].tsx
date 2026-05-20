@@ -33,6 +33,7 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { assignJobContractor } from '@/lib/assignJob';
 import { useAuth } from '@/src/contexts/AuthContext';
 // ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
@@ -137,10 +138,11 @@ export default function JobDetailScreen() {
     if (!id) return;
 
     try {
-      // Fetch job details
+      // GR2 (Strict price visibility) — client is a buyer-tier role.
+      // Projection excludes payout_amount_cents / inspector_payout_cents.
       const { data: jobData, error: jobError } = await supabase
         .from('jobs')
-        .select('*')
+        .select(BUYER_JOB_FIELDS)
         .eq('id', id)
         .single();
 

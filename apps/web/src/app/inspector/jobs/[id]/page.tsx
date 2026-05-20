@@ -31,6 +31,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { fetchInspectorJob } from '@/lib/data/inspectorJobDetail';
+import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import type {
   InspectorJobDetail,
   InspectorOwnApplication,
@@ -119,6 +120,18 @@ export default async function InspectorJobDetailPage({
           <PrimaryAction job={job} />
         </div>
       </header>
+
+      {/*
+        Pending-review CTA — renders only when the job is completed AND the
+        inspector hasn't reviewed the client yet. Calmly confirms once submitted.
+        Closes the user-facing review loop on the web for inspectors.
+      */}
+      <PendingReviewCallout
+        jobId={job.id}
+        jobStatus={job.status}
+        tone="inspector"
+        counterpartyLabel={job.clientCompanyName ?? null}
+      />
 
       {/* Action banners */}
       {qp.error && (

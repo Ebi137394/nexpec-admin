@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 // ★ Consolidation: canonical supabase client @/lib/supabase.
 import { supabase } from '@/lib/supabase';
+import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 
 // --- Secure Chat Components ---
 import ChatFAB from '../../components/chat/ChatFAB';
@@ -36,7 +37,10 @@ export default function SuperDashboard() {
       // 1. Fetch real jobs for this user
       const { data: realJobs, error } = await supabase
         .from('jobs')
-        .select('*, clients:client_id(full_name, avatar_url)')
+        // GR2 (Strict price visibility) — inspector tier. The projection
+        // excludes client_price_cents / budget_*_cents. We still join the
+        // client profile for display purposes (name + avatar only).
+        .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
         .eq('inspector_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);

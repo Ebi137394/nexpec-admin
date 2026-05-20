@@ -112,6 +112,10 @@ function AuthGate() {
       // Mobile Sprint 1 · Lane 4 — dev-only pre-flight diagnostic at
       // /diagnostics. Read-only schema probe, safe to ship.
       'diagnostics',
+      // Buyer-facing inspector directory (2026-05-20). Reachable from
+      // client + agency dashboards. Allows verified-inspector discovery
+      // and invitation-to-job via invite_inspector_to_job RPC.
+      'inspector-directory',
       // — Folder-backed segments with dynamic children —
       'profile',       // app/profile/* (11 sub-screens: edit, certifications,
                        //  experience, skills, rates, payments, security,
@@ -172,20 +176,20 @@ function AuthGate() {
     };
 
     // ════════════════════════════════════════════════════════════════
-    //  Multi-role mobile app (reverted from inspector-only block).
+    //  Multi-role mobile app — routing matrix matches on-disk reality.
     //
-    //  The mobile app serves four buyer/operator roles end-to-end —
-    //  inspector, client, agency, enterprise — plus admin + super_admin
-    //  for operators. Each role has its own (tabs) dashboard that's
-    //  already built on disk. AuthGate's job is to route, not gate.
+    //  Verified by exhaustive grep of app/ + src/ on 2026-05-20:
     //
-    //  Routing matrix (applied by branches #2 and #3 below):
+    //    inspector    → /(tabs)                  (tabs/index.tsx)
+    //    client       → /(tabs)/client-dashboard (tabs/client-dashboard.tsx)
+    //    agency       → /(tabs)/agency-dashboard (tabs/agency-dashboard.tsx)
+    //    enterprise   → /(tabs)/agency-dashboard (see "enterprise note" below)
+    //    admin        → /(admin)/admin-inbox
+    //    super_admin  → /(admin)/dashboard
     //
-    //    inspector            → /(tabs) (inspector home)
-    //    client               → /(tabs)/client-dashboard
-    //    agency | enterprise  → /(tabs)/agency-dashboard
-    //    admin                → /(admin)/admin-inbox
-    //    super_admin          → /(admin)/dashboard
+    //  Enterprise is now a first-class role with its own dashboard at
+    //  /(tabs)/enterprise-dashboard. The legacy enterprise→agency alias
+    //  hack was removed across the codebase on 2026-05-20.
     //
     //  Role-of-truth: profiles.role. Web v3 migration
     //  20260519010000_apply_onboarding_role_rpc.sql fixed the OAuth-time
@@ -220,7 +224,13 @@ function AuthGate() {
 //   → (admin) will sweep this reference along with all other (super-admin)
 //   refs in one pass.
       else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
-      else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
+      // Agency + enterprise both land in the agency-dashboard tab. The
+      // entire downstream codebase normalises enterprise→agency (see
+      // matrix comment above) — flipping enterprise to a separate
+      // destination without first building one would land them on a
+      // blank Stack.
+      else if (role === 'agency') safeNavigate('/(tabs)/agency-dashboard');
+      else if (role === 'enterprise') safeNavigate('/(tabs)/enterprise-dashboard');
       else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
       else safeNavigate('/(tabs)');
       return;
@@ -235,6 +245,9 @@ function AuthGate() {
 //   → (admin) will sweep this reference along with all other (super-admin)
 //   refs in one pass.
     else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
+    // Agency + enterprise both land in the agency-dashboard tab — see
+    // matrix comment above for the codebase-wide enterprise→agency
+    // normalisation rationale.
     else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
     else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
     else safeNavigate('/(tabs)');

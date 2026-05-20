@@ -26,6 +26,7 @@ import { fetchClientDashboardMetrics } from '@/lib/data/clientDashboardMetrics';
 import { fetchClientDashboardWidgets } from '@/lib/data/clientDashboardWidgets';
 import { openHelpSupport } from '@/lib/actions/messages';
 import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
+import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = { title: 'Client Dashboard' };
 export const dynamic = 'force-dynamic';
@@ -55,6 +56,14 @@ export default async function ClientDashboardPage() {
           reports. Everything you need to operate is on this one screen.
         </p>
       </header>
+
+      {/*
+        Pipeline — surfaces limbo-state work directly on the dashboard so
+        clients don't have to navigate to /client/jobs to see what's
+        waiting on them. Self-suppresses when empty. Strictly additive
+        (2026-05-20 UX directive — no sidebar/nav changes).
+      */}
+      <PipelineSection tone="buyer" />
 
       {/* Metric tiles */}
       <section aria-label="Your workspace" className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -16,6 +16,7 @@ import {
   MessageCircle,
   FolderOpen,
   Scale,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -54,6 +55,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
       { label: 'Messages', href: '/admin/messages', icon: MessageCircle },
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
+      { label: 'Reviews', href: '/admin/reviews', icon: Star },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
     ],
   },

@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 import { SA, currency, ago, statusColor } from '@/lib/super-admin/theme';
 import type { DashboardKPI, Job } from '@/lib/super-admin/types';
 
@@ -264,6 +265,17 @@ export default function Dashboard() {
         </TouchableOpacity>
       )}
 
+      {/*
+        Admin Pipeline — surfaces the 5 admin signoff gates on the home
+        screen so admins don't have to dig into menus to see what's
+        blocked waiting for THEIR action: open disputes (hottest),
+        completed jobs awaiting sign-off, milestone release requests,
+        accepted applications needing contract issuance, and pending
+        approval queue. Self-suppresses when nothing is pending.
+        Strictly additive (2026-05-20 UX directive — no nav changes).
+      */}
+      <PipelineSection userId={user?.id ?? null} userRole={role} />
+
       {/* ── Financial KPIs ─────────────── */}
       <Text style={s.sectionTitle}>Financial Overview</Text>
       <View style={s.kpiRow}>
@@ -348,6 +360,31 @@ export default function Dashboard() {
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#7C3AED" />
+      </TouchableOpacity>
+
+      {/* ── Disputes Board — escrow-frozen jobs awaiting mediation ─────
+            Sister surface to /admin/disputes on web. Calls
+            admin_resolve_dispute(uuid, text, text) RPC for resolution. */}
+      <TouchableOpacity
+        style={s.financialHeroCard}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(admin)/disputes' as any)}
+      >
+        <View style={s.financialHeroIcon}>
+          <Ionicons name="flame" size={26} color="#EF4444" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={s.financialHeroTitleRow}>
+            <Text style={s.financialHeroTitle}>Disputes Board</Text>
+            <View style={[s.financialHeroBadge, { backgroundColor: 'rgba(239,68,68,0.18)' }]}>
+              <Text style={[s.financialHeroBadgeText, { color: '#EF4444' }]}>LIVE</Text>
+            </View>
+          </View>
+          <Text style={s.financialHeroSubtitle} numberOfLines={2}>
+            Resolve disputed jobs · Release or refund escrow · Audit-annotated
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color="#EF4444" />
       </TouchableOpacity>
 
       {/* ── Quick Actions ──────────────── */}

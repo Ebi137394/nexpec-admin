@@ -25,6 +25,7 @@ import type {
   JobStatus,
   JobUrgency,
 } from '@/lib/data/clientJobs.types';
+import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -89,6 +90,18 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
           </div>
         </div>
       </header>
+
+      {/*
+        Pending-review CTA — only renders when the job is completed AND
+        the caller hasn't submitted a review for it yet. Calmly confirms
+        with a green pill once the review is in. Closes the user-facing
+        review loop on the web (mobile already prompts via push).
+      */}
+      <PendingReviewCallout
+        jobId={job.id}
+        jobStatus={job.status}
+        tone="client"
+      />
 
       {/* Key facts */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">

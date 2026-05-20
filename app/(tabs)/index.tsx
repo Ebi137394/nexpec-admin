@@ -18,6 +18,8 @@ import { useRouter } from 'expo-router';
 //   single canonical supabase client at @/lib/supabase, not the
 //   secondary instance at src/lib/supabase.
 import { supabase } from '@/lib/supabase';
+import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
+import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 
 // --- Secure Chat ---
 import ChatFAB from '../../components/chat/ChatFAB';
@@ -374,9 +376,12 @@ export default function DashboardHome() {
 
       // 2) Recent jobs assigned to this inspector (contractor_id).
       //    Client info pulled from `profiles` via the `clients` relation alias.
+      //    GR2 (Strict price visibility) — inspector projection excludes
+      //    client_price_cents / budget_*_cents. The relational `clients`
+      //    join still selects only name + avatar for display.
       const { data: realJobs, error } = await supabase
         .from('jobs')
-        .select('*, clients:client_id(full_name, avatar_url)')
+        .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
         .eq('contractor_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -392,16 +397,18 @@ export default function DashboardHome() {
       }
 
       // 3) Counts — active + completed jobs
+      // Count queries — head:true returns no body, but we narrow the
+      // projection to 'id' anyway as defense-in-depth + style consistency.
       const [{ count: activeCount }, { count: completedCount }] =
         await Promise.all([
           supabase
             .from('jobs')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .in('status', ['assigned', 'in_progress']),
           supabase
             .from('jobs')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .eq('status', 'completed'),
         ]);
@@ -591,6 +598,17 @@ export default function DashboardHome() {
                 transform: [{ translateY: slide }],
               }}
             >
+              {/*
+                Pipeline — limbo-state work surfaced on the inspector
+                home (counter offers awaiting response, contracts pending
+                their signature, applications awarded but no contract yet).
+                Self-suppresses when empty. Strictly additive.
+              */}
+              <PipelineSection
+                userId={profile?.id ?? null}
+                userRole="inspector"
+              />
+
               {/* ───── HEADER ───── */}
               <View style={styles.header}>
                 <View style={styles.headerLeft}>

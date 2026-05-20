@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { jobFieldsForRole } from '../../lib/jobsProjection';
 import { assignJobContractor } from '../../lib/assignJob';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -82,7 +83,21 @@ export default function JobDetailsScreen() {
   const fetchData = useCallback(async () => {
     if (!jobId) return;
     try {
-      const { data: jobData } = await supabase.from('jobs').select('*').eq('id', jobId).single();
+      // GR2 (Strict price visibility) — projection allowlist by role.
+      // Defaults to inspector projection (most restrictive) if role can't
+      // be determined, so we never accidentally leak budget.
+      const { data: { user: _u } } = await supabase.auth.getUser();
+      let _role: string | null = null;
+      if (_u?.id) {
+        const { data: _p } = await supabase
+          .from('profiles').select('role').eq('id', _u.id).maybeSingle();
+        _role = (_p as { role?: string } | null)?.role ?? null;
+      }
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select(jobFieldsForRole(_role))
+        .eq('id', jobId)
+        .single();
       setJob(jobData);
       
       const { data: appData } = await supabase.from('applications')

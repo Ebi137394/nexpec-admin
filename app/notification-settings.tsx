@@ -94,7 +94,7 @@ const NOTIFICATION_GROUPS: ToggleGroup[] = [
       { id: 'location_alerts', label: 'Location Updates', description: 'Changes to inspection sites or schedule times', icon: MapPin, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['inspector'], defaultValue: true },
       { id: 'new_applicant', label: 'New Applicant', description: 'Get notified when an inspector applies to your job post', icon: UserCheck, iconColor: COLORS.primary, iconBg: 'rgba(0, 255, 255, 0.1)', roles: ['client'], defaultValue: true },
       { id: 'inspection_started', label: 'Inspection Started', description: 'Know when your assigned inspector begins an inspection', icon: Activity, iconColor: COLORS.cyan, iconBg: COLORS.cyanBg, roles: ['client'], defaultValue: true },
-      { id: 'new_enterprise_contract', label: 'New Enterprise Contract', description: 'Get notified about new enterprise-level contracts', icon: Building2, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['agency'], defaultValue: true },
+      { id: 'new_enterprise_contract', label: 'New Enterprise Contract', description: 'Get notified about new enterprise-level contracts', icon: Building2, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['agency', 'enterprise'], defaultValue: true },
     ],
   },
   {
@@ -103,7 +103,7 @@ const NOTIFICATION_GROUPS: ToggleGroup[] = [
       { id: 'report_approved_rejected', label: 'Report Approvals', description: 'When reports are approved or rejected by clients', icon: FileCheck, iconColor: COLORS.green, iconBg: COLORS.greenBg, roles: 'all', defaultValue: true },
       { id: 'cert_expiry', label: 'Certification Expiry', description: 'Warnings when your CSWIP or NDT certs are expiring soon', icon: Award, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['inspector'], defaultValue: true },
       { id: 'document_uploaded', label: 'Document Uploaded', description: 'Get notified when new documents are uploaded to your projects', icon: Upload, iconColor: COLORS.blue, iconBg: COLORS.blueBg, roles: ['client', 'agency'], defaultValue: true },
-      { id: 'weekly_summary', label: 'Weekly Performance Digest', description: 'A weekly summary of inspections, ratings, and stats', icon: BarChart3, iconColor: COLORS.purple, iconBg: COLORS.purpleBg, roles: ['agency', 'client'], defaultValue: false },
+      { id: 'weekly_summary', label: 'Weekly Performance Digest', description: 'A weekly summary of inspections, ratings, and stats', icon: BarChart3, iconColor: COLORS.purple, iconBg: COLORS.purpleBg, roles: ['agency', 'client', 'enterprise'], defaultValue: false },
     ],
   },
   {
@@ -251,7 +251,10 @@ export default function NotificationSettingsScreen() {
     try {
       setLoading(true);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      const activeRole = ((prof as any)?.role === 'enterprise' ? 'agency' : (prof as any)?.role) || 'inspector';
+      // Enterprise is now a first-class role on mobile. The notification
+      // categories below that target 'agency' get a sibling entry for
+      // enterprise below; no in-memory alias needed.
+      const activeRole = (prof as any)?.role || 'inspector';
       setUserRole(activeRole);
 
       const { data: prefs } = await supabase.from('notification_preferences').select('preferences').eq('user_id', user.id).maybeSingle();

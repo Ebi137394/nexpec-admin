@@ -7,7 +7,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MapView from 'react-native-map-clustering';
 import { Marker, Region } from 'react-native-maps';
 import { supabase } from '@/lib/supabase';
+import { BUYER_JOB_FIELDS, INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 // ★ Phase 5 — Discovery Engine: proximity-sorted feed + radius override
 import { useDiscoverJobs } from '@/src/hooks/useDiscoverJobs';
 import RadiusPickerSheet, { formatRadiusLabel } from '@/src/components/inspector/RadiusPickerSheet';
@@ -154,13 +156,19 @@ export default function JobsScreen() {
       try {
         const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).single();
         if (error) throw error;
-        // ★ Normalize 'enterprise' → 'agency' so the downstream === 'agency'
-        //   checks (discover-fetch skip, my-jobs branch, isClientSide,
-        //   handleViewDetails route) all include enterprise SSO users.
-        //   Mirrors the same normalization in app/(tabs)/_layout.tsx.
-        const normalizedRole = data?.role === 'enterprise' ? 'agency' : data?.role;
-        setUserRole(normalizedRole);
-        if (normalizedRole === 'client' || normalizedRole === 'agency') { setActiveTab(1); setViewMode('postings'); }
+        // Enterprise is a first-class role on mobile (no longer aliased
+        // to agency). The buyer-tier branches downstream — isClientSide,
+        // handleViewDetails — explicitly include all three buyer roles.
+        const fetchedRole = data?.role;
+        setUserRole(fetchedRole);
+        if (
+          fetchedRole === 'client' ||
+          fetchedRole === 'agency' ||
+          fetchedRole === 'enterprise'
+        ) {
+          setActiveTab(1);
+          setViewMode('postings');
+        }
       } catch (err) { console.error('Error fetching role:', err); } finally { setRoleLoading(false); }
     };
     fetchRole();
@@ -175,23 +183,28 @@ export default function JobsScreen() {
     if (!user?.id || !userRole) return;
     setMyWorkLoading(true);
     try {
-      if (userRole === 'client' || userRole === 'agency') {
-        const { data } = await supabase.from('jobs').select('*').eq('client_id', user.id).order('created_at', { ascending: false });
-        const all = data || [];
+      // GR2 (Strict price visibility) — projection allowlist per role.
+      // Buyers (client/agency/enterprise) get BUYER_JOB_FIELDS — never
+      // receive payout_amount_cents / inspector_payout_cents.
+      // Inspectors get INSPECTOR_JOB_FIELDS — never receive
+      // client_price_cents or the budget_*_cents family.
+      if (userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') {
+        const { data } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('client_id', user.id).order('created_at', { ascending: false });
+        const all = (data ?? []) as any[];
         setStats({ active: all.filter(j => ['assigned', 'in_progress'].includes(j.status)).length, pending: all.filter(j => ['open', 'pending'].includes(j.status)).length, completed: all.filter(j => j.status === 'completed').length });
         setMyJobs(filter === 'all' ? all : all.filter(j => filter === 'active' ? ['assigned', 'in_progress'].includes(j.status) : filter === 'pending' ? ['open', 'pending'].includes(j.status) : j.status === 'completed'));
       } else {
-        const { data: assignedJobs } = await supabase.from('jobs').select('*').eq('contractor_id', user.id).order('created_at', { ascending: false });
-        const allAssigned = assignedJobs || [];
+        const { data: assignedJobs } = await supabase.from('jobs').select(INSPECTOR_JOB_FIELDS).eq('contractor_id', user.id).order('created_at', { ascending: false });
+        const allAssigned = (assignedJobs ?? []) as any[];
 
         const { data: appsData } = await supabase.from('applications').select('job_id').eq('applicant_id', user.id);
         const uniquePendingJobIds = [...new Set((appsData || []).map(a => a.job_id))];
-        setAppliedJobIds(uniquePendingJobIds); 
+        setAppliedJobIds(uniquePendingJobIds);
 
         let pendingJobsData: any[] = [];
         if (uniquePendingJobIds.length > 0) {
-          const { data: pJobs } = await supabase.from('jobs').select('*').in('id', uniquePendingJobIds);
-          if (pJobs) pendingJobsData = pJobs.map(j => ({ ...j, status: 'pending' }));
+          const { data: pJobs } = await supabase.from('jobs').select(INSPECTOR_JOB_FIELDS).in('id', uniquePendingJobIds);
+          if (pJobs) pendingJobsData = (pJobs as any[]).map(j => ({ ...j, status: 'pending' }));
         }
 
         const actualPendingJobs = pendingJobsData.filter(p => !allAssigned.some(a => a.id === p.id));
@@ -288,12 +301,13 @@ export default function JobsScreen() {
 
   const handleViewDetails = async (jobId: string) => {
     try {
-      if (userRole === 'client' || userRole === 'agency') { router.push(`/(tabs)/jobs/${jobId}`); } 
+      if (userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') { router.push(`/(tabs)/jobs/${jobId}`); } 
       else { router.push(`/(inspector)/jobs/${jobId}`); }
     } catch (err) { console.error('Nav Error:', err); }
   };
 
-  const isClientSide = userRole === 'client' || userRole === 'agency';
+  const isClientSide =
+    userRole === 'client' || userRole === 'agency' || userRole === 'enterprise';
 
   const handleToggleFilter = useCallback((category: string, value: string) => {
     if (category === 'location') { setSelectedLocations(prev => prev.includes(value) ? prev.filter(l => l !== value) : [...prev, value]); } 
@@ -422,6 +436,15 @@ export default function JobsScreen() {
 
   const MyWorkListHeader = useMemo( () => (
       <View style={st.myWorkListHeader}>
+        {/*
+          Pipeline — surfaces jobs/applications/contracts that paused while
+          waiting on someone (you, the other party, or NEXPEC moderation).
+          Self-suppresses when nothing is pending. Lives ABOVE the existing
+          stats + filter row so nothing else in the layout shifts. No new
+          tabs / nav entries — strictly additive per UX directive (2026-05-20).
+        */}
+        <PipelineSection userId={user?.id ?? null} userRole={userRole} />
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.statsRow}>
           <StatsCard icon="play-circle" label="Active" count={stats.active} color={COLORS.blue} bg={COLORS.blueBg} onPress={() => setFilter(filter === 'active' ? 'all' : 'active')} active={filter === 'active'} />
           <StatsCard icon="time" label="Pending" count={stats.pending} color={COLORS.amber} bg={COLORS.amberBg} onPress={() => setFilter(filter === 'pending' ? 'all' : 'pending')} active={filter === 'pending'} />
@@ -437,7 +460,7 @@ export default function JobsScreen() {
           </View>
         </View>
       </View>
-    ), [filter, stats, UnifiedFilterHeader, filteredMyJobs.length] );
+    ), [filter, stats, UnifiedFilterHeader, filteredMyJobs.length, user?.id, userRole] );
 
   if (roleLoading) {
     return <SafeAreaView style={[st.container, { justifyContent: 'center' }]}><ActivityIndicator size="large" color={COLORS.primary}/></SafeAreaView>;

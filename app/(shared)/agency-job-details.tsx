@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
+import { BUYER_JOB_FIELDS } from '../../lib/jobsProjection';
 import { assignJobContractor } from '../../lib/assignJob';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -82,7 +83,9 @@ export default function JobDetailsScreen() {
   const fetchData = useCallback(async () => {
     if (!jobId) return;
     try {
-      const { data: jobData } = await supabase.from('jobs').select('*').eq('id', jobId).single();
+      // GR2: agency is a buyer-tier role — projection EXCLUDES
+      // payout_amount_cents / inspector_payout_cents.
+      const { data: jobData } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('id', jobId).single();
       setJob(jobData);
       
       const { data: appData } = await supabase.from('applications')

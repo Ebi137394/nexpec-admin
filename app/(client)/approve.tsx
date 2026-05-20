@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 // ============================================
@@ -51,10 +52,10 @@ export default function ApproveScreen() {
   const fetchData = async () => {
     if (!jobId || !user) return;
     try {
-      // 1. Fetch Job Info
+      // 1. Fetch Job Info — GR2: client is buyer-tier, no payout columns.
       const { data: jobData, error: jobError } = await supabase
         .from('jobs')
-        .select('*')
+        .select(BUYER_JOB_FIELDS)
         .eq('id', jobId)
         .single();
 

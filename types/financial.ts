@@ -66,6 +66,13 @@ export interface FinancialFormData {
   currency: Currency;
   tax_id: string;
   overtime_multiplier: string;
+  // Mobile parity 2026-05-20 — web schema additions (Sprint 11):
+  //   profiles.weekend_multiplier NUMERIC(4,2) default 1.50 (1.00–5.00)
+  //   profiles.holiday_multiplier NUMERIC(4,2) default 2.00 (1.00–5.00)
+  // Form values are strings to match the existing overtime_multiplier
+  // input shape; we convert to numeric at save time.
+  weekend_multiplier: string;
+  holiday_multiplier: string;
   minimum_hours: string;
   payment_terms_days: string;
   accepts_credit_card: boolean;
@@ -84,6 +91,9 @@ export interface FinancialUpdatePayload {
   currency: Currency;
   tax_id: string | null;
   overtime_multiplier: number;
+  // Mobile parity 2026-05-20 — CHECK 1.00–5.00 enforced at DB layer.
+  weekend_multiplier: number;
+  holiday_multiplier: number;
   minimum_hours: number;
   payment_terms_days: number;
   accepts_credit_card: boolean;
@@ -114,6 +124,10 @@ export const DEFAULT_FINANCIAL_SETTINGS: FinancialFormData = {
   currency: 'USD',
   tax_id: '',
   overtime_multiplier: '1.5',
+  // Defaults mirror web schema (Sprint 11):
+  //   weekend_multiplier default 1.50, holiday_multiplier default 2.00.
+  weekend_multiplier: '1.5',
+  holiday_multiplier: '2.0',
   minimum_hours: '4',
   payment_terms_days: '30',
   accepts_credit_card: false,
@@ -132,6 +146,27 @@ export const OVERTIME_MULTIPLIERS: { value: string; label: string }[] = [
   { value: '2.0', label: '2.0x (Double time)' },
   { value: '2.5', label: '2.5x' },
   { value: '3.0', label: '3.0x (Triple time)' },
+];
+
+/**
+ * Weekend and holiday multipliers share the same scale as overtime —
+ * CHECK constraint at the DB layer enforces 1.00–5.00 inclusive. Mobile
+ * parity 2026-05-20 (web Sprint 11).
+ */
+export const WEEKEND_MULTIPLIERS: { value: string; label: string }[] = [
+  { value: '1.0', label: '1.0x (No premium)' },
+  { value: '1.25', label: '1.25x' },
+  { value: '1.5', label: '1.5x' },
+  { value: '1.75', label: '1.75x' },
+  { value: '2.0', label: '2.0x (Double)' },
+];
+
+export const HOLIDAY_MULTIPLIERS: { value: string; label: string }[] = [
+  { value: '1.5', label: '1.5x' },
+  { value: '2.0', label: '2.0x (Double)' },
+  { value: '2.5', label: '2.5x' },
+  { value: '3.0', label: '3.0x (Triple)' },
+  { value: '4.0', label: '4.0x' },
 ];
 
 /**

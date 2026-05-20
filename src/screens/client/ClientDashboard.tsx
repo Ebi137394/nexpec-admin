@@ -57,6 +57,7 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 
 // ─────────────────────────────────────────────────────────────
 //  BRAND PALETTE — locked
@@ -429,10 +430,12 @@ export default function ClientDashboardScreen() {
   );
 
   const onPostJob = useCallback(() => safeNav('/client/post-job'), [safeNav]);
-  // ★ Inspectors: dedicated roster page — same one used by agencies.
-  //   The /inspectors screen queries by client_id which matches both
-  //   client and agency owners, so it works generically.
-  const onInspectors = useCallback(() => safeNav('/inspectors'), [safeNav]);
+  // ★ Inspectors entry point — repointed 2026-05-20 to the new
+  //   /inspector-directory screen: verified-only browse + search/filter +
+  //   invite-to-job via the invite_inspector_to_job RPC. The legacy
+  //   /inspectors roster screen still exists and is reachable directly
+  //   for users who want the older view.
+  const onInspectors = useCallback(() => safeNav('/inspector-directory'), [safeNav]);
   const onContracts = useCallback(() => safeNav('/contracts'), [safeNav]);
   const onSupport = useCallback(() => safeNav('/support-chat'), [safeNav]);
   const onNotifications = useCallback(
@@ -585,6 +588,14 @@ export default function ClientDashboardScreen() {
               </Text>
             </View>
           </RNAnimated.View>
+
+          {/*
+            Pipeline — surfaces limbo-state jobs/contracts on the client
+            home (signature waits, admin approval, awaiting inspector
+            counter-sign). Self-suppresses when nothing is pending.
+            Strictly additive (2026-05-20 UX directive).
+          */}
+          <PipelineSection userId={user?.id ?? null} userRole="client" />
 
           {/* ───── HERO — PRIORITY MISSION ───── */}
           <RNAnimated.View entering={FadeInDown.delay(120).duration(450)}>

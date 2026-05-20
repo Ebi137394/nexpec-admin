@@ -3,6 +3,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import {
   fetchComplianceQueue,
   fetchComplianceCredential,
@@ -31,19 +32,46 @@ export default async function CompliancePage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">
-          Command Console · Live
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          Compliance
-        </h1>
-        <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
-          CCI credential applications. Click any row to open the review
-          drawer — approve, suspend, or reject with audit-captured notes.
-          Decisions fire{' '}
-          <span className="font-mono text-cyan-glow">admin_review_credential</span>.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">
+            Command Console · Live
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            Compliance
+          </h1>
+          <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
+            CCI credential applications. Click any row to open the review
+            drawer — approve, suspend, or reject with audit-captured notes.
+            Decisions fire{' '}
+            <span className="font-mono text-cyan-glow">admin_review_credential</span>.
+          </p>
+        </div>
+
+        {/* Cross-link to scope-template library — admin-curated catalog */}
+        <Link
+          href="/admin/compliance/templates"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-cyan-glow/30 bg-cyan-glow/10 px-4 py-2.5 text-sm font-semibold text-cyan-glow transition hover:border-cyan-glow/60 hover:bg-cyan-glow/15"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+            aria-hidden
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="13" x2="15" y2="13" />
+            <line x1="9" y1="17" x2="15" y2="17" />
+          </svg>
+          Scope Template Library
+          <span className="text-cyan-glow/60">→</span>
+        </Link>
       </header>
 
       {!tableMissing && (

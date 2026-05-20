@@ -7,7 +7,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 
 const COLORS = { background: '#020420', surface: '#0F172A', border: '#1E293B', primary: '#7C3AED', textSecondary: '#94A3B8', textMuted: '#64748B', };
 
-type UserRole = 'inspector' | 'client' | 'agency';
+type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise';
 
 const TabIcon = ({ name, nameOutline, color, focused }: { name: keyof typeof Ionicons.glyphMap; nameOutline: keyof typeof Ionicons.glyphMap; color: string; focused: boolean; }) => (
   <View style={styles.iconWrap}><Ionicons name={focused ? name : nameOutline} size={22} color={color} />{focused && <View style={styles.activeDot} />}</View>
@@ -22,12 +22,12 @@ export default function TabLayout() {
     if (!user?.id) { setLoading(false); return; }
     try {
       const { data, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      if (error && error.code !== 'PGRST116') { setUserRole('inspector'); } 
-      else { 
-        const fetchedRole = (data as any)?.role || 'inspector'; 
-        // ✅ FIX: Properly handle all role types including 'agency' and 'enterprise'
-        const normalizedRole = fetchedRole === 'enterprise' ? 'agency' : fetchedRole;
-        setUserRole(normalizedRole); 
+      if (error && error.code !== 'PGRST116') { setUserRole('inspector'); }
+      else {
+        // Enterprise is now a first-class role — it has its own dashboard
+        // tab (enterprise-dashboard.tsx) and is no longer aliased to agency.
+        const fetchedRole = (data as any)?.role || 'inspector';
+        setUserRole(fetchedRole as UserRole);
       }
     } catch (error) { setUserRole('inspector'); } finally { setLoading(false); }
   }, [user?.id]);
@@ -43,6 +43,7 @@ export default function TabLayout() {
       <Tabs.Screen name="index" options={{ title: 'Dashboard', href: role === 'inspector' ? '/' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="client-dashboard" options={{ title: 'Dashboard', href: role === 'client' ? '/client-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="agency-dashboard" options={{ title: 'Dashboard', href: role === 'agency' ? '/agency-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="enterprise-dashboard" options={{ title: 'Dashboard', href: role === 'enterprise' ? '/enterprise-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       
       <Tabs.Screen name="jobs" options={{ title: 'Jobs', tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { jobFieldsForRole } from '@/lib/jobsProjection';
 // ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
 //   lockdown the inspection-photos bucket is private; stored
 //   getPublicUrl() values silently 403 on the device.
@@ -98,10 +99,28 @@ export default function JobDetailScreen() {
   const fetchJobDetails = useCallback(async () => {
     if (!id) return;
     try {
+      // GR2 (Strict price visibility) — resolve the caller's role first
+      // so we pick the right projection allowlist. Multi-role screen:
+      // inspectors arrive here for jobs they've applied to, buyers for
+      // jobs they've posted. Defaulting to the inspector projection
+      // (most restrictive — strips client_price_cents) when the role
+      // isn't yet known prevents accidental budget leakage.
+      const { data: { user: __u } } = await supabase.auth.getUser();
+      let __role: string | null = null;
+      if (__u?.id) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', __u.id)
+          .maybeSingle();
+        __role = ((prof as { role?: string } | null)?.role ?? null);
+      }
+      const __jobProjection = jobFieldsForRole(__role);
+
       // 1) FETCH JOB
       const { data: jobData, error: jobError } = await supabase
         .from('jobs')
-        .select('*')
+        .select(__jobProjection)
         .eq('id', id)
         .single();
 

@@ -69,6 +69,7 @@ import {
 
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 // ★ LANE-B-PHASE-5.2 — extracted agency components.
 import { AgencyHero } from '@/src/roles/agency/components/AgencyHero';
 import {
@@ -182,7 +183,9 @@ interface Job {
   status: string;
   location: string | null;
   client_price_cents: number | null;    // ★ Task 4
-  payout_amount_cents: number | null;   // ★ Task 4
+  // GR2 (Strict price visibility) — payout_amount_cents intentionally
+  // REMOVED. Agency is a buyer-tier role; the inspector's payout is not
+  // theirs to see. The projection allowlist below no longer SELECTs it.
   contractor_id: string | null;
   created_at: string;
   admin_confirmed_at?: string | null;
@@ -406,6 +409,26 @@ export default function AgencyDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // ── V3 contracts (mobile parity 2026-05-20) ─────────────────
+  // Buyer-side blind-pricing projection. Filter `client_id = user.id`.
+  // Strict allowlist — does NOT name inspector_payout_cents anywhere.
+  interface AgencyContractRow {
+    id: string;
+    job_id: string | null;
+    inspector_id: string | null;
+    client_id: string;
+    status: string;
+    client_price_cents: number | null;
+    client_signed_at: string | null;
+    inspector_signed_at: string | null;
+    created_at: string;
+    updated_at: string | null;
+  }
+  const [contracts, setContracts] = useState<AgencyContractRow[]>([]);
+  const [contractJobTitles, setContractJobTitles] = useState<
+    Record<string, string | null>
+  >({});
+
   // ── Fetch all in parallel (unchanged) ─────────────────────
   const loadAll = useCallback(async () => {
     if (!user?.id) {
@@ -422,7 +445,8 @@ export default function AgencyDashboard() {
       const jobsPromise = supabase
         .from('jobs')
         .select(
-          'id, title, status, location, client_price_cents, payout_amount_cents, contractor_id, created_at, admin_confirmed_at'
+          // GR2: buyer-safe — no payout_amount_cents / inspector_payout_cents.
+          'id, title, status, location, client_price_cents, contractor_id, created_at, admin_confirmed_at'
         )
         .eq('client_id', user.id)
         .order('created_at', { ascending: false });
@@ -434,10 +458,78 @@ export default function AgencyDashboard() {
         .eq('recipient_id', user.id)
         .eq('is_read', false);
 
-      const [{ data: profileRow }, { data: jobsRow, error: jobsErr }, { count: notifCount }] =
-        await Promise.all([profilePromise, jobsPromise, notifPromise]);
+      // V3 contracts — client_job_contracts_view (mobile parity 2026-05-20).
+      // Filter `client_id = user.id`. The view's row-level RLS additionally
+      // enforces this (`client_id = auth.uid() OR nx_is_admin()`), so the
+      // .eq() is defense-in-depth. The projection allowlist below NEVER
+      // names inspector_payout_cents — the buyer side never sees it.
+      const contractsPromise = supabase
+        .from('client_job_contracts_view')
+        .select(
+          [
+            'id',
+            'job_id',
+            'inspector_id',
+            'client_id',
+            'status',
+            'client_price_cents',
+            'client_signed_at',
+            'inspector_signed_at',
+            'created_at',
+            'updated_at',
+          ].join(', '),
+        )
+        .eq('client_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      const [
+        { data: profileRow },
+        { data: jobsRow, error: jobsErr },
+        { count: notifCount },
+        contractsRes,
+      ] = await Promise.all([
+        profilePromise,
+        jobsPromise,
+        notifPromise,
+        contractsPromise,
+      ]);
 
       if (jobsErr) throw jobsErr;
+
+      // Contracts — soft-fail if the view isn't available in this env so
+      // the rest of the dashboard still renders.
+      const contractRows =
+        contractsRes && !contractsRes.error && Array.isArray(contractsRes.data)
+          ? (contractsRes.data as AgencyContractRow[])
+          : [];
+      if (contractsRes?.error) {
+        console.warn(
+          '[agency-dashboard] client_job_contracts_view unavailable:',
+          contractsRes.error.message,
+        );
+      }
+      setContracts(contractRows);
+
+      // Hydrate job titles for the contract list. Views don't expose title.
+      const contractJobIds = Array.from(
+        new Set(contractRows.map((c) => c.job_id).filter(Boolean) as string[]),
+      );
+      if (contractJobIds.length > 0) {
+        const { data: jobTitleRows } = await supabase
+          .from('jobs')
+          .select('id, title')
+          .in('id', contractJobIds);
+        const map: Record<string, string | null> = {};
+        (jobTitleRows as Array<{ id: string; title: string | null }> | null)?.forEach(
+          (j) => {
+            map[j.id] = j.title;
+          },
+        );
+        setContractJobTitles(map);
+      } else {
+        setContractJobTitles({});
+      }
 
       const jobList = (jobsRow ?? []) as Job[];
       const jobIds = jobList.map((j) => j.id);
@@ -868,7 +960,10 @@ export default function AgencyDashboard() {
               tint: C.primary,
               label: 'Inspectors',
               gradient: ['rgba(124,58,237,0.32)', 'rgba(124,58,237,0.06)'],
-              onPress: () => router.push('/inspectors' as any),
+              // Routes to the new Inspector Directory (2026-05-20) — verified
+              // inspectors with search/filter + invite-to-job. The legacy
+              // /inspectors screen still exists and is reachable directly.
+              onPress: () => router.push('/inspector-directory' as any),
             },
             {
               id: 'messages',
@@ -896,6 +991,16 @@ export default function AgencyDashboard() {
             decides between the "Needs Your Attention" card view and
             the "All clear" panel based on items.length. */}
         <AgencyActionInbox items={actionItems} />
+
+        {/*
+          Pipeline — surfaces limbo-state jobs/contracts on the agency
+          home so users see what's awaiting their signature, admin
+          approval, etc. without navigating to Jobs. Sits right under
+          the Action Inbox so the two "needs your attention" surfaces
+          live next to each other. Self-suppresses when empty.
+          Strictly additive (2026-05-20 UX directive).
+        */}
+        <PipelineSection userId={user?.id ?? null} userRole="agency" />
 
         {/* ★ LANE-B-PHASE-5.2 — Spend & Velocity (budget + sparkline)
             extracted to src/roles/agency/components/AgencyBudgetSparkline.tsx.
@@ -929,6 +1034,21 @@ export default function AgencyDashboard() {
           conversionPercent={m.conversion}
           avgDaysToHire={m.avgDaysToHire}
           onViewAll={() => router.push('/(tabs)/jobs' as any)}
+        />
+
+        {/* ───── CONTRACTS PIPELINE ─────────────────────────────
+            Mobile parity 2026-05-20 — additive section mirroring the
+            Enterprise dashboard's contract surface. Data comes from
+            client_job_contracts_view filtered by client_id; the
+            row-level RLS on the view enforces ownership at the DB
+            layer. All amounts shown are the agency's OWN client_price_cents
+            (their budget) — the view never exposes inspector_payout_cents,
+            so the inspector's compensation is structurally hidden. */}
+        <AgencyContractsSection
+          contracts={contracts}
+          jobTitles={contractJobTitles}
+          onOpen={(id) => router.push(`/contracts/job/${id}` as any)}
+          onViewAll={() => router.push('/contracts' as any)}
         />
 
         {/* ───── INSPECTOR BENCH ────────────────────────────────
@@ -1052,6 +1172,353 @@ const QuickAction: React.FC<{
     </Text>
   </Pressable>
 );
+
+// ─────────────────────────────────────────────────────────────
+// AGENCY CONTRACTS SECTION  (Mobile parity 2026-05-20)
+//
+// Self-contained additive section. Pure presentational — all data
+// hydration happens in the dashboard's `loadAll` fetcher; this
+// component just renders. Visual vocabulary deliberately mirrors
+// AgencyPipelineRail and the Enterprise dashboard's contracts strip:
+//   • 3-circle pipeline (Your sig · Inspector · Executed)
+//   • short list of contracts pending the agency's signature
+//   • "View all" pill linking to the full Contracts Hub
+// GR2: the only money shown is client_price_cents — the agency's
+// own budget. inspector_payout_cents is structurally absent from
+// this component's props.
+// ─────────────────────────────────────────────────────────────
+interface AgencyContractsSectionProps {
+  contracts: Array<{
+    id: string;
+    job_id: string | null;
+    inspector_id: string | null;
+    client_id: string;
+    status: string;
+    client_price_cents: number | null;
+    client_signed_at: string | null;
+    inspector_signed_at: string | null;
+    created_at: string;
+    updated_at: string | null;
+  }>;
+  jobTitles: Record<string, string | null>;
+  onOpen: (contractId: string) => void;
+  onViewAll: () => void;
+}
+
+const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
+  contracts,
+  jobTitles,
+  onOpen,
+  onViewAll,
+}) => {
+  const pendingClient = contracts.filter(
+    (c) => c.status === 'pending_client_signature',
+  );
+  const pendingInspector = contracts.filter(
+    (c) => c.status === 'pending_inspector_signature',
+  );
+  const executed = contracts.filter((c) => c.status === 'fully_executed');
+
+  return (
+    <View style={contractsSec.wrap}>
+      {/* Section header — matches the rest of the agency dashboard */}
+      <View style={contractsSec.header}>
+        <View
+          style={[contractsSec.headerIconWrap, { backgroundColor: C.primary + '14' }]}
+        >
+          <FileSignature size={14} color={C.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={contractsSec.kicker}>V3 · STATE MACHINE</Text>
+          <Text style={contractsSec.title}>Contracts Pipeline</Text>
+        </View>
+        <Pressable
+          onPress={onViewAll}
+          style={({ pressed }) => [
+            contractsSec.viewAllBtn,
+            pressed && { transform: [{ scale: 0.97 }] },
+          ]}
+          hitSlop={6}
+        >
+          <Text style={contractsSec.viewAllText}>View all</Text>
+          <ChevronRight size={12} color={C.textSec} />
+        </Pressable>
+      </View>
+
+      {/* 3-circle pipeline strip */}
+      <View style={contractsSec.pipelineRow}>
+        <ContractsPipelineDot
+          count={pendingClient.length}
+          label="Your sig"
+          color={C.warn}
+          urgent={pendingClient.length > 0}
+        />
+        <View style={contractsSec.pipelineConnector} />
+        <ContractsPipelineDot
+          count={pendingInspector.length}
+          label="Inspector"
+          color={C.info}
+        />
+        <View style={contractsSec.pipelineConnector} />
+        <ContractsPipelineDot
+          count={executed.length}
+          label="Executed"
+          color={C.ok}
+        />
+      </View>
+
+      {/* Short list of contracts waiting on the agency. Most actionable. */}
+      {pendingClient.length > 0 ? (
+        <View style={contractsSec.list}>
+          {pendingClient.slice(0, 3).map((c) => (
+            <Pressable
+              key={c.id}
+              onPress={() => onOpen(c.id)}
+              style={({ pressed }) => [
+                contractsSec.row,
+                pressed && { transform: [{ scale: 0.99 }] },
+              ]}
+            >
+              <View style={contractsSec.rowIcon}>
+                <Hourglass size={13} color={C.warn} strokeWidth={1.75} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={contractsSec.rowTitle} numberOfLines={1}>
+                  {jobTitles[c.job_id ?? ''] ?? 'Per-job agreement'}
+                </Text>
+                <Text style={contractsSec.rowSub} numberOfLines={1}>
+                  {c.client_price_cents != null
+                    ? new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        maximumFractionDigits: 0,
+                      }).format(c.client_price_cents / 100)
+                    : '—'}{' '}
+                  · awaiting your signature
+                </Text>
+              </View>
+              <View style={contractsSec.rowPill}>
+                <Text style={contractsSec.rowPillText}>SIGN</Text>
+              </View>
+              <ChevronRight size={14} color={C.textMuted} />
+            </Pressable>
+          ))}
+        </View>
+      ) : contracts.length === 0 ? (
+        <View style={contractsSec.empty}>
+          <CheckCircle2 size={18} color={C.textMuted} strokeWidth={1.75} />
+          <Text style={contractsSec.emptyText}>
+            No contracts yet. They appear here once admin issues the
+            per-job agreement for your accepted inspectors.
+          </Text>
+        </View>
+      ) : (
+        <View style={contractsSec.calm}>
+          <CheckCircle2 size={16} color={C.ok} strokeWidth={2} />
+          <Text style={contractsSec.calmText}>
+            Nothing waiting on you. {executed.length > 0 ? `${executed.length} executed.` : ''}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const ContractsPipelineDot: React.FC<{
+  count: number;
+  label: string;
+  color: string;
+  urgent?: boolean;
+}> = ({ count, label, color, urgent }) => (
+  <View style={contractsSec.dotCol}>
+    <View
+      style={[
+        contractsSec.dot,
+        {
+          borderColor: color,
+          backgroundColor: urgent ? color + '20' : C.card,
+        },
+      ]}
+    >
+      <Text style={[contractsSec.dotCount, { color }]}>{count}</Text>
+    </View>
+    <Text style={contractsSec.dotLabel}>{label}</Text>
+  </View>
+);
+
+const contractsSec = StyleSheet.create({
+  wrap: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 16,
+    backgroundColor: C.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  headerIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kicker: {
+    color: C.primary,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
+  title: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginTop: 1,
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  viewAllText: {
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  pipelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  pipelineConnector: {
+    flex: 1,
+    height: 1.5,
+    backgroundColor: C.border,
+    marginHorizontal: -6,
+    marginTop: -16,
+  },
+  dotCol: {
+    alignItems: 'center',
+    minWidth: 88,
+  },
+  dot: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  dotCount: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  dotLabel: {
+    color: C.textSec,
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+
+  list: { gap: 8 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  rowIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: C.warnDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowTitle: {
+    color: C.text,
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  rowSub: {
+    color: C.textMuted,
+    fontSize: 10.5,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  rowPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7,
+    backgroundColor: C.primary,
+  },
+  rowPillText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+
+  empty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: C.border,
+  },
+  emptyText: {
+    flex: 1,
+    color: C.textMuted,
+    fontSize: 11.5,
+    lineHeight: 15.5,
+  },
+
+  calm: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 11,
+    backgroundColor: 'rgba(16, 249, 149, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 249, 149, 0.20)',
+  },
+  calmText: {
+    color: C.ok,
+    fontSize: 11.5,
+    fontWeight: '700',
+    flex: 1,
+  },
+});
 
 // ─────────────────────────────────────────────────────────────
 // STYLES

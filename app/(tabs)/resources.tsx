@@ -14,6 +14,7 @@ import { signedUrl, parseSupabaseStorageUrl, SIGNED_URL_TTL } from '@/src/core/s
 // ★ Library section deprecated — ReferenceHub + MicroLearning no longer
 //   imported. The Resources tab is now strictly Project Documents.
 import { supabase } from '../../lib/supabase';
+import { jobFieldsForRole } from '../../lib/jobsProjection';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) { UIManager.setLayoutAnimationEnabledExperimental(true); }
@@ -21,7 +22,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const COLORS = { background: '#020420', backgroundAlt: '#0a0f2e', surface: '#0F172A', surfaceLight: '#1E293B', surfaceElevated: '#162036', border: '#1F2937', borderLight: '#334155', primary: '#7C3AED', primaryLight: '#8B5CF6', primaryDark: '#6D28D9', primaryBg: 'rgba(124, 58, 237, 0.12)', primaryBorder: 'rgba(124, 58, 237, 0.25)', blue: '#3B82F6', blueBg: 'rgba(59, 130, 246, 0.12)', blueBorder: 'rgba(59, 130, 246, 0.25)', green: '#10B981', greenBg: 'rgba(16, 185, 129, 0.12)', greenBorder: 'rgba(16, 185, 129, 0.25)', red: '#EF4444', redBg: 'rgba(239, 68, 68, 0.12)', amber: '#F59E0B', amberBg: 'rgba(245, 158, 11, 0.12)', amberBorder: 'rgba(245, 158, 11, 0.25)', cyan: '#06B6D4', cyanBg: 'rgba(6, 182, 212, 0.12)', white: '#FFFFFF', textPrimary: '#F1F5F9', textSecondary: '#94A3B8', textMuted: '#64748B', textDark: '#475569', };
 
-type UserRole = 'inspector' | 'client' | 'agency';
+type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise';
 interface ProjectDocument { id: string; job_id: string; file_name: string; file_type: string; file_size: number; file_url: string; /** External link (Google Drive / Dropbox / etc.) — set instead of file_url for link rows. */ document_url?: string | null; category: 'itp' | 'drawing' | 'spec' | 'report' | 'certificate' | 'other'; uploaded_by: string; uploaded_by_name?: string; created_at: string; notes?: string; }
 interface JobWithDocs { id: string; title: string; status: string; documents: ProjectDocument[]; }
 
@@ -266,13 +267,11 @@ export default function ResourcesScreen() {
     try {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
       if (profile?.role) {
-        // ★ Normalize 'enterprise' → 'agency' so the client_id filter
-        //   branch in fetchJobsWithDocuments fires for enterprise SSO
-        //   users. Without this, neither role-branch matches and the
-        //   jobs query lands without any user filter — leaking every
-        //   job in the DB into the Docs tab.
-        const normalized = profile.role === 'enterprise' ? 'agency' : profile.role;
-        setUserRole(normalized as UserRole);
+        // Enterprise is now a first-class role on mobile (alias removed
+        // 2026-05-20). The fetchJobsWithDocuments branch below has been
+        // extended to include enterprise alongside client/agency so the
+        // client_id filter is always applied — never an unfiltered scan.
+        setUserRole(profile.role as UserRole);
       }
     } catch (err) {}
   }, [user?.id]);
@@ -290,7 +289,11 @@ export default function ResourcesScreen() {
       //   the device console, which Console.app exposes to anyone with
       //   physical access. Role only is sufficient for diagnostics.
       console.log('[resources] fetchJobsWithDocuments role=', userRole);
-      let jobQuery = supabase.from('jobs').select('*').order('created_at', { ascending: false });
+      // GR2 (Strict price visibility) — pick the projection that matches
+      // the caller's role. Inspector NEVER receives client_price_cents;
+      // buyer roles (client/agency/enterprise) NEVER receive payout.
+      const projection = jobFieldsForRole(userRole);
+      let jobQuery = supabase.from('jobs').select(projection).order('created_at', { ascending: false });
       if (userRole === 'inspector') {
         jobQuery = jobQuery.eq('contractor_id', user.id);
       } else {

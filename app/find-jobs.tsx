@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { INSPECTOR_JOB_FIELDS } from '../lib/jobsProjection';
 import { showAlert, showConfirm } from '../lib/alert';
 
 interface Job {
@@ -40,9 +41,12 @@ export default function FindJobsScreen() {
       console.log('🔍 Fetching open jobs...');
       setLoading(true);
 
+      // GR2 (Strict price visibility) — find-jobs is the inspector's
+      // discovery surface. Inspector NEVER receives client_price_cents
+      // or the budget_*_cents family. Projection allowlist enforces this.
       const { data, error } = await supabase
         .from('jobs')
-        .select('*')
+        .select(INSPECTOR_JOB_FIELDS)
         .eq('status', 'Open')
         .order('created_at', { ascending: false });
 

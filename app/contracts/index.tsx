@@ -246,16 +246,14 @@ const statusMeta = (s?: string | null) => {
 function mapJobContractViewRow(r: {
   id: string;
   job_id: string | null;
-  job_title: string | null;
   inspector_id: string;
   client_id: string;
   status: string | null;
   inspector_payout_cents: number | null;
-  body_md: string | null;
+  contract_text_md: string | null;
   client_signed_at: string | null;
   inspector_signed_at: string | null;
-  client_signer_typed_name: string | null;
-  inspector_signer_typed_name: string | null;
+  inspector_signed_name: string | null;
   created_at: string | null;
   updated_at: string | null;
 }): Contract {
@@ -271,20 +269,89 @@ function mapJobContractViewRow(r: {
     // INSPECTOR-SAFE money. Web's inspector_job_contracts_view enforces
     // this projection at the DB layer; we honor it here.
     total_amount_cents: r.inspector_payout_cents ?? null,
-    contract_text: r.body_md ?? null,
+    contract_text: r.contract_text_md ?? null,
     document_url: null,
     external_link: null,
-    // The "signature" field on the legacy schema was a base64 image; v3
-    // tracks the typed name instead. Surface the typed name as a stable
-    // truthy marker so the SigPiece component shows "Signed".
-    client_signature: r.client_signer_typed_name ?? null,
-    contractor_signature: r.inspector_signer_typed_name ?? null,
+    // V3 tracks signers as a typed name string. Surface the inspector
+    // name as a stable truthy marker so the SigPiece shows "Signed".
+    // The client side isn't exposed via this view's projection (the
+    // view omits client_signed_name from the inspector projection on
+    // purpose — inspector only needs to know the client signed, not
+    // who typed); a non-null client_signed_at means signed.
+    client_signature: r.client_signed_at ? '__signed__' : null,
+    contractor_signature: r.inspector_signed_name ?? null,
     client_signed_at: r.client_signed_at,
     contractor_signed_at: r.inspector_signed_at,
     signed_at: r.inspector_signed_at ?? r.client_signed_at,
     created_at: r.created_at,
     updated_at: r.updated_at,
-    job: r.job_id ? { id: r.job_id, title: r.job_title ?? null } : null,
+    // job.title is fetched separately in the Hub via a second query
+    // (the view doesn't expose it). Until that merge lands we show
+    // the existing "Standalone agreement" fallback.
+    job: r.job_id ? { id: r.job_id, title: null } : null,
+    client: null,
+    contractor: null,
+    _isJobContract: true,
+  };
+}
+
+/**
+ * Project a row from `client_job_contracts_view` into the legacy Contract
+ * shape. Mirror of mapJobContractViewRow for the BUYER side.
+ *
+ * Critical: `total_amount_cents` is mapped from `client_price_cents` —
+ * the buyer's OWN budget, which they are allowed to see on their own
+ * contracts. The view never exposes inspector_payout_cents, so the buyer
+ * never accidentally learns the inspector's payout. GR2 enforced at the
+ * projection layer (this row never carries the opposing key) and at the
+ * DB view layer (column-level RLS).
+ *
+ * Used by the Hub fetcher when role ∈ { client, agency, enterprise }.
+ */
+function mapClientJobContractViewRow(r: {
+  id: string;
+  job_id: string | null;
+  inspector_id: string | null;
+  client_id: string;
+  status: string | null;
+  client_price_cents: number | null;
+  contract_text_md: string | null;
+  client_signed_at: string | null;
+  client_signed_name: string | null;
+  inspector_signed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}): Contract {
+  return {
+    // Same `jc:` prefix as the inspector mapper so the Hub keyExtractor
+    // never collides with legacy contracts.id.
+    id: `jc:${r.id}`,
+    job_id: r.job_id,
+    client_id: r.client_id,
+    contractor_id: r.inspector_id ?? '',
+    status: (r.status ?? 'pending_signature') as string,
+    // BUYER-SAFE money. client_job_contracts_view exposes the caller's
+    // own client_price_cents and nothing on the inspector payout side.
+    total_amount_cents: r.client_price_cents ?? null,
+    contract_text: r.contract_text_md ?? null,
+    document_url: null,
+    external_link: null,
+    // V3 tracks signers as typed name strings. Surface the client's
+    // typed name (the buyer's own signature) and a stable truthy
+    // marker for the inspector side when they've signed. The inspector
+    // typed name isn't projected by the client view — that's by design,
+    // the buyer only needs to know the inspector signed, not what they
+    // typed. A non-null inspector_signed_at means signed.
+    client_signature: r.client_signed_name ?? null,
+    contractor_signature: r.inspector_signed_at ? '__signed__' : null,
+    client_signed_at: r.client_signed_at,
+    contractor_signed_at: r.inspector_signed_at,
+    signed_at: r.client_signed_at ?? r.inspector_signed_at,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    // job.title hydrated by the Hub's batch fetch (same code path as
+    // the inspector mapper).
+    job: r.job_id ? { id: r.job_id, title: null } : null,
     client: null,
     contractor: null,
     _isJobContract: true,
@@ -426,68 +493,214 @@ export default function ContractsScreen() {
         .limit(100);
 
       // ── 2) V3 job_contracts (binding per-job agreement, blind pricing) ──
-      //   Reads exclusively from the projected view introduced by web
-      //   migration 20260518370000. The view's column whitelist is the
-      //   guarantor of GR2 (Strict price visibility):
       //
-      //     • inspector_job_contracts_view exposes inspector_payout_cents
-      //       and DOES NOT expose client_price_cents.
-      //     • client_job_contracts_view is the mirror for client portal.
-      //     • The base job_contracts table is admin-only at row level.
+      //   Web migration 20260518370000 ships TWO projected views over
+      //   the job_contracts base table, each with column-level RLS that
+      //   guarantees GR2 (Strict price visibility):
       //
-      //   We project only the columns we need — any future column added
-      //   to the view stays out of the wire payload unless we choose it.
-      //   We never name client_price_cents in this list. If a developer
-      //   later tries to add it here, the GR2 audit will flag it.
+      //     • inspector_job_contracts_view  →  inspector_payout_cents
+      //                                       (no client_price_cents)
+      //     • client_job_contracts_view     →  client_price_cents
+      //                                       (no inspector_payout_cents)
+      //     • job_contracts base table      →  admin-only at row level
       //
-      //   Mobile is inspector-only per the Sync Ledger, so we only run
-      //   this branch for the inspector role. (A client running this app
-      //   in dev would still get their legacy contracts via path 1.)
+      //   Sync-bug fix 2026-05-20: the previous version of this fetcher
+      //   only queried inspector_job_contracts_view, so signed-in
+      //   client / agency / enterprise buyers saw an empty Hub even
+      //   when they had live V3 contracts on the web. We now branch on
+      //   role and hit the matching view. All three buyer roles share
+      //   the same view (RLS filter is `client_id = auth.uid()`).
+      //
+      //   The projections below never name the opposing side's price
+      //   column — that's the wire-layer GR2 enforcement.
       const isInspectorRole = userRole === 'inspector';
-      const viewPromise = isInspectorRole
-        ? supabase
-            .from('inspector_job_contracts_view')
-            .select(
-              [
-                'id',
-                'job_id',
-                'job_title',
-                'inspector_id',
-                'client_id',
-                'status',
-                'inspector_payout_cents',
-                'body_md',
-                'client_signed_at',
-                'inspector_signed_at',
-                'client_signer_typed_name',
-                'inspector_signer_typed_name',
-                'created_at',
-                'updated_at',
-              ].join(', '),
-            )
-            .eq('inspector_id', userId)
-            .order('updated_at', { ascending: false })
-            .limit(100)
-        : Promise.resolve({ data: null, error: null } as const);
+      const isBuyerRole =
+        userRole === 'client' ||
+        userRole === 'agency' ||
+        userRole === 'enterprise';
+
+      let viewPromise: Promise<{ data: any[] | null; error: any | null }>;
+      if (isInspectorRole) {
+        // inspector_job_contracts_view columns (no client_price_cents):
+        //   id, job_id, application_id, client_id, inspector_id,
+        //   inspector_payout_cents, status,
+        //   contract_text_md, custom_contract_url,
+        //   client_signed_at,
+        //   inspector_signed_at, inspector_signed_name,
+        //   voided_at, voided_reason, created_at, updated_at
+        viewPromise = supabase
+          .from('inspector_job_contracts_view')
+          .select(
+            [
+              'id',
+              'job_id',
+              'inspector_id',
+              'client_id',
+              'status',
+              'inspector_payout_cents',
+              'contract_text_md',
+              'client_signed_at',
+              'inspector_signed_at',
+              'inspector_signed_name',
+              'created_at',
+              'updated_at',
+            ].join(', '),
+          )
+          .eq('inspector_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(100) as unknown as Promise<{ data: any[] | null; error: any | null }>;
+      } else if (isBuyerRole) {
+        // client_job_contracts_view columns (no inspector_payout_cents):
+        //   id, job_id, application_id, client_id, inspector_id,
+        //   client_price_cents, status,
+        //   contract_text_md, custom_contract_url,
+        //   client_signed_at, client_signed_name,
+        //   inspector_signed_at,
+        //   voided_at, voided_reason, created_at, updated_at
+        //
+        // Filter is `client_id = userId`. The view's row-level RLS
+        // also enforces this (client_id = auth.uid() OR nx_is_admin()),
+        // so the eq() is defense-in-depth, not a security gate.
+        viewPromise = supabase
+          .from('client_job_contracts_view')
+          .select(
+            [
+              'id',
+              'job_id',
+              'inspector_id',
+              'client_id',
+              'status',
+              'client_price_cents',
+              'contract_text_md',
+              'client_signed_at',
+              'client_signed_name',
+              'inspector_signed_at',
+              'created_at',
+              'updated_at',
+            ].join(', '),
+          )
+          .eq('client_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(100) as unknown as Promise<{ data: any[] | null; error: any | null }>;
+      } else {
+        // Unknown role (admin / super_admin / null). Skip the v3 branch —
+        // admins have their own surfaces; legacy contracts still render.
+        viewPromise = Promise.resolve({ data: null, error: null });
+      }
 
       const [legacyRes, viewRes] = await Promise.all([legacyPromise, viewPromise]);
 
       if (legacyRes.error) throw legacyRes.error;
       const legacyRows = (legacyRes.data ?? []) as Contract[];
 
-      // The view query may be a no-op for non-inspectors; tolerate either
+      // The view query may be a no-op for unknown roles; tolerate either
       // shape and never let a view error break the legacy fetch.
       let viewRows: Contract[] = [];
-      if (viewRes && !('error' in viewRes && viewRes.error) && Array.isArray(viewRes.data)) {
-        viewRows = viewRes.data.map((r: any) =>
-          mapJobContractViewRow(r),
-        );
-      } else if (viewRes && 'error' in viewRes && viewRes.error) {
-        // The view might not be deployed in this environment yet (e.g. dev
-        // pointing at a pre-v3 DB). Log it loudly but don't fail the page —
-        // legacy rows still render.
+      if (viewRes && !viewRes.error && Array.isArray(viewRes.data)) {
+        // Dispatch to the right mapper. Inspector rows carry
+        // inspector_payout_cents + inspector_signed_name; buyer rows
+        // carry client_price_cents + client_signed_name. Each mapper
+        // ONLY reads the keys that exist on its side — neither mapper
+        // even type-accesses the opposing side's price column, so
+        // there's no GR2 leak even if a malformed row somehow contained
+        // both keys.
+        const mapper = isInspectorRole
+          ? mapJobContractViewRow
+          : mapClientJobContractViewRow;
+        viewRows = viewRes.data.map((r: any) => mapper(r));
+
+        // The views don't include job_title (it lives on jobs). One small
+        // batch fetch wires it in so the card shows the real job name
+        // instead of "Standalone agreement".
+        const jobIds = Array.from(
+          new Set(viewRows.map((r) => r.job_id).filter(Boolean)),
+        ) as string[];
+        if (jobIds.length > 0) {
+          const { data: jobRows, error: jobErr } = await supabase
+            .from('jobs')
+            .select('id, title')
+            .in('id', jobIds);
+          if (!jobErr && Array.isArray(jobRows)) {
+            const titleById = new Map<string, string | null>();
+            for (const j of jobRows as Array<{ id: string; title: string | null }>) {
+              titleById.set(j.id, j.title);
+            }
+            viewRows = viewRows.map((r) =>
+              r.job_id
+                ? { ...r, job: { id: r.job_id, title: titleById.get(r.job_id) ?? null } }
+                : r,
+            );
+          }
+        }
+
+        // ── Counterparty profile hydration ─────────────────────────────
+        //
+        //   The blind-pricing views (client_job_contracts_view +
+        //   inspector_job_contracts_view) don't embed profile data — they
+        //   only expose the COUNTERPARTY id. Without this batch hydration
+        //   the Hub renders the generic "Inspector" / "Client" fallback
+        //   label and a default avatar, even when the real profile
+        //   exists. Mirrors the relational join the LEGACY contracts
+        //   fetcher above already does inline.
+        //
+        //   System rule reminder: the inspector's user_id is referenced
+        //   on `jobs` as `contractor_id`. After this mapper runs, the
+        //   Contract row's `contractor_id` field holds that same UUID
+        //   (mapped from view.inspector_id). Profile lookup is always
+        //   `profiles.id IN (...)` — `profiles.id` is the user_id, and
+        //   the contractor_id / inspector_id / client_id columns all
+        //   reference it.
+        //
+        //   For inspector-role viewers, we hydrate the CLIENT profile
+        //   (the counterparty). For buyer-role viewers, we hydrate the
+        //   CONTRACTOR (inspector) profile. Both fetches are RLS-safe:
+        //   the `profiles_authenticated_select_any` policy lets any
+        //   signed-in user read public name + avatar of any profile.
+        const counterpartyIds = Array.from(
+          new Set(
+            viewRows.map((r) =>
+              isInspectorRole ? r.client_id : r.contractor_id,
+            ).filter(Boolean),
+          ),
+        ) as string[];
+        if (counterpartyIds.length > 0) {
+          const { data: profileRows, error: profileErr } = await supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url, company_name, role')
+            .in('id', counterpartyIds);
+          if (!profileErr && Array.isArray(profileRows)) {
+            const profileById = new Map<string, ProfileLite>();
+            for (const p of profileRows as Array<ProfileLite & { id: string }>) {
+              profileById.set(p.id, p);
+            }
+            viewRows = viewRows.map((r) => {
+              // Inspector viewing → hydrate the CLIENT side.
+              // Buyer viewing → hydrate the CONTRACTOR (inspector) side.
+              if (isInspectorRole) {
+                return r.client_id
+                  ? { ...r, client: profileById.get(r.client_id) ?? null }
+                  : r;
+              }
+              return r.contractor_id
+                ? { ...r, contractor: profileById.get(r.contractor_id) ?? null }
+                : r;
+            });
+          } else if (profileErr) {
+            console.warn(
+              '[contracts] counterparty profile hydration failed:',
+              profileErr.message,
+            );
+          }
+        }
+      } else if (viewRes && viewRes.error) {
+        // The view might not be deployed in this environment yet (e.g.
+        // dev pointing at a pre-v3 DB). Log it loudly but don't fail the
+        // page — legacy rows still render.
+        const which = isInspectorRole
+          ? 'inspector_job_contracts_view'
+          : 'client_job_contracts_view';
         console.warn(
-          '[contracts] inspector_job_contracts_view unavailable:',
+          `[contracts] ${which} unavailable:`,
           (viewRes.error as { message?: string }).message,
         );
       }
@@ -591,6 +804,14 @@ export default function ContractsScreen() {
   const handleOpenDocument = useCallback(
     async (contract: Contract) => {
       try {
+        // V3 job-contract rows route to the premium signing surface —
+        // it shows the 3-step timeline, the blind-pricing card, and
+        // the typed-name sign panel. The screen accepts the `jc:`
+        // prefix in the id and strips it on its end.
+        if (contract._isJobContract) {
+          router.push(`/contracts/job/${contract.id}` as any);
+          return;
+        }
         if (contract.external_link) {
           await Linking.openURL(contract.external_link);
           return;
@@ -706,22 +927,22 @@ export default function ContractsScreen() {
   const handleSign = useCallback(
     (contract: Contract) => {
       if (!userId) return;
-      // V3 job_contracts sign on the web. The SignaturePadModal would
-      // write to the legacy `contracts` table, which would orphan the
-      // signature relative to the v3 row and corrupt audit. Surface a
-      // clear message instead.
+      // V3 job_contracts have their own premium signing surface at
+      // /contracts/job/[id]. That screen reads from the blind-pricing
+      // views, shows the 3-step signature timeline, and wires Sign &
+      // record directly to the SECURITY DEFINER RPCs (mobile parity
+      // 2026-05-20). The `_isJobContract` rows came from the Hub merge
+      // and carry the `jc:` id prefix, which the signing screen accepts
+      // and strips on its end.
       if (contract._isJobContract) {
-        Alert.alert(
-          'Sign on the web',
-          'This is a binding job-contract. Please open nexpecapp.com on a desktop browser to review and sign it — the legal signing flow lives there.',
-          [{ text: 'OK', style: 'default' }],
-        );
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        router.push(`/contracts/job/${contract.id}` as any);
         return;
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       setSignTarget(contract);
     },
-    [userId],
+    [userId, router],
   );
 
   // ── Loading ──

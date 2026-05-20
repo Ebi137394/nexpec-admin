@@ -16,6 +16,7 @@ import type {
   JobStatus,
   JobModerationStatus,
 } from '@/lib/data/clientJobs.types';
+import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = {
   title: 'My jobs',
@@ -58,6 +59,14 @@ export default async function ClientJobsPage({ searchParams }: PageProps) {
           Post a job
         </Link>
       </header>
+
+      {/*
+        Pipeline — surfaces limbo-state jobs (pending_approval, assigned-
+        but-unsigned) + contracts waiting on the client's signature.
+        Self-suppresses when nothing is pending. Strictly additive, no
+        sidebar/nav changes (2026-05-20 UX directive).
+      */}
+      <PipelineSection tone="buyer" />
 
       {/* Success ribbon after a fresh post */}
       {justCreatedId && (

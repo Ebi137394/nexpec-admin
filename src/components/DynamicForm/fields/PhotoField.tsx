@@ -16,12 +16,12 @@ import {
   X,
   AlertCircle,
   RotateCcw,
-  Edit3,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { FieldProps } from '../types';
 import { NEXPEC_THEME } from '../theme';
-import PhotoEditor from '../../inspector/media/PhotoEditor';
+// PhotoEditor was removed 2026-05-20 per product directive; the photo
+// field is now capture/select only — no in-app markup or annotation.
 
 export const PhotoField: React.FC<FieldProps> = ({
   field,
@@ -31,7 +31,6 @@ export const PhotoField: React.FC<FieldProps> = ({
   error,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [isPhotoEditorVisible, setIsPhotoEditorVisible] = useState(false);
   const { colors, spacing, borderRadius, fontSize } = NEXPEC_THEME;
 
   const requestCameraPermission = async () => {
@@ -146,13 +145,7 @@ export const PhotoField: React.FC<FieldProps> = ({
         <View style={styles.previewContainer}>
           <Image source={{ uri: value.uri }} style={styles.preview} />
           <View style={styles.previewActions}>
-            <TouchableOpacity
-              style={styles.previewActionButton}
-              onPress={() => setIsPhotoEditorVisible(true)}
-            >
-              <Edit3 size={20} color={colors.text} />
-              <Text style={styles.previewActionText}>Edit</Text>
-            </TouchableOpacity>
+            {/* Edit/markup affordance removed 2026-05-20 — feature decommissioned. */}
             <TouchableOpacity
               style={styles.previewActionButton}
               onPress={showOptions}
@@ -206,19 +199,7 @@ export const PhotoField: React.FC<FieldProps> = ({
         </View>
       )}
 
-      {/* Photo Editor Modal */}
-      {value?.uri && (
-        <PhotoEditor
-          visible={isPhotoEditorVisible}
-          imageUri={value.uri}
-          onSave={(annotations, imageUri) => {
-            // For now, just close the editor
-            // In a real implementation, you would save the annotations
-            setIsPhotoEditorVisible(false);
-          }}
-          onClose={() => setIsPhotoEditorVisible(false)}
-        />
-      )}
+      {/* Photo Editor modal removed 2026-05-20 — feature decommissioned. */}
     </View>
   );
 };

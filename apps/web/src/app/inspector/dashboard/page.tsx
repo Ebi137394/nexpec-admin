@@ -20,6 +20,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { fetchInspectorDashboardMetrics } from '@/lib/data/inspectorDashboardMetrics';
+import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = {
   title: 'Inspector Dashboard',
@@ -85,6 +86,15 @@ export default async function InspectorDashboardPage() {
           mobile app mirrors the same flows for field operations.
         </p>
       </header>
+
+      {/*
+        Pipeline — surfaces limbo-state work on the inspector dashboard:
+        counter offers waiting on the inspector's response, contracts
+        pending their signature, applications awarded with no contract
+        yet. Self-suppresses when empty. Strictly additive
+        (2026-05-20 UX directive — no sidebar/nav changes).
+      */}
+      <PipelineSection tone="inspector" />
 
       {/* Metric tiles — placeholder data, wired in Sprint 5 */}
       <section

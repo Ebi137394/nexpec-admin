@@ -90,7 +90,7 @@ const DEFAULT_REGION: Region = {
 // TYPES
 // ════════════════════════════════════════════════════════════
 
-type UserRole = 'inspector' | 'client' | 'agency';
+type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise';
 
 interface JobMarker {
   id: string;
@@ -608,8 +608,8 @@ export default function InteractiveMapScreen() {
           .maybeSingle();
 
         if (!error && data?.role) {
-          const r = data.role === 'enterprise' ? 'agency' : data.role;
-          setRole(r as UserRole);
+          // Enterprise is now a first-class role on mobile.
+          setRole(data.role as UserRole);
         }
       } catch (err) {
         console.warn('[Map] Role fetch error:', err);

@@ -30,6 +30,7 @@ import type {
   InspectorAssignmentRow,
 } from '@/lib/data/inspectorAssignments.types';
 import type { JobStatus, JobUrgency } from '@/lib/data/clientJobs.types';
+import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = {
   title: 'Active assignments',
@@ -55,6 +56,15 @@ export default async function InspectorAssignmentsPage() {
           releases once both sides sign off.
         </p>
       </header>
+
+      {/*
+        Pipeline — surfaces limbo-state work: counter-offers awaiting
+        the inspector's response, contracts pending the inspector's
+        signature, and applications accepted but with no contract yet.
+        Self-suppresses when nothing is pending. Strictly additive, no
+        sidebar/nav changes (2026-05-20 UX directive).
+      */}
+      <PipelineSection tone="inspector" />
 
       {assignments.total === 0 ? (
         <EmptyState />

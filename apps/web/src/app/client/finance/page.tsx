@@ -24,6 +24,7 @@ import {
   ScrollText,
   ShieldCheck,
   BarChart3,
+  FolderLock,
 } from 'lucide-react';
 import { fetchClientFinance } from '@/lib/data/clientFinance';
 import type {
@@ -125,6 +126,30 @@ export default async function ClientFinancePage() {
         )}
       </section>
 
+      {/* M1 Financial Suite trio — Budget Overview · Compliance Vault */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Link
+          href="/client/vault"
+          className="group flex items-center gap-4 rounded-3xl border border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] via-amber-500/[0.04] to-transparent p-5 transition-colors hover:border-amber-500/50 hover:from-amber-500/[0.12]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-300 ring-1 ring-inset ring-amber-500/30">
+            <FolderLock className="h-5 w-5" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-industrial text-amber-300/80">
+              New · Financial Suite
+            </p>
+            <h2 className="mt-0.5 font-display text-base font-semibold tracking-tight text-white">
+              Compliance Vault
+            </h2>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Corporate docs + inspection certificates · admin-verified
+            </p>
+          </div>
+          <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-300" strokeWidth={2} />
+        </Link>
+      </div>
+
       {/* Budget Overview CTA — links to the live spend tracker (M1 Financial Suite) */}
       <Link
         href="/client/budget"
@@ -175,27 +200,28 @@ export default async function ClientFinancePage() {
           </Link>
         </article>
 
-        <article className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <article className="rounded-3xl border border-cyan-glow/30 bg-gradient-to-b from-cyan-glow/[0.06] to-transparent p-6 sm:p-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-glow/10 text-cyan-glow ring-1 ring-inset ring-cyan-glow/30">
             <ScrollText className="h-5 w-5" strokeWidth={1.75} />
           </div>
           <h2 className="mt-5 font-display text-lg font-semibold tracking-tight text-white">
-            Invoices &amp; receipts
+            Invoices
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            A signed PDF receipt is issued for every completed job. Find
-            them attached to each completed report in
+            Every executed contract auto-issues an invoice. Review, approve,
+            or raise a dispute. Approved invoices move into the payment
+            queue. Signed PDF receipts attach to each completed report in
             <Link href="/client/reports" className="text-cyan-glow hover:text-white">
               {' '}
               deliverables
             </Link>
-            . Consolidated monthly statements lands post-launch.
+            .
           </p>
           <Link
-            href="/client/reports"
+            href="/client/invoices"
             className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-cyan-glow hover:bg-cyan-glow/20"
           >
-            View deliverables
+            Open invoices
             <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
           </Link>
         </article>

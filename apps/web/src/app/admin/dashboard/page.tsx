@@ -17,6 +17,8 @@ import {
   Receipt,
   ArrowUpRight,
   ShieldAlert,
+  BarChart3,
+  FolderLock,
 } from 'lucide-react';
 import { fetchDashboardMetrics } from '@/lib/data/dashboardMetrics';
 import { PipelineSection } from '@/components/jobs/PipelineSection';
@@ -34,6 +36,12 @@ const SHIPPING_NEXT = [
   { label: 'Dispute resolution', href: '/admin/disputes', icon: AlertTriangle, live: true },
   { label: 'User & org management', href: '/admin/users', icon: Users, live: true },
   { label: 'Payouts reconciliation', href: '/admin/payouts', icon: Receipt, live: true },
+  // M1 Financial Suite · platform-wide buyer spend tracker
+  { label: 'Budget Overview', href: '/admin/budget', icon: BarChart3, live: true },
+  // M1 Financial Suite · invoice queue + dispute adjudication
+  { label: 'Invoices · Mediation', href: '/admin/invoices', icon: Receipt, live: true },
+  // M1 Financial Suite · platform-wide compliance vault (verification)
+  { label: 'Compliance Vault', href: '/admin/vault', icon: FolderLock, live: true },
 ];
 
 export default async function AdminDashboardPage() {

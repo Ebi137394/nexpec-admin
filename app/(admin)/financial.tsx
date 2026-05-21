@@ -1026,6 +1026,28 @@ export default function FinancialDashboard() {
           <Ionicons name="trending-up" size={28} color={C.primary} />
         </LinearGradient>
 
+        {/* ── Buyer-side Budget Overview link ─────────────────────── */}
+        {/* Complements the inflow/payout/margin KPIs below by showing the
+            BUYER perspective: per-client committed spend, escrow holds,
+            top inspectors by spend. Same data, different cut. */}
+        <TouchableOpacity
+          style={s.budgetOverviewLink}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(client)/finance/budget' as any)}
+        >
+          <View style={s.budgetOverviewIcon}>
+            <Ionicons name="bar-chart" size={20} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.budgetOverviewLabel}>NEW · FINANCIAL SUITE</Text>
+            <Text style={s.budgetOverviewTitle}>Budget Overview</Text>
+            <Text style={s.budgetOverviewSubtitle} numberOfLines={2}>
+              Platform-wide buyer spend — committed budget, escrow, top inspectors by spend
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.primary} />
+        </TouchableOpacity>
+
         {/* ── Range picker ────────────────────────────────────────── */}
         <RangePicker active={rangeKey} onChange={setRangeKey} />
 
@@ -1335,6 +1357,45 @@ const s = StyleSheet.create({
     color: C.textSecondary,
     fontSize: 12,
     marginTop: 2,
+  },
+
+  // Budget Overview CTA — M1 Financial Suite buyer-side perspective link
+  budgetOverviewLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.primaryBorder,
+    backgroundColor: C.primaryBg,
+    marginBottom: 14,
+  },
+  budgetOverviewIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(124,58,237,0.18)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  budgetOverviewLabel: {
+    color: C.primary,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  budgetOverviewTitle: {
+    color: C.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  budgetOverviewSubtitle: {
+    color: C.textSecondary,
+    fontSize: 11,
+    marginTop: 3,
+    lineHeight: 15,
   },
 
   rangeRow: {

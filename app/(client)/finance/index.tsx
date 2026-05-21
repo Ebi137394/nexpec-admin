@@ -282,8 +282,8 @@ export default function FinanceHubScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)', opacity: 0.55 }]}
-              onPress={() => Alert.alert(t('Coming soon'), t('Invoice Approver ships in a future release.'))}
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
+              onPress={() => router.push('/(client)/finance/invoices' as any)}
             >
               <View style={[styles.actionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
                 <Ionicons name="document-text-outline" size={24} color="#3B82F6" />
@@ -294,8 +294,8 @@ export default function FinanceHubScreen() {
 
           <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)', opacity: 0.55 }]}
-              onPress={() => Alert.alert(t('Coming soon'), t('Compliance Vault ships in a future release.'))}
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
+              onPress={() => router.push('/(client)/finance/compliance' as any)}
             >
               <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
                 <Ionicons name="shield-checkmark-outline" size={24} color="#F59E0B" />

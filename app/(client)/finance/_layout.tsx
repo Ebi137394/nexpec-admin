@@ -31,19 +31,35 @@ export default function FinanceLayout() {
           headerTitleAlign: 'center'
         }} 
       />
-      <Stack.Screen 
-        name="invoices" 
-        options={{ 
+      <Stack.Screen
+        name="invoices"
+        options={{
           title: 'Invoice Approver',
           headerTitleAlign: 'center'
-        }} 
+        }}
       />
-      <Stack.Screen 
-        name="compliance" 
-        options={{ 
+      <Stack.Screen
+        name="invoices/[id]"
+        options={{
+          title: 'Invoice Detail',
+          headerTitleAlign: 'center',
+          headerBackTitle: 'Invoices',
+        }}
+      />
+      <Stack.Screen
+        name="compliance"
+        options={{
           title: 'Compliance Vault',
           headerTitleAlign: 'center'
-        }} 
+        }}
+      />
+      <Stack.Screen
+        name="compliance/[id]"
+        options={{
+          title: 'Document Detail',
+          headerTitleAlign: 'center',
+          headerBackTitle: 'Vault',
+        }}
       />
     </Stack>
   );

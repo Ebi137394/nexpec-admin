@@ -80,7 +80,7 @@ export async function fetchBudgetOverview(): Promise<BudgetOverviewData> {
       : EMPTY_BUDGET_SUMMARY;
 
     const monthly: BudgetMonthlyPoint[] = Array.isArray(monthlyRes.data)
-      ? (monthlyRes.data as Array<Record<string, unknown>>).map((r) => ({
+      ? (monthlyRes.data as unknown as Array<Record<string, unknown>>).map((r) => ({
           monthStart: String(r.month_start ?? ''),
           monthLabel: String(r.month_label ?? ''),
           jobCount: numberOr(r.job_count, 0),
@@ -90,7 +90,7 @@ export async function fetchBudgetOverview(): Promise<BudgetOverviewData> {
       : [];
 
     const byInspector: BudgetInspectorTotal[] = Array.isArray(byInspectorRes.data)
-      ? (byInspectorRes.data as Array<Record<string, unknown>>).map((r) => ({
+      ? (byInspectorRes.data as unknown as Array<Record<string, unknown>>).map((r) => ({
           inspectorId: String(r.inspector_id ?? ''),
           inspectorName: String(r.inspector_name ?? 'Unknown'),
           jobCount: numberOr(r.job_count, 0),
@@ -100,7 +100,7 @@ export async function fetchBudgetOverview(): Promise<BudgetOverviewData> {
       : [];
 
     const recent: BudgetActivityRow[] = Array.isArray(recentRes.data)
-      ? (recentRes.data as Array<Record<string, unknown>>).map((r) => ({
+      ? (recentRes.data as unknown as Array<Record<string, unknown>>).map((r) => ({
           jobId: String(r.job_id ?? ''),
           jobTitle: String(r.job_title ?? '(untitled)'),
           status: String(r.status ?? 'unknown'),

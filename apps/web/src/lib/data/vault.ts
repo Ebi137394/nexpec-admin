@@ -130,7 +130,7 @@ async function fetchVaultCounts(includeArchived: boolean): Promise<VaultCounts> 
     const { data } = await q;
     if (!data) return EMPTY_VAULT_COUNTS;
 
-    const rows = data as Array<{
+    const rows = data as unknown as Array<{
       category: string;
       is_verified: boolean;
       valid_until: string | null;
@@ -255,7 +255,7 @@ export async function fetchTrustCertificates(
       if (error) console.warn('[vault] fetchTrustCertificates failed:', error.message);
       return [];
     }
-    const rows = data as Array<Record<string, unknown>>;
+    const rows = data as unknown as Array<Record<string, unknown>>;
     // Hydrate supplier names + template names
     const supplierIds = Array.from(
       new Set(rows.map((r) => r.supplier_profile_id as string).filter(Boolean)),

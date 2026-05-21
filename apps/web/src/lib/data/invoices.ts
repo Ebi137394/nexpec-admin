@@ -102,7 +102,7 @@ export async function fetchClientInvoices(
     // Hydrate job titles + inspector names in one batch each
     const jobIds = Array.from(
       new Set(
-        (data as Array<Record<string, unknown>>)
+        (data as unknown as Array<Record<string, unknown>>)
           .map((r) => r.job_id as string)
           .filter(Boolean),
       ),
@@ -307,7 +307,7 @@ async function fetchInvoiceCounts(): Promise<InvoiceCounts> {
       .from('invoices')
       .select('status, total_cents');
     if (!data) return EMPTY_INVOICE_COUNTS;
-    const rows = data as Array<{ status: string; total_cents: number | string | null }>;
+    const rows = data as unknown as Array<{ status: string; total_cents: number | string | null }>;
     const counts: InvoiceCounts = { ...EMPTY_INVOICE_COUNTS };
     for (const r of rows) {
       counts.total += 1;
@@ -336,7 +336,7 @@ function numberOr(v: unknown, fallback: number): number {
 
 function parseLineItems(raw: unknown): InvoiceLineItem[] {
   if (Array.isArray(raw)) {
-    return (raw as Array<Record<string, unknown>>).map((item) => ({
+    return (raw as unknown as Array<Record<string, unknown>>).map((item) => ({
       kind: String(item.kind ?? 'item'),
       description: String(item.description ?? ''),
       amount_cents: numberOr(item.amount_cents, 0),

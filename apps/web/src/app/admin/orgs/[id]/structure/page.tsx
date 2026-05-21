@@ -24,8 +24,10 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   fetchOrgStructure,
   fetchAssignableOrgMembers,
+  fetchDepartmentAuditTrail,
 } from '@/lib/data/orgStructure';
 import { OrgStructureWorkspace } from '@/components/admin/orgs/structure/OrgStructureWorkspace';
+import { DepartmentAuditPanel } from '@/components/admin/orgs/structure/DepartmentAuditPanel';
 
 export const metadata: Metadata = { title: 'Org Structure' };
 export const dynamic = 'force-dynamic';
@@ -57,9 +59,10 @@ export default async function OrgStructurePage({ params }: PageProps) {
     notFound();
   }
 
-  const [tree, assignable] = await Promise.all([
+  const [tree, assignable, auditEvents] = await Promise.all([
     fetchOrgStructure(id),
     fetchAssignableOrgMembers(id),
+    fetchDepartmentAuditTrail(id, 50),
   ]);
 
   return (
@@ -123,12 +126,19 @@ export default async function OrgStructurePage({ params }: PageProps) {
           </p>
         </div>
       ) : (
-        <OrgStructureWorkspace
-          orgId={id}
-          orgName={org.name as string}
-          initialTree={tree}
-          assignableMembers={assignable.members}
-        />
+        <>
+          <OrgStructureWorkspace
+            orgId={id}
+            orgName={org.name as string}
+            initialTree={tree}
+            assignableMembers={assignable.members}
+          />
+
+          {/* Super-admin oversight: every structural change — from this
+              surface OR from /client/structure — is logged with the
+              acting user's identity and shown here for review. */}
+          <DepartmentAuditPanel events={auditEvents} />
+        </>
       )}
     </div>
   );

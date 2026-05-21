@@ -71,3 +71,20 @@ export const EMPTY_DEPARTMENT_TREE: DepartmentTreeResult = {
   byId: {},
   tableMissing: false,
 };
+
+/** A single row from `fetch_department_audit_trail`. */
+export interface DepartmentAuditEvent {
+  id: string;
+  created_at: string;
+  event_type: string;
+  severity: 'info' | 'warning' | 'critical' | string;
+  actor_id: string | null;
+  actor_role: string | null;
+  actor_label: string | null;
+  subject_table: string;
+  subject_id: string;
+  summary: string;
+  delta: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  correlation_id: string | null;
+}

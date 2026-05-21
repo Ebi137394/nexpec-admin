@@ -47,8 +47,11 @@ function clean(s: string | null | undefined): string | null {
 }
 
 function revalidate(orgId: string) {
+  // Both surfaces share the same RPC layer — refresh both so a mutation
+  // from /client/structure reflects on /admin and vice-versa.
   revalidatePath(`/admin/orgs/${orgId}/structure`);
   revalidatePath('/admin/orgs');
+  revalidatePath('/client/structure');
 }
 
 /* ─── createDepartmentAction ─────────────────────────────────────────── */

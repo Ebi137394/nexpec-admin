@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Scale,
   Users,
+  FolderTree,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -76,6 +77,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'System',
     items: [
       { label: 'Team', href: '/client/team', icon: Users },
+      { label: 'Structure', href: '/client/structure', icon: FolderTree },
       { label: 'Branding', href: '/client/branding-settings', icon: Palette },
       { label: 'Settings', href: '/client/settings', icon: Settings },
     ],

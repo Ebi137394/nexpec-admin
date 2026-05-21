@@ -23,6 +23,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type {
   AssignableOrgMember,
   AssignableOrgMembersResult,
+  DepartmentAuditEvent,
   DepartmentMember,
   DepartmentNode,
   DepartmentRow,
@@ -32,6 +33,7 @@ import type {
 export type {
   AssignableOrgMember,
   AssignableOrgMembersResult,
+  DepartmentAuditEvent,
   DepartmentMember,
   DepartmentNode,
   DepartmentRow,
@@ -308,4 +310,35 @@ export async function fetchAssignableOrgMembers(
   );
 
   return { members: out, tableMissing: false };
+}
+
+/**
+ * Pull the recent audit trail for an org's department + member-assignment
+ * events. Super-admin only — the underlying RPC enforces the role check
+ * and returns an empty list (after raising) for anyone else. We catch
+ * the resulting permission error here and degrade to an empty array so
+ * the structure page can still render for non-super-admin viewers.
+ */
+export async function fetchDepartmentAuditTrail(
+  orgId: string,
+  limit = 50,
+): Promise<DepartmentAuditEvent[]> {
+  if (!orgId) return [];
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('fetch_department_audit_trail', {
+    p_org_id: orgId,
+    p_limit: limit,
+  });
+  if (error) {
+    // Permission errors for non-super-admin or missing function are
+    // expected and shouldn't bubble up.
+    if (
+      !/permission|does not exist|Only super_admin/i.test(error.message ?? '')
+    ) {
+      console.warn('[orgStructure] audit trail failed:', error.message);
+    }
+    return [];
+  }
+  if (!Array.isArray(data)) return [];
+  return (data as unknown as DepartmentAuditEvent[]) ?? [];
 }

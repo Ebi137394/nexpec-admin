@@ -48,6 +48,12 @@ interface Props {
   orgName: string;
   initialTree: DepartmentTreeResult;
   assignableMembers: AssignableOrgMember[];
+  /**
+   * When true: hide every mutation entry-point (create / rename / move /
+   * delete / assign / unassign). Selection + browsing remain. Used by the
+   * /client/structure page when the viewer's org role is not elevated.
+   */
+  readOnly?: boolean;
 }
 
 export function OrgStructureWorkspace({
@@ -55,6 +61,7 @@ export function OrgStructureWorkspace({
   orgName,
   initialTree,
   assignableMembers,
+  readOnly = false,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -108,17 +115,24 @@ export function OrgStructureWorkspace({
             <h2 className="flex items-center gap-2 font-display text-sm font-semibold tracking-tight text-white">
               <FolderTree className="h-4 w-4 text-violet-glow" strokeWidth={1.75} />
               Structure
+              {readOnly && (
+                <span className="rounded border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-400">
+                  view only
+                </span>
+              )}
             </h2>
-            <button
-              type="button"
-              onClick={() =>
-                setDialog({ kind: 'create', parentDepartmentId: null })
-              }
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-industrial text-violet-glow ring-1 ring-inset ring-violet/30 transition-colors hover:bg-violet/25"
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-              Root
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() =>
+                  setDialog({ kind: 'create', parentDepartmentId: null })
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg bg-violet/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-industrial text-violet-glow ring-1 ring-inset ring-violet/30 transition-colors hover:bg-violet/25"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                Root
+              </button>
+            )}
           </div>
 
           <div className="relative mt-3">
@@ -139,6 +153,7 @@ export function OrgStructureWorkspace({
                 onCreate={() =>
                   setDialog({ kind: 'create', parentDepartmentId: null })
                 }
+                readOnly={readOnly}
               />
             ) : (
               <DepartmentTree
@@ -152,6 +167,7 @@ export function OrgStructureWorkspace({
                 onMove={(node) => setDialog({ kind: 'move', node })}
                 onDelete={(node) => setDialog({ kind: 'delete', node })}
                 isPending={isPending}
+                readOnly={readOnly}
               />
             )}
           </div>
@@ -172,11 +188,16 @@ export function OrgStructureWorkspace({
           onAssign={(node) => setDialog({ kind: 'assign', node })}
           onUnassigned={refresh}
           isPending={isPending}
+          readOnly={readOnly}
         />
       </section>
 
       {/* ── Dialogs ──────────────────────────────────────────────── */}
-      {dialog.kind === 'create' && (
+      {/* Belt-and-braces: even with the buttons hidden in read-only mode,
+          a server action would still reject because the RPC enforces
+          can_manage_org_structure(). We bail at the component level here
+          so curious users can't open a dialog that would always fail. */}
+      {!readOnly && dialog.kind === 'create' && (
         <CreateDepartmentDialog
           orgId={orgId}
           parentDepartmentId={dialog.parentDepartmentId}
@@ -193,7 +214,7 @@ export function OrgStructureWorkspace({
           }}
         />
       )}
-      {dialog.kind === 'rename' && (
+      {!readOnly && dialog.kind === 'rename' && (
         <RenameDepartmentDialog
           orgId={orgId}
           node={dialog.node}
@@ -204,7 +225,7 @@ export function OrgStructureWorkspace({
           }}
         />
       )}
-      {dialog.kind === 'move' && (
+      {!readOnly && dialog.kind === 'move' && (
         <MoveDepartmentDialog
           orgId={orgId}
           node={dialog.node}
@@ -216,7 +237,7 @@ export function OrgStructureWorkspace({
           }}
         />
       )}
-      {dialog.kind === 'delete' && (
+      {!readOnly && dialog.kind === 'delete' && (
         <DeleteDepartmentDialog
           orgId={orgId}
           node={dialog.node}
@@ -229,7 +250,7 @@ export function OrgStructureWorkspace({
           }}
         />
       )}
-      {dialog.kind === 'assign' && (
+      {!readOnly && dialog.kind === 'assign' && (
         <AssignMemberDialog
           orgId={orgId}
           node={dialog.node}
@@ -248,9 +269,11 @@ export function OrgStructureWorkspace({
 function EmptyTreeState({
   hasSearch,
   onCreate,
+  readOnly,
 }: {
   hasSearch: boolean;
   onCreate: () => void;
+  readOnly: boolean;
 }) {
   if (hasSearch) {
     return (
@@ -266,16 +289,24 @@ function EmptyTreeState({
         strokeWidth={1.5}
       />
       <p className="mt-3 text-xs text-zinc-400">
-        No departments yet. Start with a root division.
+        {readOnly
+          ? 'Your organization has no departments yet.'
+          : 'No departments yet. Start with a root division.'}
       </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-industrial text-violet-glow ring-1 ring-inset ring-violet/30 transition-colors hover:bg-violet/25"
-      >
-        <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-        Create root department
-      </button>
+      {readOnly ? (
+        <p className="mt-2 text-[10px] text-zinc-500">
+          Ask your org owner or procurement admin to set them up.
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={onCreate}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-violet/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-industrial text-violet-glow ring-1 ring-inset ring-violet/30 transition-colors hover:bg-violet/25"
+        >
+          <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+          Create root department
+        </button>
+      )}
     </div>
   );
 }

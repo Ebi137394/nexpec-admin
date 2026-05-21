@@ -53,6 +53,8 @@ interface Props {
   onAssign: (node: DepartmentNode) => void;
   onUnassigned: () => void;
   isPending: boolean;
+  /** Hide every mutation entry-point. */
+  readOnly?: boolean;
 }
 
 export function DepartmentDetailPanel({
@@ -67,6 +69,7 @@ export function DepartmentDetailPanel({
   onAssign,
   onUnassigned,
   isPending,
+  readOnly = false,
 }: Props) {
   if (!node) {
     return <EmptyDetail orgName={orgName} />;
@@ -125,40 +128,51 @@ export function DepartmentDetailPanel({
           </dl>
         </div>
 
-        <div className="shrink-0">
-          <ActionButton
-            onClick={() => onAssign(node)}
-            icon={<UserPlus className="h-3.5 w-3.5" strokeWidth={1.75} />}
-            label="Assign member"
-            primary
-          />
-        </div>
+        {!readOnly && (
+          <div className="shrink-0">
+            <ActionButton
+              onClick={() => onAssign(node)}
+              icon={<UserPlus className="h-3.5 w-3.5" strokeWidth={1.75} />}
+              label="Assign member"
+              primary
+            />
+          </div>
+        )}
       </header>
 
-      {/* Secondary actions */}
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-white/[0.04] pt-4">
-        <ActionButton
-          onClick={() => onAddChild(node)}
-          icon={<Plus className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          label="Add child"
-        />
-        <ActionButton
-          onClick={() => onRename(node)}
-          icon={<Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          label="Rename"
-        />
-        <ActionButton
-          onClick={() => onMove(node)}
-          icon={<Move className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          label="Move"
-        />
-        <ActionButton
-          onClick={() => onDelete(node)}
-          icon={<Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          label="Delete"
-          tone="danger"
-        />
-      </div>
+      {/* Secondary actions — hidden entirely in read-only mode. The RPC
+          would also reject these calls (can_manage_org_structure), but
+          surfacing them and watching them fail would be a UX trap. */}
+      {!readOnly ? (
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-white/[0.04] pt-4">
+          <ActionButton
+            onClick={() => onAddChild(node)}
+            icon={<Plus className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            label="Add child"
+          />
+          <ActionButton
+            onClick={() => onRename(node)}
+            icon={<Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            label="Rename"
+          />
+          <ActionButton
+            onClick={() => onMove(node)}
+            icon={<Move className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            label="Move"
+          />
+          <ActionButton
+            onClick={() => onDelete(node)}
+            icon={<Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            label="Delete"
+            tone="danger"
+          />
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-zinc-400">
+          You can browse the structure but not modify it. Ask an org owner
+          or procurement admin for change requests.
+        </p>
+      )}
 
       {/* Member list */}
       <div className="mt-5">
@@ -175,14 +189,19 @@ export function DepartmentDetailPanel({
         {directMembers.length === 0 ? (
           <p className="mt-4 rounded-xl border border-dashed border-white/[0.08] bg-white/[0.01] px-4 py-6 text-center text-xs text-zinc-500">
             No members assigned directly to this department.
-            <br />
-            Use “Assign member” to draw from the org roster.
+            {!readOnly && (
+              <>
+                <br />
+                Use “Assign member” to draw from the org roster.
+              </>
+            )}
           </p>
         ) : (
           <ul className="mt-3 space-y-1.5">
             {directMembers.map((m) => (
               <MemberRow
                 key={m.user_id}
+                readOnly={readOnly}
                 orgId={orgId}
                 departmentId={node.id}
                 member={m}
@@ -225,12 +244,14 @@ function MemberRow({
   member,
   onUnassigned,
   disabled,
+  readOnly,
 }: {
   orgId: string;
   departmentId: string;
   member: DepartmentMember;
   onUnassigned: () => void;
   disabled: boolean;
+  readOnly?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -278,7 +299,7 @@ function MemberRow({
           <p className="mt-1 text-[10px] text-rose-300">{error}</p>
         )}
       </div>
-      {confirm ? (
+      {readOnly ? null : confirm ? (
         <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"

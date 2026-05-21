@@ -38,6 +38,8 @@ interface Props {
   onMove: (node: DepartmentNode) => void;
   onDelete: (node: DepartmentNode) => void;
   isPending: boolean;
+  /** Hide the per-row action menu when the viewer can't mutate. */
+  readOnly?: boolean;
 }
 
 export function DepartmentTree(props: Props) {
@@ -101,6 +103,7 @@ function Row({
   onMove,
   onDelete,
   isPending,
+  readOnly = false,
   ...rest
 }: RowProps) {
   const isOpen = expanded.has(node.id);
@@ -175,6 +178,7 @@ function Row({
         )}
 
         {/* Row actions */}
+        {!readOnly && (
         <div className="relative ml-1 shrink-0">
           <button
             type="button"
@@ -234,6 +238,7 @@ function Row({
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Children */}
@@ -255,6 +260,7 @@ function Row({
               onMove={onMove}
               onDelete={onDelete}
               isPending={isPending}
+              readOnly={readOnly}
               {...rest}
             />
           ))}

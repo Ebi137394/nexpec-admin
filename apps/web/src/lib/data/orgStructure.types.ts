@@ -1,0 +1,73 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  lib/data/orgStructure.types.ts — type-only module
+//
+//  Department tree + member-assignment shapes shared by server fetchers,
+//  server actions, and Client Components. Safe to import from a Client
+//  Component — does NOT transitively import next/headers.
+//
+//  Server-only fetchers live in the sibling orgStructure.ts.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** A single row from `public.departments`, hydrated with member_count. */
+export interface DepartmentRow {
+  id: string;
+  org_id: string;
+  parent_department_id: string | null;
+  name: string;
+  cost_center: string | null;
+  depth: number;
+  /** Direct member count (not descendant roll-up). */
+  member_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** A department with its children already attached. */
+export interface DepartmentNode extends DepartmentRow {
+  children: DepartmentNode[];
+  /** Cumulative member count including all descendants. Computed client-side. */
+  member_count_total: number;
+}
+
+/** A member currently assigned to a department (for the detail panel). */
+export interface DepartmentMember {
+  /** Assignment row id from `department_members.id`. */
+  assignment_id: string;
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  /** The user's seat role on the parent org (from org_members.role). */
+  org_role: string | null;
+}
+
+/** What server fetcher returns for the whole tree. */
+export interface DepartmentTreeResult {
+  /** Root-level nodes; descendants live in `children`. */
+  roots: DepartmentNode[];
+  /** Flat lookup of every node by id, useful for the move-picker. */
+  byId: Record<string, DepartmentNode>;
+  /** True when the `departments` table has not been created yet. */
+  tableMissing: boolean;
+}
+
+/** Tiny shape used by the assign-member picker — every org_members row. */
+export interface AssignableOrgMember {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  role: string;
+  /** Which department ids this user is already assigned to. */
+  assigned_department_ids: string[];
+}
+
+/** What server fetcher returns for the assignable members list. */
+export interface AssignableOrgMembersResult {
+  members: AssignableOrgMember[];
+  tableMissing: boolean;
+}
+
+export const EMPTY_DEPARTMENT_TREE: DepartmentTreeResult = {
+  roots: [],
+  byId: {},
+  tableMissing: false,
+};

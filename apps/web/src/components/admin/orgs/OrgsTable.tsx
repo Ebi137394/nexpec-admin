@@ -1,4 +1,5 @@
-import { Building2, Users, Globe, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { Building2, Users, Globe, Mail, FolderTree, ArrowRight } from 'lucide-react';
 import type { AdminOrg } from '@/lib/data/organizations';
 import { cn } from '@/lib/cn';
 
@@ -118,6 +119,25 @@ function Card({ org }: { org: AdminOrg }) {
           </Row>
         )}
       </dl>
+
+      {/* Quick-jump actions. "Structure" is enterprise-only — agencies
+          rarely model deep internal hierarchies and the surface adds
+          confusion for them. */}
+      {org.kind === 'enterprise' && (
+        <footer className="mt-4 flex items-center justify-between border-t border-white/[0.04] pt-3">
+          <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Quick actions
+          </span>
+          <Link
+            href={`/admin/orgs/${org.id}/structure`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-industrial text-zinc-300 transition-colors hover:border-violet/30 hover:bg-violet/10 hover:text-violet-glow"
+          >
+            <FolderTree className="h-3 w-3" strokeWidth={1.75} />
+            Structure
+            <ArrowRight className="h-3 w-3" strokeWidth={1.75} />
+          </Link>
+        </footer>
+      )}
     </article>
   );
 }

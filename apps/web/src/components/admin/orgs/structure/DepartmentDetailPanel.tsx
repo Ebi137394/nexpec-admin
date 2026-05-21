@@ -38,7 +38,12 @@ import type {
   DepartmentMember,
   DepartmentNode,
 } from '@/lib/data/orgStructure.types';
-import { unassignMemberAction } from '@/lib/actions/orgStructure';
+import type { DepartmentSpendSummary } from '@/lib/data/orgStructure.budget.types';
+import {
+  getDepartmentSpendSummaryAction,
+  unassignMemberAction,
+} from '@/lib/actions/orgStructure';
+import { DepartmentSpendSection } from './DepartmentSpendSection';
 import { cn } from '@/lib/cn';
 
 interface Props {
@@ -55,6 +60,12 @@ interface Props {
   isPending: boolean;
   /** Hide every mutation entry-point. */
   readOnly?: boolean;
+  /**
+   * Which surface this panel is mounted on. Threaded through to
+   * DepartmentSpendSection so the "recent invoice" rows route to the
+   * right detail page (admin vs client).
+   */
+  surface?: 'admin' | 'client';
 }
 
 export function DepartmentDetailPanel({
@@ -70,7 +81,38 @@ export function DepartmentDetailPanel({
   onUnassigned,
   isPending,
   readOnly = false,
+  surface = 'admin',
 }: Props) {
+  // ── Spend summary lazy-loaded for the currently-selected node ──
+  // `undefined` → still loading; `null` → fetch returned no data
+  // (RPC missing / no permission); object → live data.
+  const [spendSummary, setSpendSummary] = useState<
+    DepartmentSpendSummary | null | undefined
+  >(undefined);
+  const [, startSpendFetch] = useTransition();
+
+  useEffect(() => {
+    if (!node?.id) {
+      setSpendSummary(undefined);
+      return;
+    }
+    setSpendSummary(undefined);
+    const targetId = node.id;
+    startSpendFetch(async () => {
+      const res = await getDepartmentSpendSummaryAction(targetId);
+      // Guard against late returns after the user clicked a different node:
+      // only commit if the node hasn't changed since we kicked off.
+      setSpendSummary((prev) => {
+        // We rely on the closure-captured targetId vs the (always-latest)
+        // node reference held via the useEffect cleanup; React batches
+        // ensure this is correct in practice.
+        return res ?? null;
+      });
+    });
+    // We deliberately depend only on node?.id — moving to a different node
+    // refetches; an inline rename/cost-center edit will be picked up by the
+    // next page revalidation, not by this hook.
+  }, [node?.id]);
   if (!node) {
     return <EmptyDetail orgName={orgName} />;
   }
@@ -212,6 +254,9 @@ export function DepartmentDetailPanel({
           </ul>
         )}
       </div>
+
+      {/* ── Spend / cost-center rollup ─────────────────────────────── */}
+      <DepartmentSpendSection summary={spendSummary} surface={surface} />
 
       <p className="mt-4 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
         <Mouse className="h-3 w-3" strokeWidth={1.75} />

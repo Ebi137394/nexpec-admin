@@ -54,6 +54,11 @@ interface Props {
    * /client/structure page when the viewer's org role is not elevated.
    */
   readOnly?: boolean;
+  /**
+   * Which surface this workspace is mounted on. Threaded into the detail
+   * panel so recent-invoice links go to the appropriate route prefix.
+   */
+  surface?: 'admin' | 'client';
 }
 
 export function OrgStructureWorkspace({
@@ -62,6 +67,7 @@ export function OrgStructureWorkspace({
   initialTree,
   assignableMembers,
   readOnly = false,
+  surface = 'admin',
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -189,6 +195,7 @@ export function OrgStructureWorkspace({
           onUnassigned={refresh}
           isPending={isPending}
           readOnly={readOnly}
+          surface={surface}
         />
       </section>
 

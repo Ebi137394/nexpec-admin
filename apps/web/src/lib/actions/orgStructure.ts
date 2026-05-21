@@ -25,6 +25,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  fetchDepartmentSpendSummary,
+  type DepartmentSpendSummary,
+} from '@/lib/data/orgStructure';
 
 /* ─── shared shapes ──────────────────────────────────────────────────── */
 
@@ -276,5 +280,112 @@ export async function unassignMemberAction(
     ok: true,
     error: null,
     payload: { department_id: input.departmentId, user_id: input.userId },
+  };
+}
+
+/* ─── getDepartmentSpendSummaryAction ─────────────────────────────────
+ *
+ * Thin pass-through to fetchDepartmentSpendSummary so Client Components
+ * (the DepartmentDetailPanel) can re-fetch when the user picks a new
+ * node without round-tripping the entire page. RPC enforces auth.
+ */
+
+export async function getDepartmentSpendSummaryAction(
+  departmentId: string,
+): Promise<DepartmentSpendSummary | null> {
+  if (!isUuid(departmentId)) return null;
+  return await fetchDepartmentSpendSummary(departmentId);
+}
+
+/* ─── reassignInvoiceDepartmentAction ─────────────────────────────────
+ *
+ * Reclassify an invoice into a different department (or clear it).
+ * Calls the SECURITY DEFINER `reassign_invoice_department` RPC which
+ * enforces `can_manage_org_structure` and writes an audit_events row.
+ *
+ * Revalidates both invoice surfaces and both structure pages so a
+ * reclassification reflects everywhere immediately.
+ */
+
+export interface ReassignInvoiceDepartmentInput {
+  invoiceId: string;
+  /** Null clears the attribution back to "Unattributed". */
+  newDepartmentId: string | null;
+  reason: string;
+  /**
+   * Optional. If provided, revalidate the org's admin structure page too.
+   * Otherwise only the invoice/budget/client structure paths revalidate.
+   */
+  orgId?: string | null;
+}
+
+export async function reassignInvoiceDepartmentAction(
+  input: ReassignInvoiceDepartmentInput,
+): Promise<
+  ActionResult<{
+    invoice_id: string;
+    from_department_id: string | null;
+    to_department_id: string | null;
+  }>
+> {
+  if (!isUuid(input.invoiceId)) {
+    return { ok: false, error: 'Invoice id is invalid.' };
+  }
+  if (input.newDepartmentId != null && !isUuid(input.newDepartmentId)) {
+    return { ok: false, error: 'Department id is invalid.' };
+  }
+  const reason = clean(input.reason);
+  if (!reason) {
+    return {
+      ok: false,
+      error: 'A reason is required for invoice reassignment.',
+    };
+  }
+  if (reason.length > 500) {
+    return { ok: false, error: 'Reason is too long (max 500 chars).' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('reassign_invoice_department', {
+    p_invoice_id: input.invoiceId,
+    p_new_department_id: input.newDepartmentId,
+    p_reason: reason,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const result = (data ?? {}) as {
+    ok?: boolean;
+    invoice_id?: string;
+    from_department_id?: string | null;
+    to_department_id?: string | null;
+  };
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: 'reassign_invoice_department returned a non-ok response.',
+    };
+  }
+
+  // Touch every surface that might display this invoice or its rollup.
+  revalidatePath('/admin/invoices');
+  revalidatePath(`/admin/invoices/${input.invoiceId}`);
+  revalidatePath('/client/invoices');
+  revalidatePath(`/client/invoices/${input.invoiceId}`);
+  revalidatePath('/admin/budget');
+  revalidatePath('/client/budget');
+  revalidatePath('/client/structure');
+  if (input.orgId && isUuid(input.orgId)) {
+    revalidatePath(`/admin/orgs/${input.orgId}/structure`);
+  }
+
+  return {
+    ok: true,
+    error: null,
+    payload: {
+      invoice_id: result.invoice_id ?? input.invoiceId,
+      from_department_id: result.from_department_id ?? null,
+      to_department_id: result.to_department_id ?? input.newDepartmentId,
+    },
   };
 }

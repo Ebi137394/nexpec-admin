@@ -202,6 +202,7 @@ export default async function ClientStructurePage() {
           initialTree={tree}
           assignableMembers={assignable.members}
           readOnly={isReadOnly}
+          surface="client"
         />
       )}
 

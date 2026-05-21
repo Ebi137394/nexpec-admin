@@ -29,15 +29,29 @@ import type {
   DepartmentRow,
   DepartmentTreeResult,
 } from './orgStructure.types';
+import {
+  EMPTY_DEPARTMENT_BUDGET_ROLLUP,
+  EMPTY_SPEND_SLICE,
+  type DepartmentBudgetRollup,
+  type DepartmentSpendRow,
+  type DepartmentSpendSummary,
+  type RecentInvoiceRow,
+  type SpendWindow,
+} from './orgStructure.budget.types';
 
 export type {
   AssignableOrgMember,
   AssignableOrgMembersResult,
   DepartmentAuditEvent,
+  DepartmentBudgetRollup,
   DepartmentMember,
   DepartmentNode,
   DepartmentRow,
+  DepartmentSpendRow,
+  DepartmentSpendSummary,
   DepartmentTreeResult,
+  RecentInvoiceRow,
+  SpendWindow,
 };
 
 const TABLE_MISSING_RE = /relation .* does not exist|function .* does not exist/i;
@@ -341,4 +355,132 @@ export async function fetchDepartmentAuditTrail(
   }
   if (!Array.isArray(data)) return [];
   return (data as unknown as DepartmentAuditEvent[]) ?? [];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  BUDGET ROLL-UP FETCHERS — cost-center → spend integration
+//
+//  Powered by the two RPCs landed in 20260530120000_department_budget_rollup_rpc.
+//  Both fetchers degrade silently to empty results when the financial suite
+//  (public.invoices) isn't installed yet, so the structure pages keep
+//  rendering on a fresh stack.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fetch the full per-department budget roll-up for an org. Returns a flat
+ * row list (one per (department, currency) tuple) plus the synthetic
+ * "Unattributed" bucket. The consumer assembles the tree for display.
+ */
+export async function fetchDepartmentBudgetRollup(
+  orgId: string,
+  window: SpendWindow = 'all_time',
+): Promise<DepartmentBudgetRollup> {
+  if (!orgId) return EMPTY_DEPARTMENT_BUDGET_ROLLUP;
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('fetch_department_budget_rollup', {
+    p_org_id: orgId,
+    p_window: window,
+  });
+
+  if (error) {
+    if (
+      /relation .* does not exist|function .* does not exist/i.test(
+        error.message ?? '',
+      )
+    ) {
+      // Financial-suite RPC missing — degrade gracefully.
+      return { ...EMPTY_DEPARTMENT_BUDGET_ROLLUP, invoicesMissing: true };
+    }
+    if (!/permission/i.test(error.message ?? '')) {
+      console.warn('[orgStructure] budget rollup failed:', error.message);
+    }
+    return EMPTY_DEPARTMENT_BUDGET_ROLLUP;
+  }
+
+  const rows = (Array.isArray(data) ? data : []) as DepartmentSpendRow[];
+
+  // Determine predominant currency from rolled-up volume (committed cents).
+  const currencyVolume = new Map<string, number>();
+  for (const r of rows) {
+    const v = currencyVolume.get(r.currency) ?? 0;
+    currencyVolume.set(r.currency, v + Math.abs(r.rollup_committed_cents));
+  }
+  let predominantCurrency = 'USD';
+  let topVolume = -1;
+  for (const [cur, vol] of currencyVolume.entries()) {
+    if (vol > topVolume) {
+      predominantCurrency = cur;
+      topVolume = vol;
+    }
+  }
+
+  return {
+    rows,
+    predominantCurrency,
+    mixedCurrencies: currencyVolume.size > 1,
+    hasUnattributed: rows.some((r) => r.department_id === null),
+    invoicesMissing: false,
+  };
+}
+
+/**
+ * Tight per-department spend summary for the DepartmentDetailPanel.
+ * Returns null when the department doesn't exist, the caller can't read it,
+ * or the financial suite isn't installed — the panel falls back to its
+ * empty state in each case.
+ */
+export async function fetchDepartmentSpendSummary(
+  departmentId: string,
+): Promise<DepartmentSpendSummary | null> {
+  if (!departmentId) return null;
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('fetch_department_spend_summary', {
+    p_department_id: departmentId,
+  });
+
+  if (error) {
+    if (
+      !/permission|does not exist/i.test(error.message ?? '')
+    ) {
+      console.warn('[orgStructure] spend summary failed:', error.message);
+    }
+    return null;
+  }
+
+  if (!data || typeof data !== 'object') return null;
+
+  const raw = data as Record<string, unknown>;
+  if (raw.ok !== true) return null;
+
+  // Coerce — RPC returns jsonb, the shape matches DepartmentSpendSummary
+  // exactly. Defensive default each numeric subfield to keep the consumer
+  // free of null checks.
+  const direct = (raw.direct ?? {}) as Record<string, unknown>;
+  const rollup = (raw.rollup ?? {}) as Record<string, unknown>;
+
+  const coerceSlice = (s: Record<string, unknown>) => ({
+    ...EMPTY_SPEND_SLICE,
+    all_time_committed_cents: Number(s.all_time_committed_cents ?? 0),
+    all_time_paid_cents: Number(s.all_time_paid_cents ?? 0),
+    mtd_committed_cents: Number(s.mtd_committed_cents ?? 0),
+    qtd_committed_cents: Number(s.qtd_committed_cents ?? 0),
+    ytd_committed_cents: Number(s.ytd_committed_cents ?? 0),
+    invoice_count: Number(s.invoice_count ?? 0),
+    last_invoice_at: (s.last_invoice_at as string | null) ?? null,
+  });
+
+  return {
+    department_id: String(raw.department_id),
+    department_name: String(raw.department_name ?? 'Department'),
+    cost_center: (raw.cost_center as string | null) ?? null,
+    currency: String(raw.currency ?? 'USD'),
+    mixed_currencies: Boolean(raw.mixed_currencies),
+    direct: coerceSlice(direct),
+    rollup: coerceSlice(rollup),
+    recent_invoices: Array.isArray(raw.recent_invoices)
+      ? (raw.recent_invoices as RecentInvoiceRow[])
+      : [],
+  };
 }

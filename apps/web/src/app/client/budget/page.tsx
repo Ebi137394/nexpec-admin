@@ -48,6 +48,10 @@ import type {
   BudgetMonthlyPoint,
   BudgetScopeMeta,
 } from '@/lib/data/budget.types';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { fetchDepartmentBudgetRollup } from '@/lib/data/orgStructure';
+import type { SpendWindow } from '@/lib/data/orgStructure.budget.types';
+import { DepartmentBudgetByOrgPanel } from '@/components/admin/orgs/structure/DepartmentBudgetByOrgPanel';
 
 export const metadata: Metadata = {
   title: 'Budget Overview',
@@ -57,10 +61,97 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function BudgetOverviewPage() {
-  const [data, scopeMeta] = await Promise.all([
+const ELEVATED_ORG_ROLES = new Set(['owner', 'procurement_admin']);
+const VALID_WINDOWS: ReadonlySet<SpendWindow> = new Set([
+  'all_time',
+  'mtd',
+  'qtd',
+  'ytd',
+  'l90',
+  'l365',
+]);
+
+interface BudgetPageProps {
+  searchParams?: Promise<{ window?: string }>;
+}
+
+/**
+ * Surface mode — controls the route prefix used by the by-department panel
+ * for both window-selector links and the "drill into structure" CTA.
+ *
+ * 'client' → /client/budget · /client/structure
+ * 'admin'  → /admin/budget  · /admin/orgs/{org_id}/structure
+ *
+ * The existing platform/role-scoped budget aggregates are mode-agnostic;
+ * only the by-department add-on cares about which portal we're inside.
+ */
+type BudgetSurfaceMode = 'client' | 'admin';
+
+/**
+ * Pick the org whose department roll-up we should display alongside the
+ * platform/role budget. Same selection rule as /client/structure:
+ *   elevated-role first → enterprise → first-of-any. Super-admin without
+ *   memberships gets null (we hide the panel and link to /admin/orgs).
+ */
+async function resolveActiveOrgForBudget(): Promise<{
+  orgId: string;
+  orgName: string;
+} | null> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: rows } = await supabase
+    .from('org_members')
+    .select('org_id, role, organizations(name, kind)')
+    .eq('user_id', user.id);
+
+  const memberships = ((rows ?? []) as unknown as Array<
+    Record<string, unknown>
+  >).map((r) => {
+    const o = (r.organizations ?? {}) as Record<string, unknown>;
+    return {
+      orgId: String(r.org_id),
+      role: String(r.role ?? 'viewer'),
+      orgName: String(o.name ?? 'Organization'),
+      orgKind: (o.kind as string | null) ?? null,
+    };
+  });
+  if (memberships.length === 0) return null;
+
+  const elevated = memberships.find((m) => ELEVATED_ORG_ROLES.has(m.role));
+  const firstEnterprise = memberships.find((m) => m.orgKind === 'enterprise');
+  const active = elevated ?? firstEnterprise ?? memberships[0];
+  return active ? { orgId: active.orgId, orgName: active.orgName } : null;
+}
+
+/**
+ * The shared inner view. Called by both /client/budget and /admin/budget,
+ * each passing its own `mode`. Exported so /admin/budget/page.tsx can
+ * delegate to it without code duplication.
+ */
+export async function BudgetOverviewView(
+  props: BudgetPageProps & { mode: BudgetSurfaceMode },
+) {
+  const mode = props.mode;
+  // Window param for the per-department panel — kept entirely local, has
+  // no effect on the existing platform/role-scoped budget aggregates.
+  const sp = (await props.searchParams) ?? {};
+  const rawWindow = (sp.window ?? 'all_time') as SpendWindow;
+  const activeWindow: SpendWindow = VALID_WINDOWS.has(rawWindow)
+    ? rawWindow
+    : 'all_time';
+
+  const activeOrg = await resolveActiveOrgForBudget();
+
+  const [data, scopeMeta, rollup] = await Promise.all([
     fetchBudgetOverview(),
     fetchBudgetScopeMeta(),
+    activeOrg
+      ? fetchDepartmentBudgetRollup(activeOrg.orgId, activeWindow)
+      : Promise.resolve(null),
   ]);
 
   const { summary, monthly, byInspector, recent } = data;
@@ -191,6 +282,27 @@ export default async function BudgetOverviewPage() {
         <InspectorTable rows={byInspector} />
       </section>
 
+      {/* ── By department (cost-center roll-up) ──────────────────────
+          Same RPC source, two surfaces — basePath/structureHref vary
+          so the window-selector and "drill into structure" CTA stay
+          inside whichever portal the viewer is currently in. */}
+      {activeOrg && rollup && (
+        <DepartmentBudgetByOrgPanel
+          orgId={activeOrg.orgId}
+          orgName={activeOrg.orgName}
+          rollup={rollup}
+          activeWindow={activeWindow}
+          basePath={
+            mode === 'admin' ? '/admin/budget' : '/client/budget'
+          }
+          structureHref={
+            mode === 'admin'
+              ? `/admin/orgs/${activeOrg.orgId}/structure`
+              : '/client/structure'
+          }
+        />
+      )}
+
       {/* ── Recent activity ────────────────────────────────────────── */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
         <header className="flex flex-wrap items-end justify-between gap-3">
@@ -225,6 +337,15 @@ export default async function BudgetOverviewPage() {
       </p>
     </div>
   );
+}
+
+/**
+ * Default export — the /client/budget page. Thin wrapper that delegates
+ * to BudgetOverviewView with mode='client'. /admin/budget is its own page
+ * that delegates the same way with mode='admin'.
+ */
+export default async function ClientBudgetPage(props: BudgetPageProps = {}) {
+  return BudgetOverviewView({ ...props, mode: 'client' });
 }
 
 // ═════════════════════════════════════════════════════════════════════════

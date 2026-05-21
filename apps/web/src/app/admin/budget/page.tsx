@@ -10,22 +10,29 @@
 //  Why a separate route instead of re-using /client/budget?
 //  Operator clarity: admins navigate inside /admin/* and shouldn't have
 //  to context-switch to a "/client/..." URL to see global numbers. Same
-//  component, different namespace.
-//
-//  The page component re-exports unchanged — the visibility scope chip
-//  in the UI will read "Platform-wide" from fetchBudgetScopeMeta()
-//  automatically based on profiles.role.
+//  view component, different mode — controls only the route prefix used
+//  by the by-department cost-center panel (window-selector links + the
+//  "drill into structure" CTA route through /admin/* when admin viewers
+//  click them, /client/* when buyers do).
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
-import BudgetOverviewPage from '@/app/client/budget/page';
+import { BudgetOverviewView } from '@/app/client/budget/page';
 
 export const metadata: Metadata = {
   title: 'Budget Overview · Platform-wide',
   description:
-    'Live platform-wide spend tracker — committed budget, escrow holds, paid-out amounts, 12-month trend, and top inspectors by spend.',
+    'Live platform-wide spend tracker — committed budget, escrow holds, paid-out amounts, 12-month trend, top inspectors by spend, and per-department cost-center roll-up.',
 };
 
 export const dynamic = 'force-dynamic';
 
-export default BudgetOverviewPage;
+interface AdminBudgetPageProps {
+  searchParams?: Promise<{ window?: string }>;
+}
+
+export default async function AdminBudgetPage(
+  props: AdminBudgetPageProps = {},
+) {
+  return BudgetOverviewView({ ...props, mode: 'admin' });
+}

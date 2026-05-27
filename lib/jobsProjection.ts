@@ -32,42 +32,46 @@
  * (scope, scheduling, location, status) — they don't reveal either side
  * of the commercial relationship.
  */
+// ─────────────────────────────────────────────────────────────────────
+// IMPORTANT — every entry below MUST be a real column on public.jobs.
+// PostgREST will 42703 the WHOLE select if any single column is bogus,
+// which silently breaks every screen using this projection.
+//
+// Schema-of-record (verified against the production `jobs` columns):
+//   identity:     id, title, description, status, created_at, updated_at,
+//                 started_at, admin_confirmed_at, scheduled_date,
+//                 estimated_duration, urgency, job_type, inspection_type
+//   geo:          location, location_city, latitude, longitude, job_country
+//   commerce-tag: currency
+//   skills/scope: required_certifications, specialty_slugs, requires_cci,
+//                 sponsorship_offered
+//   parties:      contractor_id, client_id, agency_id, hired_inspector_id
+//   lifecycle:    moderation_status, escrow_status, payout_status
+//
+// If you want to surface a "company name" / "client name" on a screen,
+// resolve it via jobs.client_id → profiles in a separate fetch. It is
+// NOT a column on the jobs table.
+// ─────────────────────────────────────────────────────────────────────
 const COMMON_JOB_FIELDS = [
   'id',
   'title',
   'description',
   'status',
   'location',
-  'city',
-  'state',
-  'country',
+  'location_city',
   'latitude',
   'longitude',
-  'distance_km',
   'scheduled_date',
-  'start_date',
-  'end_date',
-  'completed_at',
   'admin_confirmed_at',
   'started_at',
   'created_at',
   'updated_at',
-  'due_date',
-  'duration_days',
   'estimated_duration',
   'urgency',
-  'priority',
   'job_type',
   'inspection_type',
-  'rate_type',
-  'rate_min',
-  'rate_max',
-  'daily_rate',
   'currency',
-  'scope',
-  'documents',
   'required_certifications',
-  'requirements',
   'specialty_slugs',
   'requires_cci',
   'job_country',
@@ -76,12 +80,15 @@ const COMMON_JOB_FIELDS = [
   'client_id',
   'agency_id',
   'hired_inspector_id',
-  'company_name',
-  'client_name',
   'moderation_status',
   'escrow_status',
   'payout_status',
-  'private_note',
+  // Layer 1 expansion (migration 20260616120000_inspection_domain_primitive).
+  // Existing rows are backfilled to 'industrial_ndt'; new domains are not
+  // yet publicly visible. Including the column in the projection lets
+  // screens surface a passive domain badge once we launch additional
+  // domains, while remaining a no-op for all current data.
+  'domain',
 ] as const;
 
 /**
@@ -95,10 +102,7 @@ const BUYER_ONLY_FIELDS = [
   'budget_max_cents',
   'budget_cents',
   'budget_type',
-  'budget',
-  'price',
   'price_cents',
-  'total_amount_cents',
 ] as const;
 
 /**

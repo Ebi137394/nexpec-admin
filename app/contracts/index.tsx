@@ -479,18 +479,28 @@ export default function ContractsScreen() {
       setError(null);
       const filterCol = isClientRole ? 'client_id' : 'contractor_id';
 
-      // ── 1) Legacy `contracts` table (System A — uploaded addenda) ──
-      const legacyPromise = supabase
-        .from('contracts')
-        .select(
-          `*,
-          job:job_id ( id, title ),
-          client:client_id ( id, full_name, avatar_url, company_name, role ),
-          contractor:contractor_id ( id, full_name, avatar_url, company_name, role )`,
-        )
-        .eq(filterCol, userId)
-        .order('updated_at', { ascending: false })
-        .limit(100);
+      // ── 1) Legacy `contracts` table — DECOMMISSIONED ──
+      //
+      //   The V1 `public.contracts` table is no longer the source of truth
+      //   for the Hub. As of the V3 cutover, this Hub renders ONLY rows
+      //   from the V3 blind-pricing views (`inspector_job_contracts_view`
+      //   / `client_job_contracts_view`).
+      //
+      //   The legacy table is kept in the database for audit history,
+      //   but is never surfaced here — preventing the "two contracts per
+      //   job" duplicate that occurred when both stacks were live in
+      //   parallel.
+      //
+      //   To inspect legacy rows, see the web admin surface at
+      //   /admin/contracts (read-only archive).
+      //
+      //   keep the binding so the Promise.all destructure below stays
+      //   shaped the same; resolves to an empty result.
+      const legacyPromise: Promise<{ data: Contract[] | null; error: any | null }> =
+        Promise.resolve({ data: [], error: null });
+      // Silence unused-variable lint while the surrounding code refers
+      // to filterCol (V3 fetcher branches on role just below).
+      void filterCol;
 
       // ── 2) V3 job_contracts (binding per-job agreement, blind pricing) ──
       //

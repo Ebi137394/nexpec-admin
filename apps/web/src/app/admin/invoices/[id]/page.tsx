@@ -32,6 +32,8 @@ import {
   INVOICE_STATUS_LABEL,
 } from '@/lib/data/invoices.types';
 import { AdminInvoiceActions } from '@/components/invoices/AdminInvoiceActions';
+import { fetchOrgPickerContextForInvoice } from '@/lib/data/orgStructure';
+import { InvoiceDepartmentBlock } from '@/components/invoices/InvoiceDepartmentBlock';
 
 export async function generateMetadata({
   params,
@@ -60,6 +62,10 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
   const { id } = await params;
   const inv = await fetchSingleAdminInvoice(id);
   if (!inv) notFound();
+
+  // Sprint 14: resolve the org-picker context for the Department block.
+  // For super_admin viewers this almost always resolves to canManage=true.
+  const orgPicker = await fetchOrgPickerContextForInvoice(inv.id);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -150,6 +156,16 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
           />
         )}
       </section>
+
+      {/* Sprint 14: Department attribution + Reassign action */}
+      <InvoiceDepartmentBlock
+        invoiceId={inv.id}
+        invoiceNumber={inv.invoiceNumber}
+        departmentId={inv.departmentId}
+        departmentName={inv.departmentName}
+        costCenterSnapshot={inv.costCenterSnapshot}
+        orgPicker={orgPicker}
+      />
 
       {/* Line items */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">

@@ -52,6 +52,13 @@ export interface InvoiceClientView {
   notes: string | null;
   lineItems: InvoiceLineItem[];
   inspectorName: string | null;
+  // ── Sprint 14: cost-center attribution ──────────────────────────────
+  /** Department attribution. Null = "Unattributed" in the by-dept rollup. */
+  departmentId: string | null;
+  /** Department name at fetch time. Hydrated by joining `departments`. */
+  departmentName: string | null;
+  /** Cost-center snapshot frozen at attribution; independent of renames. */
+  costCenterSnapshot: string | null;
 }
 
 // Admin-side projection. Includes both money columns.

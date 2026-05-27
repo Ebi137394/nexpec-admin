@@ -72,6 +72,68 @@ export const EMPTY_DEPARTMENT_TREE: DepartmentTreeResult = {
   tableMissing: false,
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+//  ACTIVE-ORG SWITCHER TYPES (Sprint 6 — omnichannel)
+//
+//  Re-exports from @nexpec/shared-core/schemas/organizations so the rest
+//  of the web app can import switcher shapes from a single location, and
+//  any future Next.js-only fields can be added here without touching the
+//  cross-platform package.
+// ════════════════════════════════════════════════════════════════════════════
+
+export type {
+  ActiveOrgInfo,
+  OrgMembershipEntry,
+  SetActiveOrgResult,
+} from '@nexpec/shared-core';
+
+/**
+ * Flat option entry consumed by the DepartmentPickerField — every
+ * department in an org, depth-annotated so the picker can render
+ * nested labels with leading indentation.
+ */
+export interface DepartmentPickerOption {
+  id: string;
+  name: string;
+  depth: number;
+  cost_center: string | null;
+  parent_department_id: string | null;
+}
+
+/**
+ * What `fetchOrgPickerContext` returns for a single caller. Powers both:
+ *   · /client/jobs/new (job-post Department picker)
+ *   · Invoice "Reassign Department" dialog
+ *
+ * `defaultDepartmentId` is the caller's first department_members
+ * assignment in the active org, used as the picker's default selection.
+ */
+export interface OrgPickerContext {
+  orgId: string;
+  orgName: string;
+  /** All departments in the org, depth-annotated, alpha-sorted within depth. */
+  departments: DepartmentPickerOption[];
+  /** The caller's primary dept assignment in this org. Null when none. */
+  defaultDepartmentId: string | null;
+  /**
+   * Whether the caller can mutate this org's structure
+   * (super_admin OR owner/procurement_admin). Used by the invoice
+   * Reassign UI to gate the action button server-side.
+   */
+  canManageStructure: boolean;
+  /** True when departments haven't been seeded yet. UI hides the picker. */
+  hasNoDepartments: boolean;
+}
+
+export const EMPTY_ORG_PICKER_CONTEXT: OrgPickerContext = {
+  orgId: '',
+  orgName: '',
+  departments: [],
+  defaultDepartmentId: null,
+  canManageStructure: false,
+  hasNoDepartments: true,
+};
+
 /** A single row from `fetch_department_audit_trail`. */
 export interface DepartmentAuditEvent {
   id: string;

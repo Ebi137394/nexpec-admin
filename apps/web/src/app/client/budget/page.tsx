@@ -48,10 +48,19 @@ import type {
   BudgetMonthlyPoint,
   BudgetScopeMeta,
 } from '@/lib/data/budget.types';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { fetchDepartmentBudgetRollup } from '@/lib/data/orgStructure';
+import {
+  fetchDepartmentBudgetRollup,
+  fetchMyOrgMemberships,
+  resolveActiveOrgId,
+} from '@/lib/data/orgStructure';
 import type { SpendWindow } from '@/lib/data/orgStructure.budget.types';
 import { DepartmentBudgetByOrgPanel } from '@/components/admin/orgs/structure/DepartmentBudgetByOrgPanel';
+import { CurrencySelector } from '@/components/orgs/CurrencySelector';
+import {
+  isElevatedOrgRole,
+  isSupportedCurrency,
+} from '@nexpec/shared-core';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = {
   title: 'Budget Overview',
@@ -61,7 +70,8 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-const ELEVATED_ORG_ROLES = new Set(['owner', 'procurement_admin']);
+// Sprint 6: ELEVATED_ORG_ROLES is no longer used here — election logic
+// moved to resolveActiveOrgId() in lib/data/orgStructure.ts.
 const VALID_WINDOWS: ReadonlySet<SpendWindow> = new Set([
   'all_time',
   'mtd',
@@ -72,7 +82,7 @@ const VALID_WINDOWS: ReadonlySet<SpendWindow> = new Set([
 ]);
 
 interface BudgetPageProps {
-  searchParams?: Promise<{ window?: string }>;
+  searchParams?: Promise<{ window?: string; display?: string }>;
 }
 
 /**
@@ -89,42 +99,20 @@ type BudgetSurfaceMode = 'client' | 'admin';
 
 /**
  * Pick the org whose department roll-up we should display alongside the
- * platform/role budget. Same selection rule as /client/structure:
- *   elevated-role first → enterprise → first-of-any. Super-admin without
- *   memberships gets null (we hide the panel and link to /admin/orgs).
+ * platform/role budget. Sprint 6: defers to resolveActiveOrgId() so a
+ * user who switches workspaces via the OrgSwitcher immediately sees the
+ * new org's department roll-up here.
  */
 async function resolveActiveOrgForBudget(): Promise<{
   orgId: string;
   orgName: string;
 } | null> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: rows } = await supabase
-    .from('org_members')
-    .select('org_id, role, organizations(name, kind)')
-    .eq('user_id', user.id);
-
-  const memberships = ((rows ?? []) as unknown as Array<
-    Record<string, unknown>
-  >).map((r) => {
-    const o = (r.organizations ?? {}) as Record<string, unknown>;
-    return {
-      orgId: String(r.org_id),
-      role: String(r.role ?? 'viewer'),
-      orgName: String(o.name ?? 'Organization'),
-      orgKind: (o.kind as string | null) ?? null,
-    };
-  });
-  if (memberships.length === 0) return null;
-
-  const elevated = memberships.find((m) => ELEVATED_ORG_ROLES.has(m.role));
-  const firstEnterprise = memberships.find((m) => m.orgKind === 'enterprise');
-  const active = elevated ?? firstEnterprise ?? memberships[0];
-  return active ? { orgId: active.orgId, orgName: active.orgName } : null;
+  const activeId = await resolveActiveOrgId();
+  if (!activeId) return null;
+  const memberships = await fetchMyOrgMemberships();
+  const hit = memberships.find((m) => m.org_id === activeId);
+  if (!hit) return null;
+  return { orgId: hit.org_id, orgName: hit.org_name };
 }
 
 /**
@@ -146,11 +134,61 @@ export async function BudgetOverviewView(
 
   const activeOrg = await resolveActiveOrgForBudget();
 
+  // Sprint 7 — resolve display currency. URL ?display= wins if it's a
+  // supported code; otherwise fall back to the org's persisted default
+  // (which the RPC also resolves server-side — we read it here for the
+  // CurrencySelector's "default" label and the persist-button gate).
+  const requestedDisplay = isSupportedCurrency(sp.display) ? sp.display : null;
+  let orgBaseCurrency: string = 'USD';
+  let viewerCanPersistDefault = false;
+  if (activeOrg) {
+    const supabase = await createSupabaseServerClient();
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('base_currency')
+      .eq('id', activeOrg.orgId)
+      .maybeSingle();
+    orgBaseCurrency = String(orgRow?.base_currency ?? 'USD');
+
+    // Permission check for the persist button: Platform Owner OR
+    // elevated org role on this org.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const isPlatformOwner =
+        (profile?.role ?? '').toString().trim().toLowerCase() === 'super_admin';
+      if (isPlatformOwner) {
+        viewerCanPersistDefault = true;
+      } else {
+        const { data: mem } = await supabase
+          .from('org_members')
+          .select('role')
+          .eq('org_id', activeOrg.orgId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        viewerCanPersistDefault = isElevatedOrgRole(
+          (mem?.role as string | null) ?? null,
+        );
+      }
+    }
+  }
+  const activeDisplayCurrency = requestedDisplay ?? orgBaseCurrency;
+
   const [data, scopeMeta, rollup] = await Promise.all([
     fetchBudgetOverview(),
     fetchBudgetScopeMeta(),
     activeOrg
-      ? fetchDepartmentBudgetRollup(activeOrg.orgId, activeWindow)
+      ? fetchDepartmentBudgetRollup(
+          activeOrg.orgId,
+          activeWindow,
+          activeDisplayCurrency,
+        )
       : Promise.resolve(null),
   ]);
 
@@ -285,22 +323,38 @@ export async function BudgetOverviewView(
       {/* ── By department (cost-center roll-up) ──────────────────────
           Same RPC source, two surfaces — basePath/structureHref vary
           so the window-selector and "drill into structure" CTA stay
-          inside whichever portal the viewer is currently in. */}
+          inside whichever portal the viewer is currently in.
+
+          Sprint 7 — the CurrencySelector sits above the panel and
+          drives the ?display= URL param that propagates through to
+          the RPC. The default label reflects the org's persisted
+          base_currency. */}
       {activeOrg && rollup && (
-        <DepartmentBudgetByOrgPanel
-          orgId={activeOrg.orgId}
-          orgName={activeOrg.orgName}
-          rollup={rollup}
-          activeWindow={activeWindow}
-          basePath={
-            mode === 'admin' ? '/admin/budget' : '/client/budget'
-          }
-          structureHref={
-            mode === 'admin'
-              ? `/admin/orgs/${activeOrg.orgId}/structure`
-              : '/client/structure'
-          }
-        />
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <CurrencySelector
+              activeCurrency={activeDisplayCurrency}
+              defaultCurrency={orgBaseCurrency}
+              orgId={activeOrg.orgId}
+              orgName={activeOrg.orgName}
+              canPersistDefault={viewerCanPersistDefault}
+            />
+          </div>
+          <DepartmentBudgetByOrgPanel
+            orgId={activeOrg.orgId}
+            orgName={activeOrg.orgName}
+            rollup={rollup}
+            activeWindow={activeWindow}
+            basePath={
+              mode === 'admin' ? '/admin/budget' : '/client/budget'
+            }
+            structureHref={
+              mode === 'admin'
+                ? `/admin/orgs/${activeOrg.orgId}/structure`
+                : '/client/structure'
+            }
+          />
+        </div>
       )}
 
       {/* ── Recent activity ────────────────────────────────────────── */}

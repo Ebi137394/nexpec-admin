@@ -25,6 +25,8 @@ import { toCents } from '@/lib/money';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 // ★ HIRE-002/003: transactional admin dispatch
 import { adminDispatchJob } from '@/lib/assignJob';
+// ★ Layer 1+3 — passive inspection-domain badge (no-op for industrial_ndt)
+import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 
 interface SelectedApplication {
   id: string;
@@ -560,6 +562,13 @@ export default function SpreadEditor() {
           <Text style={[s.statusText, { color: statusColor(job.status) }]}>
             {String(job.status || '').replace(/_/g, ' ').toUpperCase()}
           </Text>
+        </View>
+        {/* ★ Layer 1+3 — passive domain badge. Renders nothing while every
+              job is still in 'industrial_ndt' (the platform default), so
+              this insertion is a true no-op visually today. Surfaces
+              automatically once civil / electrical / mechanical jobs exist. */}
+        <View style={{ marginTop: 8 }}>
+          <InspectionDomainBadge domain={(job as any).domain} />
         </View>
 
         {job.description && <Text style={s.desc}>{job.description}</Text>}

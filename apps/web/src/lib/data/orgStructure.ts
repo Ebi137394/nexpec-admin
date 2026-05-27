@@ -20,15 +20,23 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  ELEVATED_ORG_ROLES as SHARED_ELEVATED_ORG_ROLES,
+  type ActiveOrgInfo,
+  type OrgMembershipEntry,
+} from '@nexpec/shared-core';
 import type {
   AssignableOrgMember,
   AssignableOrgMembersResult,
   DepartmentAuditEvent,
   DepartmentMember,
   DepartmentNode,
+  DepartmentPickerOption,
   DepartmentRow,
   DepartmentTreeResult,
+  OrgPickerContext,
 } from './orgStructure.types';
+import { EMPTY_ORG_PICKER_CONTEXT } from './orgStructure.types';
 import {
   EMPTY_DEPARTMENT_BUDGET_ROLLUP,
   EMPTY_SPEND_SLICE,
@@ -46,10 +54,12 @@ export type {
   DepartmentBudgetRollup,
   DepartmentMember,
   DepartmentNode,
+  DepartmentPickerOption,
   DepartmentRow,
   DepartmentSpendRow,
   DepartmentSpendSummary,
   DepartmentTreeResult,
+  OrgPickerContext,
   RecentInvoiceRow,
   SpendWindow,
 };
@@ -374,6 +384,7 @@ export async function fetchDepartmentAuditTrail(
 export async function fetchDepartmentBudgetRollup(
   orgId: string,
   window: SpendWindow = 'all_time',
+  displayCurrency?: string | null,
 ): Promise<DepartmentBudgetRollup> {
   if (!orgId) return EMPTY_DEPARTMENT_BUDGET_ROLLUP;
 
@@ -381,6 +392,7 @@ export async function fetchDepartmentBudgetRollup(
   const { data, error } = await supabase.rpc('fetch_department_budget_rollup', {
     p_org_id: orgId,
     p_window: window,
+    p_display_currency: displayCurrency ?? null,
   });
 
   if (error) {
@@ -415,12 +427,22 @@ export async function fetchDepartmentBudgetRollup(
     }
   }
 
+  // Sprint 7 — every row carries display_currency; derive the
+  // panel-wide value + the rate-unavailable flag.
+  const resolvedDisplay =
+    rows.find((r) => r.display_currency)?.display_currency ??
+    displayCurrency ??
+    predominantCurrency;
+  const anyRateUnavailable = rows.some((r) => r.rate_unavailable === true);
+
   return {
     rows,
     predominantCurrency,
     mixedCurrencies: currencyVolume.size > 1,
     hasUnattributed: rows.some((r) => r.department_id === null),
     invoicesMissing: false,
+    displayCurrency: resolvedDisplay,
+    anyRateUnavailable,
   };
 }
 
@@ -432,12 +454,14 @@ export async function fetchDepartmentBudgetRollup(
  */
 export async function fetchDepartmentSpendSummary(
   departmentId: string,
+  displayCurrency?: string | null,
 ): Promise<DepartmentSpendSummary | null> {
   if (!departmentId) return null;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc('fetch_department_spend_summary', {
     p_department_id: departmentId,
+    p_display_currency: displayCurrency ?? null,
   });
 
   if (error) {
@@ -459,6 +483,8 @@ export async function fetchDepartmentSpendSummary(
   // free of null checks.
   const direct = (raw.direct ?? {}) as Record<string, unknown>;
   const rollup = (raw.rollup ?? {}) as Record<string, unknown>;
+  const displayDirect = (raw.display_direct ?? {}) as Record<string, unknown>;
+  const displayRollup = (raw.display_rollup ?? {}) as Record<string, unknown>;
 
   const coerceSlice = (s: Record<string, unknown>) => ({
     ...EMPTY_SPEND_SLICE,
@@ -471,16 +497,412 @@ export async function fetchDepartmentSpendSummary(
     last_invoice_at: (s.last_invoice_at as string | null) ?? null,
   });
 
+  const coerceDisplaySlice = (s: Record<string, unknown>) => ({
+    ...coerceSlice(s),
+    rate_unavailable: Boolean(s.rate_unavailable),
+  });
+
   return {
     department_id: String(raw.department_id),
     department_name: String(raw.department_name ?? 'Department'),
     cost_center: (raw.cost_center as string | null) ?? null,
     currency: String(raw.currency ?? 'USD'),
     mixed_currencies: Boolean(raw.mixed_currencies),
+    display_currency: String(raw.display_currency ?? raw.currency ?? 'USD'),
     direct: coerceSlice(direct),
     rollup: coerceSlice(rollup),
+    display_direct: coerceDisplaySlice(displayDirect),
+    display_rollup: coerceDisplaySlice(displayRollup),
     recent_invoices: Array.isArray(raw.recent_invoices)
       ? (raw.recent_invoices as RecentInvoiceRow[])
       : [],
   };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  PICKER CONTEXT FETCHERS — powers the job-post Department picker and the
+//  invoice Reassign dialog. Both surfaces need: an org id, its flat dept
+//  list (depth-annotated), a sensible default selection, and a flag for
+//  whether the caller is allowed to mutate.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Single source of truth for which org roles can mutate department
+// structure. Mirrors can_manage_org_structure() in the database. Imported
+// from shared-core so mobile + web cannot drift.
+const ELEVATED_ORG_ROLES_INTERNAL: ReadonlySet<string> = new Set(
+  SHARED_ELEVATED_ORG_ROLES,
+);
+
+/**
+ * Internal helper — flat depth-annotated departments list for an org.
+ * Falls back to a direct-query path if the tree RPC isn't available.
+ */
+async function _fetchPickerDepartments(
+  orgId: string,
+): Promise<DepartmentPickerOption[]> {
+  if (!orgId) return [];
+  const tree = await fetchOrgStructure(orgId);
+  if (tree.tableMissing) return [];
+
+  // Flatten the assembled tree in depth-first order, preserving the
+  // alphabetical sibling sort fetchOrgStructure already applied. Picker
+  // option labels can then read the depth and indent visually.
+  const out: DepartmentPickerOption[] = [];
+  const walk = (n: DepartmentNode) => {
+    out.push({
+      id: n.id,
+      name: n.name,
+      depth: n.depth,
+      cost_center: n.cost_center,
+      parent_department_id: n.parent_department_id,
+    });
+    n.children.forEach(walk);
+  };
+  tree.roots.forEach(walk);
+  return out;
+}
+
+/**
+ * Fetch every org the caller is a member of, with rich row data for the
+ * workspace switcher (name, slug, kind, logo, role, active flag).
+ *
+ * Single round-trip via the fetch_my_org_memberships() RPC. Falls back
+ * to a direct table join if the RPC isn't installed yet so the switcher
+ * keeps working during a partial deploy.
+ */
+export async function fetchMyOrgMemberships(): Promise<OrgMembershipEntry[]> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const rpc = await supabase.rpc('fetch_my_org_memberships');
+  if (!rpc.error && Array.isArray(rpc.data)) {
+    return (rpc.data as unknown as OrgMembershipEntry[]).map((r) => ({
+      org_id: String(r.org_id),
+      org_name: String(r.org_name ?? 'Organization'),
+      org_slug: (r.org_slug as string | null) ?? null,
+      org_kind: String(r.org_kind ?? 'enterprise'),
+      org_logo_url: (r.org_logo_url as string | null) ?? null,
+      is_active_org: Boolean(r.is_active_org),
+      role: (r.role as OrgMembershipEntry['role']) ?? null,
+      member_since: (r.member_since as string | null) ?? null,
+    }));
+  }
+
+  // Fallback path — direct query when the RPC hasn't been deployed yet.
+  if (
+    rpc.error &&
+    !/function .* does not exist|relation .* does not exist/i.test(
+      rpc.error.message ?? '',
+    )
+  ) {
+    console.warn(
+      '[orgStructure] fetch_my_org_memberships failed:',
+      rpc.error.message,
+    );
+  }
+
+  const { data: rawRows } = await supabase
+    .from('org_members')
+    .select(
+      'role, organizations(id, name, slug, kind, logo_url, is_active), created_at',
+    )
+    .eq('user_id', user.id);
+
+  // Active org pin (best effort — column may not exist on the fallback path).
+  let activeId: string | null = null;
+  try {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('active_org_id')
+      .eq('id', user.id)
+      .maybeSingle();
+    activeId = (prof?.active_org_id as string | null) ?? null;
+  } catch {
+    /* column not installed yet */
+  }
+
+  const out: OrgMembershipEntry[] = ((rawRows ?? []) as unknown as Array<
+    Record<string, unknown>
+  >)
+    .map((r) => {
+      const o = (r.organizations ?? null) as Record<string, unknown> | null;
+      if (!o) return null;
+      if (o.is_active === false) return null;
+      const orgId = String(o.id);
+      return {
+        org_id: orgId,
+        org_name: String(o.name ?? 'Organization'),
+        org_slug: (o.slug as string | null) ?? null,
+        org_kind: String(o.kind ?? 'enterprise'),
+        org_logo_url: (o.logo_url as string | null) ?? null,
+        is_active_org: activeId === orgId,
+        role: (r.role as OrgMembershipEntry['role']) ?? null,
+        member_since: (r.created_at as string | null) ?? null,
+      } satisfies OrgMembershipEntry;
+    })
+    .filter((m): m is OrgMembershipEntry => !!m);
+
+  out.sort((a, b) => {
+    if (a.is_active_org !== b.is_active_org) return a.is_active_org ? -1 : 1;
+    return a.org_name.localeCompare(b.org_name);
+  });
+  return out;
+}
+
+/**
+ * Resolve which org id should be considered the caller's "active" context.
+ * Precedence:
+ *   1. profiles.active_org_id IF the caller is still a current member.
+ *      Defends against orphaned pins (e.g. removed-then-pinned races).
+ *   2. The first elevated-role membership.
+ *   3. The first enterprise-kind membership.
+ *   4. The first membership at all.
+ *   5. null when the caller has no memberships.
+ *
+ * Single source of truth — every page that needs "active org" should
+ * call this rather than re-implementing the election rule.
+ */
+export async function resolveActiveOrgId(): Promise<string | null> {
+  const memberships = await fetchMyOrgMemberships();
+  if (memberships.length === 0) return null;
+
+  // Path 1 — explicit pin from the user, if valid.
+  const pinned = memberships.find((m) => m.is_active_org);
+  if (pinned) return pinned.org_id;
+
+  // Path 2-4 — election fallback.
+  const elevated = memberships.find((m) =>
+    m.role ? ELEVATED_ORG_ROLES_INTERNAL.has(m.role) : false,
+  );
+  if (elevated) return elevated.org_id;
+
+  const enterprise = memberships.find((m) => m.org_kind === 'enterprise');
+  if (enterprise) return enterprise.org_id;
+
+  return memberships[0]?.org_id ?? null;
+}
+
+/**
+ * Convenience bundle — memberships + currently-resolved active entry.
+ * Used by the client layout to populate the workspace switcher in one go.
+ */
+export async function fetchActiveOrgInfo(): Promise<ActiveOrgInfo> {
+  const memberships = await fetchMyOrgMemberships();
+  if (memberships.length === 0) {
+    return { active: null, memberships: [] };
+  }
+  const pinned = memberships.find((m) => m.is_active_org);
+  if (pinned) {
+    return { active: pinned, memberships };
+  }
+  // No explicit pin — resolve via election and surface that entry as
+  // active to the UI so the switcher still highlights something.
+  const resolvedId = await resolveActiveOrgId();
+  const electedActive =
+    memberships.find((m) => m.org_id === resolvedId) ?? memberships[0]!;
+  // Materialise the elected entry with the active flag flipped so the UI
+  // doesn't need a second piece of state.
+  const adjusted = memberships.map((m) => ({
+    ...m,
+    is_active_org: m.org_id === electedActive.org_id,
+  }));
+  return {
+    active: { ...electedActive, is_active_org: true },
+    memberships: adjusted,
+  };
+}
+
+/**
+ * Resolve the caller's primary org for picker purposes and return the
+ * full OrgPickerContext bundle.
+ *
+ * Selection rule respects the user's explicit pin via resolveActiveOrgId.
+ * Returns null when the caller doesn't belong to any org (e.g. a buyer
+ * who hasn't been invited yet) — surface should hide the picker.
+ */
+export async function fetchOrgPickerContextForMe(): Promise<OrgPickerContext | null> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const memberships = await fetchMyOrgMemberships();
+  if (memberships.length === 0) return null;
+
+  const activeId = await resolveActiveOrgId();
+  const active =
+    memberships.find((m) => m.org_id === activeId) ?? memberships[0]!;
+
+  // Check super_admin status as well (orthogonal to org membership).
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isSuperAdmin =
+    ((prof?.role as string | null) ?? '').toString().trim().toLowerCase() ===
+    'super_admin';
+
+  const canManage =
+    isSuperAdmin ||
+    (active.role !== null && ELEVATED_ORG_ROLES_INTERNAL.has(active.role));
+
+  const departments = await _fetchPickerDepartments(active.org_id);
+
+  // The caller's primary department assignment in this org (first match).
+  let defaultDepartmentId: string | null = null;
+  if (departments.length > 0) {
+    const deptIds = departments.map((d) => d.id);
+    const { data: myAssignments } = await supabase
+      .from('department_members')
+      .select('department_id, created_at')
+      .eq('user_id', user.id)
+      .in('department_id', deptIds)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (myAssignments && myAssignments.length > 0) {
+      defaultDepartmentId =
+        (myAssignments[0]?.department_id as string | null) ?? null;
+    }
+  }
+
+  return {
+    orgId: active.org_id,
+    orgName: active.org_name,
+    departments,
+    defaultDepartmentId,
+    canManageStructure: canManage,
+    hasNoDepartments: departments.length === 0,
+  };
+}
+
+/**
+ * Resolve the picker context for a specific org id. Used by the invoice
+ * Reassign dialog where the relevant org is known (from the invoice's
+ * current department, OR — when unattributed — from the job buyer's org
+ * membership which the caller is expected to resolve and pass in).
+ *
+ * Returns EMPTY_ORG_PICKER_CONTEXT on permission denial or missing schema,
+ * so the consumer can simply check `hasNoDepartments` / `canManageStructure`.
+ */
+export async function fetchOrgPickerContextForOrg(
+  orgId: string,
+): Promise<OrgPickerContext> {
+  if (!orgId) return EMPTY_ORG_PICKER_CONTEXT;
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return EMPTY_ORG_PICKER_CONTEXT;
+
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('id, name')
+    .eq('id', orgId)
+    .maybeSingle();
+  if (!org) return EMPTY_ORG_PICKER_CONTEXT;
+
+  // Permission probe: is the caller super_admin or has elevated org role?
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isSuperAdmin =
+    ((prof?.role as string | null) ?? '').toString().trim().toLowerCase() ===
+    'super_admin';
+
+  let myOrgRole: string | null = null;
+  if (!isSuperAdmin) {
+    const { data: mem } = await supabase
+      .from('org_members')
+      .select('role')
+      .eq('org_id', orgId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    myOrgRole = (mem?.role as string | null) ?? null;
+  }
+
+  const canManage =
+    isSuperAdmin ||
+    (myOrgRole !== null && ELEVATED_ORG_ROLES_INTERNAL.has(myOrgRole));
+
+  const departments = await _fetchPickerDepartments(orgId);
+
+  return {
+    orgId: String(org.id),
+    orgName: String(org.name ?? 'Organization'),
+    departments,
+    defaultDepartmentId: null,
+    canManageStructure: canManage,
+    hasNoDepartments: departments.length === 0,
+  };
+}
+
+/**
+ * Resolve the picker context for an invoice. Tries (in order):
+ *   1. The invoice's current department_id → its org (if attributed).
+ *   2. The invoice's job.client_id → that user's primary org membership.
+ * Falls back to EMPTY when nothing resolves.
+ */
+export async function fetchOrgPickerContextForInvoice(
+  invoiceId: string,
+): Promise<OrgPickerContext> {
+  if (!invoiceId) return EMPTY_ORG_PICKER_CONTEXT;
+  const supabase = await createSupabaseServerClient();
+
+  // Path A: already attributed → resolve via the dept.
+  const { data: invRow } = await supabase
+    .from('invoices')
+    .select('department_id, job_id, client_id')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!invRow) return EMPTY_ORG_PICKER_CONTEXT;
+
+  const deptId = invRow.department_id as string | null;
+  if (deptId) {
+    const { data: deptRow } = await supabase
+      .from('departments')
+      .select('org_id')
+      .eq('id', deptId)
+      .maybeSingle();
+    const orgId = (deptRow?.org_id as string | null) ?? null;
+    if (orgId) return await fetchOrgPickerContextForOrg(orgId);
+  }
+
+  // Path B: unattributed → infer from the buyer's primary org. We pick
+  // the first elevated-role membership; otherwise the first enterprise;
+  // otherwise the first of any. Same selection as the buyer-side picker.
+  const buyerId = (invRow.client_id as string | null) ?? null;
+  if (!buyerId) return EMPTY_ORG_PICKER_CONTEXT;
+
+  const { data: buyerMemberships } = await supabase
+    .from('org_members')
+    .select('org_id, role, organizations(kind)')
+    .eq('user_id', buyerId);
+
+  const memberships = ((buyerMemberships ?? []) as unknown as Array<
+    Record<string, unknown>
+  >).map((r) => ({
+    orgId: String(r.org_id),
+    role: String(r.role ?? 'viewer'),
+    orgKind:
+      (((r.organizations ?? {}) as Record<string, unknown>).kind as
+        | string
+        | null) ?? null,
+  }));
+
+  const elevated = memberships.find((m) =>
+    ELEVATED_ORG_ROLES_INTERNAL.has(m.role),
+  );
+  const firstEnterprise = memberships.find((m) => m.orgKind === 'enterprise');
+  const active = elevated ?? firstEnterprise ?? memberships[0];
+  if (!active) return EMPTY_ORG_PICKER_CONTEXT;
+
+  return await fetchOrgPickerContextForOrg(active.orgId);
 }

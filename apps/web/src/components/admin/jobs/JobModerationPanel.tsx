@@ -28,6 +28,7 @@ import {
   adminForwardApplication,
 } from '@/lib/actions/negotiation';
 import { generateJobContract } from '@/lib/actions/jobContracts';
+import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
 import type {
   ModerationJobDetail,
   ModerationTimelineEvent,
@@ -92,6 +93,10 @@ export function JobModerationPanel({
             <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-industrial text-zinc-300">
               moderation · {job.moderation_status ?? 'pending_review'}
             </span>
+            {/* Layer 1+3 expansion — passive domain badge.
+                Renders NOTHING when domain='industrial_ndt' (current state
+                for every job), so this is a true no-op visually today. */}
+            <InspectionDomainBadge domain={job.domain} />
           </div>
         </div>
         <Link

@@ -22,6 +22,9 @@ export interface ModerationJob {
   client_price_cents: number | null;
   payout_amount_cents: number | null;
   payout_status: string | null;
+  // Layer 1 expansion. Backfilled to 'industrial_ndt' for every existing job;
+  // optional in the type to tolerate older callers / cached responses.
+  domain?: string | null;
 }
 
 export interface ModerationPageResult {

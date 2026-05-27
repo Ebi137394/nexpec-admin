@@ -80,7 +80,18 @@ export default async function AdminLayout({
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header userLabel={userLabel} organizations={[]} />
+        {/*
+          Doctrine fix: the Command Console is platform-wide. The Platform
+          Owner operates here as the singular system authority, not as a
+          tenant member. We INTENTIONALLY do NOT pass `memberships` —
+          Header falls through to the inert "NEXPEC · Platform" chip,
+          making the architectural boundary visually obvious.
+
+          For tenant-scoped work (managing a specific org's structure,
+          budget, approvals) the Platform Owner crosses into /client/* or
+          /admin/orgs/[id]/* where org context is appropriate.
+        */}
+        <Header userLabel={userLabel} />
         <main className="flex-1 px-6 py-8 sm:px-10 sm:py-10">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>

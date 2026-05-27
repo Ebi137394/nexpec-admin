@@ -2,51 +2,79 @@ import { Suspense } from 'react';
 import { SignOutButton } from './SignOutButton';
 import { NotificationBellGate } from '@/components/notifications/NotificationBellGate';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { OrgSwitcher } from '@/components/orgs/OrgSwitcher';
+import type { OrgMembershipEntry } from '@nexpec/shared-core';
 
 interface HeaderProps {
   /** Display name from profiles.full_name or email fallback. */
   userLabel: string;
-  /** Organisation switcher data — placeholder until org seat model lands. */
+  /**
+   * Legacy org-list shape (kept for back-compat with surfaces that haven't
+   * been ported to the active-org switcher yet). Pass `memberships` +
+   * `activeMembership` for the new, interactive switcher.
+   */
   organizations?: ReadonlyArray<{ id: string; name: string }>;
   activeOrgId?: string;
+  /**
+   * Sprint 6 — multi-org context switcher. When provided, the Header
+   * renders the interactive OrgSwitcher and ignores the legacy props.
+   * Empty array (or undefined) → falls back to the static NEXPEC chip.
+   */
+  memberships?: ReadonlyArray<OrgMembershipEntry>;
+  /** The currently-active membership (matches one of `memberships`). */
+  activeMembership?: OrgMembershipEntry | null;
 }
 
 /**
- * Sticky admin header: organisation switcher (placeholder), live build
- * indicator, user avatar + sign-out.
+ * Sticky shared header: organization workspace switcher, live build
+ * indicator, locale toggle, notifications bell, user pill, sign-out.
  *
- * The org switcher is a UI placeholder for Sprint 2 — it renders the
- * organisations the user belongs to via the `org_members` table once that
- * table exists. For now it's an inert chip that signals the upcoming
- * capability without lying about current state.
+ * The workspace switcher is wired to the active-org primitives
+ * (profiles.active_org_id + set_active_org RPC). When `memberships` is
+ * non-empty the switcher is fully interactive; otherwise the Header
+ * shows the inert NEXPEC platform chip — preserving the visual for
+ * admin surfaces that don't pass org context.
  */
 export function Header({
   userLabel,
   organizations = [],
   activeOrgId,
+  memberships,
+  activeMembership,
 }: HeaderProps) {
-  const activeOrg =
+  // Prefer the new, rich props. Legacy `organizations` only kicks in when
+  // memberships isn't provided AT ALL — keeps the placeholder visible for
+  // any caller that hasn't migrated yet.
+  const useSwitcher = memberships !== undefined;
+  const legacyActive =
     organizations.find((o) => o.id === activeOrgId) ?? organizations[0];
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-ink-950/80 backdrop-blur-xl">
       <div className="flex h-14 items-center justify-between px-6">
-        {/* Left: org switcher placeholder */}
+        {/* Left: workspace switcher */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            aria-label="Switch organisation"
-            disabled
-            className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-violet to-cyan-glow text-[9px] font-bold text-white">
-              {(activeOrg?.name ?? 'NX').slice(0, 2).toUpperCase()}
-            </span>
-            <span>{activeOrg?.name ?? 'NEXPEC · Platform'}</span>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-emerald-400">
-              live
-            </span>
-          </button>
+          {useSwitcher ? (
+            <OrgSwitcher
+              memberships={memberships ?? []}
+              active={activeMembership ?? null}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label="Switch organisation"
+              disabled
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-violet to-cyan-glow text-[9px] font-bold text-white">
+                {(legacyActive?.name ?? 'NX').slice(0, 2).toUpperCase()}
+              </span>
+              <span>{legacyActive?.name ?? 'NEXPEC · Platform'}</span>
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-emerald-400">
+                live
+              </span>
+            </button>
+          )}
           <span className="hidden font-mono text-[10px] uppercase tracking-industrial text-zinc-600 md:inline">
             live ·{' '}
             <span className="text-cyan-glow">

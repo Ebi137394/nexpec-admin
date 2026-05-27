@@ -29,6 +29,7 @@ import {
   Hash,
   HelpCircle,
   Receipt,
+  AlertTriangle,
 } from 'lucide-react';
 
 import {
@@ -115,10 +116,24 @@ export function DepartmentBudgetByOrgPanel({
       }
       subtitle={
         rollup.mixedCurrencies
-          ? `Predominant currency: ${rollup.predominantCurrency} · other currencies are summed in their own rows`
-          : `Currency: ${rollup.predominantCurrency}`
+          ? `Displayed in ${rollup.displayCurrency} · totals consolidated from ${rollup.predominantCurrency} and other native currencies`
+          : `Displayed in ${rollup.displayCurrency}${
+              rollup.displayCurrency !== rollup.predominantCurrency
+                ? ` · invoices natively in ${rollup.predominantCurrency}`
+                : ''
+            }`
       }
     >
+      {rollup.anyRateUnavailable && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+          <span>
+            Some rows could not be converted into {rollup.displayCurrency} because
+            an FX rate path is missing. Those amounts fall back to their native
+            currency — flagged in the row.
+          </span>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-xs">
           <thead>
@@ -240,7 +255,29 @@ function Row({
   const Icon = row.depth === 0 ? FolderOpen : Folder;
   const iconTone = row.depth === 0 ? 'text-violet-glow' : 'text-zinc-500';
 
-  const rollupTitle = `Direct: ${formatMoney(row.direct_committed_cents, row.currency)} · ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`;
+  // Sprint 7 — pick which value to show in the primary column.
+  //   · row.display_currency matches row.currency       → native only
+  //   · convert succeeded                                 → display primary, native secondary
+  //   · convert failed (rate_unavailable)                 → native primary, badge "rate n/a"
+  const isForeign = row.display_currency && row.display_currency !== row.currency;
+  const showConverted =
+    isForeign &&
+    !row.rate_unavailable &&
+    row.display_committed_cents !== null;
+
+  const primaryCommitted = showConverted
+    ? formatMoney(row.display_committed_cents ?? 0, row.display_currency)
+    : formatMoney(row.rollup_committed_cents, row.currency);
+  const primaryPaid = showConverted
+    ? formatMoney(row.display_paid_cents ?? 0, row.display_currency)
+    : formatMoney(row.rollup_paid_cents, row.currency);
+  const secondaryCommitted = showConverted
+    ? formatMoney(row.rollup_committed_cents, row.currency)
+    : null;
+
+  const rollupTitle = showConverted
+    ? `Native: ${formatMoney(row.rollup_committed_cents, row.currency)} · Direct: ${formatMoney(row.direct_committed_cents, row.currency)} · ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`
+    : `Direct: ${formatMoney(row.direct_committed_cents, row.currency)} · ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`;
 
   const NameCell = (
     <span className="inline-flex min-w-0 items-center gap-2" style={{ paddingLeft: depthIndent }}>
@@ -250,6 +287,19 @@ function Row({
         <span className="inline-flex items-center gap-0.5 rounded border border-white/[0.08] bg-white/[0.03] px-1 py-px font-mono text-[9px] text-zinc-400">
           <Hash className="h-2.5 w-2.5" strokeWidth={2} />
           {row.cost_center}
+        </span>
+      )}
+      {isForeign && row.rate_unavailable && (
+        <span className="inline-flex items-center gap-0.5 rounded border border-amber-400/30 bg-amber-400/[0.06] px-1 py-px font-mono text-[9px] uppercase tracking-industrial text-amber-200">
+          rate n/a
+        </span>
+      )}
+      {isForeign && !row.rate_unavailable && (
+        <span
+          className="inline-flex items-center gap-0.5 rounded border border-white/[0.06] bg-white/[0.02] px-1 py-px font-mono text-[9px] uppercase tracking-industrial text-zinc-500"
+          title={`Converted from ${row.currency}`}
+        >
+          fx
         </span>
       )}
     </span>
@@ -273,12 +323,15 @@ function Row({
         )}
       </td>
       <td className="py-2 px-3 text-right font-mono">
-        <span className="text-white">
-          {formatMoney(row.rollup_committed_cents, row.currency)}
-        </span>
+        <div className="text-white">{primaryCommitted}</div>
+        {secondaryCommitted && (
+          <div className="text-[10px] text-zinc-500">
+            native {secondaryCommitted}
+          </div>
+        )}
       </td>
       <td className="py-2 px-3 text-right font-mono text-zinc-300">
-        {formatMoney(row.rollup_paid_cents, row.currency)}
+        {primaryPaid}
       </td>
       <td className="py-2 px-3 text-right font-mono text-zinc-400">
         {row.rollup_invoice_count}
@@ -291,6 +344,19 @@ function Row({
 }
 
 function UnattributedRow({ row }: { row: DepartmentSpendRow }) {
+  const isForeign = row.display_currency && row.display_currency !== row.currency;
+  const showConverted =
+    isForeign && !row.rate_unavailable && row.display_committed_cents !== null;
+  const primaryCommitted = showConverted
+    ? formatMoney(row.display_committed_cents ?? 0, row.display_currency)
+    : formatMoney(row.rollup_committed_cents, row.currency);
+  const primaryPaid = showConverted
+    ? formatMoney(row.display_paid_cents ?? 0, row.display_currency)
+    : formatMoney(row.rollup_paid_cents, row.currency);
+  const secondaryCommitted = showConverted
+    ? formatMoney(row.rollup_committed_cents, row.currency)
+    : null;
+
   return (
     <tr className="border-t-2 border-dashed border-amber-400/20 bg-amber-400/[0.02]">
       <td className="py-2 pl-2 pr-3">
@@ -300,13 +366,23 @@ function UnattributedRow({ row }: { row: DepartmentSpendRow }) {
           <span className="rounded border border-amber-400/30 bg-amber-400/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-amber-200">
             no dept
           </span>
+          {isForeign && row.rate_unavailable && (
+            <span className="rounded border border-amber-400/30 bg-amber-400/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-amber-200">
+              rate n/a
+            </span>
+          )}
         </span>
       </td>
       <td className="py-2 px-3 text-right font-mono text-amber-100/90">
-        {formatMoney(row.rollup_committed_cents, row.currency)}
+        <div>{primaryCommitted}</div>
+        {secondaryCommitted && (
+          <div className="text-[10px] text-amber-200/60">
+            native {secondaryCommitted}
+          </div>
+        )}
       </td>
       <td className="py-2 px-3 text-right font-mono text-amber-100/80">
-        {formatMoney(row.rollup_paid_cents, row.currency)}
+        {primaryPaid}
       </td>
       <td className="py-2 px-3 text-right font-mono text-amber-100/70">
         {row.rollup_invoice_count}

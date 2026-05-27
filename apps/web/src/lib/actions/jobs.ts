@@ -69,6 +69,19 @@ const CreateJobSchema = z.object({
       z.boolean(),
     )
     .default(false),
+
+  // ── Department attribution (Sprint 14 — cost-center roll-up) ─────────
+  // Optional UUID. Empty string from the form is normalised to undefined
+  // so the resulting INSERT omits department_id (NULL = "Unattributed",
+  // which the by-department roll-up exposes as a synthetic bucket).
+  // Defence: the trigger tg_invoice_inherit_department will copy this
+  // onto the invoice when the contract executes.
+  departmentId: z
+    .string()
+    .trim()
+    .uuid({ message: 'Department selection is invalid.' })
+    .optional()
+    .or(z.literal('')),
 });
 
 function buildErrorRedirect(
@@ -102,6 +115,8 @@ export async function createJob(formData: FormData): Promise<void> {
     clientOpId: formData.get('clientOpId') ?? '',
     // Checkbox: present in formData as "on" when checked, absent when not.
     requiresCci: formData.get('requiresCci'),
+    // Optional department attribution (enterprise/agency buyers).
+    departmentId: formData.get('departmentId') ?? '',
   });
 
   if (!parsed.success) {
@@ -231,6 +246,68 @@ export async function createJob(formData: FormData): Promise<void> {
     /* ignore — proceed to insert */
   }
 
+  // ── Procurement Control Plane intercept (Sprint 15) ─────────────────
+  // BEFORE inserting, ask the engine whether this job needs an approval
+  // gate. The RPC degrades to "no gate" when the PCP isn't installed,
+  // so this is a no-op for envs that haven't applied the migrations.
+  //
+  // Approval evaluation requires both an org context AND a department
+  // attribution — neither makes sense for solo buyers, and the engine
+  // returns gracefully when either is absent.
+  let approvalEvaluation: {
+    requires_approval: boolean;
+    policy_id?: string;
+    min_approvers_count?: number;
+    required_approver_roles?: string[];
+    requires_sod?: boolean;
+  } = { requires_approval: false };
+
+  if (input.departmentId && input.departmentId.length > 0) {
+    // Resolve the user's active org. We need this for the evaluator;
+    // jobs that already pin a department implicitly pin the org via
+    // the department FK chain, but the engine wants both explicitly.
+    const { data: deptRow } = await supabase
+      .from('departments')
+      .select('org_id')
+      .eq('id', input.departmentId)
+      .maybeSingle();
+    const orgId = (deptRow?.org_id as string | null) ?? null;
+
+    if (orgId) {
+      const { data: evalData, error: evalErr } = await supabase.rpc(
+        'evaluate_job_for_approval',
+        {
+          p_org_id: orgId,
+          p_department_id: input.departmentId,
+          p_amount_cents: input.budgetDollars * 100,
+          // Form is in USD today; multi-currency on job-post lands in a follow-up.
+          p_currency: 'USD',
+        },
+      );
+      if (!evalErr && evalData) {
+        const e = evalData as Record<string, unknown>;
+        approvalEvaluation = {
+          requires_approval: Boolean(e.requires_approval),
+          policy_id: (e.policy_id as string | undefined) ?? undefined,
+          min_approvers_count:
+            (e.min_approvers_count as number | undefined) ?? undefined,
+          required_approver_roles: Array.isArray(e.required_approver_roles)
+            ? (e.required_approver_roles as string[])
+            : undefined,
+          requires_sod:
+            (e.requires_sod as boolean | undefined) ?? undefined,
+        };
+      } else if (
+        evalErr &&
+        !/function .* does not exist/i.test(evalErr.message ?? '')
+      ) {
+        // RPC exists but blew up — log; we treat this as "no gate" so the
+        // existing post path doesn't break.
+        console.warn('[createJob] evaluate_job_for_approval failed:', evalErr.message);
+      }
+    }
+  }
+
   const insert: Record<string, unknown> = {
     client_id: user.id,
     title: input.title,
@@ -241,7 +318,10 @@ export async function createJob(formData: FormData): Promise<void> {
     job_type: input.jobType,
     specialty_slugs: mergedSpecialties,
     // Explicit so we don't trip the jobs_status_check vs DEFAULT mismatch.
-    status: 'open' as const,
+    // PCP intercept may flip this to 'pending_approval' below.
+    status: (approvalEvaluation.requires_approval
+      ? 'pending_approval'
+      : 'open') as 'open' | 'pending_approval',
     // ── CCI flag (Sprint 12 hotfix) ────────────────────────────────────
     requires_cci: input.requiresCci,
     // ── Idempotency (Sprint 13) ─────────────────────────────────────────
@@ -250,6 +330,14 @@ export async function createJob(formData: FormData): Promise<void> {
     // same id is rejected; we treat 23505 as "already posted" → redirect.
     client_op_id: clientOpId,
   };
+
+  // ── Department attribution (Sprint 14) ──────────────────────────────
+  // Only attach if the buyer picked a real UUID; empty string from the
+  // form means "leave unattributed". The trigger on invoices will copy
+  // this onto the invoice at contract execution.
+  if (input.departmentId && input.departmentId.length > 0) {
+    insert.department_id = input.departmentId;
+  }
 
   const { data, error } = await supabase
     .from('jobs')
@@ -286,6 +374,42 @@ export async function createJob(formData: FormData): Promise<void> {
     );
   }
 
+  // ── Procurement Control Plane — open the approval request ─────────
+  // The job is now in 'pending_approval' status; open the routing
+  // record so approvers see it on their dashboards.
+  if (approvalEvaluation.requires_approval && approvalEvaluation.policy_id) {
+    try {
+      const { error: openErr } = await supabase.rpc(
+        'open_job_approval_request',
+        {
+          p_job_id: data.id,
+          p_policy_id: approvalEvaluation.policy_id,
+          p_amount_cents: input.budgetDollars * 100,
+          p_currency: 'USD',
+          p_min_approvers_required:
+            approvalEvaluation.min_approvers_count ?? 1,
+          p_required_approver_roles:
+            approvalEvaluation.required_approver_roles ?? ['owner'],
+          p_requires_sod: approvalEvaluation.requires_sod ?? true,
+        },
+      );
+      if (openErr) {
+        // The job has been inserted as pending_approval but the request
+        // didn't open — that's a serious inconsistency. Log loudly so we
+        // notice in monitoring; the buyer still sees a graceful "routed"
+        // state and the Platform Owner can intervene.
+        console.error(
+          '[createJob] open_job_approval_request failed for job',
+          data.id,
+          ':',
+          openErr.message,
+        );
+      }
+    } catch (e) {
+      console.error('[createJob] open_job_approval_request threw:', e);
+    }
+  }
+
   // ── NOTIFICATION FALLBACK ──────────────────────────────────────────────
   // The notify_on_job_change DB trigger (migration 20260518280000) should
   // fire admin notifications automatically. But if that migration hasn't
@@ -296,7 +420,9 @@ export async function createJob(formData: FormData): Promise<void> {
   try {
     await supabase.rpc('notify_admins', {
       p_kind: 'job_moderated',
-      p_title: 'New job posted',
+      p_title: approvalEvaluation.requires_approval
+        ? 'Job posted (awaiting approval)'
+        : 'New job posted',
       p_body: input.title.slice(0, 140),
       p_link: '/admin/jobs?inspect=' + data.id,
       p_job_id: data.id,
@@ -309,5 +435,15 @@ export async function createJob(formData: FormData): Promise<void> {
   revalidatePath('/client/jobs');
   revalidatePath('/admin/jobs');
   revalidatePath('/notifications');
-  redirect('/client/jobs?created=' + encodeURIComponent(data.id));
+  revalidatePath('/client/approvals');
+
+  // ── Redirect ─────────────────────────────────────────────────────────
+  // Gated jobs get an explicit `awaiting_approval=true` param so the
+  // /client/jobs surface can render the routed-for-review banner instead
+  // of the usual "live" success state.
+  const redirectQs = new URLSearchParams({ created: data.id });
+  if (approvalEvaluation.requires_approval) {
+    redirectQs.set('awaiting_approval', 'true');
+  }
+  redirect('/client/jobs?' + redirectQs.toString());
 }

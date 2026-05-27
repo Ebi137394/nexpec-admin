@@ -1,10 +1,12 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  lib/actions/compliance.ts — superseded by ./credentials.ts
+//  lib/actions/compliance.ts
 //
-//  The canonical credential-review server action lives in `./credentials.ts`
-//  (that's the path the ComplianceDrawer imports). This file re-exports the
-//  same symbols so any straggling import to `@/lib/actions/compliance`
-//  resolves to the same action — no duplicate server-action endpoint.
+//  Sprint 9 host for the Compliance Evidence Locker (CEL) actions.
+//
+//  Also re-exports the legacy credentials-review surface that the
+//  ComplianceDrawer used to import via this path — preserved for back-
+//  compat so the old import resolves to the same action.
 // ════════════════════════════════════════════════════════════════════════════
 
 export * from './credentials';
+export * from './evidenceLocker';

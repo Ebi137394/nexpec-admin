@@ -30,6 +30,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   fetchOrgStructure,
   fetchAssignableOrgMembers,
+  fetchMyOrgMemberships,
+  resolveActiveOrgId,
 } from '@/lib/data/orgStructure';
 import { OrgStructureWorkspace } from '@/components/admin/orgs/structure/OrgStructureWorkspace';
 
@@ -71,36 +73,28 @@ export default async function ClientStructurePage() {
   const isSuperAdmin =
     (profile?.role ?? '').toString().trim().toLowerCase() === 'super_admin';
 
-  const { data: membershipRows, error: membershipErr } = await supabase
-    .from('org_members')
-    .select('org_id, role, organizations(name, kind)')
-    .eq('user_id', user.id);
-
-  const memberships: MembershipRow[] = ((membershipRows ?? []) as unknown as Array<
-    Record<string, unknown>
-  >).map((r) => {
-    const org = (r.organizations ?? {}) as Record<string, unknown>;
-    return {
-      org_id: String(r.org_id),
-      role: String(r.role ?? 'viewer'),
-      org_name: String(org.name ?? 'Organization'),
-      org_kind: (org.kind as string | null) ?? null,
-    };
-  });
+  // Sprint 6 — replace the local election with the central resolver.
+  // The resolver honours profiles.active_org_id (set via the workspace
+  // switcher) before falling back to the elected default.
+  const richMemberships = await fetchMyOrgMemberships();
+  const memberships: MembershipRow[] = richMemberships.map((m) => ({
+    org_id: m.org_id,
+    role: m.role ?? 'viewer',
+    org_name: m.org_name,
+    org_kind: m.org_kind,
+  }));
 
   // ── 3. No memberships? Render an empty-state instead of crashing. ─
   if (!isSuperAdmin && memberships.length === 0) {
     return <NoMembershipState />;
   }
 
-  // ── 4. Pick the active membership ───────────────────────────────────
-  // Preference order:
-  //   (a) an elevated-role membership the user holds (highest agency),
-  //   (b) the first enterprise org they belong to,
-  //   (c) the first membership at all.
-  const elevated = memberships.find((m) => ELEVATED_ORG_ROLES.has(m.role));
-  const firstEnterprise = memberships.find((m) => m.org_kind === 'enterprise');
-  const active = elevated ?? firstEnterprise ?? memberships[0] ?? null;
+  // ── 4. Resolve the active membership — pinned first, then elected. ─
+  const activeOrgId = await resolveActiveOrgId();
+  const active =
+    memberships.find((m) => m.org_id === activeOrgId) ??
+    memberships[0] ??
+    null;
 
   // Super admin without memberships gets a soft landing pointing to the
   // admin surface — they shouldn't be managing client surfaces here.
@@ -178,9 +172,10 @@ export default async function ClientStructurePage() {
               strokeWidth={1.75}
             />
             <span>
-              You&apos;re viewing the client surface as <span className="font-mono">super_admin</span>.
+              You&apos;re viewing the client surface as the{' '}
+              <span className="font-medium text-cyan-glow">NEXPEC Platform Owner</span>.
               Any change you make is logged with your identity in the audit
-              trail. The canonical admin surface for cross-org work is{' '}
+              trail. The canonical platform-owner surface for cross-org work is{' '}
               <Link
                 href={`/admin/orgs/${active.org_id}/structure`}
                 className="text-violet-glow hover:text-white"
@@ -246,7 +241,7 @@ function SuperAdminLandingState() {
     <div className="space-y-6">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/80">
-          Super-admin notice
+          Platform Owner notice
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           You manage every org from the admin console.
@@ -254,7 +249,7 @@ function SuperAdminLandingState() {
       </header>
       <p className="text-sm text-zinc-400">
         This is the client surface — designed for org members managing their
-        own structure. As super_admin you have a richer view at:
+        own structure. As the NEXPEC Platform Owner you have a richer view at:
       </p>
       <Link
         href="/admin/orgs"

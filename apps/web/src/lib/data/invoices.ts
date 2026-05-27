@@ -42,6 +42,10 @@ const CLIENT_INVOICE_FIELDS = [
   'paid_at',
   'notes',
   'line_items_json',
+  // Sprint 14: cost-center attribution columns (added by migration
+  // 20260529120000_invoice_department_attribution).
+  'department_id',
+  'cost_center_snapshot',
   // No inspector_amount_cents
 ].join(', ');
 
@@ -73,7 +77,28 @@ const ADMIN_INVOICE_FIELDS = [
   'voided_reason',
   'notes',
   'line_items_json',
+  // Sprint 14: cost-center attribution columns.
+  'department_id',
+  'cost_center_snapshot',
 ].join(', ');
+
+// ─── Internal: hydrate department names for a set of dept ids ──────────
+async function hydrateDepartmentNames(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  deptIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const dedup = Array.from(new Set(deptIds.filter(Boolean)));
+  if (dedup.length === 0) return map;
+  const { data } = await supabase
+    .from('departments')
+    .select('id, name')
+    .in('id', dedup);
+  for (const d of data ?? []) {
+    map.set(d.id as string, (d.name as string | null) ?? '');
+  }
+  return map;
+}
 
 // ─── Client-side fetcher (for /client/invoices) ────────────────────────
 export async function fetchClientInvoices(
@@ -122,6 +147,13 @@ export async function fetchClientInvoices(
     const counts = await fetchInvoiceCounts();
 
     const rows = data as unknown as Array<Record<string, unknown>>;
+
+    // Sprint 14: hydrate department names in one batch.
+    const deptNameById = await hydrateDepartmentNames(
+      supabase,
+      rows.map((r) => (r.department_id as string | null) ?? '').filter(Boolean),
+    );
+
     const invoices: InvoiceClientView[] = rows.map((r) => ({
       id: String(r.id),
       invoiceNumber: String(r.invoice_number ?? ''),
@@ -142,6 +174,10 @@ export async function fetchClientInvoices(
       notes: (r.notes as string | null) ?? null,
       lineItems: parseLineItems(r.line_items_json),
       inspectorName: null, // resolved separately below
+      departmentId: (r.department_id as string | null) ?? null,
+      departmentName:
+        deptNameById.get((r.department_id as string | null) ?? '') ?? null,
+      costCenterSnapshot: (r.cost_center_snapshot as string | null) ?? null,
     }));
 
     return { invoices, counts };
@@ -201,6 +237,12 @@ export async function fetchAdminInvoices(
 
     const counts = await fetchInvoiceCounts();
 
+    // Sprint 14: hydrate department names.
+    const deptNameById = await hydrateDepartmentNames(
+      supabase,
+      rows.map((r) => (r.department_id as string | null) ?? '').filter(Boolean),
+    );
+
     const invoices: InvoiceAdminView[] = rows.map((r) => ({
       id: String(r.id),
       invoiceNumber: String(r.invoice_number ?? ''),
@@ -233,6 +275,10 @@ export async function fetchAdminInvoices(
       voidedReason: (r.voided_reason as string | null) ?? null,
       notes: (r.notes as string | null) ?? null,
       lineItems: parseLineItems(r.line_items_json),
+      departmentId: (r.department_id as string | null) ?? null,
+      departmentName:
+        deptNameById.get((r.department_id as string | null) ?? '') ?? null,
+      costCenterSnapshot: (r.cost_center_snapshot as string | null) ?? null,
     }));
 
     return { invoices, counts };
@@ -272,6 +318,18 @@ export async function fetchInvoiceById(
       title = (jrow as { title?: string | null } | null)?.title ?? null;
     }
 
+    // Sprint 14: hydrate the department name if attributed.
+    const deptId = (r.department_id as string | null) ?? null;
+    let deptName: string | null = null;
+    if (deptId) {
+      const { data: drow } = await supabase
+        .from('departments')
+        .select('name')
+        .eq('id', deptId)
+        .maybeSingle();
+      deptName = (drow as { name?: string | null } | null)?.name ?? null;
+    }
+
     return {
       id: String(r.id),
       invoiceNumber: String(r.invoice_number ?? ''),
@@ -292,6 +350,9 @@ export async function fetchInvoiceById(
       notes: (r.notes as string | null) ?? null,
       lineItems: parseLineItems(r.line_items_json),
       inspectorName: null,
+      departmentId: deptId,
+      departmentName: deptName,
+      costCenterSnapshot: (r.cost_center_snapshot as string | null) ?? null,
     };
   } catch (e) {
     console.warn('[invoices] fetchInvoiceById threw:', e);

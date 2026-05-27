@@ -11,6 +11,7 @@ import {
   Share,
   Image,
   Modal,
+  TextInput,
 } from 'react-native';
 import InspectionScreen from '../../../report/[id]';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -196,21 +197,23 @@ export default function InspectorJobDetailScreen() {
     //   patch adds a new render reference, add the column here EXPLICITLY
     //   — never bring back `select('*')`. The Sync Ledger calls this out
     //   as a Golden Rule (#2).
+    // Schema-aligned select. company_name + rate_type + requirements +
+    // completed_at are NOT columns on public.jobs — they were removed
+    // because PostgREST 42703s the whole query if any column is bogus.
+    // The UI falls back to 'Private Client' when company_name is undefined.
     const { data, error } = await supabase
       .from('jobs')
       .select(
         [
           'id',
           'title',
-          'company_name',
           'location',
           'job_type',
-          'rate_type',
           'payout_amount_cents',
           'description',
-          'requirements',
           'scheduled_date',
-          'completed_at',
+          'admin_confirmed_at',
+          'started_at',
           'created_at',
           'status',
           'client_id',

@@ -92,8 +92,18 @@ function SpendBody({
   summary: DepartmentSpendSummary;
   surface: 'admin' | 'client';
 }) {
-  const fmt = (cents: number) =>
-    formatMoney(cents, summary.currency);
+  // Sprint 7 — prefer the display projection. Native values come from
+  // `summary.direct/rollup`; converted values are in `display_direct/rollup`.
+  // When the conversion is unavailable we transparently fall back.
+  const useDisplay =
+    summary.display_currency &&
+    summary.display_currency !== summary.currency &&
+    !summary.display_rollup.rate_unavailable;
+
+  const displayCcy = useDisplay ? summary.display_currency : summary.currency;
+  const directSlice = useDisplay ? summary.display_direct : summary.direct;
+  const rollupSlice = useDisplay ? summary.display_rollup : summary.rollup;
+  const fmt = (cents: number) => formatMoney(cents, displayCcy);
 
   return (
     <>
@@ -101,37 +111,51 @@ function SpendBody({
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Tile
           label="Direct (this dept)"
-          primaryValue={fmt(summary.direct.all_time_committed_cents)}
+          primaryValue={fmt(directSlice.all_time_committed_cents)}
           primaryLabel="committed"
-          secondaryValue={fmt(summary.direct.all_time_paid_cents)}
+          secondaryValue={fmt(directSlice.all_time_paid_cents)}
           secondaryLabel="paid"
           tone="neutral"
           meta={`${summary.direct.invoice_count} invoice${summary.direct.invoice_count === 1 ? '' : 's'}`}
         />
         <Tile
           label="Roll-up (incl. descendants)"
-          primaryValue={fmt(summary.rollup.all_time_committed_cents)}
+          primaryValue={fmt(rollupSlice.all_time_committed_cents)}
           primaryLabel="committed"
-          secondaryValue={fmt(summary.rollup.all_time_paid_cents)}
+          secondaryValue={fmt(rollupSlice.all_time_paid_cents)}
           secondaryLabel="paid"
           tone="violet"
           meta={`${summary.rollup.invoice_count} invoice${summary.rollup.invoice_count === 1 ? '' : 's'}`}
         />
       </div>
 
+      {/* Currency context line */}
+      {useDisplay && (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
+          Displayed in {displayCcy} · invoices natively in {summary.currency}
+          {summary.mixed_currencies && ' + others'}
+        </p>
+      )}
+      {summary.display_rollup.rate_unavailable && (
+        <p className="mt-2 rounded-md border border-amber-400/25 bg-amber-400/[0.05] px-2 py-1 text-[10px] text-amber-200">
+          FX rate path missing for {summary.currency} → {summary.display_currency} —
+          showing native amounts.
+        </p>
+      )}
+
       {/* MTD / QTD / YTD strip */}
       <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/[0.04] pt-3">
         <WindowTile
           label="MTD"
-          value={fmt(summary.rollup.mtd_committed_cents)}
+          value={fmt(rollupSlice.mtd_committed_cents)}
         />
         <WindowTile
           label="QTD"
-          value={fmt(summary.rollup.qtd_committed_cents)}
+          value={fmt(rollupSlice.qtd_committed_cents)}
         />
         <WindowTile
           label="YTD"
-          value={fmt(summary.rollup.ytd_committed_cents)}
+          value={fmt(rollupSlice.ytd_committed_cents)}
         />
       </div>
 
@@ -262,9 +286,22 @@ function RecentInvoiceRowItem({
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="font-mono text-xs font-medium text-white">
-            {formatMoney(invoice.total_cents, invoice.currency)}
-          </p>
+          {invoice.display_currency &&
+          invoice.display_currency !== invoice.currency &&
+          invoice.display_total_cents !== null ? (
+            <>
+              <p className="font-mono text-xs font-medium text-white">
+                {formatMoney(invoice.display_total_cents, invoice.display_currency)}
+              </p>
+              <p className="font-mono text-[9px] text-zinc-500">
+                native {formatMoney(invoice.total_cents, invoice.currency)}
+              </p>
+            </>
+          ) : (
+            <p className="font-mono text-xs font-medium text-white">
+              {formatMoney(invoice.total_cents, invoice.currency)}
+            </p>
+          )}
           <ArrowUpRight
             className="ml-auto mt-0.5 h-3 w-3 text-zinc-600 transition-colors group-hover:text-violet-glow"
             strokeWidth={1.75}

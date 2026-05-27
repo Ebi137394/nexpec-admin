@@ -15,6 +15,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { Sidebar } from '@/components/client/Sidebar';
 import { Header } from '@/components/admin/Header';
 import { NotificationToasterGate } from '@/components/notifications/NotificationToasterGate';
+import { fetchActiveOrgInfo } from '@/lib/data/orgStructure';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,10 @@ export default async function ClientLayout({
     user.email?.split('@')[0] ||
     'Client';
 
+  // Sprint 6 — workspace switcher data. Resolves the user's pinned org
+  // (or elected fallback) plus the full memberships list in one round-trip.
+  const { active: activeMembership, memberships } = await fetchActiveOrgInfo();
+
   return (
     <div className="relative isolate flex min-h-screen bg-ink-950">
       {/* Atmospheric layers — toned down vs. marketing. */}
@@ -83,7 +88,11 @@ export default async function ClientLayout({
       <Sidebar role={normalisedRole} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header userLabel={userLabel} organizations={[]} />
+        <Header
+          userLabel={userLabel}
+          memberships={memberships}
+          activeMembership={activeMembership}
+        />
         <main className="flex-1 px-6 py-8 sm:px-10 sm:py-10">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>

@@ -27,6 +27,8 @@ import {
 } from '@/lib/data/invoices';
 import { type InvoiceStatus, INVOICE_STATUS_LABEL } from '@/lib/data/invoices.types';
 import { InvoiceActionsPanel } from '@/components/invoices/InvoiceActionsPanel';
+import { fetchOrgPickerContextForInvoice } from '@/lib/data/orgStructure';
+import { InvoiceDepartmentBlock } from '@/components/invoices/InvoiceDepartmentBlock';
 
 export async function generateMetadata({
   params,
@@ -48,6 +50,11 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
   const { id } = await params;
   const inv = await fetchInvoiceById(id);
   if (!inv) notFound();
+
+  // Sprint 14: resolve org-picker context for the Department block. The
+  // Reassign button surfaces only when the viewer has elevated rights
+  // (owner / procurement_admin) on the invoice's org.
+  const orgPicker = await fetchOrgPickerContextForInvoice(inv.id);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -117,6 +124,16 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
           This invoice has been voided. No payment due.
         </Banner>
       )}
+
+      {/* Sprint 14: Department attribution + Reassign action */}
+      <InvoiceDepartmentBlock
+        invoiceId={inv.id}
+        invoiceNumber={inv.invoiceNumber}
+        departmentId={inv.departmentId}
+        departmentName={inv.departmentName}
+        costCenterSnapshot={inv.costCenterSnapshot}
+        orgPicker={orgPicker}
+      />
 
       {/* Line items */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">

@@ -25,6 +25,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { SUPPORTED_CURRENCIES } from '@nexpec/shared-core';
 import {
   fetchDepartmentSpendSummary,
   type DepartmentSpendSummary,
@@ -280,6 +281,148 @@ export async function unassignMemberAction(
     ok: true,
     error: null,
     payload: { department_id: input.departmentId, user_id: input.userId },
+  };
+}
+
+/* ─── setOrgBaseCurrencyAction ─────────────────────────────────────────
+ *
+ * Pin an organization's preferred display currency. Calls the
+ * set_org_base_currency RPC which validates the caller via
+ * can_manage_org_structure. Touches every /client/* path under the org's
+ * scope so the next render reflects the new currency.
+ */
+
+export interface SetOrgBaseCurrencyActionInput {
+  orgId: string;
+  currency: string;
+}
+
+export async function setOrgBaseCurrencyAction(
+  input: SetOrgBaseCurrencyActionInput,
+): Promise<
+  ActionResult<{ org_id: string; base_currency: string; from: string }>
+> {
+  if (!isUuid(input.orgId)) {
+    return { ok: false, error: 'A valid organization id is required.' };
+  }
+  if (
+    !input.currency ||
+    !(SUPPORTED_CURRENCIES as ReadonlyArray<string>).includes(input.currency)
+  ) {
+    return { ok: false, error: 'Unsupported currency code.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('set_org_base_currency', {
+    p_org_id: input.orgId,
+    p_currency: input.currency,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const result = (data ?? {}) as {
+    ok?: boolean;
+    org_id?: string;
+    base_currency?: string;
+    from?: string;
+  };
+  if (!result.ok) {
+    return { ok: false, error: 'set_org_base_currency returned a non-ok response.' };
+  }
+
+  // Every surface that reads a money value re-renders.
+  revalidatePath('/client/budget');
+  revalidatePath('/client/invoices');
+  revalidatePath('/client/structure');
+  revalidatePath('/admin/budget');
+  revalidatePath('/admin/invoices');
+  revalidatePath(`/admin/orgs/${input.orgId}/structure`);
+  revalidatePath('/client', 'layout');
+
+  return {
+    ok: true,
+    error: null,
+    payload: {
+      org_id: result.org_id ?? input.orgId,
+      base_currency: result.base_currency ?? input.currency,
+      from: result.from ?? '',
+    },
+  };
+}
+
+/* ─── setActiveOrgAction ───────────────────────────────────────────────
+ *
+ * Pin the caller's active org context on profiles.active_org_id. Touches
+ * every /client/* path that depends on org context so the next render
+ * across any open tab reflects the new selection. Mobile companion is
+ * the same RPC — both surfaces stay in lock-step because the underlying
+ * pin is a DB column, not a per-client cookie.
+ */
+
+export interface SetActiveOrgInput {
+  orgId: string;
+}
+
+export async function setActiveOrgAction(
+  input: SetActiveOrgInput,
+): Promise<
+  ActionResult<{
+    active_org_id: string;
+    org_name: string;
+    org_kind: string;
+    role: string | null;
+  }>
+> {
+  if (!isUuid(input.orgId)) {
+    return { ok: false, error: 'A valid organization id is required.' };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc('set_active_org', {
+    p_org_id: input.orgId,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const result = (data ?? {}) as {
+    ok?: boolean;
+    active_org_id?: string;
+    org_name?: string;
+    org_kind?: string;
+    role?: string | null;
+  };
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: 'set_active_org returned a non-ok response.',
+    };
+  }
+
+  // Touch every path whose content depends on the active org. Cheap —
+  // these are just tag invalidations.
+  revalidatePath('/client/dashboard');
+  revalidatePath('/client/jobs');
+  revalidatePath('/client/jobs/new');
+  revalidatePath('/client/invoices');
+  revalidatePath('/client/budget');
+  revalidatePath('/client/structure');
+  revalidatePath('/client/team');
+  revalidatePath('/client/finance');
+  revalidatePath('/client/documents');
+  revalidatePath('/client/contracts');
+  revalidatePath('/client/reports');
+  // Layout-level paths so the switcher itself updates immediately.
+  revalidatePath('/client', 'layout');
+
+  return {
+    ok: true,
+    error: null,
+    payload: {
+      active_org_id: result.active_org_id ?? input.orgId,
+      org_name: result.org_name ?? 'Organization',
+      org_kind: result.org_kind ?? 'enterprise',
+      role: result.role ?? null,
+    },
   };
 }
 

@@ -13,11 +13,14 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowLeft, AlertCircle, ShieldCheck, Check } from 'lucide-react';
+import { ArrowLeft, AlertCircle, ShieldCheck, Check, FolderTree } from 'lucide-react';
 import { createJob } from '@/lib/actions/jobs';
 import { SPECIALTY_GROUPS } from '@/lib/data/specialtyTaxonomy';
 import { TagInput } from '@/components/forms/TagInput';
 import { PostJobSubmit } from '@/components/client/PostJobSubmit';
+import { fetchOrgPickerContextForMe } from '@/lib/data/orgStructure';
+import { DepartmentPickerField } from '@/components/orgs/DepartmentPickerField';
+import { ApprovalGatePreview } from '@/components/procurement/ApprovalGatePreview';
 
 export const metadata: Metadata = {
   title: 'Post a job',
@@ -34,6 +37,12 @@ interface PageProps {
 export default async function NewClientJobPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const errorMsg = params.error;
+
+  // Resolve the buyer's primary org so we can offer a Department picker.
+  // Returns null for buyers who don't belong to any org — the picker is
+  // simply omitted in that case (solo clients post jobs without dept
+  // attribution, exactly as today).
+  const orgPicker = await fetchOrgPickerContextForMe();
 
   return (
     <div className="space-y-8">
@@ -140,6 +149,51 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
             />
           </div>
         </Section>
+
+        {/* Section: department attribution (enterprise / agency buyers only).
+            Omitted entirely for solo clients with no org memberships — the
+            createJob action accepts an absent department_id transparently
+            and the resulting invoice will fall through to "Unattributed"
+            in the by-department roll-up. */}
+        {orgPicker && (
+          <Section
+            title="Department"
+            subtitle={`Tag this job to a cost center inside ${orgPicker.orgName}. Spend rolls up to this department in the Budget Overview.`}
+          >
+            <div className="flex items-start gap-3 rounded-2xl border border-violet/20 bg-violet/[0.04] p-4">
+              <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
+                <FolderTree className="h-4 w-4" strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <DepartmentPickerField
+                  name="departmentId"
+                  label="Charge to"
+                  orgName={orgPicker.orgName}
+                  departments={orgPicker.departments}
+                  defaultDepartmentId={orgPicker.defaultDepartmentId}
+                  unattributedMode="allow"
+                  unattributedLabel="— Leave unattributed —"
+                  hint={
+                    orgPicker.hasNoDepartments
+                      ? undefined
+                      : orgPicker.defaultDepartmentId
+                        ? 'Defaulted to your primary department. Change if this job belongs to a different cost center.'
+                        : 'Optional. You can also tag (or re-tag) later from the invoice page.'
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Sprint 8 — live approval-gate preview. The component
+                subscribes to the form's input events, debounces, and
+                renders the result of evaluate_job_for_approval. Hidden
+                until both a budget amount and a department are set. */}
+            <ApprovalGatePreview
+              orgId={orgPicker.orgId}
+              orgName={orgPicker.orgName}
+            />
+          </Section>
+        )}
 
         {/* Section: specialties — full 200+ taxonomy + custom add */}
         <Section

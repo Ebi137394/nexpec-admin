@@ -54,7 +54,7 @@ export async function fetchJobsModerationPage(
     // so try the canonical projection first and fall through if columns
     // don't exist.
     const WIDE =
-      'id, title, location_city, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status';
+      'id, title, location_city, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, domain';
     const MID =
       'id, title, location_city, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, payout_amount_cents, moderation_status';
     const NARROW =
@@ -129,6 +129,7 @@ export async function fetchJobsModerationPage(
         payout_amount_cents:
           ((j.inspector_payout_cents as number | null) ?? (j.payout_amount_cents as number | null)) ?? null,
         payout_status: (j.payout_status as string | null) ?? null,
+        domain: (j.domain as string | null) ?? null,
       };
     });
 

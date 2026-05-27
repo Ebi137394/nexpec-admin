@@ -48,20 +48,100 @@ export default function ContractDetailsScreen() {
       //   without this guard we'd hit Postgres with `id = 'history'` and
       //   get a 22P02 invalid-uuid error. Bouncing back is friendlier.
       const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!id || !UUID_RX.test(String(id))) {
+      // Accept either a raw UUID or the Hub's `jc:<uuid>` prefix form.
+      const rawId = String(id ?? '').replace(/^jc:/, '');
+      if (!rawId || !UUID_RX.test(rawId)) {
         Alert.alert('Not found', 'No contract matches that link.');
         router.back();
         return;
+      }
+
+      // ── V3 CUTOVER GUARDRAIL ─────────────────────────────────────────
+      //   The legacy V1 contracts table is decommissioned for active
+      //   workflows. Before showing this archive viewer, check whether
+      //   the id maps to a V3 row (or whether the job referenced by a
+      //   legacy row has a V3 counterpart) and redirect to the V3
+      //   signing surface instead. This ensures any direct deep link
+      //   into the old viewer surfaces the canonical contract.
+      //
+      //   Strategy:
+      //     a) If the id itself exists in inspector_job_contracts_view OR
+      //        client_job_contracts_view → it IS a V3 contract id.
+      //        Redirect to /contracts/job/jc:<id>.
+      //     b) Else, find the legacy row's job_id and check whether a
+      //        V3 contract exists for that job. If yes → redirect.
+      //     c) Else, render this archive view as before (read-only).
+      try {
+        const v3DirectInsp = await supabase
+          .from('inspector_job_contracts_view')
+          .select('id')
+          .eq('id', rawId)
+          .maybeSingle();
+        if (v3DirectInsp.data?.id) {
+          router.replace(`/contracts/job/jc:${v3DirectInsp.data.id}` as any);
+          return;
+        }
+        const v3DirectClient = await supabase
+          .from('client_job_contracts_view')
+          .select('id')
+          .eq('id', rawId)
+          .maybeSingle();
+        if (v3DirectClient.data?.id) {
+          router.replace(`/contracts/job/jc:${v3DirectClient.data.id}` as any);
+          return;
+        }
+        // Look up the legacy row's job_id to check for a V3 counterpart.
+        const legacyPeek = await supabase
+          .from('contracts')
+          .select('job_id, deleted_at')
+          .eq('id', rawId)
+          .maybeSingle();
+        const legacyJobId = legacyPeek.data?.job_id ?? null;
+        if (legacyJobId) {
+          const v3ForJobInsp = await supabase
+            .from('inspector_job_contracts_view')
+            .select('id')
+            .eq('job_id', legacyJobId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (v3ForJobInsp.data?.id) {
+            router.replace(`/contracts/job/jc:${v3ForJobInsp.data.id}` as any);
+            return;
+          }
+          const v3ForJobClient = await supabase
+            .from('client_job_contracts_view')
+            .select('id')
+            .eq('job_id', legacyJobId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (v3ForJobClient.data?.id) {
+            router.replace(`/contracts/job/jc:${v3ForJobClient.data.id}` as any);
+            return;
+          }
+        }
+        // No V3 counterpart found — fall through to the read-only
+        // archive viewer below (the legacy row, if it exists, is shown
+        // for audit-history purposes only).
+      } catch {
+        // Resolver lookup is best-effort. If it errors, fall through to
+        // the legacy viewer rather than block the user.
       }
 
       // ★ Manual 3-step fetch — replaces the embedded `jobs:job_id (...)`
       //   select that PostgREST was rejecting with PGRST200 ("Could not
       //   find a relationship between 'contracts' and 'jobs' in the
       //   schema cache"). Same pattern we use elsewhere.
+      //
+      //   Uses `rawId` so the Hub's `jc:` prefix is correctly stripped.
+      //   Skips soft-deleted legacy rows so superseded duplicates don't
+      //   surface in this archive viewer.
       const { data: contractData, error } = await supabase
         .from('contracts')
         .select('*')
-        .eq('id', id)
+        .eq('id', rawId)
+        .is('deleted_at', null)
         .maybeSingle();
 
       if (error) throw error;
@@ -72,6 +152,12 @@ export default function ContractDetailsScreen() {
       }
 
       // Pull job and client profile in parallel (both optional).
+      //
+      // ★ The profiles table does NOT have a `company_name` column (verified
+      //   against the migration history). Querying it causes PostgREST to
+      //   42703, the catch block below calls router.back(), and the user
+      //   gets kicked out of the screen. Use `full_name` only — and surface
+      //   it through a friendly fallback if missing.
       const [{ data: jobRow }, clientPromise] = await Promise.all([
         contractData.job_id
           ? supabase
@@ -83,7 +169,7 @@ export default function ContractDetailsScreen() {
         contractData.client_id
           ? supabase
               .from('profiles')
-              .select('company_name, full_name')
+              .select('full_name, email')
               .eq('id', contractData.client_id)
               .maybeSingle()
           : Promise.resolve({ data: null } as any),
@@ -91,7 +177,7 @@ export default function ContractDetailsScreen() {
       const profile = (await clientPromise)?.data ?? null;
 
       const clientName =
-        profile?.company_name || profile?.full_name || 'Unknown Client';
+        profile?.full_name || profile?.email || 'Private Client';
 
       setContract({
         ...contractData,

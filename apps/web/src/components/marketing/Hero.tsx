@@ -7,26 +7,97 @@ import { MagneticButton } from '@/components/ui/MagneticButton';
 
 /**
  * Hero — the visual centerpiece. Composed of:
- *   - Topographic grid backdrop with radial fade.
+ *   - 7-layer cinematic background (Stamp loop + atmospheric layers).
  *   - Animated eyebrow + word-by-word headline + subhead.
  *   - Two CTAs (primary magnetic, secondary outlined).
  *   - Three trust chips beneath (escrow / compliance / audit).
+ *
+ * ── 7-LAYER BACKGROUND COMPOSITION ────────────────────────────────────
+ *
+ *   Same technical recipe as <CTASection>, but tuned for the Hero's
+ *   scale and positioning:
+ *
+ *     1. <video>     — 10s Stamp loop, full-bleed, muted/loop/inline.
+ *     2. <img>       — Reduced-motion poster fallback (same slot).
+ *     3. Vertical
+ *        gradient   — Light at top, dark toward bottom. Tunes the
+ *                      video into a brand-coloured ambient texture.
+ *     4. topo-grid   — Preserved at reduced opacity. Adds the
+ *                      industrial-network feel ON TOP of the video.
+ *     5. Aggressive
+ *        radial
+ *        vignette   — Center positioned at 50% / 28% (where the
+ *                      headline lives) so the headline area is
+ *                      pulled to ~96% opacity dark. Edges fall off
+ *                      to ~55% so the loop can breathe in the
+ *                      corners. This is the legibility guarantee.
+ *     6. Violet
+ *        halo       — Preserved, slightly intensified.
+ *     7. Cyan glow   — Preserved, unchanged.
+ *
+ *   Headline contrast at center: > 14:1 vs full-white type. AAA.
+ *   The feature image below the trust chips is opaque so it
+ *   naturally covers the video in the lower portion of the section.
+ * ──────────────────────────────────────────────────────────────────────
  */
 export function Hero() {
   return (
     <section className="relative isolate overflow-hidden pt-28 sm:pt-36">
-      {/* ── Atmospheric layers ──────────────────────────────────────── */}
-      <div
+      {/* ── L1: Cinematic stamp loop ──────────────────────────────── */}
+      <video
         aria-hidden
-        className="pointer-events-none absolute inset-0 topo-grid opacity-70"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        poster="/video/stamp-loop-poster.jpg"
+        className="pointer-events-none absolute inset-0 -z-30 h-full w-full object-cover motion-reduce:hidden"
+      >
+        <source src="/video/stamp-loop.webm" type="video/webm" />
+        <source src="/video/stamp-loop.mp4" type="video/mp4" />
+      </video>
+
+      {/* ── L2: prefers-reduced-motion fallback ───────────────────── */}
+      <img
+        aria-hidden
+        src="/video/stamp-loop-poster.jpg"
+        alt=""
+        className="pointer-events-none absolute inset-0 -z-30 hidden h-full w-full object-cover motion-reduce:block"
       />
+
+      {/* ── L3: brand vertical gradient — top-light, bottom-dark ──── */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-[600px] w-[1200px] -translate-x-1/2 rounded-full bg-violet/20 blur-[120px]"
+        className="pointer-events-none absolute inset-0 -z-20 bg-gradient-to-b from-ink-900/40 via-ink-950/65 to-ink-950/90"
       />
+
+      {/* ── L4: topo-grid texture (preserved, dialled down for video) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 right-0 -z-10 h-[400px] w-[600px] rounded-full bg-cyan-glow/10 blur-[100px]"
+        className="pointer-events-none absolute inset-0 -z-20 topo-grid opacity-40"
+      />
+
+      {/* ── L5: aggressive radial vignette — headline legibility ──── */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(ellipse 65% 55% at 50% 28%, rgba(2,4,32,0.96) 0%, rgba(2,4,32,0.85) 45%, rgba(2,4,32,0.55) 100%)',
+        }}
+      />
+
+      {/* ── L6: violet halo (preserved, slightly intensified) ─────── */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 left-1/2 -z-20 h-[600px] w-[1200px] -translate-x-1/2 rounded-full bg-violet/25 blur-[120px]"
+      />
+
+      {/* ── L7: cyan ambience (preserved) ─────────────────────────── */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 right-0 -z-20 h-[400px] w-[600px] rounded-full bg-cyan-glow/10 blur-[100px]"
       />
 
       <div className="container-narrow relative">

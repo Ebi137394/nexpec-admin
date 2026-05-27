@@ -26,6 +26,7 @@ import type {
   JobUrgency,
 } from '@/lib/data/clientJobs.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
+import { EvidencePackButton } from '@/components/compliance/EvidencePackButton';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -70,7 +71,7 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-2 self-start sm:flex-row sm:self-auto">
+          <div className="flex flex-col gap-2 self-start sm:flex-row sm:items-center sm:self-auto">
             <Link
               href={`/client/jobs/${job.id}/applications`}
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
@@ -88,6 +89,14 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
               <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
             </Link>
           </div>
+        </div>
+
+        {/* Sprint 9 — Compliance Evidence Locker. The RPC enforces the
+            permission predicate (`can_assemble_evidence_for`); we can
+            safely render the button to anyone, and the dialog will
+            surface a clean error to non-eligible callers. */}
+        <div className="mt-4 flex items-center justify-end">
+          <EvidencePackButton jobId={job.id} jobTitle={job.title} />
         </div>
       </header>
 

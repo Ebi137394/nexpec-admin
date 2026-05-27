@@ -35,6 +35,11 @@ export const SPEND_WINDOW_LABELS: Record<SpendWindow, string> = {
  * One row from `fetch_department_budget_rollup`. May represent either a
  * real department (department_id != null) or the synthetic "Unattributed"
  * bucket (department_id == null, depth == -1).
+ *
+ * Sprint 7 — every row now carries both the native currency totals
+ * AND a display projection in the viewer's chosen display currency.
+ * Native values are immutable (storage truth); display values are the
+ * read-time conversion via convert_cents().
  */
 export interface DepartmentSpendRow {
   department_id: string | null;
@@ -43,6 +48,7 @@ export interface DepartmentSpendRow {
   cost_center: string | null;
   /** -1 for the synthetic Unattributed row, >= 0 for real departments. */
   depth: number;
+  /** Native currency of these invoices. */
   currency: string;
   direct_committed_cents: number;
   direct_paid_cents: number;
@@ -51,12 +57,21 @@ export interface DepartmentSpendRow {
   direct_invoice_count: number;
   rollup_invoice_count: number;
   last_invoice_at: string | null;
+  // ── Sprint 7: display projection ──────────────────────────────────
+  /** Currency the display_* values are expressed in. */
+  display_currency: string;
+  /** Rollup_committed_cents converted to display_currency. NULL when no FX path. */
+  display_committed_cents: number | null;
+  /** Rollup_paid_cents converted to display_currency. NULL when no FX path. */
+  display_paid_cents: number | null;
+  /** True when the row is in a foreign currency AND no FX rate path was found. */
+  rate_unavailable: boolean;
 }
 
 /** The aggregate shape consumed by the by-department panel. */
 export interface DepartmentBudgetRollup {
   rows: DepartmentSpendRow[];
-  /** Predominant currency in the org for header display. */
+  /** Predominant native currency across the org (legacy header use). */
   predominantCurrency: string;
   /** True when more than one currency is present. */
   mixedCurrencies: boolean;
@@ -64,6 +79,11 @@ export interface DepartmentBudgetRollup {
   hasUnattributed: boolean;
   /** True when the financial suite (`public.invoices`) isn't in this env. */
   invoicesMissing: boolean;
+  // ── Sprint 7 ──
+  /** The display currency every `display_*_cents` is expressed in. */
+  displayCurrency: string;
+  /** True when at least one row could not be converted (rate path missing). */
+  anyRateUnavailable: boolean;
 }
 
 export const EMPTY_DEPARTMENT_BUDGET_ROLLUP: DepartmentBudgetRollup = {
@@ -72,6 +92,8 @@ export const EMPTY_DEPARTMENT_BUDGET_ROLLUP: DepartmentBudgetRollup = {
   mixedCurrencies: false,
   hasUnattributed: false,
   invoicesMissing: false,
+  displayCurrency: 'USD',
+  anyRateUnavailable: false,
 };
 
 /** Per-window slice in `DepartmentSpendSummary`. */
@@ -96,6 +118,16 @@ export interface RecentInvoiceRow {
   issued_at: string | null;
   department_id: string | null;
   cost_center_snapshot: string | null;
+  // ── Sprint 7 ──
+  /** Currency the converted total is expressed in (always present). */
+  display_currency: string;
+  /** Native total converted to display_currency at issuance-date rate. NULL = no FX path. */
+  display_total_cents: number | null;
+}
+
+/** Slice with display values converted into the chosen currency. */
+export interface DepartmentSpendDisplaySliceShape extends DepartmentSpendSliceShape {
+  rate_unavailable: boolean;
 }
 
 /** What `fetch_department_spend_summary` returns. */
@@ -103,10 +135,18 @@ export interface DepartmentSpendSummary {
   department_id: string;
   department_name: string;
   cost_center: string | null;
+  /** Predominant native currency for this subtree. */
   currency: string;
+  /** True when invoices in the subtree span more than one currency. */
   mixed_currencies: boolean;
+  /** Display currency the display_* slices below use. */
+  display_currency: string;
+  /** Native slices (predominant currency only). */
   direct: DepartmentSpendSliceShape;
   rollup: DepartmentSpendSliceShape;
+  /** Display-currency-converted slices (sum across ALL currencies in the subtree). */
+  display_direct: DepartmentSpendDisplaySliceShape;
+  display_rollup: DepartmentSpendDisplaySliceShape;
   recent_invoices: RecentInvoiceRow[];
 }
 

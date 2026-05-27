@@ -14,12 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-// ★ Consolidation: see hooks/useInspectorData.ts for full rationale —
-//   single canonical supabase client at @/lib/supabase, not the
-//   secondary instance at src/lib/supabase.
-import { supabase } from '@/lib/supabase';
-import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
-import { PipelineSection } from '@/src/components/jobs/PipelineSection';
+import { supabase } from '../../src/lib/supabase';
 
 // --- Secure Chat ---
 import ChatFAB from '../../components/chat/ChatFAB';
@@ -82,7 +77,7 @@ type JobRow = {
   scheduled_date?: string | null;
   daily_rate?: number | null;
   duration_days?: number | null;
-  total_amount_cents?: number | null;     // ★ Task 4
+  total_amount?: number | null;
   priority?: string | null;
   client_id?: string | null;
   client_name?: string | null; // graceful fallback if join fails
@@ -140,8 +135,7 @@ const computeDueLabel = (
 const formatRate = (job: JobRow): string => {
   const rate = Number(job.daily_rate || 0);
   if (rate > 0) return `$${rate}/day`;
-  // ★ Task 4: total_amount_cents is integer cents — divide by 100.
-  if (job.total_amount_cents) return `$${(Number(job.total_amount_cents) / 100).toLocaleString()}`;
+  if (job.total_amount) return `$${job.total_amount}`;
   return '$0/day';
 };
 
@@ -376,12 +370,9 @@ export default function DashboardHome() {
 
       // 2) Recent jobs assigned to this inspector (contractor_id).
       //    Client info pulled from `profiles` via the `clients` relation alias.
-      //    GR2 (Strict price visibility) — inspector projection excludes
-      //    client_price_cents / budget_*_cents. The relational `clients`
-      //    join still selects only name + avatar for display.
       const { data: realJobs, error } = await supabase
         .from('jobs')
-        .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
+        .select('*, clients:client_id(full_name, avatar_url)')
         .eq('contractor_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -397,18 +388,16 @@ export default function DashboardHome() {
       }
 
       // 3) Counts — active + completed jobs
-      // Count queries — head:true returns no body, but we narrow the
-      // projection to 'id' anyway as defense-in-depth + style consistency.
       const [{ count: activeCount }, { count: completedCount }] =
         await Promise.all([
           supabase
             .from('jobs')
-            .select('id', { count: 'exact', head: true })
+            .select('*', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .in('status', ['assigned', 'in_progress']),
           supabase
             .from('jobs')
-            .select('id', { count: 'exact', head: true })
+            .select('*', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .eq('status', 'completed'),
         ]);
@@ -429,19 +418,17 @@ export default function DashboardHome() {
       // 5) Earnings — sum of completed work
       let totalEarnings = 0;
       try {
-        // ★ Task 4: integer cents end-to-end. daily_rate × duration is dollars,
-        //   so multiply by 100 to keep the running total in the same unit.
         const { data: earningsRows } = await supabase
           .from('jobs')
-          .select('total_amount_cents, daily_rate, duration_days')
+          .select('total_amount, daily_rate, duration_days')
           .eq('contractor_id', user.id)
           .eq('status', 'completed');
         totalEarnings = (earningsRows || []).reduce(
           (sum: number, j: any) => {
-            const cents =
-              j.total_amount_cents ??
-              Math.round(Number(j.daily_rate || 0) * Number(j.duration_days || 0) * 100);
-            return sum + Number(cents || 0);
+            const amount =
+              j.total_amount ??
+              Number(j.daily_rate || 0) * Number(j.duration_days || 0);
+            return sum + Number(amount || 0);
           },
           0
         );
@@ -598,17 +585,6 @@ export default function DashboardHome() {
                 transform: [{ translateY: slide }],
               }}
             >
-              {/*
-                Pipeline — limbo-state work surfaced on the inspector
-                home (counter offers awaiting response, contracts pending
-                their signature, applications awarded but no contract yet).
-                Self-suppresses when empty. Strictly additive.
-              */}
-              <PipelineSection
-                userId={profile?.id ?? null}
-                userRole="inspector"
-              />
-
               {/* ───── HEADER ───── */}
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
@@ -815,10 +791,6 @@ export default function DashboardHome() {
                   color={BRAND.cyan}
                   onPress={() => {
                     try {
-                      // ★ Was '/contracts/history' which is not a real route —
-                      //   expo-router fell through to /contracts/[id] and
-                      //   queried `WHERE id = 'history'` against a uuid
-                      //   column, throwing 22P02. Routes to the Hub instead.
                       router.push('/contracts/' as any);
                     } catch (e) {
                       console.log(e);

@@ -26,6 +26,9 @@ import {
   Scale,
   Users,
   FolderTree,
+  ShieldCheck,
+  Coins,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -71,6 +74,15 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Legal',
     items: [
       { label: 'Contracts', href: '/client/contracts', icon: Scale },
+    ],
+  },
+  {
+    title: 'Procurement',
+    items: [
+      { label: 'Command Center', href: '/client/compliance', icon: Shield },
+      { label: 'Approvals', href: '/client/approvals', icon: ShieldCheck },
+      { label: 'Budget envelopes', href: '/client/budget/envelopes', icon: Wallet },
+      { label: 'Approval policies', href: '/client/budget/policies', icon: Coins },
     ],
   },
   {

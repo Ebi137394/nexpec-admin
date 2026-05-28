@@ -68,7 +68,7 @@ export async function fetchBulkInspectorList(
         'id, full_name, email, specialty_slugs, rating_average, rating_count, completed_jobs_count',
       )
       .eq('role', 'inspector')
-      .is('deleted_at', null);
+      .is('suspended_at', null);
 
     if (filter.has.length > 0) {
       q = q.overlaps('specialty_slugs', filter.has);

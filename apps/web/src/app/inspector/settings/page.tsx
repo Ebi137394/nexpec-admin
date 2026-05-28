@@ -62,6 +62,8 @@ import {
   PAYMENT_TERMS,
   PAYMENT_TERM_LABELS,
 } from '@/lib/data/inspectorProfile.types';
+import { fetchMfaStatus } from '@/lib/data/mfa';
+import { MfaSection } from '@/components/account/MfaSection';
 
 export const metadata: Metadata = {
   title: 'Inspector settings',
@@ -75,10 +77,11 @@ interface PageProps {
 
 export default async function InspectorSettingsPage({ searchParams }: PageProps) {
   const qp = await searchParams;
-  const [profile, countries, certificates] = await Promise.all([
+  const [profile, countries, certificates, mfaStatus] = await Promise.all([
     fetchInspectorProfile(),
     fetchCountries(),
     fetchMyInspectorCertificates(),
+    fetchMfaStatus(),
   ]);
   // If the profile fetch failed (RLS, missing column, etc), do NOT redirect
   // silently — that's the "click does nothing" UX we keep getting bitten by.
@@ -993,6 +996,10 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           />
         </dl>
       </section>
+
+      {/* Sprint 13.3 — Two-factor authentication. Strictly additive at
+          the tail of the existing layout. */}
+      <MfaSection initial={mfaStatus} />
     </div>
   );
 }

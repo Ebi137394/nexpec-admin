@@ -13,6 +13,8 @@ import Image from 'next/image';
 import { fetchClientSettings } from '@/lib/data/clientSettings';
 import { updateClientSettings } from '@/lib/actions/clientSettings';
 import { uploadAvatar } from '@/lib/actions/uploadAvatar';
+import { fetchMfaStatus } from '@/lib/data/mfa';
+import { MfaSection } from '@/components/account/MfaSection';
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -29,7 +31,10 @@ interface PageProps {
 
 export default async function ClientSettingsPage({ searchParams }: PageProps) {
   const qp = await searchParams;
-  const profile = await fetchClientSettings();
+  const [profile, mfaStatus] = await Promise.all([
+    fetchClientSettings(),
+    fetchMfaStatus(),
+  ]);
   if (!profile) {
     // Profile row missing — bounce to home so middleware can re-resolve.
     redirect('/client/dashboard');
@@ -222,6 +227,10 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
           />
         </dl>
       </section>
+
+      {/* Sprint 13.3 — Two-factor authentication. Strictly additive at
+          the tail of the existing layout. */}
+      <MfaSection initial={mfaStatus} />
     </div>
   );
 }

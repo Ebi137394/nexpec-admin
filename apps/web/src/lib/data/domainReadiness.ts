@@ -239,7 +239,7 @@ export async function fetchDomainReadiness(
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .eq('role', 'inspector')
-        .is('deleted_at', null)
+        .is('suspended_at', null)
         .overlaps('specialty_slugs', disciplineSlugs);
       if (error) console.error('[domainReadiness] inspector count error', error);
       else eligibleCount = count ?? 0;
@@ -255,7 +255,7 @@ export async function fetchDomainReadiness(
           'id, full_name, email, rating_average, rating_count, completed_jobs_count, specialty_slugs',
         )
         .eq('role', 'inspector')
-        .is('deleted_at', null)
+        .is('suspended_at', null)
         .overlaps('specialty_slugs', disciplineSlugs)
         .limit(INSPECTOR_FETCH_CAP);
       if (error) {

@@ -4,16 +4,19 @@
 
 import type { Metadata } from 'next';
 import { fetchFeeSchedule, readIntegrationSecrets } from '@/lib/data/settings';
+import { fetchMfaStatus } from '@/lib/data/mfa';
 import { FeeScheduleEditor } from '@/components/admin/settings/FeeScheduleEditor';
 import { IntegrationSecrets } from '@/components/admin/settings/IntegrationSecrets';
+import { MfaSection } from '@/components/account/MfaSection';
 
 export const metadata: Metadata = { title: 'Settings' };
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const [fees, secrets] = await Promise.all([
+  const [fees, secrets, mfaStatus] = await Promise.all([
     fetchFeeSchedule(),
     Promise.resolve(readIntegrationSecrets()),
+    fetchMfaStatus(),
   ]);
 
   return (
@@ -35,6 +38,11 @@ export default async function SettingsPage() {
 
       <FeeScheduleEditor initial={fees} />
       <IntegrationSecrets secrets={secrets} />
+
+      {/* Sprint 13.3 — Two-factor authentication. Self-suppresses if the
+          current session is unauthenticated. Strictly additive at the
+          tail of the existing layout. */}
+      <MfaSection initial={mfaStatus} />
     </div>
   );
 }

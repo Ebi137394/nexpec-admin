@@ -42,11 +42,11 @@
 --  ─────────────────────
 --  The view filters rows to inspectors who are SAFE to surface:
 --    • role = 'inspector'
---    • not deleted (deleted_at IS NULL)
---    • not suspended (suspended_at IS NULL)
+--    • not suspended (suspended_at IS NULL) — this is profiles' soft-delete
+--      signal; profiles does not carry a separate deleted_at column
 --    • has a non-empty display name
---  Suspended or deleted inspectors disappear from the directory and
---  from public profile reads — exactly what we want.
+--  Suspended inspectors disappear from the directory and from public
+--  profile reads — exactly what we want.
 --
 --  GRANTS
 --  ──────
@@ -86,7 +86,6 @@ SELECT
   p.created_at
 FROM public.profiles p
 WHERE p.role = 'inspector'
-  AND p.deleted_at IS NULL
   AND p.suspended_at IS NULL
   AND p.full_name IS NOT NULL
   AND char_length(trim(p.full_name)) > 0;
@@ -106,15 +105,15 @@ GRANT SELECT ON public.inspectors_directory TO anon, authenticated;
 -- All are idempotent and additive — no existing index is touched.
 CREATE INDEX IF NOT EXISTS profiles_inspector_directory_idx
   ON public.profiles (role, rating_average DESC NULLS LAST, created_at DESC)
-  WHERE deleted_at IS NULL AND suspended_at IS NULL AND role = 'inspector';
+  WHERE suspended_at IS NULL AND role = 'inspector';
 
 CREATE INDEX IF NOT EXISTS profiles_inspector_city_idx
   ON public.profiles (location_city)
-  WHERE deleted_at IS NULL AND suspended_at IS NULL AND role = 'inspector';
+  WHERE suspended_at IS NULL AND role = 'inspector';
 
 CREATE INDEX IF NOT EXISTS profiles_inspector_specialty_gin_idx
   ON public.profiles USING gin (specialty_slugs)
-  WHERE deleted_at IS NULL AND suspended_at IS NULL AND role = 'inspector';
+  WHERE suspended_at IS NULL AND role = 'inspector';
 
 COMMIT;
 

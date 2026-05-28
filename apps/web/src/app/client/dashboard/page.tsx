@@ -27,6 +27,7 @@ import { fetchClientDashboardWidgets } from '@/lib/data/clientDashboardWidgets';
 import { openHelpSupport } from '@/lib/actions/messages';
 import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
 import { PipelineSection } from '@/components/jobs/PipelineSection';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
 export const metadata: Metadata = { title: 'Client Dashboard' };
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,14 @@ export default async function ClientDashboardPage() {
 
   return (
     <div className="space-y-10">
+      {/* Onboarding checklist — self-suppresses for completed +
+          dismissed users and rows with no derivable steps. Mounted
+          ABOVE the existing heading without altering any other element. */}
+      <OnboardingChecklist
+        kicker="Client Onboarding"
+        title="Finish setting up your account"
+      />
+
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
           Client Portal

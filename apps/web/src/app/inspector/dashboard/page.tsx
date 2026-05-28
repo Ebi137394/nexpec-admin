@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { fetchInspectorDashboardMetrics } from '@/lib/data/inspectorDashboardMetrics';
 import { PipelineSection } from '@/components/jobs/PipelineSection';
+import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
 export const metadata: Metadata = {
   title: 'Inspector Dashboard',
@@ -72,6 +73,14 @@ export default async function InspectorDashboardPage() {
 
   return (
     <div className="space-y-10">
+      {/* Onboarding checklist — self-suppresses for admins, completed +
+          dismissed users, and rows with no derivable steps. Mounted
+          ABOVE the existing heading without altering any other element. */}
+      <OnboardingChecklist
+        kicker="Inspector Onboarding"
+        title="Finish setting up your inspector profile"
+      />
+
       {/* Heading */}
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">

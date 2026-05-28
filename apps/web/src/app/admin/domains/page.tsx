@@ -11,7 +11,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
-import { Globe2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
+import {
+  Globe2,
+  ShieldCheck,
+  AlertTriangle,
+  ArrowUpRight,
+} from 'lucide-react';
 import {
   fetchInspectionDomains,
   fetchJobCountsByDomain,
@@ -168,6 +174,20 @@ function DomainCard({
               </dd>
             </div>
           </dl>
+
+          {/* Launch readiness drill-in — live dashboard for content +
+              inspector-pool checks. The actual is_launched toggle stays
+              above so there's one canonical flip surface. */}
+          <Link
+            href={`/admin/domains/${domain.slug}/readiness`}
+            className="group inline-flex w-full items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-zinc-400 transition-colors hover:border-violet-500/30 hover:bg-violet-500/[0.08] hover:text-violet-300"
+          >
+            <span>Launch readiness</span>
+            <ArrowUpRight
+              className="h-3 w-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+              strokeWidth={2}
+            />
+          </Link>
         </div>
       </div>
     </article>

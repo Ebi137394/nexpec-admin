@@ -19,6 +19,7 @@ const COLORS = {
   red: '#EF4444',
   redBg: 'rgba(239, 68, 68, 0.1)',
   green: '#10B981',
+  greenBg: 'rgba(16, 185, 129, 0.1)',
   textPrimary: '#F1F5F9',
   textSecondary: '#94A3B8',
   textMuted: '#64748B',

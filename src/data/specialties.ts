@@ -59,7 +59,10 @@ export type SpecialtyGroupSlug =
   | 'safety_access'
   | 'qaqc_audit'
   | 'subsea_pipeline'
-  | 'energy_specific';
+  | 'energy_specific'
+  // Layer 5 — Chemical & Process Engineering domain. Six foundational
+  // disciplines (PSM, MI, PHA, relief devices, heat exchangers, LDAR).
+  | 'chemical_process';
 
 export interface SpecialtyGroup {
   slug: SpecialtyGroupSlug;
@@ -456,6 +459,50 @@ export const SPECIALTIES: readonly SpecialtyOption[] = [
     group: 'energy_specific',
     synonyms: ['nuclear', 'asme iii', 'n-stamp'],
   },
+
+  // ── Chemical & Process ────────────────────────────────────────────────
+  {
+    slug: 'process_safety_management',
+    name: 'Process Safety Management (PSM)',
+    description: 'OSHA 1910.119 PSM compliance auditing and program implementation.',
+    group: 'chemical_process',
+    synonyms: ['psm', 'osha 1910.119', 'process safety'],
+  },
+  {
+    slug: 'mechanical_integrity_program',
+    name: 'Mechanical Integrity (MI)',
+    description: 'MI program inspection per OSHA 1910.119(j) — equipment criticality, inspection planning, RBI integration.',
+    group: 'chemical_process',
+    synonyms: ['mi', 'mechanical integrity', 'rbi', 'osha 1910.119(j)'],
+  },
+  {
+    slug: 'process_hazard_analysis',
+    name: 'Process Hazard Analysis (PHA / HAZOP)',
+    description: 'HAZOP, what-if, LOPA, FMEA facilitation and team leadership for process hazard reviews.',
+    group: 'chemical_process',
+    synonyms: ['pha', 'hazop', 'lopa', 'what-if', 'fmea', 'process hazard'],
+  },
+  {
+    slug: 'pressure_relief_inspection',
+    name: 'Pressure Relief Device Inspection',
+    description: 'Pressure safety valve (PSV), rupture disc, and conservation vent testing per API 576 / ASME PTC 25.',
+    group: 'chemical_process',
+    synonyms: ['psv', 'prv', 'relief valve', 'rupture disc', 'api 576', 'pop test'],
+  },
+  {
+    slug: 'heat_exchanger_inspection',
+    name: 'Heat Exchanger Inspection',
+    description: 'Tube bundle, shell, channel head, and tubesheet inspection — eddy current, IRIS, hydrostatic testing.',
+    group: 'chemical_process',
+    synonyms: ['heat exchanger', 'shell and tube', 'tube bundle', 'iris', 'hx turnaround'],
+  },
+  {
+    slug: 'ldar_leak_detection',
+    name: 'LDAR (Leak Detection & Repair)',
+    description: 'Fugitive emissions inspection per EPA Method 21 — connector/valve/flange surveys, recordkeeping, optical gas imaging.',
+    group: 'chemical_process',
+    synonyms: ['ldar', 'leak detection', 'epa method 21', 'fugitive emissions', 'ogi'],
+  },
 ];
 
 // ─── GROUPS ───────────────────────────────────────────────────────────────
@@ -577,6 +624,22 @@ export const SPECIALTY_GROUPS: readonly SpecialtyGroup[] = [
       'power_generation',
       'wind_renewables',
       'nuclear_inspection',
+    ],
+  },
+  {
+    // Layer 5 — Chemical & Process Engineering domain. Mirrors the
+    // 'Chemical & process' group in apps/web/src/lib/data/specialtyTaxonomy.ts.
+    // Referenced by inspection_domains.default_specialty_groups for the
+    // 'chemical_process' row.
+    slug: 'chemical_process',
+    name: 'Chemical & Process',
+    disciplineSlugs: [
+      'process_safety_management',
+      'mechanical_integrity_program',
+      'process_hazard_analysis',
+      'pressure_relief_inspection',
+      'heat_exchanger_inspection',
+      'ldar_leak_detection',
     ],
   },
 ];

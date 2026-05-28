@@ -379,6 +379,21 @@ export const SPECIALTY_GROUPS: ReadonlyArray<SpecialtyGroup> = [
       { slug: 'composites-aerospace',    label: 'Aerospace Composites' },
     ],
   },
+  {
+    // Layer 5 — Chemical & Process Engineering domain.
+    // Referenced by inspection_domains.default_specialty_groups for the
+    // 'chemical_process' row. Tight v1 of 6 foundational specialties;
+    // extend in a follow-up sprint as the chemical scope catalogue lands.
+    title: 'Chemical & process',
+    items: [
+      { slug: 'psm',                      label: 'Process Safety Management (PSM)' },
+      { slug: 'mechanical-integrity',     label: 'Mechanical Integrity (MI)' },
+      { slug: 'pha-hazop',                label: 'Process Hazard Analysis (PHA / HAZOP)' },
+      { slug: 'pressure-relief-devices',  label: 'Pressure Relief Device Inspection' },
+      { slug: 'heat-exchanger-inspection',label: 'Heat Exchanger Inspection' },
+      { slug: 'ldar',                     label: 'LDAR (Leak Detection & Repair)' },
+    ],
+  },
 ];
 
 export const ALL_SPECIALTIES: ReadonlyArray<SpecialtyOption> =

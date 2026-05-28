@@ -25,10 +25,13 @@
 --    • Idempotent. The mapping CTE drives a single UPDATE per table; rows
 --      that don't reference any legacy slug are filtered out by the EXISTS
 --      clause and never touched. Re-running the migration is a no-op.
---    • Order-preserving where it matters. We emit DISTINCT to collapse
---      cases where both the old snake AND the new kebab were already in
---      the same array (impossible today, but defensive against partial
---      backfills).
+--    • Order-preserving where it matters. We GROUP BY the output slug
+--      (ordered by MIN of the original ordinality) to collapse cases
+--      where both the old snake AND the new kebab were already in the
+--      same array — impossible today, but defensive against partial
+--      backfills. SELECT DISTINCT was the obvious choice but Postgres
+--      rejects DISTINCT + ORDER BY on a non-selected column (42P10);
+--      GROUP BY produces identical semantics here.
 --    • Coalesce uses the mapping when a slug matches, else passes through.
 --      Unknown / custom_ prefixed slugs are preserved verbatim.
 --    • No schema change. No index drop. The GIN index on
@@ -149,7 +152,7 @@ END $$;
 -- ─────────────────────────────────────────────────────────────────────
 -- 1) Backfill public.jobs.specialty_slugs
 --
--- Rewrites the array element-by-element via the mapping. DISTINCT collapses
+-- Rewrites the array element-by-element via the mapping. GROUP BY collapses
 -- any case where an array already contained both the old and the new slug.
 -- ─────────────────────────────────────────────────────────────────────
 UPDATE public.jobs AS j
@@ -157,10 +160,16 @@ UPDATE public.jobs AS j
   FROM (
     SELECT j2.id,
            ARRAY(
-             SELECT DISTINCT COALESCE(m.new_slug, s.slug)
+             -- Collapse duplicates (where both old snake and new kebab existed
+             -- in the same row) while preserving first-occurrence ordering.
+             -- Postgres SELECT DISTINCT rejects ORDER BY on a column not in
+             -- the select list (error 42P10), so we GROUP BY the output slug
+             -- and ORDER BY MIN(ord) — semantically the same intent.
+             SELECT COALESCE(m.new_slug, s.slug)
                FROM unnest(j2.specialty_slugs) WITH ORDINALITY AS s(slug, ord)
                LEFT JOIN specialty_slug_remap m ON m.old_slug = s.slug
-               ORDER BY ord
+              GROUP BY COALESCE(m.new_slug, s.slug)
+              ORDER BY MIN(ord)
            ) AS new_arr
       FROM public.jobs j2
      WHERE j2.specialty_slugs && (SELECT array_agg(old_slug) FROM specialty_slug_remap)
@@ -176,10 +185,11 @@ UPDATE public.profiles AS p
   FROM (
     SELECT p2.id,
            ARRAY(
-             SELECT DISTINCT COALESCE(m.new_slug, s.slug)
+             SELECT COALESCE(m.new_slug, s.slug)
                FROM unnest(p2.specialty_slugs) WITH ORDINALITY AS s(slug, ord)
                LEFT JOIN specialty_slug_remap m ON m.old_slug = s.slug
-               ORDER BY ord
+              GROUP BY COALESCE(m.new_slug, s.slug)
+              ORDER BY MIN(ord)
            ) AS new_arr
       FROM public.profiles p2
      WHERE p2.specialty_slugs && (SELECT array_agg(old_slug) FROM specialty_slug_remap)

@@ -1,19 +1,53 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  .gitignore — NEXPEC monorepo
+#  Mobile (Expo / React Native) + Web (Next.js) + Supabase + Xcode native app.
+# ════════════════════════════════════════════════════════════════════════════
+
+# ─── Dependencies ─────────────────────────────────────────────────────────
 node_modules/
+
+# ─── Build output — Expo / React Native ───────────────────────────────────
 .expo/
 dist/
 web-build/
 
-# Supabase & Environment Variables
+# ─── Build output — Next.js (apps/web) ────────────────────────────────────
+#  HISTORY NOTE: apps/web/.next/ was accidentally tracked between commits
+#  42391a4 (fix: remove legacy triggers …) and b37b259 (feat: chemical &
+#  process domain). The cleanup commit untracks it via `git rm --cached`.
+#  Past pack history still carries those blobs — see "Optional history
+#  rewrite" notes in the repo wiki / commit message of the cleanup.
+.next/
+out/
+.turbo/
+
+# ─── TypeScript incremental build cache ───────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ─── Test / coverage ──────────────────────────────────────────────────────
+coverage/
+
+# ─── Supabase & Environment Variables ─────────────────────────────────────
 .env
 .env.local
 .env.*.local
 *.log
 supabase/.temp/
 
-# MacOS
+# ─── MacOS ────────────────────────────────────────────────────────────────
 .DS_Store
 
-# Android/IOS Build
+# ─── Android / iOS managed-workflow build output ──────────────────────────
+#  These are Expo-generated native projects — NOT the hand-written
+#  NEXPEC.xcodeproj at repo root, which IS source and IS tracked.
 android/
 ios/
+
+# ─── Xcode per-user state (keep .xcodeproj itself tracked) ────────────────
+#  Per-user schemes and breakpoints inside any .xcodeproj.
+**/xcuserdata/
+*.xcuserstate
+
+# ─── Vercel ───────────────────────────────────────────────────────────────
 .vercel

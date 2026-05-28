@@ -1257,12 +1257,20 @@ export interface LegacyGroupView {
   readonly items: ReadonlyArray<{ readonly slug: string; readonly label: string }>;
 }
 
-/** {title, items: [{slug, label}]} view — matches the old web shape. */
+/** {title, items: [{slug, label}]} view — matches the old web shape.
+ *
+ *  Under TS-strict `noUncheckedIndexedAccess`, SPECIALTY_LABEL_BY_SLUG[slug]
+ *  is typed as `string | undefined`, but LegacyGroupView requires `string`.
+ *  In practice the lookup is always defined because both maps derive from
+ *  the same DISCIPLINES array — but we fall back to the slug itself as the
+ *  label so a future data-drift bug surfaces visibly (slug printed raw)
+ *  rather than crashing the build.
+ */
 export const SPECIALTY_GROUPS: readonly LegacyGroupView[] = GROUPS.map((g) => ({
   title: g.title,
   items: g.disciplineSlugs.map((slug) => ({
     slug,
-    label: SPECIALTY_LABEL_BY_SLUG[slug],
+    label: SPECIALTY_LABEL_BY_SLUG[slug] ?? slug,
   })),
 }));
 

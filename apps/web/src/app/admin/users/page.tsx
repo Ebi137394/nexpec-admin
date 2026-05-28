@@ -3,6 +3,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
+import Link from 'next/link';
+import { Sparkles, ArrowUpRight } from 'lucide-react';
 import { fetchUsersPage } from '@/lib/data/users';
 import { UsersFilters } from '@/components/admin/users/UsersFilters';
 import { UsersTable } from '@/components/admin/users/UsersTable';
@@ -27,20 +29,36 @@ export default async function UsersPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Live
-        </p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          Users
-        </h1>
-        <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
-          Every profile on the platform. Search by name or email, filter by
-          role. Inspector profiles include an{' '}
-          <span className="font-mono text-accent-green">CCI active</span>{' '}
-          badge sourced from{' '}
-          <span className="font-mono text-zinc-200">inspector_credentials</span>.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
+            Command Console · Live
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            Users
+          </h1>
+          <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
+            Every profile on the platform. Search by name or email, filter by
+            role. Inspector profiles include an{' '}
+            <span className="font-mono text-accent-green">CCI active</span>{' '}
+            badge sourced from{' '}
+            <span className="font-mono text-zinc-200">inspector_credentials</span>.
+          </p>
+        </div>
+
+        {/* Bulk specialty assigner CTA — discoverability link for the
+            domain-launch inspector seeding workflow. */}
+        <Link
+          href="/admin/users/specialties-bulk"
+          className="group inline-flex shrink-0 items-center gap-2 self-start rounded-lg border border-violet-500/30 bg-violet-500/[0.08] px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200 transition-colors hover:border-violet-500/60 hover:bg-violet-500/[0.16] hover:text-violet-100"
+        >
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+          Bulk specialty assigner
+          <ArrowUpRight
+            className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            strokeWidth={2}
+          />
+        </Link>
       </header>
 
       <UsersFilters />

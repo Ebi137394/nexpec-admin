@@ -31,13 +31,52 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { userId } = await params;
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from('profiles')
-    .select('full_name, headline, role')
-    .eq('id', userId)
-    .maybeSingle();
-  const name = (data as { full_name?: string | null } | null)?.full_name ?? 'Profile';
-  return { title: `${name} · NEXPEC` };
+
+  // Anon-safe path: read the public view first. Falls back to profiles
+  // for the auth-only case (non-inspector own profile).
+  let name: string | null = null;
+  let headline: string | null = null;
+  {
+    const { data } = await supabase
+      .from('inspectors_directory')
+      .select('full_name, headline')
+      .eq('id', userId)
+      .maybeSingle();
+    if (data) {
+      const row = data as { full_name?: string | null; headline?: string | null };
+      name = row.full_name ?? null;
+      headline = row.headline ?? null;
+    }
+  }
+  if (name == null) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('full_name, headline')
+      .eq('id', userId)
+      .maybeSingle();
+    if (data) {
+      const row = data as { full_name?: string | null; headline?: string | null };
+      name = row.full_name ?? null;
+      headline = row.headline ?? null;
+    }
+  }
+
+  const displayName = name?.trim() || 'Profile';
+  const description =
+    headline?.trim() ||
+    'Verified inspection professional on NEXPEC — ratings, reviews, and recent work.';
+
+  return {
+    title: `${displayName} · NEXPEC`,
+    description,
+    alternates: { canonical: `/p/${userId}` },
+    openGraph: {
+      title: `${displayName} · NEXPEC`,
+      description,
+      type: 'profile',
+    },
+    robots: { index: true, follow: true },
+  };
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {
@@ -45,32 +84,61 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const supabase = await createSupabaseServerClient();
 
-  // CASCADING PROJECTION — if any column in the wide SELECT doesn't exist
-  // in this tenant's schema (company_name, recommend_percent, total_jobs
-  // were the prior suspects), PostgREST returns 400 and we'd render
-  // "Profile not found" even though the row exists. Three phases:
-  //   WIDE  → all known public columns
-  //   MID   → minus the optional/newer ones
-  //   NARROW → bare minimum that exists on every install
-  const WIDE =
-    'id, full_name, headline, bio, avatar_url, role, company_name, location_city, location_province, verification_status, rating_average, rating_count, recommend_percent, completed_jobs_count, total_jobs, created_at';
-  const MID =
-    'id, full_name, headline, bio, avatar_url, role, location_city, verification_status, rating_average, rating_count, completed_jobs_count, created_at';
-  const NARROW = 'id, full_name, avatar_url, role, created_at';
-
+  // Sprint 13.2 anon-safe path: try the public.inspectors_directory view
+  // FIRST. That view is the column-whitelisted public surface granted to
+  // anon + authenticated; it returns rich inspector cards regardless of
+  // whether the viewer is signed in. If it returns a row, we use it.
+  //
+  // If the user is NOT an inspector (or is suspended / nameless), the
+  // view returns nothing and we fall back to the cascading-projection
+  // read against profiles. That path requires auth (self-read) or admin,
+  // which is correct: only inspectors are publicly browsable; client /
+  // agency / enterprise profiles are still members-only.
   let data: Record<string, unknown> | null = null;
-  for (const proj of [WIDE, MID, NARROW]) {
+
+  {
     const res = await supabase
-      .from('profiles')
-      .select(proj)
+      .from('inspectors_directory')
+      .select(
+        'id, full_name, headline, bio, avatar_url, location_city, location_province, ' +
+          'verification_status, rating_average, rating_count, recommend_percent, ' +
+          'completed_jobs_count, total_jobs, created_at',
+      )
       .eq('id', userId)
       .maybeSingle();
     if (!res.error && res.data) {
-      data = res.data as unknown as Record<string, unknown>;
-      break;
+      // Synthesise `role` so the existing render path keeps its shape.
+      data = { ...(res.data as Record<string, unknown>), role: 'inspector' };
     }
-    if (res.error && typeof console !== 'undefined') {
-      console.warn('[public profile] projection failed:', res.error.message);
+  }
+
+  // CASCADING PROJECTION fallback — if the directory view didn't return
+  // this user (non-inspector, suspended, etc.), try the underlying
+  // profiles table. RLS gates this to self + admin reads.
+  //
+  //   WIDE  → all known public columns
+  //   MID   → minus the optional/newer ones
+  //   NARROW → bare minimum that exists on every install
+  if (!data) {
+    const WIDE =
+      'id, full_name, headline, bio, avatar_url, role, company_name, location_city, location_province, verification_status, rating_average, rating_count, recommend_percent, completed_jobs_count, total_jobs, created_at';
+    const MID =
+      'id, full_name, headline, bio, avatar_url, role, location_city, verification_status, rating_average, rating_count, completed_jobs_count, created_at';
+    const NARROW = 'id, full_name, avatar_url, role, created_at';
+
+    for (const proj of [WIDE, MID, NARROW]) {
+      const res = await supabase
+        .from('profiles')
+        .select(proj)
+        .eq('id', userId)
+        .maybeSingle();
+      if (!res.error && res.data) {
+        data = res.data as unknown as Record<string, unknown>;
+        break;
+      }
+      if (res.error && typeof console !== 'undefined') {
+        console.warn('[public profile] projection failed:', res.error.message);
+      }
     }
   }
 

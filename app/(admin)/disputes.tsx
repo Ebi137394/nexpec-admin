@@ -468,7 +468,7 @@ function DisputedJobCard({
           onPress={onResolve}
           style={({ pressed }) => [s.resolveBtn, pressed && { transform: [{ scale: 0.98 }] }]}
         >
-          <Ionicons name="gavel" size={14} color="#FFF" />
+          <Ionicons name="hammer" size={14} color="#FFF" />
           <Text style={s.resolveBtnText}>Resolve dispute</Text>
         </Pressable>
       </View>
@@ -503,7 +503,7 @@ function ResolveSheet({
           <View style={s.sheetHandle} />
           <View style={s.sheetHeader}>
             <View style={s.sheetIconWrap}>
-              <Ionicons name="gavel" size={18} color={C.primary} />
+              <Ionicons name="hammer" size={18} color={C.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sheetKicker}>ADMIN RESOLUTION</Text>

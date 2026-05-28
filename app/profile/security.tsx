@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 // 🌟 وارد کردن پکیج سنسور که نصب کردی
 import * as LocalAuthentication from 'expo-local-authentication';
+// Sprint 13.M2 — recovery codes lane (mirrors web MfaSection)
+import { MfaRecoveryCodesCard } from '@/src/shared-ui/auth/MfaRecoveryCodesCard';
 
 // 🎨 THEME CONSTANTS (NEXPEC Standard)
 const COLORS = {
@@ -316,13 +318,13 @@ export default function SecuritySettingsScreen() {
 
         <SectionHeader title="Advanced Security" />
         <View style={st.card}>
-          <SettingRow 
-            icon="shield-checkmark-outline" 
-            title="Two-Factor Authentication" 
-            subtitle="Pending implementation" 
+          <SettingRow
+            icon="shield-checkmark-outline"
+            title="Two-Factor Authentication"
+            subtitle={is2FAEnabled ? 'Active · authenticator app' : 'Add a second sign-in step (TOTP)'}
             rightElement={
-              <Switch 
-                value={is2FAEnabled} 
+              <Switch
+                value={is2FAEnabled}
                 onValueChange={(val) => {
                   handle2FAToggle(val);
                 }}
@@ -332,13 +334,13 @@ export default function SecuritySettingsScreen() {
             }
           />
           <View style={st.divider} />
-          <SettingRow 
-            icon="finger-print-outline" 
-            title="Biometric Login" 
-            subtitle="Face ID / Touch ID" 
+          <SettingRow
+            icon="finger-print-outline"
+            title="Biometric Login"
+            subtitle="Face ID / Touch ID"
             rightElement={
-              <Switch 
-                value={isBiometricEnabled} 
+              <Switch
+                value={isBiometricEnabled}
                 onValueChange={handleBiometricToggle} // 🌟 تابع واقعی به اینجا وصل شد
                 disabled={!isBiometricSupported}
                 trackColor={{ false: COLORS.surfaceLight, true: COLORS.primary }}
@@ -347,6 +349,11 @@ export default function SecuritySettingsScreen() {
             }
           />
         </View>
+
+        {/* Sprint 13.M2 — recovery-codes lane. Self-suppresses while 2FA
+            is off; surfaces a Generate CTA once 2FA is on, or a status
+            pill + Regenerate button when codes already exist. */}
+        <MfaRecoveryCodesCard enabled={is2FAEnabled} />
 
         <SectionHeader title="Active Sessions" />
         <View style={st.card}>

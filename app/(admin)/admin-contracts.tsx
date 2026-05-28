@@ -237,7 +237,7 @@ export default function AdminContracts() {
               Alert.alert('Contract File', `URL: ${url}`);
             }}
           >
-            <Ionicons name="document-text" size={16} color={SA.primary} />
+            <Ionicons name="document-text" size={16} color={SA.accent} />
             <Text style={s.pdfButtonText}>View Contract PDF</Text>
           </TouchableOpacity>
         )}
@@ -248,7 +248,7 @@ export default function AdminContracts() {
   if (loading) {
     return (
       <SafeAreaView style={s.center}>
-        <ActivityIndicator size="large" color={SA.primary} />
+        <ActivityIndicator size="large" color={SA.accent} />
         <Text style={{ color: SA.textMuted, marginTop: 16 }}>Loading contracts...</Text>
       </SafeAreaView>
     );
@@ -315,13 +315,13 @@ const s = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: SA.primary + '15',
+    backgroundColor: SA.accent + '15',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: SA.primary + '30'
+    borderColor: SA.accent + '30'
   },
   pdfButtonText: { 
-    color: SA.primary, 
+    color: SA.accent, 
     fontSize: 13, 
     fontWeight: '600',
     marginLeft: 6

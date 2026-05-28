@@ -748,6 +748,52 @@ export const DISCIPLINES: readonly Specialty[] = [
     description: "Fugitive emissions inspection per EPA Method 21 — connector/valve/flange surveys, recordkeeping, optical gas imaging.",
     synonyms: ["ldar", "leak detection", "epa method 21", "fugitive emissions", "ogi"],
   },
+  // Phase 5 expansion — Chemical & process taxonomy growth from 6 → 12
+  // disciplines. Added alongside the chemical scope-template catalogue
+  // (migration 20260627120000) so the inspector match engine has the
+  // language to express chemical-specific competencies.
+  {
+    slug: "distillation-column-internals",
+    label: "Distillation Column Internals Inspection",
+    group: "Chemical & process",
+    description: "Tray, packing, and distributor inspection on distillation / fractionation towers during turnarounds.",
+    synonyms: ["distillation", "fractionator", "trays", "packing", "tower internals"],
+  },
+  {
+    slug: "hazardous-area-classification",
+    label: "Hazardous Area Classification (IEC 60079 / NEC 500)",
+    group: "Chemical & process",
+    description: "Hazardous-area classification reviews and Ex equipment audit per IEC 60079 / ATEX / IECEx / NEC Article 500.",
+    synonyms: ["hazardous area", "ex equipment", "atex", "iecex", "nec 500", "hazloc"],
+  },
+  {
+    slug: "safety-instrumented-systems",
+    label: "Safety Instrumented Systems (IEC 61511 / SIS)",
+    group: "Chemical & process",
+    description: "SIS lifecycle inspection — SIL verification, proof testing, and management of change per IEC 61511 / ISA 84.",
+    synonyms: ["sis", "iec 61511", "isa 84", "sil", "proof test", "safety instrumented"],
+  },
+  {
+    slug: "epa-rmp-audit",
+    label: "EPA Risk Management Program Audit",
+    group: "Chemical & process",
+    description: "EPA RMP compliance auditing per 40 CFR Part 68 — programs 1, 2, and 3 facility audits.",
+    synonyms: ["epa rmp", "40 cfr 68", "risk management program", "rmp audit"],
+  },
+  {
+    slug: "catalyst-handling-loading",
+    label: "Catalyst Handling, Loading, and Unloading QC",
+    group: "Chemical & process",
+    description: "Catalyst handling QC for FCC, hydrotreater, reformer, and fixed-bed reactor loading / unloading campaigns.",
+    synonyms: ["catalyst", "fcc catalyst", "hydrotreater", "reformer", "catalyst loading"],
+  },
+  {
+    slug: "batch-records-gmp-audit",
+    label: "Batch Records & GMP Audit",
+    group: "Chemical & process",
+    description: "cGMP / batch-records audit for specialty chemical, API manufacturing, and fine-chemical sites per FDA 21 CFR Part 211.",
+    synonyms: ["gmp", "cgmp", "batch records", "fda 21 cfr 211", "api manufacturing"],
+  },
 
 ];
 
@@ -1153,6 +1199,12 @@ export const GROUPS: readonly SpecialtyGroup[] = [
       "pressure-relief-devices",
       "heat-exchanger-inspection",
       "ldar",
+      "distillation-column-internals",
+      "hazardous-area-classification",
+      "safety-instrumented-systems",
+      "epa-rmp-audit",
+      "catalyst-handling-loading",
+      "batch-records-gmp-audit",
     ],
   },
 ];

@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { SA, currency, ago, statusColor } from '@/lib/super-admin/theme';
-import type { Job } from 'lib/super-admin/types';
+import type { Job } from '@/lib/super-admin/types';
 
 type Filter = 'pending' | 'confirmed' | 'all';
 

@@ -32,3 +32,11 @@ export * from './schemas/credentials';
 export * from './schemas/moderation';
 export * from './schemas/settings';
 export * from './schemas/organizations';
+// Layer 4 / Layer 5 — multi-domain expansion. Exposes inspection-domain
+// slugs, icon-key enum, display meta map, and the getInspectionDomainMeta()
+// accessor that both mobile (src/components/shared/InspectionDomainBadge)
+// and web (apps/web/src/components/inspection-domain/InspectionDomainBadge)
+// rely on. Without this line, Next.js TS-strict rejected the import in the
+// web badge and the apps/web Vercel build failed at compile-time even though
+// schemas/index.ts itself already re-exported the module.
+export * from './schemas/inspectionDomain';

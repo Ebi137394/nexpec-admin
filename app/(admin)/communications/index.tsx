@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { SA, ago } from '@/lib/super-admin/theme';
-import type { Message, Profile } from 'lib/super-admin/types';
+import type { Message, Profile } from '@/lib/super-admin/types';
 
 interface ConvoRow {
   id: string;

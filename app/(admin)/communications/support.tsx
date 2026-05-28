@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { SA, ago, statusColor } from '@/lib/super-admin/theme';
-import type { SupportMessage } from 'lib/super-admin/types';
+import type { SupportMessage } from '@/lib/super-admin/types';
 
 type StatusFilter = 'open' | 'pending' | 'resolved' | 'all';
 

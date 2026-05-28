@@ -25,6 +25,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { isRTL } from '@/i18n/config';
+import { GlobalSearchMountPoint } from '@/components/search/GlobalSearchMountPoint';
 import './globals.css';
 
 const fontSans = Inter({
@@ -110,6 +111,9 @@ export default async function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
+          {/* Sprint 13.4 — global Cmd+K search overlay. Self-suppresses
+              when closed; client-side keystroke listener handles open. */}
+          <GlobalSearchMountPoint />
         </NextIntlClientProvider>
       </body>
     </html>

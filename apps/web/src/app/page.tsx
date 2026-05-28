@@ -16,6 +16,7 @@ import { Hero } from '@/components/marketing/Hero';
 import { LiveTicker } from '@/components/marketing/LiveTicker';
 import { HowItWorks } from '@/components/marketing/HowItWorks';
 import { TrustPillars } from '@/components/marketing/TrustPillars';
+import { PlatformScale } from '@/components/marketing/PlatformScale';
 import { Industries } from '@/components/marketing/Industries';
 import { CTASection } from '@/components/marketing/CTASection';
 import { Footer } from '@/components/marketing/Footer';
@@ -85,6 +86,11 @@ export default async function LandingPage() {
         <LiveTicker stats={stats} />
         <HowItWorks />
         <TrustPillars />
+        {/* Sprint 13 — platform scale showcase. Premium dark/violet
+            section surfacing the 5-domain + 57-scope catalogue breadth
+            we shipped this sprint. Strictly additive between existing
+            TrustPillars and Industries sections. */}
+        <PlatformScale />
         <Industries />
         <CTASection />
       </main>

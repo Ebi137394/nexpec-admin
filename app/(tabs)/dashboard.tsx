@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useRouter } from 'expo-router';
+import { OnboardingChecklist } from '@/src/shared-ui/onboarding/OnboardingChecklist';
 import type { Job } from '@/types/database';
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -72,6 +73,14 @@ export default function DashboardScreen() {
               <Text style={styles.role}>{role.toUpperCase()}</Text>
             )}
           </View>
+
+          {/* Sprint 13.M1 — onboarding checklist (self-suppresses for
+              completed-and-dismissed users + non-checklist roles). */}
+          <OnboardingChecklist
+            kicker="Client Onboarding"
+            title="Finish setting up your account"
+          />
+
 
           {/* ── Stats Row ─────────────────────────────────────────── */}
           <View style={styles.statsRow}>

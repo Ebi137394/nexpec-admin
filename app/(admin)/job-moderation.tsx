@@ -122,7 +122,7 @@ export default function JobModerationScreen() {
 
       showAlert(
         'Success',
-        `Job "${job.title}" published with payout of ${formatCurrency(payoutAmount)}`
+        `Job "${job.title}" published with payout of ${formatCurrency(payoutCents)}`
       );
     } catch (err: any) {
       console.error('Publish job error:', err);

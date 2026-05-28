@@ -26,6 +26,7 @@ import {
   EarningsSkeleton,
   JobCardSkeleton,
 } from '../../components/inspector/Skeletons';
+import { OnboardingChecklist } from '@/src/shared-ui/onboarding/OnboardingChecklist';
 import type { InspectorDataReturn, MappedInspectorJob } from '../../types/inspector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,6 +64,13 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
         <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#3B82F6" />
       }
     >
+      {/* Sprint 13.M1 — onboarding checklist (self-suppresses for admins,
+          dismissed-when-complete users, and rows with no derivable steps). */}
+      <OnboardingChecklist
+        kicker="Inspector Onboarding"
+        title="Finish setting up your inspector profile"
+      />
+
       {/* Avatar */}
       <View style={styles.profileHeader}>
         <View style={styles.avatarRing}>

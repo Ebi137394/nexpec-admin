@@ -36,7 +36,6 @@ import {
   ActivityIndicator,
   Dimensions,
   StatusBar,
-  Stack as RNStack,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';

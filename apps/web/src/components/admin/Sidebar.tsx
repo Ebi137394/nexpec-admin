@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Scale,
   Star,
+  Globe2,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -77,6 +78,10 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'System',
     items: [
+      // Layer 4 — platform-wide inspection domains config (industrial_ndt,
+      // civil, electrical, mechanical). Hidden until typed manually before
+      // this row landed.
+      { label: 'Domains', href: '/admin/domains', icon: Globe2 },
       { label: 'Settings', href: '/admin/settings', icon: Settings },
     ],
   },

@@ -82,4 +82,11 @@ export interface ClientJobDetail {
   clientSelectedApplicantId: string | null;
   createdAt: string;
   scheduledDate: string | null;
+  /**
+   * Layer 1+4 — inspection-domain slug (backfilled to 'industrial_ndt'
+   * for every existing job). The page passes this to
+   * <InspectionDomainBadge requireLaunched /> which renders nothing
+   * unless the slug is in the launched set AND not industrial_ndt.
+   */
+  domain: string | null;
 }

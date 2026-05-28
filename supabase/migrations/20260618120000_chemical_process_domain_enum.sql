@@ -1,0 +1,35 @@
+-- ════════════════════════════════════════════════════════════════════════════
+--  20260618120000_chemical_process_domain_enum.sql
+--
+--  DOMAIN #5 — Chemical & Process Engineering — PART 1 of 2.
+--
+--  This migration ONLY adds the new ENUM value. The companion migration
+--  20260619120000_chemical_process_domain_config.sql performs the
+--  INSERT into public.inspection_domains using the new value.
+--
+--  WHY TWO MIGRATIONS
+--  ──────────────────
+--  PostgreSQL's MVCC contract requires that an ENUM value added via
+--  ALTER TYPE ... ADD VALUE be COMMITTED before any subsequent statement
+--  in the same transaction can reference it. Splitting the work across
+--  two files guarantees the ENUM commit happens in its own implicit
+--  transaction (no surrounding BEGIN/COMMIT here), and the next file
+--  runs after that commit lands.
+--
+--  Idempotent — IF NOT EXISTS makes re-applying this migration a no-op.
+--
+--  NO-TOUCH COMMITMENTS
+--  ────────────────────
+--    • Every existing ENUM value remains unchanged (industrial_ndt,
+--      civil_construction, electrical, mechanical_field).
+--    • No existing column / constraint / RLS policy / RPC is modified.
+--    • Adding a value to an enum is purely additive at the schema layer —
+--      no existing data needs to migrate.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- DELIBERATELY NO TRANSACTION BLOCK.
+-- Postgres allows ALTER TYPE ADD VALUE inside a transaction, but the new
+-- value cannot be referenced in the same transaction. Running this as
+-- a single statement at the file level gives it its own implicit
+-- transaction, which commits before the next migration starts.
+ALTER TYPE public.inspection_domain ADD VALUE IF NOT EXISTS 'chemical_process';

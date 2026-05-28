@@ -66,6 +66,9 @@ export async function fetchInspectorJob(
           'created_at',
           'status',
           'moderation_status',
+          // Layer 1+4 — backfilled domain. Badge gated by is_launched
+          // so it's invisible while every job is still industrial_ndt.
+          'domain',
         ].join(', '),
       )
       .eq('id', jobId)
@@ -154,6 +157,9 @@ export async function fetchInspectorJob(
       createdAt: String(j.created_at),
       status,
       moderationStatus,
+      // Layer 1+4 — surfaced so the inspector page can render the passive,
+      // launch-gated InspectionDomainBadge. Defaults to industrial_ndt.
+      domain: (j.domain as string | null) ?? null,
       myApplication,
       isOpenForApplications,
     };

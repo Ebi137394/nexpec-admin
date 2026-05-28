@@ -62,6 +62,10 @@ export async function fetchClientJob(
           'contractor_id',
           'created_at',
           'scheduled_date',
+          // Layer 1+4 — backfilled to 'industrial_ndt'. Badge is
+          // launch-state gated, so this is consumed but invisible
+          // until the corresponding domain is publicly launched.
+          'domain',
         ].join(', '),
       )
       .eq('id', jobId)
@@ -114,6 +118,8 @@ export async function fetchClientJob(
         (selected?.applicant_id as string | null) ?? null,
       createdAt: String(r.created_at),
       scheduledDate: (r.scheduled_date as string | null) ?? null,
+      // Layer 1+4 — surfaced for the launch-state-gated InspectionDomainBadge.
+      domain: (r.domain as string | null) ?? null,
     };
   } catch (e) {
     if (typeof console !== 'undefined') {

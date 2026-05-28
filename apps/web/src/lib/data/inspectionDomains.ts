@@ -85,6 +85,36 @@ export interface DomainJobCounts {
   count: number;
 }
 
+/**
+ * Lightweight launched-slug fetcher used by inspector-facing surfaces.
+ * Returns ONLY the slugs of currently launched + active domains. The
+ * <InspectionDomainBadge requireLaunched> contract reads this list and
+ * skips rendering for any slug not in it.
+ *
+ * Cached aggressively at the React Server Component layer by the caller;
+ * the underlying table has at most a few rows and changes only when an
+ * admin toggles a domain.
+ */
+export async function fetchLaunchedDomainSlugs(): Promise<string[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('inspection_domains')
+      .select('slug')
+      .eq('is_launched', true)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('[inspectionDomains.fetchLaunchedDomainSlugs] error', error);
+      return [];
+    }
+    return ((data ?? []) as Array<{ slug: string }>).map((r) => r.slug);
+  } catch (err) {
+    console.error('[inspectionDomains.fetchLaunchedDomainSlugs] threw', err);
+    return [];
+  }
+}
+
 export async function fetchJobCountsByDomain(): Promise<DomainJobCounts[]> {
   try {
     const supabase = await createSupabaseServerClient();

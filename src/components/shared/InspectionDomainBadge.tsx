@@ -1,46 +1,47 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  src/components/shared/InspectionDomainBadge.tsx
 //
-//  A passive, read-only pill that surfaces a job's `inspection_domain`.
-//  Renders NOTHING when the domain is the platform default
-//  ('industrial_ndt'), so mounting this component on existing screens
-//  is a true no-op until additional domains are launched.
+//  Mobile passive badge — single source of truth for slug → label + icon
+//  is `@nexpec/shared-core/schemas/inspectionDomain`. The only thing
+//  this file does locally is map an `iconKey` to the Lucide React Native
+//  component, because mobile and web use different Lucide packages.
 //
-//  Design constraints honoured:
-//    • Locked palette only (#020420 / #7C3AED — no new colour tokens).
-//    • Existing dark/violet visual language matches every other surface.
-//    • Pure presentation — no data fetching, no side effects, no haptics.
-//    • showAlways=true lets admin/management screens display the badge
-//      for industrial_ndt too (for the admin domains page).
+//  GATING (two modes)
+//  ──────────────────
+//    Default (admin surfaces):
+//      Renders for any domain EXCEPT 'industrial_ndt'.
+//      Pass `showAlways` to force-render including 'industrial_ndt'
+//      (used by the /admin/domains management page).
 //
-//  USAGE
-//  ─────
-//    import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
-//    <InspectionDomainBadge domain={job.domain} />
-//    <InspectionDomainBadge domain="civil_construction" size="md" />
-//    <InspectionDomainBadge domain="industrial_ndt" showAlways />
+//    Strict (inspector / consumer surfaces):
+//      Pass `requireLaunched={true}` together with the set of currently-
+//      launched domain slugs. The badge then renders ONLY when:
+//        domain ∈ launchedDomains  AND  domain !== 'industrial_ndt'
+//      This is the contract the Inspector portal uses so future
+//      domains stay invisible until `inspection_domains.is_launched` is
+//      flipped to true at the database layer.
+//
+//  Locked-palette compliant. Sized for typical pill placement.
 // ════════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Shield, Building2, Zap, Wrench } from 'lucide-react-native';
+import { Shield, Building2, Zap, Wrench, FlaskConical } from 'lucide-react-native';
+import {
+  getInspectionDomainMeta,
+  type InspectionDomainIconKey,
+} from '@nexpec/shared-core';
 
-type DomainSlug =
-  | 'industrial_ndt'
-  | 'civil_construction'
-  | 'electrical'
-  | 'mechanical_field';
-
-interface DomainMeta {
-  label: string;
-  Icon: typeof Shield;
-}
-
-const DOMAIN_META: Record<DomainSlug, DomainMeta> = {
-  industrial_ndt: { label: 'Industrial & NDT', Icon: Shield },
-  civil_construction: { label: 'Civil', Icon: Building2 },
-  electrical: { label: 'Electrical', Icon: Zap },
-  mechanical_field: { label: 'Mechanical', Icon: Wrench },
+// Map the abstract iconKey from shared-core → concrete Lucide RN component.
+const ICON_BY_KEY: Record<
+  InspectionDomainIconKey,
+  React.ComponentType<{ size?: number; color?: string }>
+> = {
+  shield: Shield,
+  building: Building2,
+  zap: Zap,
+  wrench: Wrench,
+  flask: FlaskConical,
 };
 
 // Locked-palette tokens — sampled from the same #7C3AED used everywhere else.
@@ -55,11 +56,22 @@ export interface InspectionDomainBadgeProps {
   /** The job's `domain` column value, or null/undefined while loading. */
   domain: string | null | undefined;
   /**
-   * When true, the badge renders even for industrial_ndt (the platform
-   * default). Default false — most surfaces should treat industrial_ndt
-   * as "no badge" since it'd otherwise appear on every existing job.
+   * Default false. When true, renders even for industrial_ndt (the platform
+   * default). Used by the /admin/domains management page.
    */
   showAlways?: boolean;
+  /**
+   * Default false. When true, renders ONLY if `launchedDomains` includes
+   * the given slug. Set this on every inspector / consumer surface so
+   * future domains stay invisible until they're publicly launched.
+   */
+  requireLaunched?: boolean;
+  /**
+   * Active launched-domain slugs (typically fetched via the React Query
+   * `useLaunchedInspectionDomains` hook on mobile). Ignored unless
+   * `requireLaunched` is true.
+   */
+  launchedDomains?: readonly string[];
   /** Visual size. Default 'sm'. */
   size?: 'sm' | 'md';
 }
@@ -67,26 +79,39 @@ export interface InspectionDomainBadgeProps {
 export function InspectionDomainBadge({
   domain,
   showAlways = false,
+  requireLaunched = false,
+  launchedDomains,
   size = 'sm',
 }: InspectionDomainBadgeProps) {
   if (!domain) return null;
-  if (domain === 'industrial_ndt' && !showAlways) return null;
 
-  const meta = DOMAIN_META[domain as DomainSlug];
+  const meta = getInspectionDomainMeta(domain);
   if (!meta) return null; // unknown future slug — render nothing rather than ugly fallback
 
-  const { Icon, label } = meta;
+  // Default gating: hide industrial_ndt unless showAlways.
+  if (meta.slug === 'industrial_ndt' && !showAlways) return null;
+
+  // Strict gating: consumer surfaces require an active launch.
+  if (requireLaunched) {
+    const launched = launchedDomains ?? [];
+    if (!launched.includes(meta.slug)) return null;
+    // industrial_ndt is excluded here even if it appears in launchedDomains —
+    // consumer surfaces never show the badge for the platform default.
+    if (meta.slug === 'industrial_ndt') return null;
+  }
+
+  const Icon = ICON_BY_KEY[meta.iconKey];
   const isSm = size === 'sm';
 
   return (
     <View
       style={[styles.badge, isSm ? styles.badgeSm : styles.badgeMd]}
       accessibilityRole="text"
-      accessibilityLabel={`Inspection domain: ${label}`}
+      accessibilityLabel={`Inspection domain: ${meta.label}`}
     >
       <Icon size={isSm ? 12 : 14} color={COLORS.icon} />
       <Text style={[styles.label, isSm ? styles.labelSm : styles.labelMd]}>
-        {label}
+        {meta.label}
       </Text>
     </View>
   );

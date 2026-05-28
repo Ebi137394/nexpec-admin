@@ -27,6 +27,9 @@ import type {
 } from '@/lib/data/clientJobs.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import { EvidencePackButton } from '@/components/compliance/EvidencePackButton';
+// Layer 1+4 — passive, launch-state-gated inspection-domain badge.
+import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
+import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -40,7 +43,11 @@ interface PageProps {
 
 export default async function ClientJobDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const job = await fetchClientJob(id);
+  // fetchLaunchedDomainSlugs hits a 4-row table; effectively free.
+  const [job, launchedDomains] = await Promise.all([
+    fetchClientJob(id),
+    fetchLaunchedDomainSlugs(),
+  ]);
   if (!job) notFound();
 
   return (
@@ -66,6 +73,14 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusBadge status={job.status} />
               <ModerationBadge status={job.moderationStatus} />
+              {/* Layer 1+4 — invisible while every job is industrial_ndt
+                  AND launchedDomains is the platform default. Renders the
+                  moment an admin launches civil / electrical / mechanical. */}
+              <InspectionDomainBadge
+                domain={job.domain}
+                requireLaunched
+                launchedDomains={launchedDomains}
+              />
               {job.urgency && job.urgency !== 'normal' && (
                 <UrgencyBadge urgency={job.urgency} />
               )}

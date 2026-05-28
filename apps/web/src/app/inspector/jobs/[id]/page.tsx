@@ -37,6 +37,9 @@ import {
 } from 'lucide-react';
 import { fetchInspectorJob } from '@/lib/data/inspectorJobDetail';
 import { fetchInspectorReport } from '@/lib/data/inspectorReport';
+// Layer 1+4 — passive, launch-state-gated domain badge.
+import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
+import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
 import type { InspectorReport } from '@/lib/data/inspectorReport.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import type {
@@ -72,12 +75,13 @@ export default async function InspectorJobDetailPage({
   const { id } = await params;
   const qp = await searchParams;
 
-  // Fetch job + report in parallel — the report drives the workflow CTA
-  // ("Submit Report" vs "Awaiting admin review"). fetchInspectorReport
+  // Fetch job + report + launched domains in parallel. fetchInspectorReport
   // returns null cheaply when nothing is there yet, so this is free.
-  const [job, report] = await Promise.all([
+  // fetchLaunchedDomainSlugs hits a 4-row table; effectively free.
+  const [job, report, launchedDomains] = await Promise.all([
     fetchInspectorJob(id),
     fetchInspectorReport(id),
+    fetchLaunchedDomainSlugs(),
   ]);
   if (!job) notFound();
 
@@ -108,6 +112,14 @@ export default async function InspectorJobDetailPage({
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusPill status={job.status} />
+              {/* Layer 1+4 — invisible while every job is industrial_ndt
+                  AND launchedDomains stays at ['industrial_ndt']. Renders
+                  the moment an admin launches civil / electrical / mechanical. */}
+              <InspectionDomainBadge
+                domain={job.domain}
+                requireLaunched
+                launchedDomains={launchedDomains}
+              />
               {job.urgency && job.urgency !== 'normal' && (
                 <UrgencyPill urgency={job.urgency} />
               )}

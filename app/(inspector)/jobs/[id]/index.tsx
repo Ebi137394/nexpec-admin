@@ -22,6 +22,9 @@ import { supabase } from '@/lib/supabase';
 import { rpcWithRetry } from '@/src/core/net/supabaseRetry';
 // ★ Phase 5 — Industrial Black Box (inspector view, RLS-gated to their job)
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+// ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
+import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
+import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
 
 // =============================================================================
 // TYPES
@@ -34,6 +37,11 @@ interface Job {
   company_logo: string | null;
   location: string;
   job_type: string;
+  // ★ Layer 1+4 — backfilled to 'industrial_ndt' for every existing job.
+  //   The InspectionDomainBadge gates rendering on requireLaunched, so this
+  //   field is consumed but invisible until the corresponding domain is
+  //   flipped to is_launched=true via /admin/domains.
+  domain?: string | null;
   payout_amount_cents?: number | null;   // ★ Task 4 — Inspector sees payout
   // GR2 (Strict price visibility): client_price_cents is intentionally
   // OMITTED from this interface. The inspector fetcher's projection
@@ -130,6 +138,13 @@ export default function InspectorJobDetailScreen() {
   const [approvalData, setApprovalData] = useState<any>(null);
   const [debugError, setDebugError] = useState<string | null>(null);
 
+  // ★ Layer 1+4 — set of currently launched inspection domains.
+  // Inspector surfaces ONLY render the domain badge for slugs in this
+  // set AND not equal to 'industrial_ndt'. Empty array today → zero
+  // visible badges. The hook fetches the inspection_domains config table
+  // and caches for 15 minutes.
+  const { slugs: launchedDomains } = useLaunchedInspectionDomains();
+
   // ===========================================================================
   // INITIALIZATION
   // ===========================================================================
@@ -218,6 +233,9 @@ export default function InspectorJobDetailScreen() {
           'status',
           'client_id',
           'contractor_id',
+          // Layer 1+4 — backfilled domain. Badge is launch-state gated so
+          // it stays invisible while every job is still 'industrial_ndt'.
+          'domain',
         ].join(', '),
       )
       .eq('id', id)
@@ -649,7 +667,18 @@ const fetchApplication = async (uid: string) => {
           
           <Text style={styles.jobTitle}>{job.title}</Text>
           <Text style={styles.companyName}>{job.company_name || 'Private Client'}</Text>
-          
+
+          {/* ★ Layer 1+4 — passive domain badge. requireLaunched=true means
+                it renders only for slugs in launchedDomains AND not
+                industrial_ndt. Today: invisible on every existing job. */}
+          <View style={{ alignSelf: 'center', marginTop: 8 }}>
+            <InspectionDomainBadge
+              domain={job.domain}
+              requireLaunched
+              launchedDomains={launchedDomains}
+            />
+          </View>
+
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
               <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />

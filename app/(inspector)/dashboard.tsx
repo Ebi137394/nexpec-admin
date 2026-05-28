@@ -27,6 +27,8 @@ import {
   JobCardSkeleton,
 } from '../../components/inspector/Skeletons';
 import { OnboardingChecklist } from '@/src/shared-ui/onboarding/OnboardingChecklist';
+// Sprint 13.M3 — mobile parity for the web Cmd+K Global Search
+import { GlobalSearchBar } from '@/src/shared-ui/search/GlobalSearchBar';
 import type { InspectorDataReturn, MappedInspectorJob } from '../../types/inspector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,6 +66,11 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
         <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor="#3B82F6" />
       }
     >
+      {/* Sprint 13.M3 — global search trigger. Same component that ships
+          on the client dashboard so the search lane behaves identically
+          across roles; the RPC enforces permission scoping. */}
+      <GlobalSearchBar />
+
       {/* Sprint 13.M1 — onboarding checklist (self-suppresses for admins,
           dismissed-when-complete users, and rows with no derivable steps). */}
       <OnboardingChecklist

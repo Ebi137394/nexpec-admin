@@ -19,6 +19,8 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useRouter } from 'expo-router';
 import { OnboardingChecklist } from '@/src/shared-ui/onboarding/OnboardingChecklist';
+// Sprint 13.M3 — mobile parity for the web Cmd+K Global Search
+import { GlobalSearchBar } from '@/src/shared-ui/search/GlobalSearchBar';
 import type { Job } from '@/types/database';
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -73,6 +75,12 @@ export default function DashboardScreen() {
               <Text style={styles.role}>{role.toUpperCase()}</Text>
             )}
           </View>
+
+          {/* Sprint 13.M3 — global search trigger. Permission filtering
+              happens server-side inside global_search(); anonymous users
+              get inspector-only matches, signed-in users get the full
+              role-scoped set. */}
+          <GlobalSearchBar />
 
           {/* Sprint 13.M1 — onboarding checklist (self-suppresses for
               completed-and-dismissed users + non-checklist roles). */}

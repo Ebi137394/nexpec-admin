@@ -40,3 +40,11 @@ export * from './schemas/organizations';
 // web badge and the apps/web Vercel build failed at compile-time even though
 // schemas/index.ts itself already re-exported the module.
 export * from './schemas/inspectionDomain';
+
+// Phase 0 (Layer 5 finish) — unified canonical specialty taxonomy.
+// Both surfaces (apps/web and src/) re-export from this module so the
+// kebab-case slug inventory, group titles, descriptions, and synonyms
+// stay perfectly aligned. Migration 20260622120000_unify_specialty_slugs_kebab.sql
+// backfills any legacy snake_case slugs in jobs.specialty_slugs and
+// profiles.specialty_slugs to their kebab canonical equivalents.
+export * from './data/specialtyTaxonomy';

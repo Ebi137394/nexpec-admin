@@ -48,3 +48,10 @@ export * from './schemas/inspectionDomain';
 // backfills any legacy snake_case slugs in jobs.specialty_slugs and
 // profiles.specialty_slugs to their kebab canonical equivalents.
 export * from './data/specialtyTaxonomy';
+
+// Phase A.5 — on-device Model Runtime + signed model-registry contracts.
+// Pure-TS types, canonical signing serialization, the fail-closed integrity
+// gate (verifyDownloadedArtifact), Zod validation of the ml_resolve_models RPC,
+// and the typed registry client. Consumed by mobile (src/core/ml) and web.
+// Additive only — no existing export is touched.
+export * from './ml';

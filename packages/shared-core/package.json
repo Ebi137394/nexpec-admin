@@ -11,7 +11,8 @@
     "./storage": "./src/storage/index.ts",
     "./domain": "./src/domain/index.ts",
     "./schemas": "./src/schemas/index.ts",
-    "./client": "./src/client/index.ts"
+    "./client": "./src/client/index.ts",
+    "./ml": "./src/ml/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

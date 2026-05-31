@@ -1,0 +1,15 @@
+{
+  "_comment": "Public, auditable signing record for the on-device model. sha256+attestation+signature are all non-secret. The private key (nexpec_model_signing.pem) is gitignored and never leaves the signing box.",
+  "kind": "vision_defect",
+  "slug": "corrosion-detector",
+  "version": 1,
+  "runtime": "tflite",
+  "tier": "student",
+  "sha256": "7aad0c74c5e3c06e5eb3c827e13304fdd68a83da6087d92ee169c24ff9fd4776",
+  "signature_alg": "ed25519",
+  "signing_key_id": "nexpec-model-2026-v1",
+  "signature": "MNLk8U3y0llUyLc63VEsrUTeI8W44luctlpWJnSIRONla9gmRJ5SeXOmbUG01tTnCMsiJBtk+1yObpwMDY1ODQ==",
+  "attestation_canonical": "{\"kind\":\"vision_defect\",\"runtime\":\"tflite\",\"sha256\":\"7aad0c74c5e3c06e5eb3c827e13304fdd68a83da6087d92ee169c24ff9fd4776\",\"slug\":\"corrosion-detector\",\"tier\":\"student\",\"version\":1}",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAaiAOBcAtb7dFZDVDJiOc9HPA8zu6i9/vz1MJGASCU54=\n-----END PUBLIC KEY-----",
+  "signed_at": "2026-05-30T03:57:01.232Z"
+}

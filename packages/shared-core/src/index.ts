@@ -55,3 +55,28 @@ export * from './data/specialtyTaxonomy';
 // and the typed registry client. Consumed by mobile (src/core/ml) and web.
 // Additive only — no existing export is touched.
 export * from './ml';
+
+// Secret weapons — Verifiable Inspection Passport, Predictive Integrity (RBI),
+// and the Voice Copilot's $0 transcript→defect NLU. Pure-TS, additive.
+export * from './passport';
+export * from './integrity/rbi';
+// P2.2 — Predictive-Integrity risk scorer. Consumes the inspector_integrity_analytics
+// RPC (P2.1) → one 0–100 integrity_risk_score per inspector with an explainable
+// component breakdown. Pure statistics, $0, platform-agnostic.
+export * from './integrity/riskScore';
+export * from './voice/transcriptToDefects';
+
+// P3 — Stripe webhook integrity: signature verification + claim-then-process
+// idempotency decisions. Pure, dependency-injected, strictly unit-tested.
+export * from './payments/stripeWebhook';
+
+// P3 — Observability: PII scrubbing for Sentry beforeSend/beforeBreadcrumb on
+// both platforms + safe (non-PII) instrumentation tags. Pure, unit-tested.
+export * from './observability/scrub';
+
+// P3 — Offline-sync error taxonomy. Pure classification of the errors thrown
+// while draining the mobile outbox against Supabase (auth-expiry vs conflict vs
+// transient vs fatal) + the SyncConflictError handlers raise on a 0-row write.
+// Drives the drain loop's "never abandon good field data on a token blip"
+// behavior. Pure, unit-tested; consumed by mobile src/core/offline.
+export * from './offline/syncErrors';

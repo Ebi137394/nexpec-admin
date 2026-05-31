@@ -17,7 +17,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "lint": "echo 'shared-core lint placeholder'"
+    "lint": "echo 'shared-core lint placeholder'",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage"
   },
   "dependencies": {
     "zod": "^3.23.8"
@@ -27,6 +30,8 @@
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "typescript": "^5.6.0"
+    "@vitest/coverage-v8": "^4.1.7",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7"
   }
 }

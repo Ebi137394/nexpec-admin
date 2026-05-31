@@ -44,7 +44,15 @@ function countOf(value: unknown): number {
 
 const GENERATOR_VERSION = '1.0.0';
 
-/** Names of the artifacts in the canonical manifest order. */
+/** Names of the artifacts in the canonical manifest order.
+ *
+ *  NOTE: inspection_seals, vendor_coordination and ai_detections are appended
+ *  AFTER the original seven so that older packs (7-entry manifests) keep
+ *  verifying byte-for-byte — the verifier recomputes the root from the file's
+ *  own manifest.artifacts array, so it never depends on this list. Adding them
+ *  here makes the cryptographic seal, the vendor chain, and every human-accepted
+ *  AI detection hash-verified at the pack level (not merely present), which is
+ *  what the /verify page's Provable-AI re-derivation relies on. */
 const ARTIFACT_NAMES = [
   'audit_events',
   'approvals',
@@ -53,6 +61,9 @@ const ARTIFACT_NAMES = [
   'invoices',
   'job',
   'parties',
+  'inspection_seals',
+  'vendor_coordination',
+  'ai_detections',
 ] as const;
 
 export async function assembleEvidencePackAction(input: {

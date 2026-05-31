@@ -1,13 +1,15 @@
 import 'react-native-url-polyfill/auto';
 import 'react-native-gesture-handler';
 import React, { useEffect, useState, useRef } from 'react';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
 import { initializeOfflineSync } from '@/lib/offline';
 // ★ Phase 5 / Hour 3 — root ErrorBoundary. Catches every render-time
 //   exception in the tree below and shows a recoverable fallback instead
 //   of letting React unmount the whole app to a blank screen.
 import { ErrorBoundary } from '@/src/core/errors/ErrorBoundary';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, persistOptions } from '@/src/core/query/queryClient';
 
 // ★ Silence non-actionable dev warnings that fire from deeply-nested
 //   3rd-party trees (e.g. @stripe, expo-router internals). These are
@@ -28,12 +30,21 @@ import { LanguageProvider } from '@/src/i18n/LanguageProvider';
 //   session. Without this call the hook was defined but never invoked,
 //   so push registration AND the deep-link tap listener never fired.
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+// ★ Phase A.5 — install the on-device Ed25519 model-signature verifier so the
+//   runtime enforces authenticity app-wide (tampered/unsigned models rejected).
+import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
 
 function AuthGate() {
   const { session, loading, role } = useAuth();
   const { isDarkMode } = useTheme();
   const segments = useSegments();
   const router = useRouter();
+  // ★ FIX — expo-router root-navigator readiness. Until this has a `key`, the
+  //   <Slot/> navigator has NOT mounted, and any router.replace/push throws
+  //   "Attempted to navigate before mounting the Root Layout component"
+  //   (assertIsReady). The custom `isReady` below tracks auth-loading, NOT the
+  //   navigator — so we additionally gate every redirect on this.
+  const rootNavState = useRootNavigationState();
   const isAuthenticated = !!session;
   const colors = getColors(isDarkMode);
 
@@ -54,8 +65,10 @@ function AuthGate() {
   }, [loading]);
 
   useEffect(() => {
-    // 🛑 Prevent routing until logic is ready
-    if (!isReady || loading || !segments || segments.length < 1 || !segments[0]) return;
+    // 🛑 Prevent routing until logic is ready AND the root navigator has
+    //    mounted (rootNavState.key) — otherwise router.replace throws
+    //    "navigate before mounting the Root Layout".
+    if (!rootNavState?.key || !isReady || loading || !segments || segments.length < 1 || !segments[0]) return;
 
     const currentSegment = segments[0] as string;
 
@@ -252,7 +265,9 @@ function AuthGate() {
     else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
     else safeNavigate('/(tabs)');
 
-  }, [isAuthenticated, loading, segments, role, isReady]);
+    // rootNavState?.key is in the deps so the redirect re-runs the moment the
+    // root navigator finishes mounting (it's null on the first pass).
+  }, [isAuthenticated, loading, segments, role, isReady, rootNavState?.key]);
 
   if (loading || !isReady) {
     return (
@@ -274,6 +289,10 @@ export default function RootLayout() {
   //    Subscribes to NetInfo, drains the queue when online,
   //    re-polls every 60s for backoff-due retries. Idempotent.
   useEffect(() => {
+    // ★ Phase A.5 — enforce on-device model signature verification app-wide.
+    //   Pure-JS Ed25519; with ML_ALLOW_UNSIGNED off, tampered/unsigned models
+    //   are rejected before load (fail-closed). Safe no-op if never used.
+    installMlSignatureVerifier();
     const teardown = initializeOfflineSync();
     return teardown;
   }, []);
@@ -319,19 +338,26 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <StripeProvider
-              publishableKey={stripePublishableKey}
-              merchantIdentifier="com.nexpec.app"
-              urlScheme="nexpec"
-            >
-              <AuthGate />
-            </StripeProvider>
-          </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      {/* ★ FIX — React Query needs a client in scope. Without this provider,
+          every useQuery/useQueryClient consumer (useLaunchedInspectionDomains,
+          inspector/seal-report, inspector/coordination-bridge) crashed the
+          render with "No QueryClient set". Persisted via AsyncStorage so reads
+          survive a restart. ErrorBoundary stays outermost. */}
+      <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <StripeProvider
+                publishableKey={stripePublishableKey}
+                merchantIdentifier="com.nexpec.app"
+                urlScheme="nexpec"
+              >
+                <AuthGate />
+              </StripeProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </PersistQueryClientProvider>
     </ErrorBoundary>
   );
 }

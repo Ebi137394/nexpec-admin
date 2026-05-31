@@ -199,6 +199,56 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
       'Inside a furnace shell during a refractory inspection, the interior brick lining lit by a single inspection lamp throwing violet shadows. Photoreal, square crop.',
     alt: 'Furnace refractory lining under inspection',
   },
+
+  // ── NEW · 5-domain expansion (ADDITIVE — the 8 tiles above are untouched) ──
+  //   Domain-level tiles for the engineering domains not yet pictured. Clean
+  //   `slot` labels render directly because Industries.tsx falls back to
+  //   `slot.slot` when an id isn't in its label map — so NO component edit is
+  //   needed. Drop the matching files at the `path` below.
+  {
+    id: 'domain.civil-construction',
+    slot: 'Civil & Construction',
+    path: '/industries/civil-construction.jpg',
+    width: 1200,
+    height: 1200,
+    aspectRatio: '1 / 1',
+    prompt:
+      'Monumental cable-stayed bridge and structural steel under construction at dusk, translucent electric-violet laser-scan survey grid with cyan measurement nodes, navy sky. Photoreal, square crop.',
+    alt: 'Civil & construction inspection — a bridge under a violet structural survey grid',
+  },
+  {
+    id: 'domain.electrical',
+    slot: 'Electrical',
+    path: '/industries/electrical-substation.jpg',
+    width: 1200,
+    height: 1200,
+    aspectRatio: '1 / 1',
+    prompt:
+      'Dark high-voltage switchgear hall, infrared thermography violet-to-cyan heat gradient across the busbars, controlled electric-violet arcs, deep navy. Photoreal, square crop.',
+    alt: 'Electrical inspection — a high-voltage switchgear hall with a thermography overlay',
+  },
+  {
+    id: 'domain.mechanical-field',
+    slot: 'Mechanical Field',
+    path: '/industries/mechanical-field.jpg',
+    width: 1200,
+    height: 1200,
+    aspectRatio: '1 / 1',
+    prompt:
+      'Massive rotating equipment — pump and turbine with piping manifold — mid-turnaround, glowing electric-violet vibration-analysis waveform and cyan shaft-alignment laser, navy shadow. Photoreal, square crop.',
+    alt: 'Mechanical-field inspection — rotating equipment with a violet vibration-analysis overlay',
+  },
+  {
+    id: 'domain.chemical-process',
+    slot: 'Chemical & Process',
+    path: '/industries/chemical-process.jpg',
+    width: 1200,
+    height: 1200,
+    aspectRatio: '1 / 1',
+    prompt:
+      'Sprawling petrochemical process plant at night, distillation columns and insulated pipework glowing from within, violet process-safety overlay and cyan flow-lines, navy-to-violet fog. Photoreal, square crop.',
+    alt: 'Chemical & process inspection — a petrochemical plant at night with a violet schematic overlay',
+  },
 ];
 
 /* ── Brand / Logo assets ────────────────────────────────────────────── */

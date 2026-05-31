@@ -23,12 +23,33 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { enqueue } from './outbox';
-import { flushQueue, initializeOfflineSync as _initializeOfflineSync } from './sync';
+import {
+  flushQueue,
+  initializeOfflineSync as _initializeOfflineSync,
+  type OfflineSyncOptions,
+} from './sync';
 import { isOnline } from './network';
+import { refreshSupabaseSession } from './auth';
 
 export { initializeOfflineSync as _internalInit } from './sync';
+// #56 — auth-expiry event seam + post-sign-in resume + conflict-resolution API.
+export { onAuthExpired, resumeSync } from './sync';
+export type { OfflineSyncOptions, SessionRefresher, AuthExpiredListener } from './sync';
 export { useOutbox } from './hooks';
-export type { OutboxRow, OutboxCounts, OperationKind, OperationStatus } from './outbox';
+export {
+  listAbandoned,
+  listConflicts,
+  retryAbandoned,
+  retryConflict,
+  discardOperation,
+} from './outbox';
+export type {
+  OutboxRow,
+  OutboxCounts,
+  OperationKind,
+  OperationStatus,
+  FailureClass,
+} from './outbox';
 export { isOnline } from './network';
 
 // ── UUID v4 (no extra deps) ────────────────────────────────────────
@@ -50,8 +71,16 @@ function makeUuid(): string {
 }
 
 // ── Public initialization wrapper ──────────────────────────────────
-export function initializeOfflineSync(): () => void {
-  return _initializeOfflineSync();
+//
+// Backward-compatible: `initializeOfflineSync()` (the zero-arg call in
+// app/_layout.tsx) keeps working and now transparently gains auth-expiry
+// recovery, because we default the refresh seam to Supabase here. Callers may
+// still override either hook (e.g. to route onAuthExpired into the auth store).
+export function initializeOfflineSync(opts?: OfflineSyncOptions): () => void {
+  return _initializeOfflineSync({
+    refreshSession: opts?.refreshSession ?? refreshSupabaseSession,
+    onAuthExpired: opts?.onAuthExpired,
+  });
 }
 
 // ── enqueue* helpers — typed entry points for each operation ──────
@@ -86,6 +115,13 @@ export async function enqueueReportSave(input: ReportSaveInput): Promise<string>
 export interface ReportUpdateInput {
   id: string;
   patch: Record<string, unknown>;
+  /**
+   * Optional optimistic-concurrency guard (#56). Pass the report's `updated_at`
+   * as captured when the offline edit was made; the sync engine refuses to
+   * overwrite a row that changed since, surfacing a conflict instead of
+   * silently winning a last-write race. Omit for last-write-wins behavior.
+   */
+  expected_updated_at?: string;
 }
 
 export async function enqueueReportUpdate(input: ReportUpdateInput): Promise<string> {

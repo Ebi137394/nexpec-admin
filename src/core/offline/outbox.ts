@@ -16,7 +16,19 @@ export type OperationKind =
   | 'review_submit'
   | 'message_send';
 
-export type OperationStatus = 'pending' | 'in_flight' | 'failed' | 'abandoned';
+// 'conflict' (#56) is terminal-pending: the server state diverged (row gone /
+// sealed / RLS-filtered / optimistic-lock miss). It is NOT auto-retried — it
+// waits for an explicit user decision (retryConflict | discardOperation).
+export type OperationStatus =
+  | 'pending'
+  | 'in_flight'
+  | 'failed'
+  | 'abandoned'
+  | 'conflict';
+
+// Why a row reached a terminal-ish state. NULL for healthy/pending/auth-bounced
+// rows. See the v2 migration in db.ts for the full rationale.
+export type FailureClass = 'transient' | 'exhausted' | 'conflict' | 'fatal';
 
 export interface OutboxRow {
   id: number;
@@ -27,6 +39,7 @@ export interface OutboxRow {
   status: OperationStatus;
   attempts: number;
   last_error: string | null;
+  failure_class: FailureClass | null;
   created_at: number;
   last_attempt_at: number | null;
   next_attempt_at: number | null;
@@ -93,6 +106,12 @@ export async function markSuccess(id: number): Promise<void> {
   await db.runAsync(`DELETE FROM outbox_operations WHERE id = ?`, [id]);
 }
 
+/**
+ * A *transient* failure (network blip, 5xx, 429). Increments the attempt
+ * counter and either schedules the next backoff retry or — at the ceiling —
+ * abandons the row with failure_class='exhausted' (so the UI can distinguish
+ * "we gave up after N honest retries" from a hard server rejection).
+ */
 export async function markFailure(
   id: number,
   err: string,
@@ -103,7 +122,8 @@ export async function markFailure(
   if (nextAttempts >= MAX_ATTEMPTS) {
     await db.runAsync(
       `UPDATE outbox_operations
-          SET status = 'abandoned', last_error = ?, attempts = ?
+          SET status = 'abandoned', last_error = ?, attempts = ?,
+              failure_class = 'exhausted'
         WHERE id = ?`,
       [err, nextAttempts, id],
     );
@@ -113,11 +133,68 @@ export async function markFailure(
           SET status = 'pending',
               last_error = ?,
               attempts = ?,
+              failure_class = 'transient',
               next_attempt_at = ?
         WHERE id = ?`,
       [err, nextAttempts, Date.now() + backoffMs(nextAttempts), id],
     );
   }
+}
+
+/**
+ * #56 — Auth/session expiry mid-drain. The op is INNOCENT: its payload is fine,
+ * only the bearer token went stale. So we bounce it straight back to 'pending'
+ * WITHOUT touching `attempts` (it must never count toward abandonment) and make
+ * it immediately eligible again, so that once the drain loop refreshes the
+ * session it retries right away. Clears any stale failure_class.
+ *
+ * Crucially this is the difference between "token expired while you were in a
+ * tunnel" costing nothing vs. silently burning through the retry budget and
+ * deleting an inspector's report.
+ */
+export async function requeueForAuth(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE outbox_operations
+        SET status = 'pending',
+            last_error = 'auth: session expired — awaiting token refresh',
+            failure_class = NULL,
+            next_attempt_at = ?
+      WHERE id = ?`,
+    [Date.now(), id],
+  );
+}
+
+/**
+ * #56 — The write provably targeted a row that no longer matches (deleted,
+ * sealed, RLS-filtered, or an optimistic-concurrency miss). Retrying is
+ * pointless and could clobber finalized data, so we park it in the terminal
+ * 'conflict' state for an explicit user decision. Does NOT burn attempts.
+ */
+export async function markConflict(id: number, err: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE outbox_operations
+        SET status = 'conflict', last_error = ?, failure_class = 'conflict'
+      WHERE id = ?`,
+    [err, id],
+  );
+}
+
+/**
+ * #56 — Deterministic rejection (constraint violation, RLS deny, trigger guard,
+ * 4xx). It will never heal on its own, so fail fast to 'abandoned' instead of
+ * grinding all MAX_ATTEMPTS retries. Preserved (not deleted) and surfaced via
+ * listAbandoned so nothing vanishes silently.
+ */
+export async function markFatal(id: number, err: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE outbox_operations
+        SET status = 'abandoned', last_error = ?, failure_class = 'fatal'
+      WHERE id = ?`,
+    [err, id],
+  );
 }
 
 export async function retryAbandoned(id: number): Promise<void> {
@@ -127,9 +204,44 @@ export async function retryAbandoned(id: number): Promise<void> {
         SET status = 'pending',
             attempts = 0,
             next_attempt_at = ?,
-            last_error = NULL
+            last_error = NULL,
+            failure_class = NULL
       WHERE id = ? AND status = 'abandoned'`,
     [Date.now(), id],
+  );
+}
+
+/**
+ * #56 — User chose to re-attempt a conflicted op (e.g. after reconciling on
+ * the server). Resets it to a fresh pending op. Scoped to status='conflict' so
+ * it can't accidentally disturb an in-flight row.
+ */
+export async function retryConflict(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE outbox_operations
+        SET status = 'pending',
+            attempts = 0,
+            next_attempt_at = ?,
+            last_error = NULL,
+            failure_class = NULL
+      WHERE id = ? AND status = 'conflict'`,
+    [Date.now(), id],
+  );
+}
+
+/**
+ * #56 — User chose to permanently drop a queued op (conflict or abandoned).
+ * Scoped away from in-flight/pending rows so we never delete work the engine is
+ * mid-way through. If a `local_file_path` was attached (a queued photo), the
+ * caller is responsible for any file cleanup; the outbox only owns the row.
+ */
+export async function discardOperation(id: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `DELETE FROM outbox_operations
+      WHERE id = ? AND status IN ('conflict', 'abandoned', 'failed')`,
+    [id],
   );
 }
 
@@ -139,6 +251,8 @@ export interface OutboxCounts {
   pending: number;
   in_flight: number;
   abandoned: number;
+  /** #56 — terminal-pending rows awaiting a user decision. */
+  conflict: number;
 }
 
 export async function counts(): Promise<OutboxCounts> {
@@ -147,17 +261,20 @@ export async function counts(): Promise<OutboxCounts> {
     pending: number;
     in_flight: number;
     abandoned: number;
+    conflict: number;
   }>(
     `SELECT
        SUM(CASE WHEN status='pending'    THEN 1 ELSE 0 END) AS pending,
        SUM(CASE WHEN status='in_flight'  THEN 1 ELSE 0 END) AS in_flight,
-       SUM(CASE WHEN status='abandoned'  THEN 1 ELSE 0 END) AS abandoned
+       SUM(CASE WHEN status='abandoned'  THEN 1 ELSE 0 END) AS abandoned,
+       SUM(CASE WHEN status='conflict'   THEN 1 ELSE 0 END) AS conflict
      FROM outbox_operations`,
   );
   return {
     pending: r?.pending ?? 0,
     in_flight: r?.in_flight ?? 0,
     abandoned: r?.abandoned ?? 0,
+    conflict: r?.conflict ?? 0,
   };
 }
 
@@ -172,5 +289,13 @@ export async function listAbandoned(): Promise<OutboxRow[]> {
   const db = await getDb();
   return db.getAllAsync<OutboxRow>(
     `SELECT * FROM outbox_operations WHERE status = 'abandoned' ORDER BY created_at DESC`,
+  );
+}
+
+/** #56 — rows parked in 'conflict', newest first, for the resolution surface. */
+export async function listConflicts(): Promise<OutboxRow[]> {
+  const db = await getDb();
+  return db.getAllAsync<OutboxRow>(
+    `SELECT * FROM outbox_operations WHERE status = 'conflict' ORDER BY created_at DESC`,
   );
 }

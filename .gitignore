@@ -51,3 +51,21 @@ ios/
 
 # ─── Vercel ───────────────────────────────────────────────────────────────
 .vercel
+
+# ─── Signing keys & secrets — PRIVATE KEYS MUST NEVER BE COMMITTED ─────────
+#  The model-signing private key is the root of the Provable-AI moat: anyone
+#  who has it can forge a valid signature over any model attestation and defeat
+#  on-device verification. Ignore EVERY private-key form; explicitly re-allow
+#  *.pub.pem (public keys ARE the trust anchor and are safe — indeed meant — to
+#  commit). nexpec_signing_v1.pem was committed by accident in 314e4e7; it is
+#  BURNED and must be purged from history — see docs/KEY_CUSTODY.md.
+*.pem
+*.key
+*.p8
+*.p12
+*.pkcs8
+*.pkcs12
+*.asc
+secrets/
+!*.pub.pem
+!*.pub.key

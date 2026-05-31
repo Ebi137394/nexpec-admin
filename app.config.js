@@ -50,6 +50,23 @@ module.exports = {
     //   satisfy older bundler caches.
     newArchEnabled: true,
 
+    // ── OTA updates (EAS Update) ───────────────────────────────────────
+    //  runtimeVersion gates which JS bundles a native build will accept — it
+    //  MUST change whenever native code changes, so 'appVersion' ties it to the
+    //  app version (bumped per native release). The updates.url is the EAS
+    //  Update endpoint for this project; `eas update:configure` confirms it.
+    //  The eas.json build profiles publish to matching channels
+    //  (development / preview / production). Until EAS_PROJECT_ID is set, OTA is
+    //  inert (url undefined) — store builds still work, they just won't pull OTA.
+    runtimeVersion: { policy: 'appVersion' },
+    updates: {
+      url: process.env.EAS_PROJECT_ID
+        ? `https://u.expo.dev/${process.env.EAS_PROJECT_ID}`
+        : undefined,
+      // Don't block first paint on a network update check; apply on next launch.
+      fallbackToCacheTimeout: 0,
+    },
+
     splash: {
       image: './assets/splash-logo.png',
       resizeMode: 'contain',
@@ -84,6 +101,24 @@ module.exports = {
           'NEXPEC uses Face ID for one-tap sign-in so you don\'t have to retype credentials in the field.',
         NSCalendarsUsageDescription:
           'NEXPEC adds scheduled inspections to your calendar so site visits show up alongside your other commitments.',
+        // iOS 17+ split Calendar access into full-access + write-only. expo-calendar
+        // throws MissingCalendarPListValueException at runtime without these keys.
+        NSCalendarsFullAccessUsageDescription:
+          'NEXPEC adds scheduled inspections to your calendar so site visits show up alongside your other commitments.',
+        NSCalendarsWriteOnlyAccessUsageDescription:
+          'NEXPEC adds scheduled inspections to your calendar so site visits show up alongside your other commitments.',
+        // ★ FORCED BY expo-calendar 14: its ExpoCalendar OnCreate runs
+        //   initializePermittedEntities() at module init, which probes BOTH the
+        //   calendar AND the reminders permission requester. On iOS 17+ the
+        //   reminders requester calls EXFatal() when NSRemindersFullAccessUsage-
+        //   Description is absent — crashing the app at LAUNCH even though we
+        //   only schedule calendar events. These keys are mandatory just to load
+        //   the module; they do NOT imply we actively use Reminders.
+        //   (NSRemindersUsageDescription covers the iOS <17 code path.)
+        NSRemindersUsageDescription:
+          'NEXPEC can add reminders for upcoming inspections so you\'re notified before a scheduled site visit.',
+        NSRemindersFullAccessUsageDescription:
+          'NEXPEC can add reminders for upcoming inspections so you\'re notified before a scheduled site visit.',
         NSMicrophoneUsageDescription:
           'NEXPEC uses your microphone when you record a voice message in the in-app chat with your client or admin.',
         NSMotionUsageDescription:
@@ -212,6 +247,40 @@ module.exports = {
       'expo-font',
       'expo-sqlite',
       'expo-file-system',
+
+      // Sentry (React Native) — native init + source-map upload at prebuild.
+      [
+        '@sentry/react-native/expo',
+        {
+          url: 'https://sentry.io/',
+          organization: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT_MOBILE,
+        },
+      ],
+
+      // ── Native ML / vision (New Architecture · NitroModules) ───────────
+      // react-native-fast-tflite ships its own config plugin. Enabling the
+      // CoreML delegate gives GPU/Neural-Engine-accelerated inference on iOS;
+      // Skia, nitro-modules and worklets-core autolink natively. Registering
+      // the plugin also guarantees its prebuild mods (codegen wiring) run.
+      [
+        'react-native-fast-tflite',
+        {
+          enableCoreMLDelegate: true,
+        },
+      ],
+
+      // New Architecture guard — forces newArchEnabled into the generated
+      //   iOS/Android property files so a stale prebuild can never silently
+      //   drop us to Old Arch (which breaks NitroModules / ReactCodegen).
+      './plugins/withNexpecNewArch',
+
+      // ★ MUST REMAIN LAST — NitroModules C++ build resolver. Patches the
+      //   Podfile post_install to pin C++20 + expose NitroModules' header
+      //   search paths on every pod target, fixing the ReactCodegen
+      //   "NitroModules cannot be found" compile failure. See
+      //   plugins/withNexpecNitroBuild.js for the full diagnosis.
+      './plugins/withNexpecNitroBuild',
     ],
 
     // ── Runtime env exposed to the JS bundle ───────────────────────────

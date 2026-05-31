@@ -1,0 +1,69 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  CI — NEXPEC monorepo verification (P3.2)
+#
+#  RATCHETING by design: green on day one. Only checks that already pass are
+#  blocking; the rest are `--if-present` (no-op until the script exists) or
+#  `continue-on-error: true` (visible but non-blocking) until that surface goes
+#  green. Flip each to blocking as you burn down the work — see the inline TODOs.
+#
+#  Toolchain: npm (package-lock.json is the lockfile of record). Do NOT switch to
+#  yarn/turbo here until they're real devDependencies — see NEXPEC_P3_HARDENING_PLAN.md.
+# ════════════════════════════════════════════════════════════════════════════
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · test · lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # ── Blocking: green today ──────────────────────────────────────────────
+      - name: shared-core · typecheck
+        run: npm run typecheck -w @nexpec/shared-core
+
+      # Activates once vitest + a `test` script land in shared-core (P3.1).
+      - name: shared-core · tests
+        run: npm run test -w @nexpec/shared-core --if-present
+
+      - name: web · lint
+        run: npm run lint -w @nexpec/web --if-present
+
+      # ── Ratchet: flip to blocking once verified green ──────────────────────
+      - name: web · typecheck
+        run: npm run typecheck -w @nexpec/web
+        continue-on-error: true # TODO(P3): remove once apps/web is tsc-clean
+
+  mobile-typecheck:
+    name: mobile · typecheck (advisory)
+    runs-on: ubuntu-latest
+    # Mobile root has known pre-existing tsc errors (see memory). Kept visible
+    # but non-blocking; TODO(P3.5): remove continue-on-error after burndown +
+    # a scoped tsconfig for the Expo app.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: mobile · tsc --noEmit
+        run: npx tsc --noEmit

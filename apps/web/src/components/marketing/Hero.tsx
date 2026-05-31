@@ -111,12 +111,12 @@ export function Hero() {
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-glow">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-glow opacity-75" />
           </span>
-          Now live · Industrial Inspection Marketplace
+          Now live · The engineering inspection standard
         </motion.p>
 
         {/* ── Headline (word-by-word reveal) ────────────────────────── */}
         <h1 className="mt-6 text-balance text-center font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl md:text-7xl">
-          <RevealWords>Hire vetted industrial inspectors.</RevealWords>
+          <RevealWords>Hire vetted inspectors. Any engineering field.</RevealWords>
           <br />
           <span className="headline-gradient">
             <RevealWords delay={0.4}>Escrow holds every dollar.</RevealWords>
@@ -130,8 +130,10 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.8, ease: 'easeOut' }}
           className="mx-auto mt-6 max-w-2xl text-balance text-center text-lg leading-relaxed text-zinc-400 sm:text-xl"
         >
-          Pipeline, structural, NDT, and CCI inspections — dispatched in minutes,
-          audited to the byte, paid only on a signed report.
+          From pipelines and pressure vessels to bridges, switchgear, rotating
+          equipment, and process plants — five engineering disciplines,
+          dispatched in minutes, audited to the byte, and paid only on a signed,
+          tamper-proof report.
         </motion.p>
 
         {/* ── CTAs ──────────────────────────────────────────────────── */}

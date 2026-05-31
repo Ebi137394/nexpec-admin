@@ -20,6 +20,10 @@ export interface BackendLoadArgs {
   localUri: string;
   params: Record<string, unknown>;
   runtime: ModelRuntime;
+  /** Artifact identity, threaded through so results can be attributed to the
+   *  exact signed model (slug + version) — used by DefectAnalysis. */
+  slug?: string;
+  version?: number;
 }
 
 export interface InferenceBackend {

@@ -12,3 +12,6 @@ export * from './providers';
 export * from './verify';
 export * from './schemas';
 export * from './registryClient';
+export * from './defectTaxonomy';
+export * from './defectResult';
+export * from './aiAssist';

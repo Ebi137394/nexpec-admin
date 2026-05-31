@@ -1,6 +1,8 @@
 // src/services/BiometricAuth.ts
 
-import * as LocalAuthentication from 'expo-local-authentication';
+// Native module loaded defensively so Expo Go (no ExpoLocalAuthentication)
+// degrades gracefully instead of crashing at import.
+import LocalAuthentication from './_localAuthSafe';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

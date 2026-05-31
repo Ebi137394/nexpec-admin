@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import * as FileSystem from 'expo-file-system';
+import { SyncConflictError } from '@nexpec/shared-core';
 import { supabase } from '@/src/core/supabase/supabase';
 import type { OperationKind, OutboxRow } from './outbox';
 
@@ -54,17 +55,47 @@ async function handleReportSave(row: OutboxRow): Promise<void> {
 // ── report_update ─────────────────────────────────────────────────
 //
 // Payload:
-//   { id: string, patch: Record<string, unknown> }
+//   {
+//     id: string,
+//     patch: Record<string, unknown>,
+//     expected_updated_at?: string,   // optional optimistic-concurrency guard
+//   }
 //
-// Updates inspection_reports row. Updates are inherently idempotent
-// (last-write-wins), so no client_op_id check needed.
+// Updates an inspection_reports row. Two #56 hardening changes:
+//
+//   1. ZERO-ROW DETECTION. The old code did `.update(patch).eq('id', id)` and
+//      threw only on `error`. But a PostgREST update that matches no row (the
+//      report was deleted, sealed server-side and RLS-filtered out, or is no
+//      longer ours) returns `{ error: null, data: [] }` — so the handler
+//      "succeeded", the outbox row was deleted, and the inspector's edit was
+//      destroyed with no trace. We now `.select('id')` and treat 0 rows as a
+//      SyncConflictError, which parks the op for user resolution instead.
+//
+//   2. OPTIONAL OPTIMISTIC CONCURRENCY. If the caller captured the row's
+//      `updated_at` when the offline edit was made, it can pass it as
+//      `expected_updated_at`; we guard the update with it and surface a
+//      conflict if another writer won the race. Opt-in — omitting it preserves
+//      the original last-write-wins behavior.
 async function handleReportUpdate(row: OutboxRow): Promise<void> {
-  const { id, patch } = JSON.parse(row.payload_json);
-  const { error } = await supabase
-    .from('inspection_reports')
-    .update(patch)
-    .eq('id', id);
+  const { id, patch, expected_updated_at } = JSON.parse(row.payload_json) as {
+    id: string;
+    patch: Record<string, unknown>;
+    expected_updated_at?: string;
+  };
+
+  let q = supabase.from('inspection_reports').update(patch).eq('id', id);
+  if (expected_updated_at) q = q.eq('updated_at', expected_updated_at);
+
+  const { data, error } = await q.select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new SyncConflictError(
+      expected_updated_at
+        ? 'Report changed on the server since this edit was made offline — your update was not applied.'
+        : 'Report no longer exists or is locked (it may have been finalized) — your update was not applied.',
+      { table: 'inspection_reports', id, expected_updated_at: expected_updated_at ?? null },
+    );
+  }
 }
 
 // ── photo_upload ──────────────────────────────────────────────────
@@ -136,15 +167,33 @@ async function handlePhotoUpload(row: OutboxRow): Promise<void> {
       .maybeSingle();
     if (readErr) throw readErr;
 
+    // #56 — The image upload itself is idempotent (upsert), but the report it
+    // was meant to attach to is gone (deleted / sealed / RLS-filtered). Don't
+    // silently orphan the photo: surface a conflict. A retry re-uploads
+    // harmlessly and re-checks; a discard is the user's explicit call.
+    if (!existing) {
+      throw new SyncConflictError(
+        'Photo uploaded, but its report no longer exists or is locked — it could not be attached.',
+        { table: 'inspection_reports', id: payload.link_to_report_id, object_key: objectKey },
+      );
+    }
+
     const next = Array.isArray((existing as any)?.photos_urls)
       ? [...(existing as any).photos_urls, publicUrl]
       : [publicUrl];
 
-    const { error: updErr } = await supabase
+    const { data: updated, error: updErr } = await supabase
       .from('inspection_reports')
       .update({ photos_urls: next })
-      .eq('id', payload.link_to_report_id);
+      .eq('id', payload.link_to_report_id)
+      .select('id');
     if (updErr) throw updErr;
+    if (!updated || updated.length === 0) {
+      throw new SyncConflictError(
+        'Photo uploaded, but the report was finalized or removed mid-sync — it could not be attached.',
+        { table: 'inspection_reports', id: payload.link_to_report_id, object_key: objectKey },
+      );
+    }
   }
 
   // Clean up the local file. Best-effort; ignore failures.

@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-// 🌟 وارد کردن پکیج سنسور که نصب کردی
-import * as LocalAuthentication from 'expo-local-authentication';
+// 🌟 وارد کردن پکیج سنسور که نصب کردی — defensive loader (Expo Go safe)
+import LocalAuthentication from '@/src/services/_localAuthSafe';
 // Sprint 13.M2 — recovery codes lane (mirrors web MfaSection)
 import { MfaRecoveryCodesCard } from '@/src/shared-ui/auth/MfaRecoveryCodesCard';
 

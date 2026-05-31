@@ -52,6 +52,30 @@ interface VerificationResult {
   algorithm: string | null;
   filename: string;
   fileSizeBytes: number;
+  seals: SealVerdict[];
+}
+
+/**
+ * Independent re-derivation of an inspection seal's PIE root from the pack.
+ * This is the Provable-AI proof: we recompose
+ *   sha256( sort([captures · items · report · vendor · ai]) joined by "|" )
+ * from the seal's own component hashes plus the vendor documents carried in the
+ * pack, then compare to the sealed `root_sha256`. A match proves every
+ * human-accepted AI detection (the `ai_root` component, algorithm v3) is folded
+ * into the inspector's seal. v1/v2 seals predate AI binding.
+ */
+interface SealVerdict {
+  sealId: string;
+  reportId: string;
+  algorithm: string;
+  version: 1 | 2 | 3 | null;
+  rootClaimed: string;
+  rootRecomposed: string;
+  rootMatches: boolean;
+  aiCount: number;
+  aiAcceptedInPack: number;
+  aiBound: boolean;
+  aiConsistent: boolean;
 }
 
 interface ArtifactVerdict {
@@ -141,6 +165,12 @@ export function EvidencePackVerifier() {
       // hashes the SAME array shape, so we feed it back in unchanged.
       const rootRecomputed = await sha256OfCanonical(manifest.artifacts);
 
+      // Provable-AI: independently re-derive each seal's PIE root from the
+      // pack. Informational + additive — it NEVER flips the manifest verdict
+      // (a non-match degrades to "inconclusive", since a recompute gap is more
+      // likely than tampering once the manifest itself has verified).
+      const seals = await deriveSealVerdicts(artifacts);
+
       const result: VerificationResult = {
         ok:
           perArtifact.every((a) => a.match) &&
@@ -153,6 +183,7 @@ export function EvidencePackVerifier() {
         algorithm: manifest.algorithm ?? 'SHA-256',
         filename: file.name,
         fileSizeBytes: file.size,
+        seals,
       };
 
       setState({ kind: 'done', result });
@@ -448,6 +479,102 @@ function VerdictView({
         </ul>
       </section>
 
+      {/* Provable-AI · independent seal-root re-derivation */}
+      {result.seals.length > 0 && (
+        <section>
+          <header className="mb-2 flex items-center justify-between">
+            <p className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+              <Fingerprint className="h-3 w-3" strokeWidth={2} />
+              PROVABLE-AI · SEAL ROOT RE-DERIVATION
+            </p>
+            <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
+              {result.seals.filter((s) => s.rootMatches).length}/
+              {result.seals.length} RE-DERIVED
+            </p>
+          </header>
+          <ul className="space-y-2">
+            {result.seals.map((seal) => (
+              <li
+                key={seal.sealId}
+                className={cn(
+                  'rounded-xl border bg-white/[0.02] p-3',
+                  seal.rootMatches
+                    ? 'border-emerald-400/25'
+                    : 'border-white/[0.08]',
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset',
+                      seal.rootMatches
+                        ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/30'
+                        : 'bg-white/[0.04] text-zinc-300 ring-white/10',
+                    )}
+                  >
+                    {seal.rootMatches ? (
+                      <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                    ) : (
+                      <Fingerprint className="h-3.5 w-3.5" strokeWidth={2} />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="font-semibold text-white">
+                        {seal.rootMatches
+                          ? 'Seal root re-derived independently — matches the sealed value'
+                          : 'Independent re-derivation inconclusive'}
+                      </span>
+                      <span className="rounded border border-white/[0.08] bg-white/[0.04] px-1.5 py-px font-mono text-[9px] uppercase tracking-industrial text-zinc-400">
+                        {seal.algorithm}
+                      </span>
+                    </p>
+                    {seal.aiBound ? (
+                      <p className="mt-1 flex items-center gap-1.5 font-mono text-[10px] text-emerald-300">
+                        <CheckCircle2 className="h-3 w-3" strokeWidth={2} />
+                        {seal.aiCount} AI finding
+                        {seal.aiCount === 1 ? '' : 's'} cryptographically folded
+                        into this seal&rsquo;s root
+                        {seal.aiConsistent
+                          ? ''
+                          : ` · pack lists ${seal.aiAcceptedInPack} accepted`}
+                      </p>
+                    ) : (
+                      <p className="mt-1 font-mono text-[10px] text-zinc-500">
+                        Pre-AI seal — no AI findings bound to the root.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <HashCell
+                    label="Sealed root (in pack)"
+                    value={seal.rootClaimed}
+                    match={seal.rootMatches}
+                  />
+                  <HashCell
+                    label="Re-derived from components"
+                    value={seal.rootRecomposed}
+                    match={seal.rootMatches}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-pretty font-mono text-[9px] leading-relaxed text-zinc-600">
+            Re-derivation recomputes{' '}
+            <span className="text-zinc-400">
+              sha256( sort([captures · items · report · vendor · ai]) joined by
+              &ldquo;|&rdquo; )
+            </span>{' '}
+            from the seal&rsquo;s own component hashes and the vendor documents in
+            this pack, then compares it to the sealed root. A match proves the
+            human-accepted AI findings are folded into the inspector&rsquo;s seal.
+            Algorithm v1/v2 predate AI binding.
+          </p>
+        </section>
+      )}
+
       {/* Envelope */}
       {result.envelope && (
         <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -523,6 +650,108 @@ interface ManifestEntry {
   name?: string;
   hash?: string;
   count?: number;
+}
+
+type JsonObj = Record<string, unknown>;
+
+/** Raw SHA-256 of a string → lowercase hex. (sha256OfCanonical would JSON-quote
+ *  a string; the PIE root composition hashes the bare concatenation.) */
+async function sha256Hex(input: string): Promise<string> {
+  const enc = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) {
+    s += bytes[i]!.toString(16).padStart(2, '0');
+  }
+  return s;
+}
+
+/** Recompute the vendor-chain root from the pack's vendor documents, mirroring
+ *  pi_seal_inspection_report exactly: accepted vendor docs only, ordered by
+ *  accepted_at then id, each sha256_client_computed followed by '|'. No vendor
+ *  docs → sha256('') (the well-known empty digest), matching the SQL. */
+async function recomputeVendorRoot(vendor: unknown): Promise<string> {
+  const docs =
+    vendor && typeof vendor === 'object' && Array.isArray((vendor as JsonObj).documents)
+      ? ((vendor as JsonObj).documents as JsonObj[])
+      : [];
+  const accepted = docs
+    .filter(
+      (d) =>
+        d['uploaded_by_actor_kind'] === 'vendor' && d['accepted_at'] != null,
+    )
+    .sort((a, b) => {
+      const aa = String(a['accepted_at'] ?? '');
+      const bb = String(b['accepted_at'] ?? '');
+      if (aa !== bb) return aa < bb ? -1 : 1;
+      return String(a['id'] ?? '') < String(b['id'] ?? '') ? -1 : 1;
+    });
+  const concat = accepted
+    .map((d) => String(d['sha256_client_computed'] ?? '') + '|')
+    .join('');
+  return sha256Hex(concat);
+}
+
+/** Re-derive every inspection seal's root from its own component hashes + the
+ *  pack's vendor docs, and check whether human-accepted AI findings are folded
+ *  in. Pure read of pack.artifacts — no server, no trust in NEXPEC. */
+async function deriveSealVerdicts(
+  artifacts: Record<string, unknown>,
+): Promise<SealVerdict[]> {
+  const seals = Array.isArray(artifacts['inspection_seals'])
+    ? (artifacts['inspection_seals'] as JsonObj[])
+    : [];
+  const aiDetections = Array.isArray(artifacts['ai_detections'])
+    ? (artifacts['ai_detections'] as JsonObj[])
+    : [];
+  const aiAcceptedInPack = aiDetections.filter(
+    (d) => d['accepted_by_human'] === true,
+  ).length;
+  const vendorRoot = await recomputeVendorRoot(artifacts['vendor_coordination']);
+
+  const out: SealVerdict[] = [];
+  for (const s of seals) {
+    const algorithm = String(s['algorithm'] ?? '');
+    const aiRoot = String(s['ai_root_sha256'] ?? '');
+    const version: 1 | 2 | 3 | null = algorithm.endsWith('/v3')
+      ? 3
+      : algorithm.endsWith('/v2')
+        ? 2
+        : algorithm.endsWith('/v1')
+          ? 1
+          : aiRoot.length > 0
+            ? 3
+            : null;
+    const captures = String(s['captures_root_sha256'] ?? '');
+    const items = String(s['items_root_sha256'] ?? '');
+    const reportMeta = String(s['report_meta_sha256'] ?? '');
+
+    let components: string[];
+    if (version === 3) components = [captures, items, reportMeta, vendorRoot, aiRoot];
+    else if (version === 2) components = [captures, items, reportMeta, vendorRoot];
+    else components = [captures, items, reportMeta];
+
+    // pi_seal: string_agg(s, '|' ORDER BY s) — lexicographic over hex strings.
+    const rootRecomposed = await sha256Hex([...components].sort().join('|'));
+    const rootClaimed = String(s['root_sha256'] ?? '');
+    const aiCount = Number(s['ai_count'] ?? 0);
+
+    out.push({
+      sealId: String(s['id'] ?? ''),
+      reportId: String(s['report_id'] ?? ''),
+      algorithm: algorithm || 'unknown',
+      version,
+      rootClaimed,
+      rootRecomposed,
+      rootMatches: rootClaimed.length > 0 && rootRecomposed === rootClaimed,
+      aiCount,
+      aiAcceptedInPack,
+      aiBound: version === 3 && aiRoot.length > 0,
+      aiConsistent: aiCount === aiAcceptedInPack,
+    });
+  }
+  return out;
 }
 
 // canonicalJson is imported above but un-exported here. It's only

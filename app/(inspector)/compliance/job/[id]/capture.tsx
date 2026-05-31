@@ -84,6 +84,14 @@ import {
   type CaptureMetadataForHash,
 } from '@/src/features/compliance/lib/capture';
 
+// AI Co-Inspector (B.3) — on-device defect analysis of the just-captured photo.
+// First-class in the real capture flow; runtime-flag-gated so it is completely
+// inert (and the wizard byte-for-byte unchanged) until a signed model is
+// published AND the app runs with the native ML runtime enabled.
+import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
+import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
+import { buildAiAssist, aiAssistToRpcArgs, type DefectDetection } from '@nexpec/shared-core';
+
 // ─────────────────────────────────────────────────────────────
 //  Palette
 // ─────────────────────────────────────────────────────────────
@@ -173,6 +181,18 @@ export default function ComplianceCaptureWizard() {
     chain: { intact: boolean; total: number };
   } | null>(null);
 
+  // ─── AI Co-Inspector state ─────────────────────────────
+  //   After a photo capture persists, we analyze it on-device and surface a
+  //   DefectFindingsCard. The human accepts findings → pi_record_ai_detection
+  //   ties each one to this job + the exact capture, and the seal folds them
+  //   into its root (algorithm v3). The hook is safe to instantiate even when
+  //   the runtime is disabled (it no-ops).
+  const da = useDefectAnalysis({ kind: 'vision_defect', slug: 'universal-detector' });
+  const [aiImageUri, setAiImageUri] = useState<string | null>(null);
+  const [aiCaptureId, setAiCaptureId] = useState<string | null>(null);
+  const [aiRecorded, setAiRecorded] = useState<string[]>([]);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+
   // ─── Load ──────────────────────────────────────────────
   const load = useCallback(async () => {
     if (!jobId || !user?.id) return;
@@ -226,6 +246,9 @@ export default function ComplianceCaptureWizard() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Hide any stale AI card when the inspector switches requirements.
+  useEffect(() => { setAiImageUri(null); setAiNote(null); }, [activeIdx]);
+
   // Active requirement + per-req capture progress
   const active = requirements[activeIdx];
   const capturesByReq = useMemo(() => {
@@ -274,6 +297,7 @@ export default function ComplianceCaptureWizard() {
   // ─── Persist capture ───────────────────────────────────
   const persistPhotoCapture = async () => {
     if (!preview || !job || !active || !user?.id) return;
+    const capturedUri = preview.uri;
     setBusy(true);
     try {
       // 1) Fresh GPS at the moment of save (not at shutter — we want
@@ -367,6 +391,18 @@ export default function ComplianceCaptureWizard() {
       ]);
       setPreview(null);
       setCamOpen(false);
+
+      // ── AI Co-Inspector — analyze the photo we just sealed into the chain.
+      //    Fire-and-forget: the trust-capture above already succeeded; nothing
+      //    here can block or alter it. No-op unless the native runtime is on.
+      if (ML_RUNTIME_ENABLED) {
+        setAiImageUri(capturedUri);
+        setAiCaptureId(captureId);
+        setAiRecorded([]);
+        setAiNote(null);
+        da.reset();
+        void da.analyze(capturedUri);
+      }
     } catch (e: any) {
       console.error('[capture-wizard] persist photo failed:', e);
       Alert.alert('Capture failed', e?.message ?? 'Could not save capture.');
@@ -567,6 +603,25 @@ export default function ComplianceCaptureWizard() {
     }
   };
 
+  // ─── AI Co-Inspector — record an accepted finding ──────
+  const acceptAiFinding = useCallback(async (d: DefectDetection) => {
+    if (!job?.id) { setAiNote('No job context.'); return; }
+    try {
+      const assist = buildAiAssist(
+        d,
+        { slug: da.analysis?.modelSlug ?? 'universal-detector', version: da.analysis?.modelVersion ?? 1 },
+        true,
+      );
+      const args = aiAssistToRpcArgs(assist, job.id, { captureId: aiCaptureId ?? undefined });
+      const { error } = await supabase.rpc('pi_record_ai_detection', args);
+      if (error) throw error;
+      setAiRecorded((r) => (r.includes(d.defectId) ? r : [...r, d.defectId]));
+      setAiNote(`Recorded "${d.label}" — provably tied to ${assist.modelSlug} v${assist.modelVersion}; it folds into this inspection's seal.`);
+    } catch (e: any) {
+      setAiNote('Save failed: ' + (e?.message ?? 'error'));
+    }
+  }, [job?.id, aiCaptureId, da.analysis]);
+
   // ─── Renderers ─────────────────────────────────────────
   if (loading) {
     return <SafeAreaView style={s.bg}><View style={s.center}><ActivityIndicator size="large" color={C.primary} /></View></SafeAreaView>;
@@ -720,6 +775,35 @@ export default function ComplianceCaptureWizard() {
             ))}
           </View>
         ) : null}
+
+        {/* AI Co-Inspector — review & accept on-device findings for the photo
+            just captured. First-class in the wizard; inert unless the native
+            runtime + a signed model are live. */}
+        {ML_RUNTIME_ENABLED &&
+          !!aiImageUri &&
+          (active.kind === 'photo' || active.kind === 'photo_with_face' || active.kind === 'document_upload') && (
+          <View style={s.aiWrap}>
+            <View style={s.aiHead}>
+              <ShieldCheck size={14} color={C.primarySoft} />
+              <Text style={s.aiHeadText}>AI Co-Inspector · review &amp; accept</Text>
+            </View>
+            <DefectFindingsCard
+              analysis={da.analysis}
+              loading={da.status === 'analyzing'}
+              onAddFinding={acceptAiFinding}
+              onDismiss={() => { setAiImageUri(null); da.reset(); }}
+            />
+            {da.status === 'unavailable' && (
+              <Text style={s.aiNote}>
+                {da.error ?? 'Model unavailable — publish the universal-detector model and run a dev build with the ML runtime enabled.'}
+              </Text>
+            )}
+            {!!aiRecorded.length && (
+              <Text style={s.aiRecorded}>{aiRecorded.length} AI finding(s) recorded ✓ — sealed with this inspection.</Text>
+            )}
+            {!!aiNote && <Text style={s.aiNote}>{aiNote}</Text>}
+          </View>
+        )}
 
         {/* Nav */}
         <View style={s.navRow}>
@@ -982,4 +1066,11 @@ const s = StyleSheet.create({
     backgroundColor: C.ok,
   },
   useBtnText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+
+  // AI Co-Inspector section
+  aiWrap: { marginBottom: 14, gap: 8 },
+  aiHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  aiHeadText: { color: C.primarySoft, fontSize: 11, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
+  aiRecorded: { color: C.ok, fontSize: 12, fontWeight: '700' },
+  aiNote: { color: C.textSec, fontSize: 11, lineHeight: 16 },
 });

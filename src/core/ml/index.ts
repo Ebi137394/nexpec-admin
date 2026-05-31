@@ -16,7 +16,7 @@ export {
   ModelDisabledError,
   ModelUnavailableError,
 } from './runtime';
-export type { ModelStatus, ModelHandle, NexpecModelRuntime } from './runtime';
+export type { ModelStatus, ModelStage, ModelHandle, NexpecModelRuntime } from './runtime';
 
 export { registerInferenceBackend, getBackend } from './backends';
 export type { InferenceBackend, LoadedModel, BackendLoadArgs } from './backends';
@@ -24,7 +24,14 @@ export type { InferenceBackend, LoadedModel, BackendLoadArgs } from './backends'
 export { useModel } from './useModel';
 export type { UseModelResult } from './useModel';
 
-export { ML_RUNTIME_ENABLED } from './flags';
+// AI Co-Inspector: run the universal defect model on an image. (The voice
+// Copilot hook lives at ./voice/useVoiceFindings and is imported directly by a
+// voice screen — kept out of this barrel so its optional STT dep isn't bundled
+// until installed.)
+export { useDefectAnalysis } from './useDefectAnalysis';
+export type { UseDefectAnalysis, DefectAnalysisStatus } from './useDefectAnalysis';
+
+export { ML_RUNTIME_ENABLED, ML_ALLOW_UNSIGNED } from './flags';
 
 // Concrete Expo providers, exported for advanced wiring / tests.
 export {

@@ -23,7 +23,12 @@ import {
   type ResolveResponse,
   type SignatureVerifier,
 } from '@nexpec/shared-core';
-import { ML_RUNTIME_ENABLED, ML_ALLOW_UNSIGNED, ML_SIGNING_PUBLIC_KEY_PEM } from './flags';
+import {
+  ML_RUNTIME_ENABLED,
+  ML_ALLOW_UNSIGNED,
+  ML_SIGNING_PUBLIC_KEY_PEM,
+  NEXPEC_ML_SIGNING_KEY_ID,
+} from './flags';
 import {
   expoHashProvider,
   expoFileStore,
@@ -41,6 +46,17 @@ export type ModelStatus =
   | 'ready'
   | 'unavailable'
   | 'error';
+
+/** Fine-grained pipeline stages, surfaced via the optional ensure() callback
+ *  (used by diagnostics / the pipeline-check screen). */
+export type ModelStage =
+  | 'resolving'
+  | 'cache-hit'
+  | 'downloading'
+  | 'hashing'
+  | 'verifying'
+  | 'committing'
+  | 'ready';
 
 export class ModelDisabledError extends Error {
   constructor() {
@@ -119,27 +135,47 @@ class NexpecModelRuntime {
     return cands.slice().sort((a, b) => b.version - a.version)[0];
   }
 
-  /** Ensure a verified model file is on disk; returns its local uri. */
-  async ensure(kind: ModelKind, slug?: string): Promise<ModelHandle> {
+  /** Ensure a verified model file is on disk; returns its local uri.
+   *  `onStage` is an optional progress hook for diagnostics — it does not
+   *  change behavior and may be omitted. */
+  async ensure(
+    kind: ModelKind,
+    slug?: string,
+    onStage?: (stage: ModelStage) => void,
+  ): Promise<ModelHandle> {
     if (!this.enabled) throw new ModelDisabledError();
+    onStage?.('resolving');
     const manifest = await this.resolve(kind);
     const artifact = this.pick(manifest, kind, slug);
     if (!artifact) throw new ModelUnavailableError('no_artifact');
 
     const cachedUri = await expoFileStore.findCached(artifact.sha256);
-    if (cachedUri) return { artifact, localUri: cachedUri };
+    if (cachedUri) {
+      onStage?.('cache-hit');
+      onStage?.('ready');
+      return { artifact, localUri: cachedUri };
+    }
 
+    onStage?.('downloading');
     const url = await this.signedUrl(artifact);
     const dl = await expoFileStore.download(url, artifact.sha256);
     try {
+      onStage?.('hashing');
       const bytes = await expoFileStore.readBytes(dl.localUri);
       const actualSha256Hex = await expoHashProvider.sha256Hex(bytes);
+
+      onStage?.('verifying');
       const result = await verifyDownloadedArtifact({
         artifact,
         actualSha256Hex,
         options: {
           requireSignature: !ML_ALLOW_UNSIGNED,
           publicKeyPem: ML_SIGNING_PUBLIC_KEY_PEM,
+          // Explicit id→key map so an artifact's signing_key_id resolves
+          // deterministically (and future multi-key rotation just adds entries).
+          signingKeys: ML_SIGNING_PUBLIC_KEY_PEM
+            ? { [NEXPEC_ML_SIGNING_KEY_ID]: ML_SIGNING_PUBLIC_KEY_PEM }
+            : undefined,
           verifier: _verifier,
         },
       });
@@ -147,7 +183,10 @@ class NexpecModelRuntime {
         await expoFileStore.discard(dl.localUri);
         throw new ModelUnavailableError('integrity_' + result.reason);
       }
+
+      onStage?.('committing');
       const finalUri = await expoFileStore.commit(dl.localUri, artifact.sha256);
+      onStage?.('ready');
       return { artifact, localUri: finalUri };
     } catch (e) {
       await expoFileStore.discard(dl.localUri);
@@ -173,6 +212,8 @@ class NexpecModelRuntime {
       localUri: handle.localUri,
       params: handle.artifact.params,
       runtime: handle.artifact.runtime,
+      slug: handle.artifact.slug,
+      version: handle.artifact.version,
     });
     this.loaded.set(key, lm);
     return lm;

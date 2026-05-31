@@ -1,4 +1,4 @@
-import * as LocalAuthentication from 'expo-local-authentication';
+import LocalAuthentication from '@/src/services/_localAuthSafe';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
@@ -129,7 +129,7 @@ export async function hasStoredCredentials(): Promise<boolean> {
  * Maps the expo-local-authentication enum to our BiometricType.
  */
 function mapAuthenticationType(
-  types: LocalAuthentication.AuthenticationType[]
+  types: number[]
 ): BiometricType {
   // Prioritize Face ID on iOS (users usually have one or the other)
   if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {

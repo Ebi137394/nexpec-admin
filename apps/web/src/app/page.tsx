@@ -20,6 +20,11 @@ import { PlatformScale } from '@/components/marketing/PlatformScale';
 import { Industries } from '@/components/marketing/Industries';
 import { CTASection } from '@/components/marketing/CTASection';
 import { Footer } from '@/components/marketing/Footer';
+// ── NEW · additive cinematic deep-tech sections + scroll glue ──────────────
+import { SectionTransition } from '@/components/marketing/SectionTransition';
+import { ProvableAI } from '@/components/marketing/ProvableAI';
+import { BlockchainSeals } from '@/components/marketing/BlockchainSeals';
+import { FieldResilience } from '@/components/marketing/FieldResilience';
 import { fetchPublicStats } from '@/lib/data/publicStats';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -86,6 +91,18 @@ export default async function LandingPage() {
         <LiveTicker stats={stats} />
         <HowItWorks />
         <TrustPillars />
+
+        {/* ── NEW · Cinematic deep-tech showcase (ADDITIVE) ─────────────────
+            Sticky-reveal sections for the crown-jewel capabilities, glued into
+            the existing scroll flow with <SectionTransition/>. Nothing above or
+            below is altered; the Hero video, layout and existing components are
+            untouched. */}
+        <SectionTransition />
+        <ProvableAI />
+        <BlockchainSeals />
+        <FieldResilience />
+        <SectionTransition />
+
         {/* Sprint 13 — platform scale showcase. Premium dark/violet
             section surfacing the 5-domain + 57-scope catalogue breadth
             we shipped this sprint. Strictly additive between existing

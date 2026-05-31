@@ -38,7 +38,7 @@ export function Industries() {
         >
           <p className="eyebrow">Industries we serve</p>
           <h2 className="mt-3 text-balance font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            Built for the inspections nobody else will touch.
+            From the refinery to the bridge to the grid.
           </h2>
         </motion.div>
 

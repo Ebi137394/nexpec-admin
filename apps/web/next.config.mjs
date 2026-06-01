@@ -11,7 +11,23 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@nexpec/shared-core'],
+  // transpilePackages is the OTHER half of the React-dedup fix (see webpack
+  // alias below). The alias forces a single React 19 in everything webpack
+  // BUNDLES — but Next externalizes node_modules deps for the SERVER build, and
+  // an externalized package is require()'d at runtime from its install location
+  // (root → React 18) where the alias can't reach. That's why /404 prerender
+  // still threw React #31 even with the alias: NextIntlClientProvider (root
+  // layout) was external → React 18 elements rendered by React 19 → mismatch.
+  // Listing every React-element-creating web dep here forces them to be BUNDLED
+  // (and thus aliased to React 19) on both client and server. Hoisting-proof:
+  // a future `npm install` re-hoisting these won't reintroduce the bug.
+  transpilePackages: [
+    '@nexpec/shared-core',
+    'next-intl',
+    'use-intl',
+    'lucide-react',
+    'framer-motion',
+  ],
 
   // ── React-duplication fix (2026-05-31) — the REAL cause of the React #31
   //  static-export crash on /_error:/404 (six prior rounds of stripping

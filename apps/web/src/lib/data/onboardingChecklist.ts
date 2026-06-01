@@ -85,7 +85,9 @@ export async function fetchOnboardingChecklist(): Promise<OnboardingChecklist | 
     return null;
   }
 
-  const profile = profileRaw as ProfileShape;
+  // profileRaw is non-null here (guarded above); cast via unknown to cross
+  // supabase's row | GenericStringError union without an overlap error.
+  const profile = profileRaw as unknown as ProfileShape;
   const role = (profile.role ?? 'client').toString().toLowerCase();
 
   // Admins don't get a checklist.

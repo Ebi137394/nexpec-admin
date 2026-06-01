@@ -31,6 +31,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   fetchAdminScopeTemplates,
   fetchAdminScopeTemplateCounts,
@@ -50,7 +51,7 @@ export const dynamic = 'force-dynamic';
 
 type FilterKey = 'all' | 'active' | 'inactive';
 
-const FILTERS: Array<{ key: FilterKey; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }> = [
+const FILTERS: Array<{ key: FilterKey; label: string; icon: LucideIcon }> = [
   { key: 'all', label: 'All', icon: ScrollText },
   { key: 'active', label: 'Active', icon: Eye },
   { key: 'inactive', label: 'Inactive', icon: EyeOff },

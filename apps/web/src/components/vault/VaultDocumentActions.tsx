@@ -18,6 +18,7 @@ import {
   ShieldOff,
   XCircle,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   archiveVaultDocumentAction,
   restoreVaultDocumentAction,
@@ -109,7 +110,7 @@ function ActionButton({
   tone,
 }: {
   label: string;
-  Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  Icon: LucideIcon;
   tone: 'green' | 'zinc' | 'violet';
 }) {
   const { pending } = useFormStatus();

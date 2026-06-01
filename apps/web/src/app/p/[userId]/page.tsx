@@ -108,7 +108,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
       .maybeSingle();
     if (!res.error && res.data) {
       // Synthesise `role` so the existing render path keeps its shape.
-      data = { ...(res.data as Record<string, unknown>), role: 'inspector' };
+      // res.data is non-null here (guarded above); cast via unknown to cross
+      // supabase's row | GenericStringError union without an overlap error.
+      data = { ...(res.data as unknown as Record<string, unknown>), role: 'inspector' };
     }
   }
 

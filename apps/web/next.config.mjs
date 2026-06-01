@@ -39,14 +39,16 @@ const nextConfig = {
     return config;
   },
 
-  // ── Deploy unblock (2026-05-30) — ship the 1.0 landing now. ──────────────
-  //  `next build` otherwise fails its type-check/lint phase on ~37 PRE-EXISTING
-  //  errors (a lucide-react icon-typing regression across admin pages + a
-  //  Suspense types issue) that are entirely unrelated to the landing work.
-  //  We gate the BUILD-time check off here; the standalone, authoritative gate
-  //  `npm run typecheck -w @nexpec/web` still runs in CI. TODO: clear those 37
-  //  errors, then delete these two flags so the build re-enforces types.
-  typescript: { ignoreBuildErrors: true },
+  // ── Type checking RE-ENABLED (2026-05-31). The 36 pre-existing errors are
+  //  cleared: the lucide icon-typing regression (now typed as Lucide's own
+  //  `LucideIcon`), the dual-@types/react ReactNode/Suspense mismatch (deduped
+  //  via tsconfig `paths` → apps/web's @types/react 19), and two supabase
+  //  GenericStringError casts. `npm run typecheck -w @nexpec/web` is green, so
+  //  the build now re-enforces types (ignoreBuildErrors removed).
+  //
+  //  ESLint is still deferred at BUILD time — lint hasn't been audited and a
+  //  stray lint error shouldn't be able to break a deploy. Lint runs in CI
+  //  separately. TODO: audit `next lint`, then remove this flag too.
   eslint: { ignoreDuringBuilds: true },
 
   // Phase 6 / Step 1 — production-grade defaults.

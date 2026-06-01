@@ -38,6 +38,7 @@ import {
   DollarSign,
   FileText,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 type Tone = 'buyer' | 'inspector' | 'admin';
@@ -575,7 +576,7 @@ const KIND_META: Record<
   {
     label: string;
     tone: 'amber' | 'violet' | 'cyan' | 'red';
-    Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+    Icon: LucideIcon;
   }
 > = {
   awaiting_your_signature: {

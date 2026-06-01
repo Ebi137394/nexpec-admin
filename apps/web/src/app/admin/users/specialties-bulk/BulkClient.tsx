@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { bulkAssignSpecialties } from '@/lib/actions/inspectorSpecialties';
 import type { BulkInspectorRow } from '@/lib/data/inspectorBulkList';
 
@@ -357,7 +358,7 @@ function ModeButton({
   onClick,
 }: {
   label: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: LucideIcon;
   active: boolean;
   onClick: () => void;
 }) {

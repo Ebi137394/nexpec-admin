@@ -38,6 +38,7 @@ import {
   MessagesSquare,
   Filter,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import {
   fetchReviewsForModeration,
   fetchReviewModerationCounts,
@@ -63,7 +64,7 @@ export const dynamic = 'force-dynamic';
 const TABS: Array<{
   key: ModerationFilter;
   label: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  icon: LucideIcon;
 }> = [
   { key: 'all', label: 'All', icon: Filter },
   { key: 'visible', label: 'Visible', icon: Eye },

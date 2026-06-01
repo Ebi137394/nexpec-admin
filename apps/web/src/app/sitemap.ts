@@ -15,6 +15,11 @@
 import type { MetadataRoute } from 'next';
 import { fetchInspectorIdsForSitemap } from '@/lib/data/inspectorsDirectory';
 
+// fetchInspectorIdsForSitemap reads via a Supabase server client that touches
+// cookies, so this route is inherently dynamic and can't be statically exported
+// at build time (that threw "Dynamic server usage" during prerender).
+export const dynamic = 'force-dynamic';
+
 const STATIC_ROUTES: Array<{ path: string; priority: number }> = [
   { path: '/', priority: 1.0 },
   { path: '/inspectors', priority: 0.9 },

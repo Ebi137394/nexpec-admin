@@ -15,28 +15,20 @@ const nextConfig = {
   // (apps/web is an ISOLATED install — see note below), so Next transpiles it.
   transpilePackages: ['@nexpec/shared-core'],
 
-  // ── React #31 fix (2026-06) — PRIMARY fix is dependency ISOLATION ──────────
-  //  This monorepo has two React majors: the root pins react@18.3.1 (React
-  //  Native 0.76) and apps/web pins react@19. While apps/web was a hoisted npm
-  //  workspace, web-only libs (next-intl, etc.) hoisted to the ROOT and resolved
-  //  react@18; Next externalizes them for the server build, so /404 prerender
-  //  emitted react@18 elements into a react@19 renderer → Minified React #31.
-  //  THE FIX: apps/web is EXCLUDED from the root `workspaces` and installed on
-  //  its own (with a file: link to packages/shared-core), so its node_modules
-  //  contains ONLY react@19 — every dependency resolves that single React 19.
-  //  The webpack alias below is belt-and-suspenders: it pins react/react-dom to
-  //  apps/web's copy for anything webpack bundles.
-  webpack: (config) => {
-    config.resolve = config.resolve || {};
-    config.resolve.alias = {
-      ...(config.resolve.alias || {}),
-      react: path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-      'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
-      'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime'),
-    };
-    return config;
-  },
+  // ── React #31 fix (2026-06) — dependency ISOLATION ─────────────────────────
+  //  Two React majors live in this monorepo: the root pins react@18.3.1 (React
+  //  Native 0.76), apps/web pins react@19. The fix: apps/web is EXCLUDED from
+  //  the root `workspaces` and installed standalone (file: link to
+  //  packages/shared-core), so its node_modules holds ONLY react@19 — every
+  //  dependency resolves that single React 19. No webpack react-alias is used;
+  //  it was a pre-isolation band-aid that forced a second React copy and fought
+  //  Next's static-generation renderer (→ IntlProvider useMemo dispatcher-null
+  //  on /verify).
+  //
+  //  The repo still has a root lockfile (for the mobile app), so Next would
+  //  otherwise infer the monorepo root as its workspace root and reach back into
+  //  the root's react@18 tree. Pin the tracing/resolution root to apps/web:
+  outputFileTracingRoot: __dirname,
 
   // ── BOTH build gates fully ENABLED (2026-05-31). ────────────────────────
   //  Types: the 36 pre-existing errors are cleared (lucide → LucideIcon,

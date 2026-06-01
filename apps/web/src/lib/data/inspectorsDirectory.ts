@@ -266,7 +266,9 @@ export async function fetchInspectorTrustCard(
       return null;
     }
     if (!data) return null;
-    const row = data as Record<string, unknown>;
+    // data is non-null here; cast via unknown to cross supabase's
+    // row | GenericStringError union without an overlap error.
+    const row = data as unknown as Record<string, unknown>;
     const num = (v: unknown): number | null => (v == null ? null : Number(v));
     return {
       id: String(row.id),

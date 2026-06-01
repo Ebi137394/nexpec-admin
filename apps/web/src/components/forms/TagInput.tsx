@@ -10,6 +10,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -58,6 +59,9 @@ export function TagInput({
   const [tags, setTags] = useState<string[]>(initial);
   const [input, setInput] = useState('');
   const [focused, setFocused] = useState(false);
+  // Unique id so the combobox input can reference its listbox via aria-controls
+  // (required by the ARIA combobox role) without colliding across instances.
+  const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const filteredSuggestions = useMemo(() => {
@@ -166,6 +170,7 @@ export function TagInput({
           placeholder={tags.length === 0 ? placeholder : 'Add another…'}
           className="min-w-[8rem] flex-1 bg-transparent px-1.5 py-1 text-sm text-white placeholder:text-zinc-500 focus:outline-none"
           role="combobox"
+          aria-controls={listboxId}
           aria-autocomplete="list"
           aria-expanded={filteredSuggestions.length > 0}
         />
@@ -187,6 +192,7 @@ export function TagInput({
         {/* Suggestions dropdown */}
         {focused && filteredSuggestions.length > 0 && (
           <div
+            id={listboxId}
             role="listbox"
             className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-ink-900/95 p-1 shadow-2xl backdrop-blur-xl"
           >

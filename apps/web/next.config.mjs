@@ -30,6 +30,18 @@ const nextConfig = {
   //  the root's react@18 tree. Pin the tracing/resolution root to apps/web:
   outputFileTracingRoot: __dirname,
 
+  // apps/web is an isolated install; @nexpec/shared-core is linked via `file:`
+  // (a symlink). Tell webpack NOT to follow that symlink during resolution, so
+  // shared-core's own imports (e.g. `zod`) resolve from apps/web/node_modules —
+  // where this standalone install placed them — instead of walking up from the
+  // symlink target (packages/shared-core) to a root node_modules that does not
+  // exist in Vercel's isolated build.
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.symlinks = false;
+    return config;
+  },
+
   // ── BOTH build gates fully ENABLED (2026-05-31). ────────────────────────
   //  Types: the 36 pre-existing errors are cleared (lucide → LucideIcon,
   //  dual-@types/react deduped via tsconfig paths, two supabase casts);

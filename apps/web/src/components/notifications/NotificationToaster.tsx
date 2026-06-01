@@ -154,7 +154,6 @@ export function NotificationToaster({ userId }: Props) {
         /* ignore */
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, userId]);
 
   if (toasts.length === 0) return null;

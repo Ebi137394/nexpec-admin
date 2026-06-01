@@ -65,7 +65,6 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
     if (!state.ok || !state.dispatched) return;
     const t = setTimeout(() => close(), 2200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, state.dispatched?.job_id]);
 
   // Escape closes (unless we're mid-success-toast).
@@ -76,7 +75,6 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {

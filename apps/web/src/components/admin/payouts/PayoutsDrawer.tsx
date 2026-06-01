@@ -50,7 +50,6 @@ export function PayoutsDrawer({ job }: PayoutsDrawerProps) {
     if (!state.ok || !state.paid) return;
     const t = setTimeout(() => close(), 2500);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, state.paid?.job_id]);
 
   useEffect(() => {
@@ -60,7 +59,6 @@ export function PayoutsDrawer({ job }: PayoutsDrawerProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {

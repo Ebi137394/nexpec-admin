@@ -85,7 +85,6 @@ export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
     if (!state.ok || !state.resolved) return;
     const t = setTimeout(() => close(), 2500);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, state.resolved?.job_id]);
 
   useEffect(() => {
@@ -95,7 +94,6 @@ export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {

@@ -213,7 +213,6 @@ function AttachmentPreview({
         rel="noreferrer"
         className="mt-2 block overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
           alt={displayName}

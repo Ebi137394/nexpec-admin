@@ -165,6 +165,7 @@ export function TagInput({
           onBlur={() => setFocused(false)}
           placeholder={tags.length === 0 ? placeholder : 'Add another…'}
           className="min-w-[8rem] flex-1 bg-transparent px-1.5 py-1 text-sm text-white placeholder:text-zinc-500 focus:outline-none"
+          role="combobox"
           aria-autocomplete="list"
           aria-expanded={filteredSuggestions.length > 0}
         />
@@ -194,6 +195,7 @@ export function TagInput({
                 key={s.slug}
                 type="button"
                 role="option"
+                aria-selected={false}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   add(s.label);

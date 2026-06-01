@@ -109,7 +109,6 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
     if (!state.ok || !state.reviewed) return;
     const t = setTimeout(() => close(), 2500);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, state.reviewed?.job_id]);
 
   useEffect(() => {
@@ -119,7 +118,6 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {

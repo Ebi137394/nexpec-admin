@@ -63,7 +63,6 @@ export function OrgMembersDrawer({ org, members, invitations }: Props) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {
@@ -320,7 +319,6 @@ function EditMemberForm({
   );
   useEffect(() => {
     if (state.ok) setTimeout(onDone, 800);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok]);
 
   return (
@@ -374,7 +372,6 @@ function RemoveMemberForm({
   );
   useEffect(() => {
     if (state.ok) setTimeout(onDone, 800);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok]);
 
   return (

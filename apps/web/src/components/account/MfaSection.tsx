@@ -79,7 +79,6 @@ export function MfaSection({ initial }: Props) {
   // on a different surface, etc.). Also refresh after every action.
   useEffect(() => {
     void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function refresh() {
@@ -499,7 +498,6 @@ function EnrollingBlock({
             className="mt-3 inline-flex items-center justify-center rounded-xl border border-white/[0.08] bg-white p-3"
             // The QR code is an SVG data: URL. Render with <img>.
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrCode}
               alt="TOTP QR code"

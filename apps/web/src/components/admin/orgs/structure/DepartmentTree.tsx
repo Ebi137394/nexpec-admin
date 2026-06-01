@@ -48,7 +48,6 @@ export function DepartmentTree(props: Props) {
     () => new Set(props.nodes.map((n) => n.id)),
     // We intentionally only seed from the initial root list — subsequent
     // tree mutations re-render but don't auto-expand new branches.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   const [expanded, setExpanded] = useState<Set<string>>(initialExpanded);
@@ -112,7 +111,7 @@ function Row({
   const isMenuOpen = openMenu === node.id;
 
   return (
-    <li role="treeitem" aria-expanded={hasChildren ? isOpen : undefined}>
+    <li role="treeitem" aria-expanded={hasChildren ? isOpen : undefined} aria-selected={isSelected}>
       <div
         className={cn(
           'group relative flex items-center gap-1.5 rounded-lg py-1 pr-1 transition-colors',

@@ -432,7 +432,6 @@ function OrgAvatar({
           ringed ? 'ring-violet/40' : 'ring-white/[0.08]',
         )}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={org.org_logo_url}
           alt=""

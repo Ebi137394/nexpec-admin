@@ -82,7 +82,6 @@ export function ComplianceDrawer({ credential }: ComplianceDrawerProps) {
     if (!state.ok || !state.reviewed) return;
     const t = setTimeout(() => close(), 2500);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.ok, state.reviewed?.credential_id]);
 
   useEffect(() => {
@@ -92,7 +91,6 @@ export function ComplianceDrawer({ credential }: ComplianceDrawerProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function close() {

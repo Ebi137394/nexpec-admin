@@ -87,7 +87,6 @@ export function VoiceRecorder({ conversationId, returnTo }: Props) {
         /* ignore */
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function startRecording() {
@@ -254,7 +253,6 @@ export function VoiceRecorder({ conversationId, returnTo }: Props) {
   return (
     <div className="flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1.5">
       {blobUrl && (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
         <audio src={blobUrl} controls className="h-8 max-w-[180px]" />
       )}
       <span className="font-mono text-[11px] text-violet-glow">

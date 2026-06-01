@@ -482,7 +482,6 @@ function Avatar({
   return (
     <div className="flex items-center gap-2">
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt={name}

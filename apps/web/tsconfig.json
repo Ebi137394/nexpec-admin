@@ -27,7 +27,8 @@
         "./node_modules/@types/react-dom"
       ]
     },
-    "noEmit": true
+    "noEmit": true,
+    "preserveSymlinks": true
   },
   "include": [
     "next-env.d.ts",

@@ -404,6 +404,12 @@ export default function Dashboard() {
             shipped in Phase α (STEP 2 + STEP 3). */}
         <NavCard label="CCI Applications" icon="ribbon-outline"   route="/(admin)/cci-applications"     badge={undefined}                color="#7C3AED" />
         <NavCard label="Scope Templates"  icon="library-outline"  route="/(admin)/compliance-templates" badge={undefined}                color="#06B6D4" />
+        <NavCard label="Inspection Domains" icon="globe-outline"  route="/(admin)/inspection-domains"   badge={undefined}                color="#7C3AED" />
+        <NavCard label="Integrity Console" icon="pulse-outline"   route="/(admin)/integrity"            badge={undefined}                color="#FB923C" />
+        <NavCard label="Evidence Vault"    icon="folder-open-outline" route="/(admin)/vault"             badge={undefined}                color="#10B981" />
+        <NavCard label="Organizations"     icon="business-outline"   route="/(admin)/org-management"      badge={undefined}                color="#00FFFF" />
+        <NavCard label="Diagnostics"       icon="medkit-outline"     route="/(admin)/diagnostics"         badge={undefined}                color="#F59E0B" />
+        <NavCard label="Platform Settings" icon="options-outline"    route="/(admin)/settings"            badge={undefined}                color="#7C3AED" />
         <NavCard label="Users & CRM"     icon="people-outline"     route="/(admin)/users"                   badge={undefined}                color="#E17055" />
         <NavCard label="Payouts"         icon="cash-outline"       route="/(admin)/payouts"                 badge={undefined}                color={SA.warning} />
       </View>

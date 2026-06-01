@@ -3,7 +3,7 @@
 // Subscribes via Supabase Realtime; auto-stacks newest on top.
 // ============================================================
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useId } from 'react';
 import {
   Animated,
   Pressable,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { CLIENT_THEME as T } from './theme';
 import type { Finding } from './types';
 
@@ -28,70 +29,65 @@ export default function CriticalAlerts({ clientId }: Props) {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   // ── Realtime subscription ──────────────────────────────
-  useEffect(() => {
-    // Initial fetch of recent criticals (last 24 h)
-    const fetchRecent = async () => {
-      const since = new Date(Date.now() - 86_400_000).toISOString();
+  // Initial fetch of recent criticals (last 24 h)
+  const fetchRecent = useCallback(async () => {
+    const since = new Date(Date.now() - 86_400_000).toISOString();
 
-      const { data } = await supabase
-        .from('findings')
-        .select('*, project:projects!inner(title, location, client_id)')
-        .eq('severity', 'critical')
-        .eq('project.client_id', clientId)
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(5);
+    const { data } = await supabase
+      .from('findings')
+      .select('*, project:projects!inner(title, location, client_id)')
+      .eq('severity', 'critical')
+      .eq('project.client_id', clientId)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(5);
 
-      if (data) {
-        setAlerts(
-          data.map((f: any) => ({
-            ...f,
-            project: { title: f.project.title, location: f.project.location },
-            _key: f.id,
-          })),
-        );
-      }
-    };
-    fetchRecent();
-
-    // Live channel
-    const channel = supabase
-      .channel('client-critical-alerts')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'findings',
-          filter: `severity=eq.critical`,
-        },
-        async (payload: { new: Finding }) => {
-          const newFinding = payload.new;
-
-          // Verify it belongs to this client
-          const { data: proj } = await supabase
-            .from('projects')
-            .select('title, location, client_id')
-            .eq('id', newFinding.project_id)
-            .single();
-
-          if (proj?.client_id !== clientId) return;
-
-          const alertItem: AlertItem = {
-            ...newFinding,
-            project: { title: proj.title, location: proj.location },
-            _key: newFinding.id,
-          };
-
-          setAlerts((prev) => [alertItem, ...prev].slice(0, 8));
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    if (data) {
+      setAlerts(
+        data.map((f: any) => ({
+          ...f,
+          project: { title: f.project.title, location: f.project.location },
+          _key: f.id,
+        })),
+      );
+    }
   }, [clientId]);
+
+  useEffect(() => {
+    fetchRecent();
+  }, [fetchRecent]);
+
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `client-critical-alerts:${clientId}:${channelId}`,
+    bindings: [{
+      event: 'INSERT',
+      table: 'findings',
+      filter: `severity=eq.critical`,
+    }],
+    onChange: async (payload) => {
+      const newFinding = payload.new as Finding;
+
+      // Verify it belongs to this client
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('title, location, client_id')
+        .eq('id', newFinding.project_id)
+        .single();
+
+      if (proj?.client_id !== clientId) return;
+
+      const alertItem: AlertItem = {
+        ...newFinding,
+        project: { title: proj.title, location: proj.location },
+        _key: newFinding.id,
+      };
+
+      setAlerts((prev) => [alertItem, ...prev].slice(0, 8));
+    },
+    onDesync: () => { fetchRecent(); },
+    enabled: !!clientId,
+  });
 
   // ── Dismiss ────────────────────────────────────────────
   const dismiss = (key: string) => {

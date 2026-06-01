@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+// #QA — expenses route through the offline outbox (idempotent on the client PK).
+import { enqueueExpenseAdd, newClientId } from '@/lib/offline';
 
 const COLORS = {
   background: '#020420', card: '#1e293b', primary: '#7C3AED',
@@ -61,35 +63,51 @@ export default function ExpensesScreen() {
     setSubmitting(true);
 
     try {
-      let receiptUrl = null;
+      const expenseId = newClientId();
+      let receiptUrl: string | null = null;
+      let storagePath: string | undefined;
 
-      // 1. Upload Receipt to your existing 'receipts' bucket
+      // Compute the receipt's deterministic storage path + public URL up front
+      // (getPublicUrl is a local string build — works offline). The outbox handler
+      // uploads the file to that path on drain.
       if (receipt) {
-        const fileName = `${user?.id}/${Date.now()}.jpg`;
-        const response = await fetch(receipt);
-        const blob = await response.blob();
-
-        await supabase.storage.from('receipts').upload(fileName, blob);
-        const { data } = supabase.storage.from('receipts').getPublicUrl(fileName);
-        receiptUrl = data.publicUrl;
+        storagePath = `${user?.id}/${Date.now()}.jpg`;
+        receiptUrl = supabase.storage.from('receipts').getPublicUrl(storagePath).data.publicUrl;
       }
 
-      // 2. Insert into Database
-      const { error } = await supabase.from('job_expenses').insert({
-        job_id: id,
-        inspector_id: user?.id,
-        description: desc,
-        amount: parseFloat(amount),
-        receipt_url: receiptUrl
+      // Route through the outbox — offline-safe, idempotent on the client PK `id`.
+      await enqueueExpenseAdd({
+        expense: {
+          id: expenseId,
+          job_id: id,
+          inspector_id: user?.id,
+          description: desc,
+          amount: parseFloat(amount),
+          status: 'pending',
+          receipt_url: receiptUrl,
+        },
+        bucket: receipt ? 'receipts' : undefined,
+        storagePath,
+        localFilePath: receipt ?? undefined,
       });
 
-      if (error) throw error;
+      // Optimistic local add so the list reflects it immediately (offline too).
+      setExpenses((prev) => [
+        {
+          id: expenseId,
+          job_id: id,
+          description: desc,
+          amount: parseFloat(amount),
+          status: 'pending',
+          receipt_url: receiptUrl,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
 
-      // Reset Form
       setDesc('');
       setAmount('');
       setReceipt(null);
-      fetchExpenses(); // Refresh List
       Alert.alert('Success', 'Expense added.');
 
     } catch (e: any) {

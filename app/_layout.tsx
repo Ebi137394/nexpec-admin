@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Slot, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
 import { initializeOfflineSync } from '@/lib/offline';
+import { OutboxInspector } from '@/src/core/offline/OutboxInspector';
 // ★ Phase 5 / Hour 3 — root ErrorBoundary. Catches every render-time
 //   exception in the tree below and shows a recoverable fallback instead
 //   of letting React unmount the whole app to a blank screen.
@@ -280,6 +281,8 @@ function AuthGate() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Slot />
+      {/* QA — dev-only offline-outbox inspector overlay (renders null in prod). */}
+      {__DEV__ ? <OutboxInspector /> : null}
     </View>
   );
 }

@@ -313,6 +313,18 @@ export default function FinanceHubScreen() {
               <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('View Contracts')}</Text>
             </TouchableOpacity>
           </View>
+
+          <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
+              onPress={() => router.push('/(client)/finance/reports' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: 'rgba(124, 58, 237, 0.2)' }]}>
+                <Ionicons name="documents-outline" size={24} color="#7C3AED" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('Deliverables')}</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         {/* Recent Activity */}

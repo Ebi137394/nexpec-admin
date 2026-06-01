@@ -14,7 +14,18 @@ export type OperationKind =
   | 'photo_upload'
   | 'application_submit'
   | 'review_submit'
-  | 'message_send';
+  | 'message_send'
+  // #QA — compliance field capture routed through the outbox (offline-safe).
+  | 'capture_save' // inspection_captures row (+ optional deferred file upload)
+  | 'ai_detection' // pi_record_ai_detection RPC
+  // #QA — flash report / NCR raise (report + all evidence) as one ordered,
+  // idempotent unit. Composite because the attachments reference the report's
+  // client-known id, so they must never drain before the create lands.
+  | 'flash_report_raise'
+  | 'flash_report_transition' // NCR state-machine transition (idempotent pre-check)
+  // #QA — financial flows: server-atomic idempotent withdrawal + offline expense.
+  | 'withdrawal_request'
+  | 'expense_add';
 
 // 'conflict' (#56) is terminal-pending: the server state diverged (row gone /
 // sealed / RLS-filtered / optimistic-lock miss). It is NOT auto-retried — it
@@ -99,6 +110,29 @@ export async function nextPending(): Promise<OutboxRow | null> {
     [Date.now(), row.id],
   );
   return row;
+}
+
+/**
+ * QA-F4 — crash recovery. `nextPending()` flips a row to 'in_flight' immediately
+ * before its handler runs; if the app is killed/crashes in that window (very
+ * common on flaky field connections), the row is STRANDED — `nextPending` only
+ * selects 'pending', so it is never retried and never surfaced, and the
+ * inspector's queued data is silently lost. On boot we bounce any leftover
+ * 'in_flight' rows back to 'pending' (immediately eligible) so the drain loop
+ * picks them up again. Safe because every handler is idempotent (client_op_id +
+ * upserts / dup-key→success), so re-running an op that actually landed dedupes.
+ * Only call this at boot, before any drain — never while a drain is in flight.
+ * Returns the number of rows recovered.
+ */
+export async function recoverInFlight(): Promise<number> {
+  const db = await getDb();
+  const res = await db.runAsync(
+    `UPDATE outbox_operations
+        SET status = 'pending', next_attempt_at = ?
+      WHERE status = 'in_flight'`,
+    [Date.now()],
+  );
+  return res.changes ?? 0;
 }
 
 export async function markSuccess(id: number): Promise<void> {
@@ -298,4 +332,35 @@ export async function listConflicts(): Promise<OutboxRow[]> {
   return db.getAllAsync<OutboxRow>(
     `SELECT * FROM outbox_operations WHERE status = 'conflict' ORDER BY created_at DESC`,
   );
+}
+
+/**
+ * #QA — true if an op with this client_op_id is still in the queue. A successful
+ * drain DELETEs the row (markSuccess), so "still queued" means "not yet landed
+ * on the server" (pending / in_flight / failed / conflict / abandoned). The
+ * flash-report raise screen reads this after an awaited flush to decide whether
+ * to open the freshly-created report or confirm it was saved offline.
+ */
+export async function opStillQueued(clientOpId: string): Promise<boolean> {
+  const db = await getDb();
+  const r = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM outbox_operations WHERE client_op_id = ?`,
+    [clientOpId],
+  );
+  return (r?.n ?? 0) > 0;
+}
+
+/**
+ * #QA — the status of an op by client_op_id, or null if it's gone (a successful
+ * drain DELETEs the row). Lets a caller distinguish success (null) from
+ * abandoned/conflict (deterministic failure) from pending/in_flight (offline or
+ * transient). Used by the withdraw screen to show a definite outcome.
+ */
+export async function getOpStatus(clientOpId: string): Promise<OperationStatus | null> {
+  const db = await getDb();
+  const r = await db.getFirstAsync<{ status: OperationStatus }>(
+    `SELECT status FROM outbox_operations WHERE client_op_id = ? LIMIT 1`,
+    [clientOpId],
+  );
+  return r?.status ?? null;
 }

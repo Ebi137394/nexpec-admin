@@ -34,6 +34,7 @@ import {
   resolveActiveOrgId,
 } from '@/lib/data/orgStructure';
 import { OrgStructureWorkspace } from '@/components/admin/orgs/structure/OrgStructureWorkspace';
+import { createOrganization } from '@/lib/actions/createOrg';
 
 export const metadata: Metadata = { title: 'Organization Structure' };
 export const dynamic = 'force-dynamic';
@@ -71,7 +72,7 @@ export default async function ClientStructurePage() {
     .eq('id', user.id)
     .maybeSingle();
   const isSuperAdmin =
-    (profile?.role ?? '').toString().trim().toLowerCase() === 'super_admin';
+    ['super_admin', 'admin'].includes((profile?.role ?? '').toString().trim().toLowerCase());
 
   // Sprint 6 — replace the local election with the central resolver.
   // The resolver honours profiles.active_org_id (set via the workspace
@@ -231,6 +232,37 @@ function NoMembershipState() {
           owner invites you (or you create an org), the structure workspace
           appears here.
         </p>
+        <form action={createOrganization} className="mx-auto mt-6 grid max-w-sm gap-3 text-left">
+          <input type="hidden" name="returnTo" value="/client/structure" />
+          <label className="grid gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">Organization name</span>
+            <input
+              name="name"
+              required
+              minLength={2}
+              maxLength={120}
+              placeholder="Acme Inspections LLC"
+              className="rounded-lg border border-white/10 bg-ink-800/60 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-violet-glow/50 focus:outline-none"
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">Kind</span>
+            <select
+              name="kind"
+              defaultValue="enterprise"
+              className="rounded-lg border border-white/10 bg-ink-800/60 px-3 py-2 text-sm text-white focus:border-violet-glow/50 focus:outline-none"
+            >
+              <option value="enterprise">Enterprise · buyer</option>
+              <option value="agency">Agency · inspection</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="rounded-lg bg-violet px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet/90"
+          >
+            Create organization
+          </button>
+        </form>
       </div>
     </div>
   );

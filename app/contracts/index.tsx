@@ -14,6 +14,7 @@
 
 import React, {
   useEffect,
+  useId,
   useState,
   useMemo,
   useCallback,
@@ -66,6 +67,7 @@ import {
   FileText,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 import SignaturePadModal from './_components/SignaturePadModal';
@@ -750,25 +752,17 @@ export default function ContractsScreen() {
   // filter is up to us). The downstream fetchContracts() call hits the
   // inspector view, so we never leak base-table column values into the
   // wire payload.
-  useEffect(() => {
-    if (!userId) return;
-    const channel = supabase
-      .channel(`contracts-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'contracts' },
-        () => fetchContracts(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'job_contracts' },
-        () => fetchContracts(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, fetchContracts]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `contracts:${userId ?? 'anon'}:${channelId}`,
+    bindings: [
+      { event: '*', table: 'contracts' },
+      { event: '*', table: 'job_contracts' },
+    ],
+    onChange: () => fetchContracts(),
+    onDesync: () => fetchContracts(),
+    enabled: !!userId,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

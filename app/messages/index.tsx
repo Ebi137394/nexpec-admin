@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useMemo,
   useRef,
+  useId,
 } from 'react';
 import {
   View,
@@ -29,6 +30,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 //   first .from('jobs') call threw silently, leaving the screen stuck on
 //   skeleton loaders forever.
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -411,35 +413,29 @@ export default function MessagesListScreen() {
   );
 
   // ─── REALTIME SUBSCRIPTION ───
-  useEffect(() => {
-    if (!myId) return;
-
-    const channel = supabase
-      .channel('chat-list-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          const incoming = payload.new as MessageRow;
-          if (incoming.sender_id !== myId) {
-            Haptics.impactAsync(
-              Haptics.ImpactFeedbackStyle.Medium,
-            ).catch(() => {});
-          }
-          fetchConversations();
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        () => fetchConversations(),
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [myId, fetchConversations]);
+  const chatListChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `chat-list-realtime:${myId ?? 'anon'}:${chatListChannelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'messages' },
+      { event: 'UPDATE', table: 'messages' },
+    ],
+    onChange: (payload) => {
+      if (payload.eventType === 'INSERT') {
+        const incoming = payload.new as MessageRow;
+        if (incoming.sender_id !== myId) {
+          Haptics.impactAsync(
+            Haptics.ImpactFeedbackStyle.Medium,
+          ).catch(() => {});
+        }
+      }
+      fetchConversations();
+    },
+    onDesync: () => {
+      fetchConversations();
+    },
+    enabled: !!myId,
+  });
 
   // ─── HANDLERS ───
   const handleRefresh = useCallback(async () => {

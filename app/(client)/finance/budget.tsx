@@ -278,6 +278,45 @@ export default function BudgetOverviewScreen() {
           </View>
         </Animated.View>
 
+        {/* #QA — entry point to the department-budget (envelope) editor. The
+            editor itself is role-gated (owner / procurement_admin / super_admin). */}
+        <TouchableOpacity
+          onPress={() => router.push('/(client)/finance/budget-envelopes' as any)}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            marginHorizontal: 20, marginTop: 4, marginBottom: 8, padding: 14,
+            borderRadius: 14, backgroundColor: C.primaryDim,
+            borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)',
+          }}
+        >
+          <Ionicons name="wallet-outline" size={18} color={C.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 14 }}>Budget envelopes</Text>
+            <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>Set per-department spending caps</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.textMute} />
+        </TouchableOpacity>
+
+        {/* #QA — entry point to the approval-policy (spend band) editor. Role-gated. */}
+        <TouchableOpacity
+          onPress={() => router.push('/(client)/finance/budget-policies' as any)}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            marginHorizontal: 20, marginTop: 0, marginBottom: 8, padding: 14,
+            borderRadius: 14, backgroundColor: C.primaryDim,
+            borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)',
+          }}
+        >
+          <Ionicons name="shield-checkmark-outline" size={18} color={C.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 14 }}>Approval policies</Text>
+            <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>Tiered spend bands &amp; required approvers</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.textMute} />
+        </TouchableOpacity>
+
         {error ? (
           <View style={s.errorBanner}>
             <Ionicons name="alert-circle" size={16} color={C.red} />

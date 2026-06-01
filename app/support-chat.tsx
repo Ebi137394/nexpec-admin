@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo, useId } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, StatusBar, Linking, Keyboard, Dimensions } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { supportChat } from '../src/lib/supportChat';
 //   could run against a client whose session was lagging the actual
 //   sign-in, contributing to the stuck-on-spinner bug.
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -74,7 +75,7 @@ export default function SupportChatScreen() {
     if (Object.keys(newEntries).length > 0) setSignedUrlCache((prev) => ({ ...prev, ...newEntries }));
   }, [signedUrlCache]);
 
-  useEffect(() => {
+  const loadMessages = useCallback(async () => {
     // ★ Bug-fix: previously this returned early when myId was falsy
     //   WITHOUT clearing isLoading, leaving the spinner stuck forever
     //   on first paint while AuthContext was still hydrating. Now we
@@ -84,29 +85,35 @@ export default function SupportChatScreen() {
       setIsLoading(false);
       return;
     }
-    let alive = true;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const { data: msgs, error: msgErr } = await supabase.from('helpdesk_messages').select('*').eq('user_id', myId).order('created_at', { ascending: false });
-        if (!alive) return; if (msgErr) throw msgErr;
-        const messageList = (msgs ?? []) as SupportMessage[]; setMessages(messageList);
-        const unreadIds = messageList.filter((m) => m.sender_id !== myId && !m.is_read).map((m) => m.id);
-        if (unreadIds.length > 0) await supabase.from('helpdesk_messages').update({ is_read: true }).in('id', unreadIds);
-        await ensureSignedUrls(messageList);
-      } catch (err) {
-        // ★ Was a silent swallow — adding a log so future stuck-spinners
-        //   surface as something visible in Metro instead of a black hole.
-        console.warn('[support-chat] fetch helpdesk_messages failed:', err);
-      } finally { if (alive) setIsLoading(false); }
-    })();
-    return () => { alive = false; };
+    setIsLoading(true);
+    try {
+      const { data: msgs, error: msgErr } = await supabase.from('helpdesk_messages').select('*').eq('user_id', myId).order('created_at', { ascending: false });
+      if (msgErr) throw msgErr;
+      const messageList = (msgs ?? []) as SupportMessage[]; setMessages(messageList);
+      const unreadIds = messageList.filter((m) => m.sender_id !== myId && !m.is_read).map((m) => m.id);
+      if (unreadIds.length > 0) await supabase.from('helpdesk_messages').update({ is_read: true }).in('id', unreadIds);
+      await ensureSignedUrls(messageList);
+    } catch (err) {
+      // ★ Was a silent swallow — adding a log so future stuck-spinners
+      //   surface as something visible in Metro instead of a black hole.
+      console.warn('[support-chat] fetch helpdesk_messages failed:', err);
+    } finally { setIsLoading(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myId]);
 
   useEffect(() => {
-    if (!myId) return;
-    const channel = supabase.channel(`support-${myId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'helpdesk_messages', filter: `user_id=eq.${myId}` }, async (payload) => {
+    loadMessages();
+  }, [loadMessages]);
+
+  const supportChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `support-${myId ?? 'anon'}:${supportChannelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'helpdesk_messages', filter: myId ? `user_id=eq.${myId}` : undefined },
+      { event: 'UPDATE', table: 'helpdesk_messages', filter: myId ? `user_id=eq.${myId}` : undefined },
+    ],
+    onChange: async (payload) => {
+      if (payload.eventType === 'INSERT') {
         const incoming = payload.new as SupportMessage;
         if (incoming.sender_id !== myId) { hapticMedium(); await supabase.from('helpdesk_messages').update({ is_read: true }).eq('id', incoming.id); }
         if (incoming.sender_id === myId) setOptimisticMsgs([]);
@@ -115,12 +122,13 @@ export default function SupportChatScreen() {
           const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(incoming.attachment_url, 3600);
           if (data?.signedUrl) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: data.signedUrl }));
         }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'helpdesk_messages', filter: `user_id=eq.${myId}` }, (payload) => {
+      } else if (payload.eventType === 'UPDATE') {
         const updated = payload.new as SupportMessage; setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [myId]);
+      }
+    },
+    onDesync: () => { loadMessages(); },
+    enabled: !!myId,
+  });
 
   const handleSendText = useCallback(async () => {
     const body = text.trim(); if (!body || isSending || !myId) return;

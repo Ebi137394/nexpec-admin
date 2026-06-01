@@ -17,8 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 
 import {
-  createFlashReport,
-  uploadAndAttach,
+  raiseFlashReport,
   CATEGORY_META, SEVERITY_META,
   type FlashReportCategory, type FlashReportSeverity,
 } from '@/src/lib/flashReports';
@@ -127,42 +126,36 @@ export default function NewFlashReportScreen() {
 
     setSubmitting(true);
     try {
-      // 1. Create the report
-      const created = await createFlashReport({
-        jobId,
-        category,
-        severity,
-        title: title.trim(),
-        description: description.trim(),
-        locationText: locationText.trim() || null,
-      });
+      // Raise the report + all evidence as ONE offline-safe outbox op. Never a
+      // direct write — with no signal it queues + retries instead of failing and
+      // losing the NCR (the data-loss bug this fixes). #QA
+      const { id, synced } = await raiseFlashReport(
+        {
+          jobId,
+          category,
+          severity,
+          title: title.trim(),
+          description: description.trim(),
+          locationText: locationText.trim() || null,
+        },
+        pendingFiles.map((f) => ({
+          kind: f.kind,
+          localUri: f.uri,
+          filename: f.filename,
+          mimeType: f.mimeType,
+        })),
+      );
 
-      // 2. Upload attachments sequentially. We surface partial-success
-      //    explicitly — the report is already raised; attachment failures
-      //    are non-fatal but visible.
-      const failures: string[] = [];
-      for (const f of pendingFiles) {
-        try {
-          await uploadAndAttach({
-            reportId: created.id,
-            kind: f.kind,
-            localUri: f.uri,
-            filename: f.filename,
-            mimeType: f.mimeType,
-          });
-        } catch (e: any) {
-          failures.push(`${f.filename}: ${e?.message ?? 'unknown error'}`);
-        }
-      }
-
-      if (failures.length > 0) {
-        Alert.alert(
-          'Report raised — some attachments failed',
-          failures.join('\n\n'),
-          [{ text: 'OK', onPress: () => router.replace(`/jobs/${jobId}/flash-reports/${created.id}` as any) }],
-        );
+      if (synced) {
+        // Landed on the server — open the report, exactly as before.
+        router.replace(`/jobs/${jobId}/flash-reports/${id}` as any);
       } else {
-        router.replace(`/jobs/${jobId}/flash-reports/${created.id}` as any);
+        // Queued offline — confirm and return to the list; it syncs on reconnect.
+        Alert.alert(
+          'Saved — will sync when online',
+          'This report and its evidence are queued and will upload automatically once you have a connection.',
+          [{ text: 'OK', onPress: () => router.replace(`/jobs/${jobId}/flash-reports` as any) }],
+        );
       }
     } catch (e: any) {
       Alert.alert('Could not raise report', e?.message ?? 'Unknown error.');

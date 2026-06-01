@@ -26,13 +26,14 @@
 
 import { classifySyncError } from '@nexpec/shared-core';
 import { handlers } from './operations';
-import { isOnline, onNetworkChange, refreshOnce, startNetworkListener } from './network';
+import { isOnline, onAppForeground, onNetworkChange, refreshOnce, startNetworkListener } from './network';
 import {
   markConflict,
   markFailure,
   markFatal,
   markSuccess,
   nextPending,
+  recoverInFlight,
   requeueForAuth,
   type OutboxRow,
 } from './outbox';
@@ -56,6 +57,7 @@ export interface OfflineSyncOptions {
 
 let draining = false;
 let networkUnsub: (() => void) | null = null;
+let appUnsub: (() => void) | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let initialized = false;
 
@@ -149,10 +151,24 @@ export function initializeOfflineSync(opts?: OfflineSyncOptions): () => void {
     }
   });
 
-  // Drain on boot if already online
-  refreshOnce().then((online) => {
-    if (online) flushQueue();
+  // QA-F6 — immediate sync on foreground. The drain is foreground-driven, so a
+  // backgrounded app's queue would otherwise wait up to 60s (the poll) before
+  // resuming. Flushing the instant we return to 'active' makes field sync feel
+  // instant. flushQueue() self-guards on offline / auth-paused / already-draining.
+  appUnsub = onAppForeground(() => {
+    if (isOnline() && !authPaused) flushQueue();
   });
+
+  // QA-F4 — crash recovery FIRST: bounce any leftover 'in_flight' rows (stranded
+  // by a kill/crash mid-drain) back to 'pending' before the first drain, so they
+  // get retried instead of silently lost. Then drain on boot if already online.
+  void recoverInFlight()
+    .catch(() => 0)
+    .finally(() => {
+      refreshOnce().then((online) => {
+        if (online) flushQueue();
+      });
+    });
 
   // Re-poke every 60s so retries-due-now get picked up even without
   // a network event (e.g. backoff just expired). Suppressed while
@@ -163,10 +179,12 @@ export function initializeOfflineSync(opts?: OfflineSyncOptions): () => void {
 
   return () => {
     if (networkUnsub) networkUnsub();
+    if (appUnsub) appUnsub();
     if (pollTimer) clearInterval(pollTimer);
     if (optUnsub) optUnsub();
     initialized = false;
     networkUnsub = null;
+    appUnsub = null;
     pollTimer = null;
     sessionRefresher = null;
     authPaused = false;

@@ -158,6 +158,24 @@ export default function InvoiceDetailScreen() {
   useEffect(() => { void load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); void load(); }, [load]);
 
+  // #QA — admin role detection (mirrors the web `isAdmin` helper: profiles.role ∈
+  // {admin, super_admin}). Gates the admin invoice actions below; RLS still
+  // enforces the writes server-side via invoices_write_admin_only.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const role = (data as { role?: string | null } | null)?.role ?? '';
+      setIsAdmin(role === 'admin' || role === 'super_admin');
+    })();
+  }, []);
+
   const handleApprove = useCallback(async () => {
     if (!invoice) return;
     Alert.alert(
@@ -257,6 +275,148 @@ export default function InvoiceDetailScreen() {
       'plain-text',
       '',
       'default',
+    );
+  }, [invoice, load]);
+
+  // ── Admin actions — mirror the web server actions (markInvoicePaid / void /
+  //    adjudicate). Each is IDEMPOTENT via a status precondition (.eq('status',…)):
+  //    a replay on an already-transitioned invoice matches 0 rows → no double effect.
+  //    RLS (invoices_write_admin_only) is the real gate; isAdmin only hides the UI.
+  const handleMarkPaid = useCallback(() => {
+    if (!invoice) return;
+    Alert.prompt(
+      'Mark invoice as paid',
+      `Confirm ${formatCents(invoice.totalCents, invoice.currency)} has been settled. Optional payment reference:`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark paid',
+          style: 'default',
+          onPress: async (reference?: string) => {
+            setActing(true);
+            try {
+              const { data, error: updErr } = await supabase
+                .from('invoices') // outbox-exempt: online admin invoice action (status-guarded, idempotent)
+                .update({
+                  status: 'paid',
+                  paid_at: new Date().toISOString(),
+                  paid_reference: (reference ?? '').trim() || null,
+                })
+                .eq('id', invoice.id)
+                .eq('status', 'approved')
+                .select('id');
+              if (updErr) {
+                Alert.alert('Could not mark paid', updErr.message.includes('row-level security') ? 'Admin permission required for this action.' : updErr.message);
+                return;
+              }
+              if (!data || data.length === 0) {
+                Alert.alert('Not settled', 'Only an approved invoice can be marked paid (it may already be paid).');
+                return;
+              }
+              await load();
+              Alert.alert('Marked paid', 'The invoice is settled.');
+            } catch (e: unknown) {
+              Alert.alert('Error', (e as Error)?.message ?? 'Unknown error.');
+            } finally {
+              setActing(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default',
+    );
+  }, [invoice, load]);
+
+  const handleVoid = useCallback(() => {
+    if (!invoice) return;
+    Alert.prompt(
+      'Void invoice',
+      'Give a reason (min 5 characters). A paid invoice cannot be voided.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Void',
+          style: 'destructive',
+          onPress: async (reason?: string) => {
+            const trimmed = (reason ?? '').trim();
+            if (trimmed.length < 5) { Alert.alert('Reason too short', 'Please give at least 5 characters.'); return; }
+            setActing(true);
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) { Alert.alert('Sign in required'); return; }
+              const { data, error: updErr } = await supabase
+                .from('invoices') // outbox-exempt: online admin invoice action (status-guarded, idempotent)
+                .update({
+                  status: 'voided',
+                  voided_at: new Date().toISOString(),
+                  voided_by: user.id,
+                  voided_reason: trimmed,
+                })
+                .eq('id', invoice.id)
+                .neq('status', 'paid')
+                .select('id');
+              if (updErr) {
+                Alert.alert('Could not void', updErr.message.includes('row-level security') ? 'Admin permission required for this action.' : updErr.message);
+                return;
+              }
+              if (!data || data.length === 0) { Alert.alert('Cannot void', 'A paid invoice cannot be voided.'); return; }
+              await load();
+              Alert.alert('Voided', 'The invoice has been voided.');
+            } catch (e: unknown) {
+              Alert.alert('Error', (e as Error)?.message ?? 'Unknown error.');
+            } finally {
+              setActing(false);
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '',
+      'default',
+    );
+  }, [invoice, load]);
+
+  const handleResolveApprove = useCallback(() => {
+    if (!invoice) return;
+    Alert.alert(
+      'Resolve dispute',
+      'Approve this disputed invoice for payment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            setActing(true);
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) { Alert.alert('Sign in required'); return; }
+              const { data, error: updErr } = await supabase
+                .from('invoices') // outbox-exempt: online admin invoice action (status-guarded, idempotent)
+                .update({
+                  status: 'approved',
+                  approved_at: new Date().toISOString(),
+                  approved_by: user.id,
+                })
+                .eq('id', invoice.id)
+                .eq('status', 'disputed')
+                .select('id');
+              if (updErr) {
+                Alert.alert('Could not resolve', updErr.message.includes('row-level security') ? 'Admin permission required for this action.' : updErr.message);
+                return;
+              }
+              if (!data || data.length === 0) { Alert.alert('Cannot resolve', 'Only a disputed invoice can be resolved this way.'); return; }
+              await load();
+              Alert.alert('Dispute resolved', 'Invoice approved for payment.');
+            } catch (e: unknown) {
+              Alert.alert('Error', (e as Error)?.message ?? 'Unknown error.');
+            } finally {
+              setActing(false);
+            }
+          },
+        },
+      ],
     );
   }, [invoice, load]);
 
@@ -448,7 +608,64 @@ export default function InvoiceDetailScreen() {
           </Animated.View>
         )}
 
-        {!canAct && invoice.isOwn && (
+        {/* Admin actions — settle / void / adjudicate (RLS-gated server-side). */}
+        {isAdmin && invoice.status !== 'paid' && invoice.status !== 'voided' && (
+          <Animated.View entering={FadeInDown.delay(120).duration(240)} style={s.section}>
+            <View style={s.sectionHeader}>
+              <Ionicons name="shield-checkmark" size={14} color={C.primary} />
+              <Text style={s.sectionTitle}>Admin actions</Text>
+            </View>
+            <Text style={s.sectionHint}>
+              Settle, void, or adjudicate this invoice. Writes are enforced
+              server-side by RLS.
+            </Text>
+            <View style={{ marginTop: 14, gap: 10 }}>
+              {invoice.status === 'approved' && (
+                <TouchableOpacity
+                  onPress={handleMarkPaid}
+                  disabled={acting}
+                  style={[s.approveBtn, acting && s.btnDisabled]}
+                  activeOpacity={0.85}
+                >
+                  {acting ? (
+                    <ActivityIndicator color="#04150C" size="small" />
+                  ) : (
+                    <Ionicons name="checkmark-done" size={16} color="#04150C" />
+                  )}
+                  <Text style={s.approveBtnText}>{acting ? 'Working…' : 'Mark as paid'}</Text>
+                </TouchableOpacity>
+              )}
+              {invoice.status === 'disputed' && (
+                <TouchableOpacity
+                  onPress={handleResolveApprove}
+                  disabled={acting}
+                  style={[s.approveBtn, acting && s.btnDisabled]}
+                  activeOpacity={0.85}
+                >
+                  {acting ? (
+                    <ActivityIndicator color="#04150C" size="small" />
+                  ) : (
+                    <Ionicons name="git-pull-request" size={16} color="#04150C" />
+                  )}
+                  <Text style={s.approveBtnText}>
+                    {acting ? 'Working…' : 'Resolve dispute → approve'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={handleVoid}
+                disabled={acting}
+                style={[s.disputeBtn, acting && s.btnDisabled]}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="close-circle" size={16} color={C.red} />
+                <Text style={s.disputeBtnText}>Void invoice</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {!canAct && !isAdmin && invoice.isOwn && (
           <View style={s.section}>
             <Text style={s.empty}>
               This invoice is {STATUS_LABEL[invoice.status].toLowerCase()}. No

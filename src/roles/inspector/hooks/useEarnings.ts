@@ -8,10 +8,11 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useId,
 } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { calcTaxEstimateCents, PLATFORM_FEE_RATE } from '@/utils/currency';
 import type {
@@ -85,7 +86,6 @@ export function useEarnings(): UseEarningsReturn {
   const [isRefreshing,     setIsRefreshing]     = useState(false);
   const [error,            setError]            = useState<string | null>(null);
 
-  const channelRef = useRef<RealtimeChannel | null>(null);
   const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Timer ──────────────────────────────────────────────────────────────
@@ -337,28 +337,29 @@ export function useEarnings(): UseEarningsReturn {
 
   // ── Single channel — 5 listeners ──────────────────────────────────────
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const ch = supabase
-      .channel(`earnings:${user.id}`)
-
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `earnings:${user?.id ?? 'anon'}:${channelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'transactions',       filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      { event: 'UPDATE', table: 'transactions',       filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      // ★ WALLET-SCHEMA-DRIFT-001 — filter is `user_id`, not `inspector_id`.
+      { event: 'UPDATE', table: 'inspector_earnings', filter: user?.id ? `user_id=eq.${user.id}` : undefined },
+      { event: 'INSERT', table: 'work_sessions',      filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      { event: 'UPDATE', table: 'work_sessions',      filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+    ],
+    onChange: (payload) => {
       // transactions INSERT → refresh aggregates + list
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'transactions',
-        filter: `inspector_id=eq.${user.id}`,
-      }, () => {
+      if (payload.table === 'transactions' && payload.eventType === 'INSERT') {
         fetchTransactions();
         fetchMonthlyBreakdown();
         fetchWeeklyEarnings();
         fetchYTD();
-      })
+        return;
+      }
 
       // transactions UPDATE → surgical patch + re-aggregate
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'transactions',
-        filter: `inspector_id=eq.${user.id}`,
-      }, (payload) => {
+      if (payload.table === 'transactions' && payload.eventType === 'UPDATE') {
         setTransactions((prev) =>
           prev.map((t) =>
             t.id === payload.new.id
@@ -368,50 +369,34 @@ export function useEarnings(): UseEarningsReturn {
         );
         fetchMonthlyBreakdown();
         fetchYTD();
-      })
+        return;
+      }
 
       // inspector_earnings UPDATE → wallet numbers refresh
-      //   ★ WALLET-SCHEMA-DRIFT-001 — filter is `user_id`, not
-      //     `inspector_id`, to match the live column.
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'inspector_earnings',
-        filter: `user_id=eq.${user.id}`,
-      }, (payload) => {
+      if (payload.table === 'inspector_earnings' && payload.eventType === 'UPDATE') {
         setEarningsRecord(payload.new as EarningsRecord);
-      })
+        return;
+      }
 
       // work_sessions INSERT → new session detected (e.g. from another device)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'work_sessions',
-        filter: `inspector_id=eq.${user.id}`,
-      }, (payload) => {
+      if (payload.table === 'work_sessions' && payload.eventType === 'INSERT') {
         const s = payload.new as WorkSession;
         if (!s.ended_at) { setActiveSession(s); startTimer(s); }
-      })
+        return;
+      }
 
       // work_sessions UPDATE → session ended
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'work_sessions',
-        filter: `inspector_id=eq.${user.id}`,
-      }, (payload) => {
-        if (payload.new.ended_at) {
+      if (payload.table === 'work_sessions' && payload.eventType === 'UPDATE') {
+        if ((payload.new as WorkSession).ended_at) {
           setActiveSession(null);
           clearTimer();
           fetchTotalHours();
         }
-      })
-
-      .subscribe();
-
-    channelRef.current = ch;
-    return () => {
-      if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
-    };
-  }, [
-    user?.id,
-    fetchTransactions, fetchMonthlyBreakdown, fetchWeeklyEarnings,
-    fetchYTD, fetchTotalHours, startTimer, clearTimer,
-  ]);
+      }
+    },
+    onDesync: () => { void fetchAll(); },
+    enabled: !!user?.id,
+  });
 
   // ── Work session actions ───────────────────────────────────────────────
 

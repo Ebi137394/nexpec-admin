@@ -54,9 +54,10 @@ const corsHeaders = {
 };
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const MIN_HALALAS = 100;        // 1 SAR
-const MAX_HALALAS = 1_000_000;  // 10,000 SAR
-const CURRENCY = 'sar';          // Wallet ledger is in halalas → SAR-native PI
+const MIN_HALALAS = 100;        // $1.00 (100 cents)
+const MAX_HALALAS = 1_000_000;  // $10,000.00 (cents)
+const CURRENCY = 'usd';          // #QA — platform is USD-only; PaymentIntent in USD cents
+                                 //       (the wallet minor unit is now cents, not halalas)
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 function jsonResponse(body: unknown, status: number): Response {

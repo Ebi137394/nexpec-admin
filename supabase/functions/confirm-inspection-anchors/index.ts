@@ -20,8 +20,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { createHash } from 'node:crypto';
 import { type HashFn, parseOts, hexToBytes } from '../_shared/ots.ts';
+import { fetchWithTimeout } from '../_shared/http.ts';
 
 const BATCH = 100;
+// QA-F1 — abort a calendar request that stops responding so one slow calendar
+// can't stall the batch (the per-anchor loop just moves on / retries next run).
+const CALENDAR_TIMEOUT_MS = 9000;
 
 // Injected hasher — Deno supports node:crypto. sha256 covers the OTS calendar
 // aggregation path; ripemd160/sha1 are supported too if a proof uses them.
@@ -87,17 +91,25 @@ Deno.serve(async () => {
       let height: number | null = null;
       for (const p of parsed.pending) {
         const base = (row.calendar || p.uri).replace(/\/+$/, '');
-        const res = await fetch(`${base}/timestamp/${p.commitment}`, {
-          headers: { Accept: 'application/octet-stream' },
-        });
-        if (!res.ok) continue; // 404 = not aggregated yet; try next / next run
-        const upgraded = new Uint8Array(await res.arrayBuffer());
-        // 3) The upgraded timestamp starts at the commitment. Bitcoin yet?
-        const u = parseOts(upgraded, hexToBytes(p.commitment), hash);
-        if (u.bitcoin.length > 0) {
-          upgradedB64 = bytesToBase64(upgraded);
-          height = minHeight(u.bitcoin);
-          break;
+        try {
+          const res = await fetchWithTimeout(
+            `${base}/timestamp/${p.commitment}`,
+            { headers: { Accept: 'application/octet-stream' } },
+            CALENDAR_TIMEOUT_MS,
+          );
+          if (!res.ok) continue; // 404 = not aggregated yet; try next / next run
+          const upgraded = new Uint8Array(await res.arrayBuffer());
+          // 3) The upgraded timestamp starts at the commitment. Bitcoin yet?
+          const u = parseOts(upgraded, hexToBytes(p.commitment), hash);
+          if (u.bitcoin.length > 0) {
+            upgradedB64 = bytesToBase64(upgraded);
+            height = minHeight(u.bitcoin);
+            break;
+          }
+        } catch {
+          // QA-F1 — timeout / network / parse error on this calendar: leave the
+          // anchor 'submitted' and retry next run; never stall the batch.
+          continue;
         }
       }
 

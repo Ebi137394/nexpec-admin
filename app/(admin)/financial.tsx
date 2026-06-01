@@ -1282,6 +1282,21 @@ export default function FinancialDashboard() {
               <Text style={s.reportSubtitle}>Completed jobs awaiting disbursement</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
+
+            {/* #QA — Invoices: admins see all invoices (RLS admin policy) and can
+                approve / mark paid / void / adjudicate on the detail screen. */}
+            <TouchableOpacity
+              style={[s.reportCard, { flexBasis: '100%' }]}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(client)/finance/invoices' as any)}
+            >
+              <View style={[s.reportIcon, { backgroundColor: C.primaryBg }]}>
+                <Ionicons name="document-text-outline" size={20} color={C.primary} />
+              </View>
+              <Text style={s.reportTitle}>Invoices</Text>
+              <Text style={s.reportSubtitle}>Review · approve · mark paid · void · adjudicate</Text>
+              <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
+            </TouchableOpacity>
           </View>
         </View>
 

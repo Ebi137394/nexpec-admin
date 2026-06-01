@@ -4,7 +4,7 @@
 // Supabase Realtime subscription for instant updates.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useId, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet,
   TouchableOpacity, ActivityIndicator, RefreshControl,
@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { SA, currency, ago, statusColor } from '@/lib/super-admin/theme';
 import type { Job } from '@/lib/super-admin/types';
 
@@ -77,21 +78,14 @@ export default function LiveRadar() {
   useEffect(() => { load(); }, [load]);
 
   /* ── Realtime subscription ──────────────────── */
-  useEffect(() => {
-    const channel = supabase
-      .channel('radar-jobs')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'jobs' },
-        (payload) => {
-          // Refresh list on any job change
-          load();
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [load]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `radar-jobs:${channelId}`,
+    bindings: [{ event: '*', table: 'jobs' }],
+    // Refresh list on any job change
+    onChange: () => load(),
+    onDesync: () => load(),
+  });
 
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 

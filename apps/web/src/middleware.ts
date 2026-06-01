@@ -37,7 +37,7 @@ const AUTH_ROUTES = ['/sign-in', '/sign-up'];
  * into any portal for support; otherwise only the matching role passes.
  */
 const PORTAL_ROLES: Record<string, ReadonlyArray<string>> = {
-  [ADMIN_PREFIX]: ['super_admin'],
+  [ADMIN_PREFIX]: ['super_admin', 'admin'],
   // Client Portal is shared by three roles. UI is identical — the only
   // separation that matters is data ownership, already enforced by
   // client_id = auth.uid() and RLS on jobs.

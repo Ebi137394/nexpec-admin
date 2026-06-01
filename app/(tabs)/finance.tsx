@@ -38,7 +38,7 @@ const PAYMENT_PROVIDERS: PaymentProviderOption[] = [
   { id: 'payoneer', name: 'Payoneer', icon: 'cash-outline', color: '#FF4800', description: 'Global payout method', targetRole: 'inspector' }
 ];
 
-const formatCurrency = (amount: number) => `$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number) => formatUsd(toCents(Math.abs(amount)), { fractionDigits: 2 });
 const getStatusColor = (status: string) => { switch (status) { case 'completed': return COLORS.green; case 'pending': case 'processing': return COLORS.amber; case 'failed': return COLORS.red; default: return COLORS.textMuted; } };
 const getTransactionIcon = (type: string): keyof typeof Ionicons.glyphMap => { switch (type) { case 'earning': return 'arrow-down-circle'; case 'withdrawal': return 'arrow-up-circle'; case 'deposit': return 'add-circle'; case 'escrow': return 'lock-closed'; case 'refund': return 'refresh-circle'; case 'fee': return 'remove-circle'; case 'payout': return 'send'; default: return 'swap-horizontal'; } };
 const getTransactionColor = (type: string) => { switch (type) { case 'earning': case 'deposit': case 'refund': return COLORS.green; case 'withdrawal': case 'fee': case 'payout': return COLORS.red; case 'escrow': return COLORS.amber; default: return COLORS.textMuted; } };
@@ -595,7 +595,7 @@ export default function FinanceScreen() {
     }
     Alert.prompt(
       'Deposit Funds',
-      'Enter amount in SAR:',
+      'Enter amount in USD:',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -610,7 +610,7 @@ export default function FinanceScreen() {
             if (amountHalalas < 100 || amountHalalas > 1_000_000) {
               Alert.alert(
                 'Out of range',
-                'Deposit must be between 1 and 10,000 SAR.',
+                'Deposit must be between $1 and $10,000 USD.',
               );
               return;
             }

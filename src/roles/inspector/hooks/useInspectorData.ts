@@ -3,14 +3,14 @@
 // Manages: jobs, earnings, real-time sync, derived stats, pull-to-refresh
 // ============================================================================
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { useState, useEffect, useCallback, useMemo, useId } from 'react';
 // ★ Consolidation: switched from '@/src/lib/supabase' (the secondary
 //   createClient instance) to '@/lib/supabase' (the canonical client
 //   the auth flow + every other screen uses). Two clients = independent
 //   auth-state subscriptions and risk of queries running with stale or
 //   anonymous sessions. One client = one source of truth.
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
 import type {
   InspectorJob,
@@ -64,8 +64,6 @@ export function useInspectorData(): InspectorDataReturn {
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(true);
   const [isRefreshing, setIsRefreshing]     = useState(false);
   const [error, setError]                   = useState<string | null>(null);
-
-  const channelRef = useRef<RealtimeChannel | null>(null);
 
   // ── Fetchers ────────────────────────────────────────────────────────────
 
@@ -132,73 +130,59 @@ export function useInspectorData(): InspectorDataReturn {
   }, [user?.id, fetchJobs, fetchEarnings]);
 
   // ── Single channel — multi-table real-time subscription ──────────────────
-  // One channel with four .on() listeners is the correct Supabase v2 pattern
+  // One channel with four bindings is the correct Supabase v2 pattern
   // and avoids silent subscription conflicts from duplicate channel names.
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel(`inspector-dashboard:${user.id}`)
-
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `inspector-dashboard:${user?.id ?? 'anon'}:${channelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      { event: 'UPDATE', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      { event: 'DELETE', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      // ★ WALLET-SCHEMA-DRIFT-001 — Realtime filter uses `user_id`
+      //   to match the live column. The `jobs` bindings reference a
+      //   different table — jobs.inspector_id is unrelated drift.
+      { event: 'UPDATE', table: 'inspector_earnings', filter: user?.id ? `user_id=eq.${user.id}` : undefined },
+    ],
+    onChange: (payload) => {
       // ── jobs: INSERT ──────────────────────────────────────────
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'jobs', filter: `inspector_id=eq.${user.id}` },
-        () => {
-          // Full refetch on INSERT to hydrate the joined client profile
-          fetchJobs();
-        }
-      )
+      if (payload.table === 'jobs' && payload.eventType === 'INSERT') {
+        // Full refetch on INSERT to hydrate the joined client profile
+        fetchJobs();
+        return;
+      }
 
       // ── jobs: UPDATE (surgical patch — no full refetch) ────────
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'jobs', filter: `inspector_id=eq.${user.id}` },
-        (payload) => {
-          setJobs((prev) =>
-            prev.map((j) => {
-              if (j.id !== payload.new.id) return j;
-              const merged = { ...j, ...(payload.new as Partial<InspectorJob>) } as InspectorJob;
-              return mapJob(merged);
-            })
-          );
-        }
-      )
+      if (payload.table === 'jobs' && payload.eventType === 'UPDATE') {
+        setJobs((prev) =>
+          prev.map((j) => {
+            if (j.id !== payload.new.id) return j;
+            const merged = { ...j, ...(payload.new as Partial<InspectorJob>) } as InspectorJob;
+            return mapJob(merged);
+          })
+        );
+        return;
+      }
 
       // ── jobs: DELETE ───────────────────────────────────────────
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'jobs', filter: `inspector_id=eq.${user.id}` },
-        (payload) => {
-          setJobs((prev) => prev.filter((j) => j.id !== payload.old.id));
-        }
-      )
+      if (payload.table === 'jobs' && payload.eventType === 'DELETE') {
+        setJobs((prev) => prev.filter((j) => j.id !== payload.old.id));
+        return;
+      }
 
       // ── inspector_earnings: UPDATE ─────────────────────────────
-      //   ★ WALLET-SCHEMA-DRIFT-001 — Realtime filter uses `user_id`
-      //     to match the live column. The other filters on this
-      //     channel (`jobs`) reference different tables and remain
-      //     unchanged — jobs.inspector_id is unrelated drift.
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'inspector_earnings', filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          setEarnings(payload.new as InspectorEarnings);
-        }
-      )
-
-      .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+      if (payload.table === 'inspector_earnings' && payload.eventType === 'UPDATE') {
+        setEarnings(payload.new as InspectorEarnings);
       }
-    };
-  }, [user?.id, fetchJobs]);
+    },
+    onDesync: () => {
+      // Dropped socket → refetch both feeds so the dashboard can't go stale.
+      fetchJobs();
+      fetchEarnings();
+    },
+    enabled: !!user?.id,
+  });
 
   // ── Pull-to-refresh ──────────────────────────────────────────────────────
 

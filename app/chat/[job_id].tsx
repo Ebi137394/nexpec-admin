@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, Image,
   ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -13,6 +13,7 @@ import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 const COLORS = {
@@ -197,36 +198,40 @@ export default function JobChatScreen() {
     }
 
     fetchMessages();
-    
-    const channel = supabase.channel(`chat_${actualJobId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `job_id=eq.${actualJobId}`
-      }, async (payload) => {
-        const payloadMessage = payload.new as ChatMessage;
-        const { data: fullMessage } = await supabase
-          .from('messages')
-          .select('*, sender:profiles!messages_sender_id_fkey(id, first_name, last_name, avatar_url, role)')
-          .eq('id', payloadMessage.id)
-          .single();
-
-        const newMessage = (fullMessage as ChatMessage) || payloadMessage;
-
-        if (!isVisibleInCurrentSupportView(newMessage, isAdminUserRef.current)) return;
-
-        setMessages(prev => {
-          if (prev.find(m => m.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
-        
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [actualJobId, isAdminSupport, cleanTargetId, user?.id]);
+
+  const chatChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `chat_${actualJobId ?? 'none'}:${chatChannelId}`,
+    bindings: [
+      {
+        event: 'INSERT',
+        table: 'messages',
+        filter: actualJobId ? `job_id=eq.${actualJobId}` : undefined,
+      },
+    ],
+    onChange: async (payload) => {
+      const payloadMessage = payload.new as ChatMessage;
+      const { data: fullMessage } = await supabase
+        .from('messages')
+        .select('*, sender:profiles!messages_sender_id_fkey(id, first_name, last_name, avatar_url, role)')
+        .eq('id', payloadMessage.id)
+        .single();
+
+      const newMessage = (fullMessage as ChatMessage) || payloadMessage;
+
+      if (!isVisibleInCurrentSupportView(newMessage, isAdminUserRef.current)) return;
+
+      setMessages(prev => {
+        if (prev.find(m => m.id === newMessage.id)) return prev;
+        return [...prev, newMessage];
+      });
+
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    },
+    onDesync: () => { fetchMessages(); },
+    enabled: !!actualJobId,
+  });
 
   useEffect(() => {
     return () => {

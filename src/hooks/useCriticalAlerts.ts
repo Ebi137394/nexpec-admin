@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export interface CriticalAlert {
   id: string;
@@ -45,53 +46,52 @@ export function useCriticalAlerts(organizationId?: string) {
 
   useEffect(() => {
     fetchAlerts();
+  }, [fetchAlerts]);
 
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`critical-alerts:${organizationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'alerts',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        (payload) => {
-          switch (payload.eventType) {
-            case 'INSERT': {
-              const incoming = payload.new as CriticalAlert;
-              if (!incoming.resolved && ['critical', 'warning'].includes(incoming.severity)) {
-                setAlerts((prev) => [incoming, ...prev]);
-              }
-              break;
-            }
-            case 'UPDATE': {
-              const updated = payload.new as CriticalAlert;
-              if (updated.resolved) {
-                setAlerts((prev) => prev.filter((a) => a.id !== updated.id));
-              } else {
-                setAlerts((prev) =>
-                  prev.map((a) => (a.id === updated.id ? updated : a))
-                );
-              }
-              break;
-            }
-            case 'DELETE': {
-              const old = payload.old as { id: string };
-              setAlerts((prev) => prev.filter((a) => a.id !== old.id));
-              break;
-            }
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `critical-alerts:${organizationId ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'alerts',
+        filter: organizationId
+          ? `organization_id=eq.${organizationId}`
+          : undefined,
+      },
+    ],
+    onChange: (payload) => {
+      switch (payload.eventType) {
+        case 'INSERT': {
+          const incoming = payload.new as CriticalAlert;
+          if (!incoming.resolved && ['critical', 'warning'].includes(incoming.severity)) {
+            setAlerts((prev) => [incoming, ...prev]);
           }
+          break;
         }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [organizationId, fetchAlerts]);
+        case 'UPDATE': {
+          const updated = payload.new as CriticalAlert;
+          if (updated.resolved) {
+            setAlerts((prev) => prev.filter((a) => a.id !== updated.id));
+          } else {
+            setAlerts((prev) =>
+              prev.map((a) => (a.id === updated.id ? updated : a))
+            );
+          }
+          break;
+        }
+        case 'DELETE': {
+          const old = payload.old as { id: string };
+          setAlerts((prev) => prev.filter((a) => a.id !== old.id));
+          break;
+        }
+      }
+    },
+    onDesync: () => {
+      fetchAlerts();
+    },
+    enabled: !!organizationId,
+  });
 
   const acknowledgeAlert = useCallback(
     async (alertId: string) => {

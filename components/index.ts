@@ -6,4 +6,5 @@
 //  New code should import directly from the new location.
 // ════════════════════════════════════════════════════════════════════════════
 export * from '@/src/shared-ui/index';
-export { default } from '@/src/shared-ui/index';
+// (removed a broken `export { default }` — the shared-ui barrel is all `export *`,
+//  so it never had a default to re-export. #QA)

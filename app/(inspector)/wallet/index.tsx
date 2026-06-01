@@ -21,18 +21,17 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useWallet } from '@/hooks/useWallet';
 import type { Transaction } from '@/types/core';
 import { GradientCard } from '@/components';
+// #QA — canonical USD/cents money formatter (single source of truth, mirrors web).
+import { formatUsd, toCents } from '@/src/core/utils/money';
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
-const formatCurrency = (amount: number, currency = 'CAD'): string => {
-  return new Intl.NumberFormat('en-CA', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount || 0);
-};
+// Delegates to the canonical USD formatter. Input is dollars (wallets table is
+// numeric dollars); normalize to cents at this boundary, render USD. #QA
+const formatCurrency = (amount: number): string =>
+  formatUsd(toCents(amount), { fractionDigits: 2 });
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
@@ -236,8 +235,12 @@ export default function WalletScreen() {
   return (
     <LinearGradient colors={['#0D1B2A', '#1B2838']} style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.header}>
+        <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
           <Text style={styles.headerTitle}>Wallet</Text>
+          <Pressable onPress={() => router.push('/(inspector)/wallet/statement' as any)} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="receipt-outline" size={16} color="#A78BFA" />
+            <Text style={{ color: '#A78BFA', fontSize: 13, fontWeight: '700' }}>Statement</Text>
+          </Pressable>
         </View>
 
         <FlatList

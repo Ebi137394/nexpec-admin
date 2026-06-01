@@ -29,19 +29,20 @@ import Animated, {
 import { useWallet } from '@/hooks/useWallet';
 import type { BankDetails } from '@/types/core';
 import { LoadingOverlay, SuccessAnimation } from '@/components';
-import { supabase } from '@/lib/supabase'; // 🌟 افزوده شد برای ارتباط مستقیم با دیتابیس
+// #QA — withdrawals route through the offline outbox; the op's client_op_id is
+// passed to the idempotent process_withdrawal RPC so a flaky retry can't double-charge.
+import { enqueueWithdrawalRequest, isOnline, flushQueue, getOpStatus } from '@/lib/offline';
+// #QA — canonical USD/cents money formatter (single source of truth, mirrors web).
+import { formatUsd, toCents } from '@/src/core/utils/money';
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
-const formatCurrency = (amount: number, currency = 'CAD'): string => {
-  return new Intl.NumberFormat('en-CA', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(amount);
-};
+// Delegates to the canonical USD formatter (single source of truth). Input is
+// dollars (wallet balance); normalize to cents at this boundary. #QA
+const formatCurrency = (amount: number): string =>
+  formatUsd(toCents(amount), { fractionDigits: 2 });
 
 // ============================================================================
 // TYPES
@@ -61,7 +62,7 @@ interface FormErrors {
 // ============================================================================
 
 export default function WithdrawScreen() {
-  const { wallet, requestWithdrawal } = useWallet();
+  const { wallet } = useWallet();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -94,32 +95,6 @@ export default function WithdrawScreen() {
     buttonScale.value = withSpring(1, { damping: 15 });
   };
 
-  // 🚀 تابع مخفی توسعه‌دهنده برای واریز سریع 5000 دلار
-  const handleCheatDeposit = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        Alert.alert("Error", "No active user found.");
-        return;
-      }
-      
-      const { error } = await supabase.from('wallets').upsert({
-        user_id: session.user.id,
-        available_balance: (wallet?.balance || 0) + 5000.00,
-        total_earned: 5000.00
-      });
-      
-      if (error) throw error;
-      Alert.alert("Success! 💰", "$5000 has been added to your test wallet.");
-      // برای اینکه تغییرات سریع دیده بشه
-      if (wallet && 'refresh' in wallet) {
-        (wallet as any).refresh(); 
-      }
-    } catch (err: any) {
-      Alert.alert("Cheat Failed", err.message);
-    }
-  };
-
   const validateForm = useCallback((): boolean => {
     const newErrors: FormErrors = {};
 
@@ -129,7 +104,7 @@ export default function WithdrawScreen() {
       newErrors.amount = 'Please enter a valid amount';
     } else if (numAmount <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
-    } else if (numAmount > (wallet?.balance || 5000)) { // 🌟 موقتاً محدودیت رو به 5000 تغییر دادیم
+    } else if (numAmount > (wallet?.balance || 0)) {
       newErrors.amount = 'Amount exceeds available balance';
     } else if (numAmount < 25) {
       newErrors.amount = 'Minimum withdrawal amount is $25';
@@ -189,30 +164,46 @@ export default function WithdrawScreen() {
         email: email || undefined,
       };
 
-      // 🌟 دور زدن هوک قدیمی و استفاده مستقیم از تابع فوق‌امنیتی دیتابیس
-      const { data, error } = await supabase.rpc('process_withdrawal', {
+      // Route through the outbox. The op's client_op_id is passed to the
+      // idempotent, atomic process_withdrawal RPC — a flaky retry can NEVER
+      // double-charge the balance.
+      const opId = await enqueueWithdrawalRequest({
         p_amount: parseFloat(amount),
-        p_bank_details: bankDetailsObj
+        p_bank_details: bankDetailsObj,
       });
-
-      if (error) throw error;
-
-      // رفرش کردن موجودی کیف پول تو پس‌زمینه
-      if (wallet && 'refresh' in wallet) {
-        (wallet as any).refresh();
+      if (isOnline()) {
+        try {
+          await flushQueue();
+        } catch {
+          /* drain error → op stays queued, reported below */
+        }
       }
+      const status = await getOpStatus(opId);
 
-      // 🌟 پیام موفقیت استاندارد و برگشت اتوماتیک به صفحه کیف پول
-      Alert.alert(
-        'Withdrawal Successful! 🎉',
-        `Your request to withdraw $${amount} has been submitted successfully.`,
-        [
-          {
-            text: 'Awesome',
-            onPress: () => router.back()
-          }
-        ]
-      );
+      if (status === null) {
+        // Drained successfully — the withdrawal landed.
+        if (wallet && 'refresh' in wallet) {
+          (wallet as any).refresh();
+        }
+        Alert.alert(
+          'Withdrawal Successful! 🎉',
+          `Your request to withdraw $${amount} has been submitted successfully.`,
+          [{ text: 'Awesome', onPress: () => router.back() }],
+        );
+      } else if (status === 'abandoned' || status === 'conflict') {
+        // Server rejected it (e.g. insufficient funds) — deterministic, not retried.
+        Alert.alert(
+          'Withdrawal not completed',
+          'We couldn’t process this withdrawal. Please check your available balance and try again.',
+        );
+      } else {
+        // pending / in_flight / failed → offline or transient; it will retry.
+        Alert.alert(
+          'Withdrawal queued',
+          'You appear to be offline. Your withdrawal is queued and will be submitted automatically when you reconnect.',
+          [{ text: 'OK', onPress: () => router.back() }],
+        );
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to process withdrawal');
     } finally {
@@ -261,15 +252,9 @@ export default function WithdrawScreen() {
                 style={styles.balanceCard}
               >
                 <Text style={styles.balanceLabel}>Available Balance</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={styles.balanceAmount}>
-                    {formatCurrency(wallet?.balance || 0)}
-                  </Text>
-                  {/* 🚀 دکمه مخفی توسعه‌دهنده (بعداً پاکش کن) */}
-                  <Pressable onPress={handleCheatDeposit} style={{ backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
-                    <Text style={{ color: '#FFF', fontSize: 12, fontWeight: 'bold' }}>+ $5000</Text>
-                  </Pressable>
-                </View>
+                <Text style={styles.balanceAmount}>
+                  {formatCurrency(wallet?.balance || 0)}
+                </Text>
               </LinearGradient>
             </Animated.View>
 

@@ -50,7 +50,7 @@ export function UserModerationPanel({
   returnTo,
 }: Props) {
   const isSuspended = currentStatus === 'suspended';
-  const isSuperAdmin = role === 'super_admin';
+  const isSuperAdmin = role === 'super_admin' || role === 'admin';
 
   return (
     <section className="rounded-3xl border border-violet/30 bg-violet/[0.04] p-6 sm:p-8">

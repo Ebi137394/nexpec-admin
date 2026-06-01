@@ -6,7 +6,7 @@
 //  theme, same realtime + attachment plumbing.
 // ─────────────────────────────────────────────────────────────
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo, useId } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
@@ -19,6 +19,7 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 //   instance the auth flow + user-side support-chat use, so admin
 //   replies don't run on a separate auth session.
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -212,116 +213,108 @@ export default function AdminSupportChatScreen() {
   }, [signedUrlCache]);
 
   // Initial load — messages + customer profile.
-  useEffect(() => {
+  const loadThread = useCallback(async () => {
     if (!adminId || !customerId) return;
-    let alive = true;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const [msgRes, profRes] = await Promise.all([
-          supabase
-            .from('helpdesk_messages')
-            .select('*')
-            .eq('user_id', customerId)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('profiles')
-            .select('id, first_name, last_name, full_name, avatar_url, role')
-            .eq('id', customerId)
-            .maybeSingle(),
-        ]);
-        if (!alive) return;
-        if (msgRes.error) throw msgRes.error;
+    setIsLoading(true);
+    try {
+      const [msgRes, profRes] = await Promise.all([
+        supabase
+          .from('helpdesk_messages')
+          .select('*')
+          .eq('user_id', customerId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('profiles')
+          .select('id, first_name, last_name, full_name, avatar_url, role')
+          .eq('id', customerId)
+          .maybeSingle(),
+      ]);
+      if (msgRes.error) throw msgRes.error;
 
-        const messageList = (msgRes.data ?? []) as SupportMessage[];
-        setMessages(messageList);
-        if (profRes.data) setCustomer(profRes.data as CustomerProfile);
+      const messageList = (msgRes.data ?? []) as SupportMessage[];
+      setMessages(messageList);
+      if (profRes.data) setCustomer(profRes.data as CustomerProfile);
 
-        // Mark messages from this customer as read (admin is now reading them).
-        const unreadIds = messageList
-          .filter((m) => m.sender_id === customerId && !m.is_read)
-          .map((m) => m.id);
-        if (unreadIds.length > 0) {
+      // Mark messages from this customer as read (admin is now reading them).
+      const unreadIds = messageList
+        .filter((m) => m.sender_id === customerId && !m.is_read)
+        .map((m) => m.id);
+      if (unreadIds.length > 0) {
+        await supabase
+          .from('helpdesk_messages')
+          .update({ is_read: true })
+          .in('id', unreadIds);
+      }
+
+      await ensureSignedUrls(messageList);
+    } catch (err) {
+      console.log('admin support chat load error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminId, customerId]);
+
+  useEffect(() => {
+    loadThread();
+  }, [loadThread]);
+
+  // Realtime — INSERT and UPDATE for this customer's thread.
+  const adminSupportChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `support-admin-${customerId ?? 'none'}:${adminSupportChannelId}`,
+    bindings: [
+      {
+        event: 'INSERT',
+        table: 'helpdesk_messages',
+        filter: customerId ? `user_id=eq.${customerId}` : undefined,
+      },
+      {
+        event: 'UPDATE',
+        table: 'helpdesk_messages',
+        filter: customerId ? `user_id=eq.${customerId}` : undefined,
+      },
+    ],
+    onChange: async (payload) => {
+      if (payload.eventType === 'INSERT') {
+        const incoming = payload.new as SupportMessage;
+        // Mark customer's messages as read instantly — admin is in the room.
+        if (incoming.sender_id === customerId) {
+          hapticMedium();
           await supabase
             .from('helpdesk_messages')
             .update({ is_read: true })
-            .in('id', unreadIds);
+            .eq('id', incoming.id);
         }
-
-        await ensureSignedUrls(messageList);
-      } catch (err) {
-        console.log('admin support chat load error:', err);
-      } finally {
-        if (alive) setIsLoading(false);
+        // If echo of admin's own send, drop optimistic ghosts.
+        if (incoming.sender_id === adminId) setOptimisticMsgs([]);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === incoming.id)) return prev;
+          return [incoming, ...prev];
+        });
+        // Resolve image attachments into a signed URL right away.
+        if (incoming.attachment_type === 'image' && incoming.attachment_url) {
+          const { data } = await supabase.storage
+            .from('chat_attachments')
+            .createSignedUrl(incoming.attachment_url, 3600);
+          if (data?.signedUrl)
+            setSignedUrlCache((prev) => ({
+              ...prev,
+              [incoming.attachment_url!]: data.signedUrl,
+            }));
+        }
+      } else if (payload.eventType === 'UPDATE') {
+        const updated = payload.new as SupportMessage;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === updated.id ? updated : m))
+        );
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [adminId, customerId]);
-
-  // Realtime — INSERT and UPDATE for this customer's thread.
-  useEffect(() => {
-    if (!adminId || !customerId) return;
-    const channel = supabase
-      .channel(`support-admin-${customerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'helpdesk_messages',
-          filter: `user_id=eq.${customerId}`,
-        },
-        async (payload) => {
-          const incoming = payload.new as SupportMessage;
-          // Mark customer's messages as read instantly — admin is in the room.
-          if (incoming.sender_id === customerId) {
-            hapticMedium();
-            await supabase
-              .from('helpdesk_messages')
-              .update({ is_read: true })
-              .eq('id', incoming.id);
-          }
-          // If echo of admin's own send, drop optimistic ghosts.
-          if (incoming.sender_id === adminId) setOptimisticMsgs([]);
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === incoming.id)) return prev;
-            return [incoming, ...prev];
-          });
-          // Resolve image attachments into a signed URL right away.
-          if (incoming.attachment_type === 'image' && incoming.attachment_url) {
-            const { data } = await supabase.storage
-              .from('chat_attachments')
-              .createSignedUrl(incoming.attachment_url, 3600);
-            if (data?.signedUrl)
-              setSignedUrlCache((prev) => ({
-                ...prev,
-                [incoming.attachment_url!]: data.signedUrl,
-              }));
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'helpdesk_messages',
-          filter: `user_id=eq.${customerId}`,
-        },
-        (payload) => {
-          const updated = payload.new as SupportMessage;
-          setMessages((prev) =>
-            prev.map((m) => (m.id === updated.id ? updated : m))
-          );
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [adminId, customerId]);
+    },
+    onDesync: () => {
+      loadThread();
+    },
+    enabled: !!adminId && !!customerId,
+  });
 
   // ── Send a text message (admin → customer) ────────────────
   const handleSendText = useCallback(async () => {

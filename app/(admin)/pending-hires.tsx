@@ -12,7 +12,7 @@
 //                          so admin has audit-trail visibility on every
 //                          decision (closes the loop the user flagged).
 // =====================================================================
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useId, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -299,22 +300,19 @@ export default function PendingApprovalsScreen() {
 
   // Realtime: any application change kicks both the hires list and the
   // rejected feed so the admin sees rejections appear immediately.
-  useEffect(() => {
-    const ch = supabase
-      .channel('pending-hires-rt')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'applications' },
-        () => {
-          fetchHires();
-          fetchRejected();
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [fetchHires, fetchRejected]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `pending-hires-rt:${channelId}`,
+    bindings: [{ event: '*', table: 'applications' }],
+    onChange: () => {
+      fetchHires();
+      fetchRejected();
+    },
+    onDesync: () => {
+      fetchHires();
+      fetchRejected();
+    },
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

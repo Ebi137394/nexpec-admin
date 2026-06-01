@@ -57,7 +57,7 @@ export default async function ApprovalPoliciesPage() {
       .eq('id', user.id)
       .maybeSingle();
     const isPlatformOwner =
-      (profile?.role ?? '').toString().trim().toLowerCase() === 'super_admin';
+      ['super_admin', 'admin'].includes((profile?.role ?? '').toString().trim().toLowerCase());
     canManage = isPlatformOwner || isElevatedOrgRole(active.role);
   }
 

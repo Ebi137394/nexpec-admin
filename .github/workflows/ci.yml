@@ -36,6 +36,13 @@ jobs:
         run: npm ci
 
       # ── Blocking: green today ──────────────────────────────────────────────
+      # Offline-integrity gate: no field screen may bypass the outbox — a direct
+      # supabase write in app/(inspector) silently fails with no signal and loses
+      # the inspector's evidence. Zero-dep, deterministic, green today. A new
+      # bypass (or re-introducing one on a cleaned line) fails the build.
+      - name: offline · outbox-routing guardrail
+        run: node scripts/qa/check-outbox-routing.mjs
+
       - name: shared-core · typecheck
         run: npm run typecheck -w @nexpec/shared-core
 

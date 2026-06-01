@@ -23,7 +23,6 @@ export * from '@/src/shared-ui/cards/GradientCard';
 export * from '@/src/shared-ui/cards/ApplicantCardSimple';
 
 // Modals
-export * from '@/src/shared-ui/modals/AddFundsModal';
 export * from '@/src/shared-ui/modals/ReviewModal';
 
 // Feedback (shimmers, splash, loading overlays, success animations)

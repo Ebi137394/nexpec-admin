@@ -34,6 +34,8 @@ import { refreshSupabaseSession } from './auth';
 export { initializeOfflineSync as _internalInit } from './sync';
 // #56 — auth-expiry event seam + post-sign-in resume + conflict-resolution API.
 export { onAuthExpired, resumeSync } from './sync';
+// #QA — explicit drain, awaited by callers that need the result before navigating.
+export { flushQueue } from './sync';
 export type { OfflineSyncOptions, SessionRefresher, AuthExpiredListener } from './sync';
 export { useOutbox } from './hooks';
 export {
@@ -42,6 +44,8 @@ export {
   retryAbandoned,
   retryConflict,
   discardOperation,
+  opStillQueued,
+  getOpStatus,
 } from './outbox';
 export type {
   OutboxRow,
@@ -225,6 +229,163 @@ export async function enqueueMessageSend(input: MessageSendInput): Promise<strin
     client_op_id: opId,
     kind: 'message_send',
     payload: input,
+  });
+  if (isOnline()) flushQueue();
+  return opId;
+}
+
+// ── #QA · compliance field capture (offline-safe) ──────────────────
+
+export interface CaptureSaveInput {
+  /** The full inspection_captures row — including the client-generated `id`,
+   *  capture_sha256, prev_capture_sha256 and (for photos) storage_path. */
+  capture: Record<string, unknown>;
+  /** Storage bucket for the file (photo captures only), e.g. 'compliance'. */
+  bucket?: string;
+  /** Local file URI for photo captures; the handler uploads it on drain. */
+  localFilePath?: string;
+}
+
+/**
+ * Enqueue a compliance capture (photo / GPS pin / text). The hash-chained row
+ * inserts and (for photos) the file uploads when connectivity returns —
+ * idempotent via the capture's client-generated PK `id`. Returns the op id.
+ */
+export async function enqueueCaptureSave(input: CaptureSaveInput): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'capture_save',
+    payload: { capture: input.capture, bucket: input.bucket },
+    local_file_path: input.localFilePath,
+  });
+  if (isOnline()) flushQueue();
+  return opId;
+}
+
+/**
+ * Enqueue a human-accepted AI detection (pi_record_ai_detection). Offline-safe
+ * and idempotent (the op's client_op_id is passed to the RPC). `args` is the
+ * aiAssistToRpcArgs() output. Returns the op id.
+ */
+export async function enqueueAiDetection(args: Record<string, unknown>): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'ai_detection',
+    payload: { args },
+  });
+  if (isOnline()) flushQueue();
+  return opId;
+}
+
+// ── #QA · flash report (NCR) raise — offline-safe composite ────────
+
+export interface FlashReportRaiseInput {
+  /** Exact flash_report_create RPC args, including p_client_id — the client-known
+   *  report id every attachment references. */
+  createArgs: Record<string, unknown> & { p_client_id?: string };
+  /** Evidence storage bucket, e.g. 'flash-report-attachments'. */
+  bucket: string;
+  /** Evidence files; each uploads to its precomputed, retry-stable storagePath. */
+  attachments: Array<{
+    localUri?: string;
+    storagePath: string;
+    kind: string;
+    mimeType?: string | null;
+    caption?: string | null;
+  }>;
+}
+
+/**
+ * Enqueue a Flash Report raise (report + all evidence) as ONE ordered, idempotent
+ * op. Unlike the other helpers this does NOT auto-flush: the raise screen awaits
+ * flushQueue() itself so it can tell whether the report landed (open it) or is
+ * still queued (offline → confirm saved + return to the list). Returns the op id.
+ */
+export async function enqueueFlashReportRaise(input: FlashReportRaiseInput): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'flash_report_raise',
+    payload: input,
+  });
+  return opId;
+}
+
+/**
+ * A client-generated UUID v4 for records that must be known before the server
+ * confirms — e.g. a flash report whose evidence references its id while offline.
+ */
+export function newClientId(): string {
+  return makeUuid();
+}
+
+export interface FlashReportTransitionInput {
+  id: string;
+  toStatus: string;
+  notes?: string | null;
+}
+
+/**
+ * Enqueue an NCR state-machine transition. Like the raise helper, this does NOT
+ * auto-flush — the caller awaits flushQueue() so it can refresh once the change
+ * lands. Idempotent (the handler no-ops if the report is already in the target
+ * state). Returns the op id.
+ */
+export async function enqueueFlashReportTransition(
+  input: FlashReportTransitionInput,
+): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'flash_report_transition',
+    payload: input,
+  });
+  return opId;
+}
+
+// ── #QA · financial flows (server-atomic + idempotent) ─────────────
+
+/**
+ * Enqueue a wallet withdrawal. Does NOT auto-flush — the withdraw screen awaits
+ * flushQueue() then reads getOpStatus() to render a definite outcome (success /
+ * queued offline / failed), because a withdrawal needs a clear result. Idempotent
+ * end-to-end: the op's client_op_id is passed to process_withdrawal, so a flaky
+ * retry can never double-charge. `args` = { p_amount, p_bank_details }.
+ */
+export async function enqueueWithdrawalRequest(args: Record<string, unknown>): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'withdrawal_request',
+    payload: { args },
+  });
+  return opId;
+}
+
+export interface ExpenseAddInput {
+  /** The full job_expenses row, including a client-generated PK `id`. */
+  expense: Record<string, unknown>;
+  /** Receipt bucket (e.g. 'receipts') — omit for a receipt-less expense. */
+  bucket?: string;
+  /** Deterministic storage path for the receipt; the handler uploads to it. */
+  storagePath?: string;
+  /** Local receipt file URI; the handler uploads it on drain. */
+  localFilePath?: string;
+}
+
+/**
+ * Enqueue a job expense (optionally with a receipt). The row inserts and the
+ * receipt uploads when connectivity returns — idempotent via the client PK `id`.
+ */
+export async function enqueueExpenseAdd(input: ExpenseAddInput): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'expense_add',
+    payload: { expense: input.expense, bucket: input.bucket, storagePath: input.storagePath },
+    local_file_path: input.localFilePath,
   });
   if (isOnline()) flushQueue();
   return opId;

@@ -31,7 +31,7 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
   // Fetch the job + inspector label
   const { data: job } = await supabase
     .from('jobs')
-    .select('id, title, status, assigned_inspector_id, client_id, inspector:profiles!jobs_assigned_inspector_id_fkey(full_name, email)')
+    .select('id, title, status, contractor_id, client_id, inspector:profiles!jobs_contractor_id_fkey(full_name, email)')
     .eq('id', jobId)
     .eq('client_id', user.id)
     .maybeSingle();
@@ -39,7 +39,7 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
   if (!job) redirect('/client/jobs');
 
   const j = job as unknown as Record<string, unknown>;
-  const assignedInspectorId = (j.assigned_inspector_id as string | null) ?? null;
+  const assignedInspectorId = (j.contractor_id as string | null) ?? null;
   const status = (j.status as string | null) ?? '';
   const inspectorLabel =
     ((j.inspector as { full_name?: string | null; email?: string | null } | null) ?? null)

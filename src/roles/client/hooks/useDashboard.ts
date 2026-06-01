@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
 import type { Job, Transaction } from '@/types/database';
 
@@ -73,27 +73,20 @@ export function useDashboard(): UseDashboardReturn {
   }, [fetchStats]);
 
   // Real-time: re-calculate stats when any job for this user changes
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel: RealtimeChannel = supabase
-      .channel(`dashboard:${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'jobs',
-          filter: `${userFilter}=eq.${user.id}`,
-        },
-        () => {
-          fetchStats();           // Re-derive stats from fresh DB snapshot
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.id, userFilter, fetchStats]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `dashboard:${user?.id ?? 'anon'}:${channelId}`,
+    bindings: [{
+      event: '*',
+      table: 'jobs',
+      filter: user?.id ? `${userFilter}=eq.${user.id}` : undefined,
+    }],
+    onChange: () => {
+      fetchStats();           // Re-derive stats from fresh DB snapshot
+    },
+    onDesync: () => { fetchStats(); },
+    enabled: !!user?.id,
+  });
 
   const refresh = async () => {
     setIsRefreshing(true);

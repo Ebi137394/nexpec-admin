@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import type { Job, JobApplication } from '@/types/core';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -165,42 +166,33 @@ export function useJobs(): UseJobsReturn {
 
   useEffect(() => {
     if (!user?.id) return;
-
     fetchJobsData();
-
-    // FIXED: Realtime listener on 'applications' table and 'applicant_id' column
-    const channel = supabase
-      .channel('jobs_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'
-          schema: 'public',
-          table: 'jobs',
-          filter: `hired_inspector_id=eq.${user.id}`,
-        },
-        () => {
-          fetchJobsData(true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'
-          schema: 'public',
-          table: 'applications',
-          filter: `applicant_id=eq.${user.id}`,
-        },
-        () => {
-          fetchJobsData(true);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [fetchJobsData, user?.id]);
+
+  // FIXED: Realtime listener on 'applications' table and 'applicant_id' column
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `jobs_realtime:${user?.id ?? 'anon'}:${channelId}`,
+    bindings: [
+      {
+        event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'
+        table: 'jobs',
+        filter: user?.id ? `hired_inspector_id=eq.${user.id}` : undefined,
+      },
+      {
+        event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'
+        table: 'applications',
+        filter: user?.id ? `applicant_id=eq.${user.id}` : undefined,
+      },
+    ],
+    onChange: () => {
+      fetchJobsData(true);
+    },
+    onDesync: () => {
+      fetchJobsData(true);
+    },
+    enabled: !!user?.id,
+  });
 
   // ========================================
   // APPLICATION ACTIONS

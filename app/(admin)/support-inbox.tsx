@@ -6,7 +6,7 @@
 //  Supabase Realtime.
 // ─────────────────────────────────────────────────────────────
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef, useId } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 //   instead of the secondary createClient in src/lib/. Single source of
 //   truth for auth state across the app.
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import {
   ArrowLeft,
   MessageCircle,
@@ -222,35 +223,31 @@ export default function SupportInboxScreen() {
 
   // Realtime — debounced refresh on any INSERT or UPDATE so a burst of
   // messages doesn't trigger a query storm.
+  const scheduleReload = useCallback(() => {
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => {
+      loadThreads();
+    }, 250);
+  }, [loadThreads]);
+
+  // Clear any pending debounce timer on unmount.
   useEffect(() => {
-    if (!adminId) return;
-
-    const scheduleReload = () => {
-      if (reloadTimer.current) clearTimeout(reloadTimer.current);
-      reloadTimer.current = setTimeout(() => {
-        loadThreads();
-      }, 250);
-    };
-
-    const channel = supabase
-      .channel(`support-inbox-${adminId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'helpdesk_messages' },
-        scheduleReload
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'helpdesk_messages' },
-        scheduleReload
-      )
-      .subscribe();
-
     return () => {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
-      supabase.removeChannel(channel);
     };
-  }, [adminId, loadThreads]);
+  }, []);
+
+  const supportInboxChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `support-inbox-${adminId ?? 'anon'}:${supportInboxChannelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'helpdesk_messages' },
+      { event: 'UPDATE', table: 'helpdesk_messages' },
+    ],
+    onChange: scheduleReload,
+    onDesync: scheduleReload,
+    enabled: !!adminId,
+  });
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

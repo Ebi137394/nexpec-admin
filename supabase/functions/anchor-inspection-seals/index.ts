@@ -22,9 +22,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { fetchWithTimeout } from '../_shared/http.ts';
 
 const CALENDAR = 'https://a.pool.opentimestamps.org';
 const BATCH = 50;
+// QA-F1 — abort a calendar submit that doesn't respond, so one slow calendar
+// can't stall the batch (the per-seal try/catch records a failure + moves on).
+const CALENDAR_TIMEOUT_MS = 9000;
 
 function hexToBytes(hex: string): Uint8Array {
   const clean = hex.trim().toLowerCase();
@@ -69,11 +73,11 @@ Deno.serve(async (req: Request) => {
   for (const seal of pending) {
     try {
       // Submit the 32-byte digest to a free OpenTimestamps calendar.
-      const res = await fetch(`${CALENDAR}/digest`, {
+      const res = await fetchWithTimeout(`${CALENDAR}/digest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/octet-stream' },
         body: hexToBytes(seal.root_sha256),
-      });
+      }, CALENDAR_TIMEOUT_MS);
       if (!res.ok) throw new Error(`calendar ${res.status}`);
       const proof = new Uint8Array(await res.arrayBuffer());
 

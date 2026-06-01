@@ -131,6 +131,22 @@ export interface Translation {
     'Asset Vault': string;
     'View All': string;
     'View Contracts': string;
+    'Deliverables': string;
+    'Team': string;
+    'Organization': string;
+    'Engagements': string;
+    'Enterprise Rating': string;
+    'Apply for CCI Credential': string;
+    'Discovery Preferences': string;
+    'Job Feed Sorting': string;
+    'Closer jobs surface first. Set unlimited to see them all.': string;
+    'Home Base': string;
+    'Saving…': string;
+    'Not set — tap to pick': string;
+    'Travel Radius': string;
+    'Unlimited — anywhere': string;
+    'from': string;
+    'Set your home base to enable distance-based sorting.': string;
     'Financial Hub': string;
     'Recent Jobs': string;
     'No jobs yet': string;
@@ -294,6 +310,22 @@ const en: Translation = {
     'Asset Vault': 'Asset Vault',
     'View All': 'View All',
     'View Contracts': 'View Contracts',
+    'Deliverables': 'Deliverables',
+    'Team': 'Team',
+    'Organization': 'Organization',
+    'Engagements': 'Engagements',
+    'Enterprise Rating': 'Enterprise Rating',
+    'Apply for CCI Credential': 'Apply for CCI Credential',
+    'Discovery Preferences': 'Discovery Preferences',
+    'Job Feed Sorting': 'Job Feed Sorting',
+    'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
+    'Home Base': 'Home Base',
+    'Saving…': 'Saving…',
+    'Not set — tap to pick': 'Not set — tap to pick',
+    'Travel Radius': 'Travel Radius',
+    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'from': 'from',
+    'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Financial Hub',
     'Recent Jobs': 'Recent Jobs',
     'No jobs yet': 'No jobs yet',
@@ -457,6 +489,22 @@ const it: Translation = {
     'Asset Vault': 'Cassaforte Asset',
     'View All': 'Visualizza Tutto',
     'View Contracts': 'Visualizza Contratti',
+    'Deliverables': 'Consegne',
+    'Team': 'Team',
+    'Organization': 'Organizzazione',
+    'Engagements': 'Engagements',
+    'Enterprise Rating': 'Enterprise Rating',
+    'Apply for CCI Credential': 'Apply for CCI Credential',
+    'Discovery Preferences': 'Discovery Preferences',
+    'Job Feed Sorting': 'Job Feed Sorting',
+    'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
+    'Home Base': 'Home Base',
+    'Saving…': 'Saving…',
+    'Not set — tap to pick': 'Not set — tap to pick',
+    'Travel Radius': 'Travel Radius',
+    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'from': 'from',
+    'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Hub Finanziario',
     'Recent Jobs': 'Lavori Recenti',
     'No jobs yet': 'Nessun lavoro ancora',
@@ -620,6 +668,22 @@ const tr: Translation = {
     'Asset Vault': 'Varlık Kasası',
     'View All': 'Tümünü Görüntüle',
     'View Contracts': 'Sözleşmeleri Görüntüle',
+    'Deliverables': 'Teslimatlar',
+    'Team': 'Ekip',
+    'Organization': 'Organizasyon',
+    'Engagements': 'Engagements',
+    'Enterprise Rating': 'Enterprise Rating',
+    'Apply for CCI Credential': 'Apply for CCI Credential',
+    'Discovery Preferences': 'Discovery Preferences',
+    'Job Feed Sorting': 'Job Feed Sorting',
+    'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
+    'Home Base': 'Home Base',
+    'Saving…': 'Saving…',
+    'Not set — tap to pick': 'Not set — tap to pick',
+    'Travel Radius': 'Travel Radius',
+    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'from': 'from',
+    'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Finansal Hub',
     'Recent Jobs': 'Son İşler',
     'No jobs yet': 'Henüz iş yok',

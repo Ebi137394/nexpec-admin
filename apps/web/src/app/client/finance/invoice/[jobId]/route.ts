@@ -33,7 +33,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
   // STRICT projection — no payout columns.
   const { data: job, error: jobErr } = await supabase
     .from('jobs')
-    .select('id, title, location_city, client_price_cents, platform_fee_cents, completed_at, status, client_id, currency')
+    // #QA — jobs has no platform_fee_cents column; the margin is admin-only
+    // (platform_spread_cents). Selecting a non-existent column 500'd this route.
+    .select('id, title, location_city, client_price_cents, completed_at, status, client_id, currency')
     .eq('id', jobId)
     .eq('client_id', user.id)
     .maybeSingle();
@@ -78,12 +80,10 @@ export async function GET(_req: Request, ctx: RouteContext) {
           : j.client_price_cents
             ? Number(j.client_price_cents)
             : null,
-      platformFeeCents:
-        typeof j.platform_fee_cents === 'number'
-          ? j.platform_fee_cents
-          : j.platform_fee_cents
-            ? Number(j.platform_fee_cents)
-            : null,
+      // Platform margin is admin-only (it would leak the inspector payout via
+      // client_price − spread) and jobs has no platform_fee_cents column. The
+      // client invoice shows only what the client pays. #QA
+      platformFeeCents: null,
       currency,
     },
   });

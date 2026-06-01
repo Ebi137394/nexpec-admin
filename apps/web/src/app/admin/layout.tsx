@@ -53,7 +53,7 @@ export default async function AdminLayout({
   // Same defensive normalisation as the middleware — trim + lowercase so
   // whitespace or case drift in the DB doesn't lock the owner out.
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
-  const isSuperAdmin = normalisedRole === 'super_admin';
+  const isSuperAdmin = normalisedRole === 'super_admin' || normalisedRole === 'admin';
 
   if (!isSuperAdmin && !isOwnerByEmail) {
     redirect('/?error=forbidden');

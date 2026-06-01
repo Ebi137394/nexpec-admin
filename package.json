@@ -17,7 +17,9 @@
     "build:shared": "npm run build -w @nexpec/shared-core",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "test:cov": "npm run test:cov --workspaces --if-present"
+    "test:cov": "npm run test:cov --workspaces --if-present",
+    "qa:outbox": "node scripts/qa/check-outbox-routing.mjs",
+    "qa:outbox:baseline": "node scripts/qa/check-outbox-routing.mjs --write-baseline"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

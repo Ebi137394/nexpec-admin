@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export interface BurnPoint {
   date: string;
@@ -113,27 +114,26 @@ export function useSpendingDashboard(
 
   useEffect(() => {
     compute();
+  }, [compute]);
 
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`spending:${organizationId}:${projectId ?? 'all'}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => compute()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [organizationId, projectId, compute]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `spending:${organizationId ?? 'none'}:${projectId ?? 'all'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'transactions',
+        filter: organizationId
+          ? `organization_id=eq.${organizationId}`
+          : undefined,
+      },
+    ],
+    onChange: () => compute(),
+    onDesync: () => {
+      compute();
+    },
+    enabled: !!organizationId,
+  });
 
   return {
     burnRateData,

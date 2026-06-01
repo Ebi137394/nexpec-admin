@@ -744,8 +744,9 @@ export async function fetchOrgPickerContextForMe(): Promise<OrgPickerContext | n
     .eq('id', user.id)
     .maybeSingle();
   const isSuperAdmin =
-    ((prof?.role as string | null) ?? '').toString().trim().toLowerCase() ===
-    'super_admin';
+    ['super_admin', 'admin'].includes(
+      ((prof?.role as string | null) ?? '').toString().trim().toLowerCase(),
+    );
 
   const canManage =
     isSuperAdmin ||
@@ -814,8 +815,9 @@ export async function fetchOrgPickerContextForOrg(
     .eq('id', user.id)
     .maybeSingle();
   const isSuperAdmin =
-    ((prof?.role as string | null) ?? '').toString().trim().toLowerCase() ===
-    'super_admin';
+    ['super_admin', 'admin'].includes(
+      ((prof?.role as string | null) ?? '').toString().trim().toLowerCase(),
+    );
 
   let myOrgRole: string | null = null;
   if (!isSuperAdmin) {

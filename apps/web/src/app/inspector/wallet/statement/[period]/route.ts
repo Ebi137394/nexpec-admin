@@ -49,9 +49,15 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   const { data: jobs, error } = await supabase
     .from('jobs')
-    .select('id, title, paid_at, completed_at, inspector_payout_cents, platform_fee_cents, payout_status')
-    .eq('assigned_inspector_id', user.id)
-    .in('payout_status', ['released', 'paid'])
+    // #QA — jobs has no platform_fee_cents column (the platform margin is the
+    // GENERATED, admin-only platform_spread_cents — never exposed to the inspector,
+    // as it would leak the client price). Selecting it 500'd this route.
+    .select('id, title, paid_at, completed_at, inspector_payout_cents, payout_status')
+    // #QA — canonical column is jobs.contractor_id; assigned_inspector_id does NOT exist.
+    .eq('contractor_id', user.id)
+    // #QA — 'released' is not a valid jobs.payout_status (CHECK = unpaid/processing/
+    // paid/disputed); it never matched. 'paid' is the terminal settled state.
+    .in('payout_status', ['paid'])
     .gte('paid_at', range.start)
     .lt('paid_at', range.end)
     .order('paid_at', { ascending: true });
@@ -69,10 +75,9 @@ export async function GET(_req: Request, ctx: RouteContext) {
       typeof row.inspector_payout_cents === 'number'
         ? row.inspector_payout_cents
         : Number(row.inspector_payout_cents ?? 0);
-    const fee =
-      typeof row.platform_fee_cents === 'number'
-        ? row.platform_fee_cents
-        : Number(row.platform_fee_cents ?? 0);
+    // jobs has no platform_fee_cents; inspector_payout_cents IS the inspector's
+    // net earning (the platform already took its spread upstream). #QA
+    const fee = 0;
     const net = payout - fee;
     totalPayout += payout;
     totalFee += fee;

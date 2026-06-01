@@ -53,8 +53,8 @@ async function assertSuperAdmin(): Promise<{ ok: boolean; error?: string }> {
     .maybeSingle();
 
   if (error) return { ok: false, error: error.message };
-  if (profile?.role !== 'super_admin') {
-    return { ok: false, error: 'Super admin only.' };
+  if (profile?.role !== 'super_admin' && profile?.role !== 'admin') {
+    return { ok: false, error: 'Admin only.' };
   }
   return { ok: true };
 }

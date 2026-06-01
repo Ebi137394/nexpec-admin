@@ -70,7 +70,8 @@ export default function FlashReportDetailScreen() {
       const job = jobRes.data;
       const profileRole = profRes.data?.role;
       let callerRoleOnJob: CallerContext['callerRoleOnJob'] = 'other';
-      if (profileRole === 'super_admin') callerRoleOnJob = 'super_admin';
+      // God-mode: the single platform admin (admin/super_admin) is full authority on every job.
+      if (profileRole === 'admin' || profileRole === 'super_admin') callerRoleOnJob = 'super_admin';
       else if (job?.contractor_id === uid) callerRoleOnJob = 'inspector';
       else if (job?.client_id === uid) callerRoleOnJob = 'client';
       else if (job?.agency_id === uid) callerRoleOnJob = 'agency';

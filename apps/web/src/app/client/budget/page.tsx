@@ -162,7 +162,7 @@ export async function BudgetOverviewView(
         .eq('id', user.id)
         .maybeSingle();
       const isPlatformOwner =
-        (profile?.role ?? '').toString().trim().toLowerCase() === 'super_admin';
+        ['super_admin', 'admin'].includes((profile?.role ?? '').toString().trim().toLowerCase());
       if (isPlatformOwner) {
         viewerCanPersistDefault = true;
       } else {

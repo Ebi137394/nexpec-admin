@@ -75,14 +75,15 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   deriveExifSubset,
-  fetchPrevCaptureHash,
   hashCaptureMetadata,
   hashLocalFile,
   newUuid,
-  uploadCaptureFile,
   type CaptureExifSubset,
   type CaptureMetadataForHash,
 } from '@/src/features/compliance/lib/capture';
+// #QA — every capture/detection routes through the offline outbox (never a
+// direct supabase mutation), so field captures survive zero-signal conditions.
+import { enqueueCaptureSave, enqueueAiDetection } from '@/lib/offline';
 
 // AI Co-Inspector (B.3) — on-device defect analysis of the just-captured photo.
 // First-class in the real capture flow; runtime-flag-gated so it is completely
@@ -339,41 +340,43 @@ export default function ComplianceCaptureWizard() {
       };
       const captureSha = await hashCaptureMetadata(meta);
 
-      // 4) Chain link: previous capture's sha
-      const prevSha = await fetchPrevCaptureHash(job.id);
+      // 4) Chain link: previous capture's sha — derived from LOCAL state, not
+      //    the server. `captures` loads oldest→newest, so the last entry is the
+      //    prior capture. fetchPrevCaptureHash() hits the network and returns
+      //    null offline, which would silently break the per-job hash chain. #QA
+      const prevSha =
+        captures.length > 0 ? captures[captures.length - 1].capture_sha256 ?? null : null;
 
-      // 5) Upload file
-      const storagePath = await uploadCaptureFile({
-        jobId: job.id,
-        requirementId: active.id,
-        captureId,
-        localUri: preview.uri,
-        extension: 'jpg',
-        contentType: 'image/jpeg',
-      });
+      // 5) Storage path is deterministic — the outbox handler uploads the local
+      //    file (preview.uri) to it when connectivity returns. No upload here.
+      const storagePath = `captures/${job.id}/${active.id}/${captureId}.jpg`;
 
-      // 6) Insert row
-      const { error: insErr } = await supabase.from('inspection_captures').insert({
-        id: captureId,
-        job_id: job.id,
-        requirement_id: active.id,
-        inspector_id: user.id,
-        kind: active.kind,
-        sort_index: activeCount,
-        storage_path: storagePath,
-        mime_type: 'image/jpeg',
-        exif_json: preview.exif ?? null,
-        gps_lat: gpsLat,
-        gps_lng: gpsLng,
-        gps_accuracy_m: gpsAcc,
-        captured_at: capturedAt,
-        device_platform: Platform.OS,
-        capture_sha256: captureSha,
-        prev_capture_sha256: prevSha,
-        text_payload: null,
-        server_validation_status: 'pending',
+      // 6) Route through the offline outbox (never a direct mutation). The row
+      //    inserts + the file uploads on drain; idempotent via the client PK. #QA
+      await enqueueCaptureSave({
+        capture: {
+          id: captureId,
+          job_id: job.id,
+          requirement_id: active.id,
+          inspector_id: user.id,
+          kind: active.kind,
+          sort_index: activeCount,
+          storage_path: storagePath,
+          mime_type: 'image/jpeg',
+          exif_json: preview.exif ?? null,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
+          gps_accuracy_m: gpsAcc,
+          captured_at: capturedAt,
+          device_platform: Platform.OS,
+          capture_sha256: captureSha,
+          prev_capture_sha256: prevSha,
+          text_payload: null,
+          server_validation_status: 'pending',
+        },
+        bucket: 'compliance',
+        localFilePath: preview.uri,
       });
-      if (insErr) throw insErr;
 
       // Local optimistic add
       setCaptures((prev) => [
@@ -441,25 +444,28 @@ export default function ComplianceCaptureWizard() {
         text_payload: null,
       };
       const captureSha = await hashCaptureMetadata(meta);
-      const prevSha = await fetchPrevCaptureHash(job.id);
+      // prevSha from LOCAL state — offline-safe chain link (see persistPhoto). #QA
+      const prevSha =
+        captures.length > 0 ? captures[captures.length - 1].capture_sha256 ?? null : null;
 
-      const { error } = await supabase.from('inspection_captures').insert({
-        id: captureId,
-        job_id: job.id,
-        requirement_id: active.id,
-        inspector_id: user.id,
-        kind: active.kind,
-        sort_index: activeCount,
-        gps_lat: loc.coords.latitude,
-        gps_lng: loc.coords.longitude,
-        gps_accuracy_m: loc.coords.accuracy ?? null,
-        captured_at: capturedAt,
-        device_platform: Platform.OS,
-        capture_sha256: captureSha,
-        prev_capture_sha256: prevSha,
-        server_validation_status: 'pending',
+      await enqueueCaptureSave({
+        capture: {
+          id: captureId,
+          job_id: job.id,
+          requirement_id: active.id,
+          inspector_id: user.id,
+          kind: active.kind,
+          sort_index: activeCount,
+          gps_lat: loc.coords.latitude,
+          gps_lng: loc.coords.longitude,
+          gps_accuracy_m: loc.coords.accuracy ?? null,
+          captured_at: capturedAt,
+          device_platform: Platform.OS,
+          capture_sha256: captureSha,
+          prev_capture_sha256: prevSha,
+          server_validation_status: 'pending',
+        },
       });
-      if (error) throw error;
 
       setCaptures((prev) => [...prev, {
         id: captureId, requirement_id: active.id, kind: active.kind,
@@ -505,23 +511,26 @@ export default function ComplianceCaptureWizard() {
         text_payload: trimmed,
       };
       const captureSha = await hashCaptureMetadata(meta);
-      const prevSha = await fetchPrevCaptureHash(job.id);
+      // prevSha from LOCAL state — offline-safe chain link (see persistPhoto). #QA
+      const prevSha =
+        captures.length > 0 ? captures[captures.length - 1].capture_sha256 ?? null : null;
 
-      const { error } = await supabase.from('inspection_captures').insert({
-        id: captureId,
-        job_id: job.id,
-        requirement_id: active.id,
-        inspector_id: user.id,
-        kind: active.kind,
-        sort_index: activeCount,
-        captured_at: capturedAt,
-        device_platform: Platform.OS,
-        capture_sha256: captureSha,
-        prev_capture_sha256: prevSha,
-        text_payload: trimmed,
-        server_validation_status: 'pending',
+      await enqueueCaptureSave({
+        capture: {
+          id: captureId,
+          job_id: job.id,
+          requirement_id: active.id,
+          inspector_id: user.id,
+          kind: active.kind,
+          sort_index: activeCount,
+          captured_at: capturedAt,
+          device_platform: Platform.OS,
+          capture_sha256: captureSha,
+          prev_capture_sha256: prevSha,
+          text_payload: trimmed,
+          server_validation_status: 'pending',
+        },
       });
-      if (error) throw error;
 
       setCaptures((prev) => [...prev, {
         id: captureId, requirement_id: active.id, kind: active.kind,
@@ -543,6 +552,11 @@ export default function ComplianceCaptureWizard() {
     if (!job?.id) return;
     setGenerating(true);
     try {
+      // Interactive ONLINE finalization: the edge function validates that every
+      // capture is already synced + the hash chain is intact server-side and
+      // returns a verify URL the inspector acts on immediately. It cannot run
+      // from queued/offline state, so it is intentionally not an outbox op.
+      // outbox-exempt: interactive online affidavit generation, not a field write.
       const { data, error } = await supabase.functions.invoke('generate-vca', {
         body: { job_id: job.id },
       });
@@ -613,8 +627,8 @@ export default function ComplianceCaptureWizard() {
         true,
       );
       const args = aiAssistToRpcArgs(assist, job.id, { captureId: aiCaptureId ?? undefined });
-      const { error } = await supabase.rpc('pi_record_ai_detection', args);
-      if (error) throw error;
+      // Route through the outbox — offline-safe + idempotent (client_op_id). #QA
+      await enqueueAiDetection(args as Record<string, unknown>);
       setAiRecorded((r) => (r.includes(d.defectId) ? r : [...r, d.defectId]));
       setAiNote(`Recorded "${d.label}" — provably tied to ${assist.modelSlug} v${assist.modelVersion}; it folds into this inspection's seal.`);
     } catch (e: any) {

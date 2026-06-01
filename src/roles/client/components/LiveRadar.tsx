@@ -3,7 +3,7 @@
 // Shows when is_on_site = true AND status = 'in_progress'
 // ============================================================
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useId } from 'react';
 import {
   Animated,
   ActivityIndicator,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { CLIENT_THEME as T } from './theme';
 import type { Project } from './types';
 
@@ -40,25 +41,20 @@ export default function LiveRadar({ clientId }: Props) {
 
   useEffect(() => {
     fetchOnSite();
+  }, [fetchOnSite]);
 
-    const channel = supabase
-      .channel('client-live-radar')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'projects',
-          filter: `client_id=eq.${clientId}`,
-        },
-        () => fetchOnSite(),
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [clientId, fetchOnSite]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `client-live-radar:${clientId}:${channelId}`,
+    bindings: [{
+      event: '*',
+      table: 'projects',
+      filter: `client_id=eq.${clientId}`,
+    }],
+    onChange: () => fetchOnSite(),
+    onDesync: () => fetchOnSite(),
+    enabled: !!clientId,
+  });
 
   return (
     <View style={styles.container}>

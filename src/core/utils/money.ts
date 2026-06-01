@@ -45,19 +45,21 @@ export function fromCents(cents: number | string | null | undefined): number {
 /**
  * Format integer cents as a USD string for display.
  *  formatUsd(123456)         → "$1,234.56"
- *  formatUsd(0)              → "$0"
- *  formatUsd(123456, { fractionDigits: 2 }) → "$1,234.56"
- *  formatUsd(150000, { showSign: true })    → "+$1,500"
+ *  formatUsd(0)              → "$0.00"
+ *  formatUsd(150000, { showSign: true })    → "+$1,500.00"
  *
- * fractionDigits defaults to 0 for whole-dollar amounts and 2 otherwise.
+ * Defaults to 2 fraction digits — matches the web dashboard's formatInvoiceCents
+ * EXACTLY (empirically verified). Use formatUsdCompact for "$1.2k"-style display.
  */
 export function formatUsd(
   cents: number | string | null | undefined,
   options?: { showSign?: boolean; fractionDigits?: number },
 ): string {
   const dollars = fromCents(cents);
-  const isWhole = dollars % 1 === 0;
-  const fd = options?.fractionDigits ?? (isWhole ? 0 : 2);
+  // Default to 2 fraction digits — byte-identical to the web dashboard's
+  // formatInvoiceCents (Intl USD), verified across the full value range incl.
+  // sub-dollar, whole-dollar, millions, and negatives. #QA
+  const fd = options?.fractionDigits ?? 2;
   const formatted = dollars.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',

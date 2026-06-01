@@ -47,6 +47,13 @@ export default function FinanceLayout() {
         }}
       />
       <Stack.Screen
+        name="reports"
+        options={{
+          title: 'Deliverables',
+          headerTitleAlign: 'center'
+        }}
+      />
+      <Stack.Screen
         name="compliance"
         options={{
           title: 'Compliance Vault',

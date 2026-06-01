@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useId } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export interface Asset {
   id: string;
@@ -106,28 +107,32 @@ export function useAssetIntelligence(
 
   useEffect(() => {
     fetchAssets();
+  }, [fetchAssets]);
 
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`assets:${organizationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'equipment',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => fetchAssets()
-      )
-      .subscribe();
-
+  useEffect(() => {
     return () => {
-      supabase.removeChannel(channel);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [organizationId, fetchAssets]);
+  }, []);
+
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `assets:${organizationId ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'equipment',
+        filter: organizationId
+          ? `organization_id=eq.${organizationId}`
+          : undefined,
+      },
+    ],
+    onChange: () => fetchAssets(),
+    onDesync: () => {
+      fetchAssets();
+    },
+    enabled: !!organizationId,
+  });
 
   return {
     assets,

@@ -543,6 +543,14 @@ export default function ChatScreen(): React.JSX.Element {
   };
 
   const subscribeToRealtimeMessages = (chatType: string, userId: string): void => {
+    // Tear down any existing channel BEFORE re-subscribing. initializeChat reaches
+    // this from two branches (admin / participant) and can re-run, so overwriting
+    // channelRef without removing the old channel leaked a websocket and left its
+    // INSERT handler firing — double-rendering every incoming message. #QA
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
     channelRef.current = subscribeToMessages(jobId!, handleRealtimeEvent, chatType, userId);
   };
 

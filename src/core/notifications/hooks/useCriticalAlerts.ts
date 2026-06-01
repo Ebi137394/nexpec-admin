@@ -1,7 +1,8 @@
 // hooks/useCriticalAlerts.ts
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeSubscription } from "@/src/core/realtime/useRealtimeSubscription";
 import type { AlertRow } from "@/lib/assetIntelligence.types";
 
 export interface CriticalAlertDisplay {
@@ -58,39 +59,36 @@ export function useCriticalAlerts() {
     }
   }, []);
 
-  // Real-time subscription
+  // Initial load.
   useEffect(() => {
     fetchAlerts();
-
-    const channel = supabase
-      .channel("critical-alerts-feed")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "alerts" },
-        (payload) => {
-          // Optimistically prepend new alert
-          const row = payload.new as AlertRow;
-          setAlerts((prev) => [
-            {
-              id: row.id,
-              title: row.title,
-              message: row.message ?? "",
-              severity: row.severity,
-              status: row.status,
-              assetTag: "—", // will be resolved on next full fetch
-              createdAt: row.created_at,
-              displayDate: new Date(row.created_at).toLocaleString(),
-            },
-            ...prev,
-          ]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [fetchAlerts]);
+
+  // Real-time subscription — reconnect-aware. A dropped socket must never leave
+  // critical safety alerts silently frozen, so onDesync refetches the feed.
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `critical-alerts-feed:${channelId}`,
+    bindings: [{ event: "INSERT", table: "alerts" }],
+    onChange: (payload) => {
+      // Optimistically prepend the new alert.
+      const row = payload.new as AlertRow;
+      setAlerts((prev) => [
+        {
+          id: row.id,
+          title: row.title,
+          message: row.message ?? "",
+          severity: row.severity,
+          status: row.status,
+          assetTag: "—", // resolved on the next full fetch
+          createdAt: row.created_at,
+          displayDate: new Date(row.created_at).toLocaleString(),
+        },
+        ...prev,
+      ]);
+    },
+    onDesync: fetchAlerts,
+  });
 
   const acknowledgeAlert = useCallback(async (alertId: string, userId: string) => {
     try {

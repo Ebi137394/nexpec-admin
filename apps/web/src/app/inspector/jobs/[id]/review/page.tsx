@@ -30,9 +30,11 @@ export default async function InspectorReviewPage({ params, searchParams }: Page
 
   const { data: job } = await supabase
     .from('jobs')
-    .select('id, title, status, client_id, assigned_inspector_id, client:profiles!jobs_client_id_fkey(full_name, email, company_name)')
+    .select('id, title, status, client_id, contractor_id, client:profiles!jobs_client_id_fkey(full_name, email, company_name)')
     .eq('id', jobId)
-    .eq('assigned_inspector_id', user.id)
+    // #QA — canonical column is jobs.contractor_id; assigned_inspector_id does not
+    // exist, so this page always redirected the inspector away.
+    .eq('contractor_id', user.id)
     .maybeSingle();
 
   if (!job) redirect('/inspector/assignments');

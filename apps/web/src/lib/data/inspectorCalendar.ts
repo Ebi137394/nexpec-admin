@@ -78,11 +78,11 @@ export async function fetchInspectorCalendarEvents(
     const { data, error } = await supabase
       .from('jobs')
       .select(
-        'id, title, status, domain, scheduled_date, location, location_city, assigned_inspector_id, hired_inspector_id, inspector_id',
+        'id, title, status, domain, scheduled_date, location, location_city, contractor_id',
       )
-      .or(
-        `assigned_inspector_id.eq.${user.id},hired_inspector_id.eq.${user.id},inspector_id.eq.${user.id}`,
-      )
+      // #QA — canonical inspector column is jobs.contractor_id; the prior .or()
+      // guessed three phantom columns, so the calendar query always errored → empty.
+      .eq('contractor_id', user.id)
       .gte('scheduled_date', range.fromIso)
       .lt('scheduled_date', range.toIso)
       .not('scheduled_date', 'is', null)
@@ -171,11 +171,11 @@ export async function fetchAllUpcomingInspectorEvents(): Promise<
     const { data, error } = await supabase
       .from('jobs')
       .select(
-        'id, title, status, domain, scheduled_date, location, location_city, assigned_inspector_id, hired_inspector_id, inspector_id',
+        'id, title, status, domain, scheduled_date, location, location_city, contractor_id',
       )
-      .or(
-        `assigned_inspector_id.eq.${user.id},hired_inspector_id.eq.${user.id},inspector_id.eq.${user.id}`,
-      )
+      // #QA — canonical inspector column is jobs.contractor_id; the prior .or()
+      // guessed three phantom columns, so the calendar query always errored → empty.
+      .eq('contractor_id', user.id)
       .gte('scheduled_date', past.toISOString())
       .lt('scheduled_date', horizon.toISOString())
       .not('scheduled_date', 'is', null)

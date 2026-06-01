@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo, useId } from 'react';
 import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert, StatusBar, Linking, Keyboard, Dimensions } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 // ★ Schema-fix: '@/src/lib/supabase' is a phantom path — same issue as
 //   in app/messages/index.tsx. Canonical client lives at /lib/supabase.ts.
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
@@ -77,80 +78,86 @@ export default function ChatRoomScreen() {
     if (Object.keys(newEntries).length > 0) setSignedUrlCache((prev) => ({ ...prev, ...newEntries }));
   }, [signedUrlCache]);
 
-  useEffect(() => {
-    if (!jobId || !myId) return; let alive = true;
-    (async () => {
-      setIsLoading(true);
-      try {
-        // ★ N+1-MESSAGES-001 — Pre-strike this loader ran THREE
-        //   sequential awaits (jobs → profiles → messages). On a slow
-        //   connection that's max(j+p+m) ≈ 800ms typical. The jobs and
-        //   messages queries are independent — they can fire in
-        //   parallel. Profile still depends on the job row to know
-        //   which user_id to fetch; we kick it off as soon as the job
-        //   resolves, in parallel with the messages mark-read UPDATE.
-        //   Net latency drops to max(j, m) + max(p, mark) ≈ 250ms.
-        const [jobsRes, msgsRes] = await Promise.all([
-          supabase
-            .from('jobs')
-            .select('title, client_id, agency_id, hired_inspector_id')
-            .eq('id', jobId)
-            .single(),
-          supabase
-            .from('messages')
-            .select('*')
-            .eq('job_id', jobId)
-            .order('created_at', { ascending: false }),
-        ]);
+  const loadConversation = useCallback(async () => {
+    if (!jobId || !myId) return;
+    setIsLoading(true);
+    try {
+      // ★ N+1-MESSAGES-001 — Pre-strike this loader ran THREE
+      //   sequential awaits (jobs → profiles → messages). On a slow
+      //   connection that's max(j+p+m) ≈ 800ms typical. The jobs and
+      //   messages queries are independent — they can fire in
+      //   parallel. Profile still depends on the job row to know
+      //   which user_id to fetch; we kick it off as soon as the job
+      //   resolves, in parallel with the messages mark-read UPDATE.
+      //   Net latency drops to max(j, m) + max(p, mark) ≈ 250ms.
+      const [jobsRes, msgsRes] = await Promise.all([
+        supabase
+          .from('jobs')
+          .select('title, client_id, agency_id, hired_inspector_id')
+          .eq('id', jobId)
+          .single(),
+        supabase
+          .from('messages')
+          .select('*')
+          .eq('job_id', jobId)
+          .order('created_at', { ascending: false }),
+      ]);
 
-        if (!alive) return;
-        if (jobsRes.error) throw jobsRes.error;
-        const job = jobsRes.data;
-        if (!job) return;
-        setJobTitle(job.title ?? 'Untitled Job');
+      if (jobsRes.error) throw jobsRes.error;
+      const job = jobsRes.data;
+      if (!job) return;
+      setJobTitle(job.title ?? 'Untitled Job');
 
-        if (msgsRes.error) throw msgsRes.error;
-        const messageList = (msgsRes.data ?? []) as MessageRow[];
-        setMessages(messageList);
+      if (msgsRes.error) throw msgsRes.error;
+      const messageList = (msgsRes.data ?? []) as MessageRow[];
+      setMessages(messageList);
 
-        // Profile fetch + mark-read run in parallel — both depend on
-        // data we already have (otherId from job row, unreadIds from
-        // messages), neither depends on the other.
-        const otherId = resolveOtherUserId(job, myId);
-        const profilePromise = otherId
+      // Profile fetch + mark-read run in parallel — both depend on
+      // data we already have (otherId from job row, unreadIds from
+      // messages), neither depends on the other.
+      const otherId = resolveOtherUserId(job, myId);
+      const profilePromise = otherId
+        ? supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url, role')
+            .eq('id', otherId)
+            .single()
+        : Promise.resolve({ data: null, error: null } as const);
+
+      const unreadIds = messageList
+        .filter((m) => m.sender_id !== myId && !m.is_read)
+        .map((m) => m.id);
+      const markReadPromise =
+        unreadIds.length > 0
           ? supabase
-              .from('profiles')
-              .select('id, full_name, avatar_url, role')
-              .eq('id', otherId)
-              .single()
-          : Promise.resolve({ data: null, error: null } as const);
+              .from('messages')
+              .update({ is_read: true })
+              .in('id', unreadIds)
+          : Promise.resolve();
 
-        const unreadIds = messageList
-          .filter((m) => m.sender_id !== myId && !m.is_read)
-          .map((m) => m.id);
-        const markReadPromise =
-          unreadIds.length > 0
-            ? supabase
-                .from('messages')
-                .update({ is_read: true })
-                .in('id', unreadIds)
-            : Promise.resolve();
+      const [profRes] = await Promise.all([profilePromise, markReadPromise]);
+      if (profRes && (profRes as { data: unknown }).data) {
+        setOtherUser((profRes as { data: Profile }).data);
+      }
 
-        const [profRes] = await Promise.all([profilePromise, markReadPromise]);
-        if (alive && profRes && (profRes as { data: unknown }).data) {
-          setOtherUser((profRes as { data: Profile }).data);
-        }
-
-        await ensureSignedUrls(messageList);
-      } catch (err) {} finally { if (alive) setIsLoading(false); }
-    })();
-    return () => { alive = false; };
+      await ensureSignedUrls(messageList);
+    } catch (err) {} finally { setIsLoading(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, myId]);
 
   useEffect(() => {
-    if (!jobId || !myId) return;
-    const channel = supabase.channel(`chatroom-${jobId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` }, async (payload) => {
+    loadConversation();
+  }, [loadConversation]);
+
+  const chatRoomChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `chatroom-${jobId ?? 'none'}:${chatRoomChannelId}`,
+    bindings: [
+      { event: 'INSERT', table: 'messages', filter: jobId ? `job_id=eq.${jobId}` : undefined },
+      { event: 'UPDATE', table: 'messages', filter: jobId ? `job_id=eq.${jobId}` : undefined },
+    ],
+    onChange: async (payload) => {
+      if (payload.eventType === 'INSERT') {
         const incoming = payload.new as MessageRow;
         if (incoming.sender_id !== myId) { hapticMedium(); await supabase.from('messages').update({ is_read: true }).eq('id', incoming.id); }
         if (incoming.sender_id === myId) setOptimisticMsgs([]);
@@ -159,12 +166,13 @@ export default function ChatRoomScreen() {
           const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(incoming.attachment_url, 3600);
           if (data?.signedUrl) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: data.signedUrl }));
         }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `job_id=eq.${jobId}` }, (payload) => {
+      } else if (payload.eventType === 'UPDATE') {
         const updated = payload.new as MessageRow; setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      }).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [jobId, myId]);
+      }
+    },
+    onDesync: () => { loadConversation(); },
+    enabled: !!jobId && !!myId,
+  });
 
   const handleSendText = useCallback(async () => {
     const body = text.trim(); if (!body || isSending || !myId || !jobId) return;

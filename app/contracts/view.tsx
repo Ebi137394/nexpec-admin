@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useId } from 'react';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLocalSearchParams } from 'expo-router';
@@ -6,46 +6,14 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase'; // کلاینت سوپابیس خود را وارد کنید
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export default function ContractView() {
   const { id, uri, contractNumber } = useLocalSearchParams<{ id: string, uri: string, contractNumber: string }>();
   const [downloading, setDownloading] = useState(false);
   const [status, setStatus] = useState({ client: false, inspector: false });
 
-  useEffect(() => {
-    if (!id) return;
-
-    // ۱. واکشی اولیه وضعیت
-    fetchSignatureStatus();
-
-    // ۲. گوش دادن به تغییرات آنی (Real-time Subscription)
-    const channel = supabase
-      .channel(`contract_changes_${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'contracts',
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          console.log('Real-time update received!', payload.new);
-          setStatus({
-            client: !!payload.new.client_signed_at,
-            inspector: !!payload.new.inspector_signed_at
-          });
-        }
-      )
-      .subscribe();
-
-    // پاک‌سازی اشتراک هنگام خروج از صفحه
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [id]);
-
-  const fetchSignatureStatus = async () => {
+  const fetchSignatureStatus = useCallback(async () => {
     const { data, error } = await supabase
       .from('contracts')
       .select('client_signed_at, inspector_signed_at')
@@ -58,7 +26,35 @@ export default function ContractView() {
         inspector: !!data.inspector_signed_at
       });
     }
-  };
+  }, [id]);
+
+  // ۱. واکشی اولیه وضعیت
+  useEffect(() => {
+    if (!id) return;
+    fetchSignatureStatus();
+  }, [id, fetchSignatureStatus]);
+
+  // ۲. گوش دادن به تغییرات آنی (Real-time Subscription)
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `contract_changes_${id ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: 'UPDATE',
+        table: 'contracts',
+        filter: id ? `id=eq.${id}` : undefined,
+      },
+    ],
+    onChange: (payload) => {
+      console.log('Real-time update received!', payload.new);
+      setStatus({
+        client: !!(payload.new as any).client_signed_at,
+        inspector: !!(payload.new as any).inspector_signed_at
+      });
+    },
+    onDesync: () => { fetchSignatureStatus(); },
+    enabled: !!id,
+  });
 
   const handleDownload = async () => {
     if (!uri) return;

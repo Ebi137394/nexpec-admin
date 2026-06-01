@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Wallet, Transaction, BankDetails } from '@/types/core';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+import type { Wallet, Transaction } from '@/types/core';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 // ============================================================================
@@ -14,11 +15,6 @@ interface UseWalletReturn {
   isRefreshing: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  // آپدیت شد تا کد موسسه رو هم بتونه دریافت کنه
-  requestWithdrawal: (
-    amount: number,
-    bankDetails: BankDetails & { institution_number?: string }
-  ) => Promise<{ success: boolean; message: string }>;
 }
 
 const TRANSACTIONS_PER_PAGE = 50;
@@ -102,100 +98,24 @@ export function useWallet(): UseWalletReturn {
   // REALTIME SUBSCRIPTION
   // ========================================
 
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel('wallet_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'wallets',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          setWallet(payload.new as Wallet);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
-
-  // ========================================
-  // WITHDRAWAL ACTIONS
-  // ========================================
-
-  const requestWithdrawal = useCallback(
-    async (
-      amount: number,
-      bankDetails: BankDetails & { institution_number?: string }
-    ): Promise<{ success: boolean; message: string }> => {
-      if (!user?.id || !wallet) {
-        return {
-          success: false,
-          message: 'Wallet not initialized',
-        };
-      }
-
-      try {
-        setError(null);
-
-        // ─── 1. اتصال به داشبورد سوپر ادمین (مرحله جدید) ───
-        // درخواست رو تو جدول payout_requests ثبت می‌کنیم تا ادمین بتونه تاییدش کنه
-        const { error: payoutError } = await supabase
-          .from('payout_requests')
-          .insert({
-            inspector_id: user.id,
-            amount: amount,
-            status: 'pending',
-            bank_metadata: {
-              bank_name: bankDetails.bank_name || '',
-              account_number: bankDetails.account_number || '',
-              transit_number: bankDetails.transit_number || '',
-              institution_number: bankDetails.institution_number || '',
-              account_holder_name: bankDetails.account_holder_name || '',
-              email: bankDetails.email || user?.email || '',
-            },
-          });
-
-        if (payoutError) {
-          console.error('[requestWithdrawal] Supabase insert error:', payoutError);
-          throw new Error('Failed to submit withdrawal request to Admin.');
-        }
-
-        // ─── 2. منطق اصلی خودت برای کم کردن موجودی (بدون تغییر) ───
-        const { error: rpcError } = await supabase.rpc('request_withdrawal', {
-          p_amount: amount,
-          p_bank_details: bankDetails,
-          p_payout_method: 'bank_transfer',
-        });
-
-        if (rpcError) {
-          throw rpcError;
-        }
-
-        await fetchWalletData(true);
-        return {
-          success: true,
-          message: 'Withdrawal requested successfully',
-        };
-      } catch (err: any) {
-        const errorMessage = err?.message || 'Withdrawal failed';
-        setError(errorMessage);
-        console.error('❌ Error requesting withdrawal:', err);
-        return {
-          success: false,
-          message: errorMessage,
-        };
-      }
+  // Realtime — reconnect-aware: refetch on desync so the balance can't silently
+  // freeze after a network drop. Channel name is scoped per user + instance.
+  const walletChannelId = useId();
+  useRealtimeSubscription({
+    channelName: `wallet_updates:${user?.id ?? 'anon'}:${walletChannelId}`,
+    bindings: [
+      {
+        event: 'UPDATE',
+        table: 'wallets',
+        filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+      },
+    ],
+    onChange: (payload) => setWallet(payload.new as Wallet),
+    onDesync: () => {
+      void fetchWalletData(true);
     },
-    [user?.id, user?.email, wallet, fetchWalletData]
-  );
+    enabled: !!user?.id,
+  });
 
   // ========================================
   // RETURN
@@ -208,6 +128,5 @@ export function useWallet(): UseWalletReturn {
     isRefreshing,
     error,
     refetch: () => fetchWalletData(true),
-    requestWithdrawal,
   };
 }

@@ -138,6 +138,34 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
         </View>
         <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
       </TouchableOpacity>
+
+      {/* Assignments — my active work queue, grouped by lifecycle stage */}
+      <TouchableOpacity
+        style={[styles.certCard, { borderColor: 'rgba(0,255,255,0.24)', marginTop: 0 }]}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(inspector)/assignments' as any)}
+      >
+        <Ionicons name="briefcase-outline" size={20} color="#00FFFF" />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Text style={styles.certLabel}>Assignments</Text>
+          <Text style={styles.certValue}>Your active jobs by stage</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#00FFFF" />
+      </TouchableOpacity>
+
+      {/* Calendar — scheduled inspections (month grid + agenda + native device sync) */}
+      <TouchableOpacity
+        style={[styles.certCard, { borderColor: 'rgba(124,58,237,0.28)', marginTop: 0 }]}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(inspector)/calendar' as any)}
+      >
+        <Ionicons name="calendar-outline" size={20} color="#7C3AED" />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Text style={styles.certLabel}>Calendar</Text>
+          <Text style={styles.certValue}>Your scheduled inspections</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+      </TouchableOpacity>
     </ScrollView>
   );
 });

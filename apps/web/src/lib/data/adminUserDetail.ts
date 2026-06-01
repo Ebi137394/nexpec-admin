@@ -237,7 +237,7 @@ export async function fetchAdminUserDetail(
     const counts = {
       jobsAsClient: await countRows(supabase, 'jobs', { client_id: userId }),
       jobsAsInspector: await countRows(supabase, 'jobs', {
-        assigned_inspector_id: userId,
+        contractor_id: userId,
       }),
       applications: await countRows(supabase, 'applications', {
         inspector_id: userId,

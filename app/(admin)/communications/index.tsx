@@ -275,7 +275,7 @@ export default function ChatOversight() {
             ) : (
               <ScrollView style={s.msgList} contentContainerStyle={{ paddingBottom: 12 }}>
                 {messages.map(msg => {
-                  const isAdmin = (msg.sender as any)?.role === 'super_admin' || msg.content.startsWith('[ADMIN]');
+                  const isAdmin = ['admin', 'super_admin'].includes((msg.sender as any)?.role) || msg.content.startsWith('[ADMIN]');
                   return (
                     <View key={msg.id} style={[s.msgBubble, isAdmin && s.msgBubbleAdmin]}>
                       <Text style={s.msgSender}>

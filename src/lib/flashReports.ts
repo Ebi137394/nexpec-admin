@@ -17,6 +17,16 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { supabase } from '@/lib/supabase';
+// #QA — raises route through the offline outbox (never a direct write), so a
+// Flash Report raised with no signal is queued + retried, not lost.
+import {
+  enqueueFlashReportRaise,
+  enqueueFlashReportTransition,
+  newClientId,
+  isOnline,
+  flushQueue,
+  opStillQueued,
+} from '@/lib/offline';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -187,31 +197,88 @@ export interface CreateFlashReportInput {
   occurredAt?: string | null;
 }
 
-export interface CreateFlashReportResult {
-  id: string;
-  correlation_id: string;
-  reporter_role: FlashReportReporterRole;
+export interface RaiseAttachmentInput {
+  kind: FlashReportAttachmentKind;
+  /** Local URI (file://…) from expo-image-picker / expo-document-picker. */
+  localUri: string;
+  /** Filename; the extension drives the storage content-type. */
+  filename: string;
+  mimeType?: string | null;
+  caption?: string | null;
 }
 
-export async function createFlashReport(
+export interface RaiseFlashReportResult {
+  /** Client-known report id — navigable immediately. */
+  id: string;
+  /** True if the report + evidence reached the server before this resolved
+   *  (online). False when queued offline; it drains on reconnect. */
+  synced: boolean;
+}
+
+/**
+ * Raise a Flash Report (NCR) + its evidence as a SINGLE offline-safe outbox op.
+ *
+ * Field screens run with no signal, so this NEVER writes directly (that was the
+ * data-loss bug: an offline raise threw "Network request failed" and queued
+ * nothing). It mints a client-known report id, derives each evidence file's
+ * stable storage path from the LOCAL session, and enqueues one
+ * `flash_report_raise` op — create → upload → add_attachment, idempotent
+ * end-to-end (migration 20260718). Online, it awaits the drain so the caller can
+ * open the populated report; offline it returns synced=false and drains later.
+ */
+export async function raiseFlashReport(
   input: CreateFlashReportInput,
-): Promise<CreateFlashReportResult> {
-  const { data, error } = await supabase.rpc('flash_report_create', {
-    p_job_id:        input.jobId,
-    p_category:      input.category,
-    p_severity:      input.severity,
-    p_title:         input.title,
-    p_description:   input.description,
-    p_location_text: input.locationText ?? null,
-    p_occurred_at:   input.occurredAt ?? null,
+  attachments: RaiseAttachmentInput[] = [],
+): Promise<RaiseFlashReportResult> {
+  const reportId = newClientId();
+
+  // Uploader id from the LOCAL session — getSession() reads the cached token, so
+  // it works offline — keeping the RLS-checked path {reportId}/{uploaderId}/…
+  // correct and stable across retries.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const uploaderId = sessionData?.session?.user?.id ?? 'unknown';
+
+  const atts = attachments.map((a, idx) => {
+    const safeName = a.filename.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'evidence';
+    return {
+      localUri: a.localUri,
+      // idx disambiguates files captured within the same millisecond.
+      storagePath: `${reportId}/${uploaderId}/${Date.now()}-${idx}-${safeName}`,
+      kind: a.kind,
+      mimeType: a.mimeType ?? null,
+      caption: a.caption ?? null,
+    };
   });
-  if (error) throw error;
-  if (!data?.ok) throw new Error('flash_report_create returned non-ok response');
-  return {
-    id: data.id,
-    correlation_id: data.correlation_id,
-    reporter_role: data.reporter_role,
-  };
+
+  const opId = await enqueueFlashReportRaise({
+    createArgs: {
+      p_job_id:        input.jobId,
+      p_category:      input.category,
+      p_severity:      input.severity,
+      p_title:         input.title,
+      p_description:   input.description,
+      p_location_text: input.locationText ?? null,
+      p_occurred_at:   input.occurredAt ?? null,
+      p_client_id:     reportId,
+    },
+    bucket: 'flash-report-attachments',
+    attachments: atts,
+  });
+
+  // Online → drain now so the report exists when we navigate to it. A flaky
+  // write that fails mid-drain leaves the op queued; opStillQueued reports that
+  // honestly as synced=false (the caller then confirms "saved, will sync").
+  let synced = false;
+  if (isOnline()) {
+    try {
+      await flushQueue();
+    } catch {
+      /* drain error → op stays queued → reported unsynced below */
+    }
+    synced = !(await opStillQueued(opId));
+  }
+
+  return { id: reportId, synced };
 }
 
 export async function transitionFlashReport(
@@ -219,84 +286,28 @@ export async function transitionFlashReport(
   toStatus: FlashReportStatus,
   notes?: string | null,
 ): Promise<{ from: FlashReportStatus; to: FlashReportStatus }> {
-  const { data, error } = await supabase.rpc('flash_report_transition', {
-    p_id: id,
-    p_to_status: toStatus,
-    p_notes: notes ?? null,
-  });
-  if (error) throw error;
-  if (!data?.ok) throw new Error('flash_report_transition returned non-ok response');
-  return { from: data.from, to: data.to };
+  // #QA — route through the offline outbox (idempotent + retried) instead of a
+  // direct RPC, so a transition on flaky/no signal queues rather than failing.
+  // Online, await the drain so the caller's refresh sees the applied state.
+  await enqueueFlashReportTransition({ id, toStatus, notes: notes ?? null });
+  if (isOnline()) {
+    try {
+      await flushQueue();
+    } catch {
+      /* a drain error leaves the op queued — it retries on reconnect */
+    }
+  }
+  // The caller refreshes from the server; `from` is not known client-side.
+  return { from: toStatus, to: toStatus };
 }
 
 // ─── Attachments ──────────────────────────────────────────────────────────
-
-/**
- * Two-step upload: (1) push the blob into Supabase Storage at the
- * canonical {report_id}/{uploader_id}/{filename} path; (2) record the
- * metadata via flash_report_add_attachment RPC.
- *
- * Callers pass the local file URI from expo-image-picker or
- * expo-document-picker plus a derived filename. Mime + size are
- * propagated through so the metadata row is self-describing.
- */
-export interface UploadAttachmentInput {
-  reportId: string;
-  kind: FlashReportAttachmentKind;
-  /** Local URI (file://...) on iOS/Android. */
-  localUri: string;
-  /** Filename to use in storage (extension matters for content-type). */
-  filename: string;
-  mimeType?: string | null;
-  caption?: string | null;
-}
-
-export async function uploadAndAttach(
-  input: UploadAttachmentInput,
-): Promise<{ attachmentId: string; storagePath: string }> {
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) throw new Error('Not authenticated');
-
-  // Read the file as ArrayBuffer. Use FileSystem on RN.
-  const FileSystem = await import('expo-file-system');
-  const base64 = await FileSystem.readAsStringAsync(input.localUri, {
-    encoding: 'base64' as any,
-  });
-  // base64 → ArrayBuffer (we lean on base64-arraybuffer like the existing helper).
-  const arrayBuffer = await import('base64-arraybuffer').then((m) => m.decode(base64));
-
-  // Canonical path: {report_id}/{uploader_id}/{timestamp-filename}
-  const safeName = input.filename.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'evidence';
-  const storagePath = `${input.reportId}/${user.id}/${Date.now()}-${safeName}`;
-
-  const { error: upErr } = await supabase
-    .storage
-    .from('flash-report-attachments')
-    .upload(storagePath, arrayBuffer, {
-      contentType: input.mimeType ?? 'application/octet-stream',
-      upsert: false,
-    });
-  if (upErr) throw upErr;
-
-  // Compute size by re-stating the base64 length / 0.75 (each 4 b64 chars = 3 bytes).
-  const sizeBytes = Math.floor((base64.length * 3) / 4);
-
-  const { data: attData, error: rpcErr } = await supabase.rpc('flash_report_add_attachment', {
-    p_flash_report_id: input.reportId,
-    p_kind: input.kind,
-    p_storage_path: storagePath,
-    p_mime_type: input.mimeType ?? null,
-    p_size_bytes: sizeBytes,
-    p_caption: input.caption ?? null,
-  });
-  if (rpcErr) {
-    // Best-effort cleanup of the orphaned blob — non-fatal if it fails.
-    await supabase.storage.from('flash-report-attachments').remove([storagePath]).catch(() => {});
-    throw rpcErr;
-  }
-  if (!attData?.ok) throw new Error('flash_report_add_attachment returned non-ok');
-  return { attachmentId: attData.attachment_id, storagePath };
-}
+//
+// Evidence is no longer uploaded directly here. It rides with the report inside
+// the single offline-safe `raiseFlashReport()` op above (upload + record happen
+// in the outbox handler on drain), so raising with no signal queues everything
+// instead of throwing "Network request failed" and losing the evidence.
+// Render-time reads still use signedAttachmentUrl() above.
 
 // ─── State-machine introspection (for the UI) ─────────────────────────────
 

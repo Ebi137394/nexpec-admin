@@ -40,7 +40,7 @@
 //    Postgres layer; this file just consumes it.
 // ════════════════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -94,6 +94,7 @@ import {
 } from 'lucide-react-native';
 
 import { supabase } from '../../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -477,30 +478,18 @@ export default function EnterpriseDashboard() {
   }, [fetchAll]);
 
   // Realtime — refetch on any contract / job / notification touching us.
-  useEffect(() => {
-    if (!user?.id) return;
-    const ch = supabase
-      .channel(`enterprise-dashboard-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'jobs' },
-        () => fetchAll(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'job_contracts' },
-        () => fetchAll(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications' },
-        () => fetchAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [user?.id, fetchAll]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `enterprise-dashboard:${user?.id ?? 'anon'}:${channelId}`,
+    bindings: [
+      { event: '*', table: 'jobs' },
+      { event: '*', table: 'job_contracts' },
+      { event: '*', table: 'notifications' },
+    ],
+    onChange: () => fetchAll(),
+    onDesync: () => fetchAll(),
+    enabled: !!user?.id,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

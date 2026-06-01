@@ -51,7 +51,7 @@
 //    v3 contracts into the legacy list. We strip it on parse.
 // ════════════════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -99,6 +99,7 @@ import {
 } from 'lucide-react-native';
 
 import { supabase } from '@/lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Theme — same vocabulary as enterprise dashboard + contracts hub
@@ -474,25 +475,20 @@ export default function JobContractSigningScreen() {
   }, [fetchContract]);
 
   // Realtime: live-update when admin generates / the other side signs.
-  useEffect(() => {
-    if (!id) return;
-    const ch = supabase
-      .channel(`contract-signing-${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'job_contracts',
-          filter: `id=eq.${id}`,
-        },
-        () => fetchContract(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [id, fetchContract]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `contract-signing:${id ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'job_contracts',
+        filter: id ? `id=eq.${id}` : undefined,
+      },
+    ],
+    onChange: () => fetchContract(),
+    onDesync: () => fetchContract(),
+    enabled: !!id,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

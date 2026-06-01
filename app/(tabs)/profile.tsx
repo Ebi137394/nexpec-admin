@@ -46,7 +46,7 @@ interface Profile {
   headline?: string | null;
   title?: string | null;
   skills?: string[] | null;
-  role?: 'inspector' | 'client' | 'agency' | null;
+  role?: 'inspector' | 'client' | 'agency' | 'enterprise' | null;
   is_verified: boolean;
   verification_status: 'unverified' | 'pending' | 'verified' | 'rejected';
   created_at: string;
@@ -885,6 +885,8 @@ export default function ProfileScreen() {
             {renderMenuItem('lock-closed-outline', t('Security'), () => router.push('/profile/security' as any))}
             {renderMenuItem('card-outline', t('Payment Methods'), () => router.push('/profile/payments' as any))}
             {renderMenuItem('document-text-outline', t('My Contracts'), () => router.push('/contracts/' as any))}
+            {renderMenuItem('people-outline', t('Team'), () => router.push('/(client)/team' as any))}
+            {renderMenuItem('git-branch-outline', t('Organization'), () => router.push('/(client)/structure' as any))}
             {renderMenuItem('notifications-outline', t('Notifications'), () => router.push('/notification-settings'))}
           </View>
         </Animated.View>

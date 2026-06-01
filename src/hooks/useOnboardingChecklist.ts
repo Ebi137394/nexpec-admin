@@ -273,7 +273,7 @@ async function buildClientSteps(
       .from('jobs')
       .select('id', { count: 'exact', head: true })
       .eq('client_id', userId)
-      .not('assigned_inspector_id', 'is', null)
+      .not('contractor_id', 'is', null)
       .is('deleted_at', null);
     hiredCount = h.count ?? 0;
   } catch {

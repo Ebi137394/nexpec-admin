@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export interface StatusBreakdown {
   pending: number;
@@ -95,27 +96,26 @@ export function useOperationsData(organizationId?: string): OperationsPayload {
 
   useEffect(() => {
     compute();
+  }, [compute]);
 
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`ops-data:${organizationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'work_orders',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => compute()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [organizationId, compute]);
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `ops-data:${organizationId ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'work_orders',
+        filter: organizationId
+          ? `organization_id=eq.${organizationId}`
+          : undefined,
+      },
+    ],
+    onChange: () => compute(),
+    onDesync: () => {
+      compute();
+    },
+    enabled: !!organizationId,
+  });
 
   return {
     statusBreakdown,

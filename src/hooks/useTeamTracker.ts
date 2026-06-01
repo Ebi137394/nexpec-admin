@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export type MemberStatus = 'ACTIVE' | 'IDLE' | 'ON_SITE' | 'OFFLINE';
 
@@ -56,51 +57,50 @@ export function useTeamTracker(organizationId?: string): TeamTrackerPayload {
 
   useEffect(() => {
     fetchTeam();
+  }, [fetchTeam]);
 
-    if (!organizationId) return;
-
-    const channel = supabase
-      .channel(`team:${organizationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        (payload) => {
-          switch (payload.eventType) {
-            case 'UPDATE': {
-              const updated = payload.new as TeamMember;
-              setMembers((prev) =>
-                prev.map((m) => (m.id === updated.id ? updated : m))
-              );
-              break;
-            }
-            case 'INSERT': {
-              const inserted = payload.new as TeamMember;
-              setMembers((prev) => [...prev, inserted]);
-              break;
-            }
-            case 'DELETE': {
-              const deleted = payload.old as { id: string };
-              setMembers((prev) =>
-                prev.filter((m) => m.id !== deleted.id)
-              );
-              break;
-            }
-            default:
-              fetchTeam();
-          }
+  const channelId = useId();
+  useRealtimeSubscription({
+    channelName: `team:${organizationId ?? 'none'}:${channelId}`,
+    bindings: [
+      {
+        event: '*',
+        table: 'profiles',
+        filter: organizationId
+          ? `organization_id=eq.${organizationId}`
+          : undefined,
+      },
+    ],
+    onChange: (payload) => {
+      switch (payload.eventType) {
+        case 'UPDATE': {
+          const updated = payload.new as TeamMember;
+          setMembers((prev) =>
+            prev.map((m) => (m.id === updated.id ? updated : m))
+          );
+          break;
         }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [organizationId, fetchTeam]);
+        case 'INSERT': {
+          const inserted = payload.new as TeamMember;
+          setMembers((prev) => [...prev, inserted]);
+          break;
+        }
+        case 'DELETE': {
+          const deleted = payload.old as { id: string };
+          setMembers((prev) =>
+            prev.filter((m) => m.id !== deleted.id)
+          );
+          break;
+        }
+        default:
+          fetchTeam();
+      }
+    },
+    onDesync: () => {
+      fetchTeam();
+    },
+    enabled: !!organizationId,
+  });
 
   const statusCounts = members.reduce(
     (acc, m) => {

@@ -39,17 +39,17 @@ const nextConfig = {
     return config;
   },
 
-  // ── Type checking RE-ENABLED (2026-05-31). The 36 pre-existing errors are
-  //  cleared: the lucide icon-typing regression (now typed as Lucide's own
-  //  `LucideIcon`), the dual-@types/react ReactNode/Suspense mismatch (deduped
-  //  via tsconfig `paths` → apps/web's @types/react 19), and two supabase
-  //  GenericStringError casts. `npm run typecheck -w @nexpec/web` is green, so
-  //  the build now re-enforces types (ignoreBuildErrors removed).
+  // ── BOTH build gates fully ENABLED (2026-05-31). ────────────────────────
+  //  Types: the 36 pre-existing errors are cleared (lucide → LucideIcon,
+  //  dual-@types/react deduped via tsconfig paths, two supabase casts);
+  //  `npm run typecheck -w @nexpec/web` is green, so ignoreBuildErrors is gone.
   //
-  //  ESLint is still deferred at BUILD time — lint hasn't been audited and a
-  //  stray lint error shouldn't be able to break a deploy. Lint runs in CI
-  //  separately. TODO: audit `next lint`, then remove this flag too.
-  eslint: { ignoreDuringBuilds: true },
+  //  ESLint: a real flat config now exists (eslint.config.mjs) — pragmatic
+  //  bug-only (crash-class rules error, stylistic noise off/warn). With no
+  //  ignoreDuringBuilds override, `next build` runs ESLint and fails on errors.
+  //  The same gate runs standalone via `npm run lint -w @nexpec/web` (CI).
+  //  Linting only the app source keeps the gate fast and scoped.
+  eslint: { dirs: ['src'] },
 
   // Phase 6 / Step 1 — production-grade defaults.
   poweredByHeader: false,

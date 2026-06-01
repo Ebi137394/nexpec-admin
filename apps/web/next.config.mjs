@@ -1,5 +1,10 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
+
+// This file lives at apps/web/, whose node_modules holds the React 19 copy.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
@@ -7,6 +12,32 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@nexpec/shared-core'],
+
+  // ── React-duplication fix (2026-05-31) — the REAL cause of the React #31
+  //  static-export crash on /_error:/404 (six prior rounds of stripping
+  //  not-found/error/fonts treated symptoms, not the cause). This is a monorepo
+  //  with TWO React majors: the repo root pins react@18.3.1 (React Native 0.76
+  //  requires it) while apps/web pins react@19. npm hoisted web-only libraries
+  //  (next-intl, use-intl, lucide-react, geist, @radix-ui/*) up to the ROOT
+  //  node_modules, where they resolve `react` → 18. NextIntlClientProvider —
+  //  rendered directly in the root layout — then emits React-18 elements whose
+  //  $$typeof symbol React 19's reconciler doesn't recognize, so it rejects them
+  //  as plain objects → error #31 on EVERY prerender (/404 is just the first).
+  //  Aliasing every react/react-dom import in the web bundle to apps/web's
+  //  single React-19 copy collapses the two Reacts into one and removes the
+  //  element-symbol mismatch. next-intl's plugin and withSentryConfig both
+  //  compose this webpack fn, so the alias survives the wrapper chain.
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime'),
+      'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime'),
+    };
+    return config;
+  },
 
   // ── Deploy unblock (2026-05-30) — ship the 1.0 landing now. ──────────────
   //  `next build` otherwise fails its type-check/lint phase on ~37 PRE-EXISTING

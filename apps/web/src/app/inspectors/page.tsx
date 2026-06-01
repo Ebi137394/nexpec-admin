@@ -1,18 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  apps/web/src/app/inspectors/page.tsx
 //
-//  Public Inspector Directory — accessible to anyone (anonymous +
-//  authenticated). Server component. URL-driven filter state.
+//  Public Inspector Directory — accessible to anyone (anonymous + authenticated).
+//  Server component, URL-driven filter state.
 //
-//  Reads from public.inspectors_directory view (see migration
-//  20260630120000_public_inspectors_directory_view.sql). The view is
-//  the column-whitelisted public surface; this page never touches
-//  public.profiles directly.
+//  ANTI-POACHING: reads the ANONYMIZED public.inspectors_directory view. Every
+//  inspector is a pseudonymous handle (NX-XXXXXX) + generated Trust Sigil — no
+//  name, photo, bio, headline, or city. Filter by region, specialty, and rating;
+//  judge NEXPEC-verified performance, not a résumé.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   Search,
   MapPin,
@@ -33,16 +32,18 @@ import {
   type InspectorDirectoryRow,
   type DirectorySort,
 } from '@/lib/data/inspectorsDirectory';
+import { TrustSigil } from '@/components/trust/TrustSigil';
+import { inspectorHandle } from '@/lib/identity/inspectorHandle';
 
 export const metadata: Metadata = {
   title: 'Find an inspector · NEXPEC',
   description:
-    'Browse verified industrial, civil, electrical, mechanical, and chemical inspectors. Filter by location, specialty, and rating.',
+    'Browse NEXPEC-verified industrial, civil, electrical, mechanical, and chemical inspectors. Filter by region, specialty, and rating. Identity protected; verified by the platform.',
   alternates: { canonical: '/inspectors' },
   openGraph: {
     title: 'Find an inspector · NEXPEC',
     description:
-      'Browse verified industrial, civil, electrical, mechanical, and chemical inspectors. Filter by location, specialty, and rating.',
+      'Browse NEXPEC-verified inspectors by region, specialty, and rating. Identity protected; verified by the platform.',
     type: 'website',
   },
   robots: { index: true, follow: true },
@@ -52,8 +53,7 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   searchParams?: Promise<{
-    search?: string;
-    city?: string;
+    region?: string;
     specialties?: string | string[];
     minRating?: string;
     verified?: string;
@@ -66,8 +66,7 @@ export default async function InspectorsDirectoryPage({
   searchParams,
 }: PageProps) {
   const sp = (await searchParams) ?? {};
-  const search = typeof sp.search === 'string' ? sp.search.trim() : '';
-  const city = typeof sp.city === 'string' ? sp.city.trim() : '';
+  const region = typeof sp.region === 'string' ? sp.region.trim() : '';
   const specialties = parseSpecialtiesParam(sp.specialties);
   const minRating = parseMinRatingParam(sp.minRating);
   const verifiedOnly = sp.verified === '1' || sp.verified === 'true';
@@ -75,8 +74,7 @@ export default async function InspectorsDirectoryPage({
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
 
   const result = await fetchInspectorsDirectoryPage({
-    search: search || undefined,
-    city: city || undefined,
+    region: region || undefined,
     specialties,
     minRating,
     verifiedOnly,
@@ -92,8 +90,7 @@ export default async function InspectorsDirectoryPage({
       <DirectoryHeader total={result.total} />
 
       <FilterCard
-        defaultSearch={search}
-        defaultCity={city}
+        defaultRegion={region}
         defaultSpecialties={specialties.join(',')}
         defaultMinRating={minRating ?? ''}
         defaultVerified={verifiedOnly}
@@ -106,13 +103,7 @@ export default async function InspectorsDirectoryPage({
         total={result.total}
         page={page}
         pageSize={result.pageSize}
-        echoFilters={{
-          search,
-          city,
-          specialties,
-          minRating,
-          verified: verifiedOnly,
-        }}
+        echoFilters={{ region, specialties, minRating, verified: verifiedOnly }}
       />
 
       {result.rows.length === 0 ? (
@@ -132,8 +123,7 @@ export default async function InspectorsDirectoryPage({
         currentPage={result.page}
         totalPages={result.totalPages}
         echoFilters={{
-          search,
-          city,
+          region,
           specialties: specialties.join(','),
           minRating: minRating ?? '',
           verified: verifiedOnly,
@@ -159,10 +149,9 @@ function DirectoryHeader({ total }: { total: number }) {
         Find an inspector
       </h1>
       <p className="max-w-2xl text-pretty text-sm leading-relaxed text-zinc-400">
-        Browse verified industrial, civil, electrical, mechanical, and
-        chemical inspectors. Filter by city, specialty, and rating to
-        find the right person for the job, then click through to a
-        public trust profile with reviews.{' '}
+        Browse NEXPEC-verified industrial, civil, electrical, mechanical, and
+        chemical inspectors. Identity is protected — you compare verified
+        competencies and performance, then engage through NEXPEC with escrow.{' '}
         <strong className="text-zinc-200">{total.toLocaleString()}</strong>{' '}
         active inspector{total === 1 ? '' : 's'} indexed.
       </p>
@@ -173,16 +162,14 @@ function DirectoryHeader({ total }: { total: number }) {
 /* ─────────────────────────────────────────────────────────────────── */
 
 function FilterCard({
-  defaultSearch,
-  defaultCity,
+  defaultRegion,
   defaultSpecialties,
   defaultMinRating,
   defaultVerified,
   defaultSort,
   allSpecialtySlugs,
 }: {
-  defaultSearch: string;
-  defaultCity: string;
+  defaultRegion: string;
   defaultSpecialties: string;
   defaultMinRating: number | '';
   defaultVerified: boolean;
@@ -193,9 +180,7 @@ function FilterCard({
     <article className="mt-8 rounded-2xl border border-white/[0.08] bg-gradient-to-b from-ink-800/60 to-ink-900/40 p-6">
       <div className="mb-4 flex items-center gap-2.5">
         <Filter className="h-4 w-4 text-violet-300" strokeWidth={2} />
-        <h2 className="font-display text-lg font-semibold text-white">
-          Filter
-        </h2>
+        <h2 className="font-display text-lg font-semibold text-white">Filter</h2>
       </div>
 
       <form
@@ -203,26 +188,6 @@ function FilterCard({
         method="GET"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2"
       >
-        <Field label="Search name or headline" name="search">
-          <input
-            type="text"
-            name="search"
-            defaultValue={defaultSearch}
-            placeholder="e.g. CWI senior, API 510"
-            className={INPUT_CLASS}
-          />
-        </Field>
-
-        <Field label="City" name="city">
-          <input
-            type="text"
-            name="city"
-            defaultValue={defaultCity}
-            placeholder="e.g. Toronto"
-            className={INPUT_CLASS}
-          />
-        </Field>
-
         <Field label="Specialties (kebab slugs, comma-separated)" name="specialties">
           <input
             type="text"
@@ -237,6 +202,16 @@ function FilterCard({
               <option key={s} value={s} />
             ))}
           </datalist>
+        </Field>
+
+        <Field label="Region" name="region">
+          <input
+            type="text"
+            name="region"
+            defaultValue={defaultRegion}
+            placeholder="e.g. Alberta"
+            className={INPUT_CLASS}
+          />
         </Field>
 
         <Field label="Min rating (0-5)" name="minRating">
@@ -318,6 +293,13 @@ const INPUT_CLASS =
 
 /* ─────────────────────────────────────────────────────────────────── */
 
+interface EchoFilters {
+  region: string;
+  specialties: string[];
+  minRating?: number;
+  verified: boolean;
+}
+
 function SortStrip({
   sort,
   total,
@@ -329,13 +311,7 @@ function SortStrip({
   total: number;
   page: number;
   pageSize: number;
-  echoFilters: {
-    search: string;
-    city: string;
-    specialties: string[];
-    minRating?: number;
-    verified: boolean;
-  };
+  echoFilters: EchoFilters;
 }) {
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
@@ -356,7 +332,6 @@ function SortStrip({
         <SortLink current={sort} value="top_rated" label="Top rated" echo={echoFilters} />
         <SortLink current={sort} value="most_jobs" label="Most jobs" echo={echoFilters} />
         <SortLink current={sort} value="newest" label="Newest" echo={echoFilters} />
-        <SortLink current={sort} value="alphabetical" label="A-Z" echo={echoFilters} />
       </div>
     </div>
   );
@@ -371,17 +346,10 @@ function SortLink({
   current: DirectorySort;
   value: DirectorySort;
   label: string;
-  echo: {
-    search: string;
-    city: string;
-    specialties: string[];
-    minRating?: number;
-    verified: boolean;
-  };
+  echo: EchoFilters;
 }) {
   const params = new URLSearchParams();
-  if (echo.search) params.set('search', echo.search);
-  if (echo.city) params.set('city', echo.city);
+  if (echo.region) params.set('region', echo.region);
   if (echo.specialties.length > 0)
     params.set('specialties', echo.specialties.join(','));
   if (echo.minRating != null) params.set('minRating', String(echo.minRating));
@@ -406,12 +374,12 @@ function SortLink({
 /* ─────────────────────────────────────────────────────────────────── */
 
 function InspectorCard({ row }: { row: InspectorDirectoryRow }) {
-  const name = row.full_name?.trim() || 'Inspector';
-  const initials = name.slice(0, 2).toUpperCase();
+  const handle = inspectorHandle(row.id);
   const isVerified = row.verification_status === 'verified';
   const rating = row.rating_average ?? 0;
   const ratingCount = row.rating_count ?? 0;
   const jobs = row.completed_jobs_count ?? 0;
+  const region = row.location_province?.trim() || null;
 
   return (
     <Link
@@ -419,25 +387,14 @@ function InspectorCard({ row }: { row: InspectorDirectoryRow }) {
       className="group flex h-full flex-col rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-800/60 to-ink-900/40 p-5 transition-colors hover:border-violet-500/30 hover:bg-violet-500/[0.04]"
     >
       <div className="flex items-start gap-3">
-        <div className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-cyan-glow ring-1 ring-white/[0.06]">
-          {row.avatar_url ? (
-            <Image
-              src={row.avatar_url}
-              alt={name}
-              width={48}
-              height={48}
-              className="h-full w-full object-cover"
-              unoptimized
-            />
-          ) : (
-            <span className="font-display text-base font-semibold text-white">
-              {initials}
-            </span>
-          )}
-        </div>
+        <TrustSigil
+          id={row.id}
+          size={48}
+          className="h-12 w-12 shrink-0 rounded-2xl ring-1 ring-white/[0.06]"
+        />
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 font-display text-base font-semibold text-white">
-            <span className="truncate">{name}</span>
+            <span className="truncate font-mono text-violet-200">{handle}</span>
             {isVerified && (
               <ShieldCheck
                 className="h-3.5 w-3.5 shrink-0 text-cyan-glow"
@@ -446,21 +403,15 @@ function InspectorCard({ row }: { row: InspectorDirectoryRow }) {
               />
             )}
           </p>
-          {row.headline && (
-            <p className="line-clamp-2 text-[12px] text-zinc-400">
-              {row.headline}
-            </p>
-          )}
+          <p className="text-[12px] text-zinc-400">NEXPEC-verified inspector</p>
         </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
-        {(row.location_city || row.location_province) && (
+        {region && (
           <span className="inline-flex items-center gap-1">
             <MapPin className="h-3 w-3" strokeWidth={2} />
-            {[row.location_city, row.location_province]
-              .filter(Boolean)
-              .join(', ')}
+            {region}
           </span>
         )}
         {rating > 0 && (
@@ -499,7 +450,7 @@ function InspectorCard({ row }: { row: InspectorDirectoryRow }) {
 
       <div className="mt-auto pt-4">
         <span className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-300 transition-colors group-hover:text-violet-200">
-          View profile
+          View trust card
           <ArrowRight
             className="h-3 w-3 transition-transform group-hover:translate-x-0.5"
             strokeWidth={2}
@@ -515,16 +466,13 @@ function InspectorCard({ row }: { row: InspectorDirectoryRow }) {
 function EmptyState() {
   return (
     <div className="mt-8 rounded-2xl border border-amber-500/30 bg-amber-500/[0.05] p-8 text-center">
-      <Search
-        className="mx-auto h-6 w-6 text-amber-400"
-        strokeWidth={2}
-      />
+      <Search className="mx-auto h-6 w-6 text-amber-400" strokeWidth={2} />
       <h2 className="mt-3 font-display text-lg font-semibold text-white">
         No inspectors match those filters
       </h2>
       <p className="mt-1 text-sm text-zinc-400">
-        Loosen the city filter, drop the verified-only checkbox, or
-        clear the specialty slugs and re-apply.
+        Loosen the region filter, drop the verified-only checkbox, or clear the
+        specialty slugs and re-apply.
       </p>
       <Link
         href="/inspectors"
@@ -546,8 +494,7 @@ function Pagination({
   currentPage: number;
   totalPages: number;
   echoFilters: {
-    search: string;
-    city: string;
+    region: string;
     specialties: string;
     minRating: number | '';
     verified: boolean;
@@ -558,8 +505,7 @@ function Pagination({
 
   const buildHref = (p: number) => {
     const params = new URLSearchParams();
-    if (echoFilters.search) params.set('search', echoFilters.search);
-    if (echoFilters.city) params.set('city', echoFilters.city);
+    if (echoFilters.region) params.set('region', echoFilters.region);
     if (echoFilters.specialties)
       params.set('specialties', echoFilters.specialties);
     if (echoFilters.minRating !== '')
@@ -614,14 +560,11 @@ function Pagination({
 function Footnote() {
   return (
     <p className="mt-10 text-[11px] leading-relaxed text-zinc-500">
-      Inspector profiles are sourced from the{' '}
-      <code className="font-mono text-zinc-400">
-        public.inspectors_directory
-      </code>{' '}
-      view — a strict column-projected public surface that excludes
-      sensitive fields (rates, residency, payment data). Suspended or
-      deleted inspectors are filtered out at the view layer and do not
-      appear in this directory.
+      Inspector cards are sourced from the{' '}
+      <code className="font-mono text-zinc-400">public.inspectors_directory</code>{' '}
+      view — an anonymized, column-projected public surface that emits no name,
+      photo, or contact. Identity is protected by NEXPEC; engagement happens
+      through the platform with escrow and dispute protection.
     </p>
   );
 }

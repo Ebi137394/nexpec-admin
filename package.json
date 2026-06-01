@@ -5,6 +5,7 @@
   "main": "./index",
   "workspaces": [
     "apps/*",
+    "!apps/web",
     "packages/*"
   ],
   "scripts": {
@@ -12,8 +13,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "dev:web": "npm run dev -w @nexpec/web",
-    "build:web": "npm run build -w @nexpec/web",
+    "dev:web": "cd apps/web && npm run dev",
+    "build:web": "cd apps/web && npm run build",
     "build:shared": "npm run build -w @nexpec/shared-core",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

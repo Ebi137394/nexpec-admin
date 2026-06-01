@@ -11,38 +11,21 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // transpilePackages is the OTHER half of the React-dedup fix (see webpack
-  // alias below). The alias forces a single React 19 in everything webpack
-  // BUNDLES — but Next externalizes node_modules deps for the SERVER build, and
-  // an externalized package is require()'d at runtime from its install location
-  // (root → React 18) where the alias can't reach. That's why /404 prerender
-  // still threw React #31 even with the alias: NextIntlClientProvider (root
-  // layout) was external → React 18 elements rendered by React 19 → mismatch.
-  // Listing every React-element-creating web dep here forces them to be BUNDLED
-  // (and thus aliased to React 19) on both client and server. Hoisting-proof:
-  // a future `npm install` re-hoisting these won't reintroduce the bug.
-  transpilePackages: [
-    '@nexpec/shared-core',
-    'next-intl',
-    'use-intl',
-    'lucide-react',
-    'framer-motion',
-  ],
+  // @nexpec/shared-core ships as TS source, consumed via a file: dependency
+  // (apps/web is an ISOLATED install — see note below), so Next transpiles it.
+  transpilePackages: ['@nexpec/shared-core'],
 
-  // ── React-duplication fix (2026-05-31) — the REAL cause of the React #31
-  //  static-export crash on /_error:/404 (six prior rounds of stripping
-  //  not-found/error/fonts treated symptoms, not the cause). This is a monorepo
-  //  with TWO React majors: the repo root pins react@18.3.1 (React Native 0.76
-  //  requires it) while apps/web pins react@19. npm hoisted web-only libraries
-  //  (next-intl, use-intl, lucide-react, geist, @radix-ui/*) up to the ROOT
-  //  node_modules, where they resolve `react` → 18. NextIntlClientProvider —
-  //  rendered directly in the root layout — then emits React-18 elements whose
-  //  $$typeof symbol React 19's reconciler doesn't recognize, so it rejects them
-  //  as plain objects → error #31 on EVERY prerender (/404 is just the first).
-  //  Aliasing every react/react-dom import in the web bundle to apps/web's
-  //  single React-19 copy collapses the two Reacts into one and removes the
-  //  element-symbol mismatch. next-intl's plugin and withSentryConfig both
-  //  compose this webpack fn, so the alias survives the wrapper chain.
+  // ── React #31 fix (2026-06) — PRIMARY fix is dependency ISOLATION ──────────
+  //  This monorepo has two React majors: the root pins react@18.3.1 (React
+  //  Native 0.76) and apps/web pins react@19. While apps/web was a hoisted npm
+  //  workspace, web-only libs (next-intl, etc.) hoisted to the ROOT and resolved
+  //  react@18; Next externalizes them for the server build, so /404 prerender
+  //  emitted react@18 elements into a react@19 renderer → Minified React #31.
+  //  THE FIX: apps/web is EXCLUDED from the root `workspaces` and installed on
+  //  its own (with a file: link to packages/shared-core), so its node_modules
+  //  contains ONLY react@19 — every dependency resolves that single React 19.
+  //  The webpack alias below is belt-and-suspenders: it pins react/react-dom to
+  //  apps/web's copy for anything webpack bundles.
   webpack: (config) => {
     config.resolve = config.resolve || {};
     config.resolve.alias = {
@@ -58,12 +41,12 @@ const nextConfig = {
   // ── BOTH build gates fully ENABLED (2026-05-31). ────────────────────────
   //  Types: the 36 pre-existing errors are cleared (lucide → LucideIcon,
   //  dual-@types/react deduped via tsconfig paths, two supabase casts);
-  //  `npm run typecheck -w @nexpec/web` is green, so ignoreBuildErrors is gone.
+  //  `cd apps/web && npm run typecheck` is green, so ignoreBuildErrors is gone.
   //
   //  ESLint: a real flat config now exists (eslint.config.mjs) — pragmatic
   //  bug-only (crash-class rules error, stylistic noise off/warn). With no
   //  ignoreDuringBuilds override, `next build` runs ESLint and fails on errors.
-  //  The same gate runs standalone via `npm run lint -w @nexpec/web` (CI).
+  //  The same gate runs standalone via `cd apps/web && npm run lint` (CI).
   //  Linting only the app source keeps the gate fast and scoped.
   eslint: { dirs: ['src'] },
 

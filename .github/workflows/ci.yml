@@ -50,15 +50,21 @@ jobs:
       - name: shared-core · tests
         run: npm run test -w @nexpec/shared-core --if-present
 
+      # apps/web is an ISOLATED install (excluded from the root workspace) so it
+      # resolves only its own React 19 — see apps/web/next.config.mjs. The root
+      # `npm ci` above does NOT install it, so install it on its own first.
+      - name: web · install (isolated)
+        run: cd apps/web && npm ci
+
       # Bug-only ESLint flat config (apps/web/eslint.config.mjs): crash-class
       # rules error, stylistic noise off/warn. Blocking.
       - name: web · lint
-        run: npm run lint -w @nexpec/web
+        run: cd apps/web && npm run lint
 
       # Now blocking: apps/web is tsc-clean — all 36 pre-existing errors cleared
       # (commit c070366). A new type error fails CI.
       - name: web · typecheck
-        run: npm run typecheck -w @nexpec/web
+        run: cd apps/web && npm run typecheck
 
   mobile-typecheck:
     name: mobile · typecheck (advisory)

@@ -93,17 +93,17 @@ const config = [
       '@next/next/no-img-element': 'off',          // <img> can be a deliberate choice
       '@next/next/no-html-link-for-pages': 'off',  // App Router — there is no pages/
 
-      // ╭─ WORTH SEEING → warn (never blocks a deploy) ──────────────────────╮
-      // Auto-"fixing" effect deps can change runtime behavior — surface, don't fail.
-      'react-hooks/exhaustive-deps': 'warn',
-      'react/jsx-no-target-blank': 'warn',
-      // Dead code is worth flagging but isn't a runtime bug; `_`-prefixed args
-      // are an intentional "unused on purpose" convention.
+      // ╭─ ADVISORY → off (bug-only + zero-noise by design) ─────────────────╮
+      // exhaustive-deps is valuable but its auto-fix can change runtime behavior,
+      // so it's not safe to enforce blind pre-launch — surfacing it as warnings
+      // would also violate the zero-noise goal. Unused-vars stays off: dead code
+      // isn't a runtime bug, and enforcing it needs the @typescript-eslint plugin
+      // which next/core-web-vitals does NOT register (only next/typescript does,
+      // and that pulls in a wall of stylistic TS rules we deliberately avoid).
+      // Both are clean re-enables post-launch.
+      'react-hooks/exhaustive-deps': 'off',
+      'react/jsx-no-target-blank': 'off',
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
-      ],
     },
   },
 ];

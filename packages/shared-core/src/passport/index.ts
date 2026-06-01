@@ -17,7 +17,9 @@ export interface InspectionPassport {
     capturesCount: number;
     sealedAt: string;
   };
-  inspector: { name: string };
+  // ANTI-POACHING: opaque inspector id only — never the name. Consumers derive a
+  // pseudonymous handle/sigil from it and may cross-link to the anonymized card.
+  inspector: { id: string };
   credentials: { certificationsValidAtSeal: number; equipmentInCalibrationAtSeal: number };
   anchor: { status: AnchorStatus; confirmedAt: string | null; calendar: string | null };
 }
@@ -47,7 +49,7 @@ export function parseInspectionPassport(data: unknown): InspectionPassport | nul
       capturesCount: num(seal.captures_count),
       sealedAt: str(seal.sealed_at),
     },
-    inspector: { name: str(insp.name, 'Verified inspector') },
+    inspector: { id: str(insp.id) },
     credentials: {
       certificationsValidAtSeal: num(creds.certifications_valid_at_seal),
       equipmentInCalibrationAtSeal: num(creds.equipment_in_calibration_at_seal),

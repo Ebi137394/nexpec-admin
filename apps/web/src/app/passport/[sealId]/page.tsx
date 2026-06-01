@@ -17,6 +17,8 @@ import Link from 'next/link';
 import { ShieldCheck, ShieldAlert, BadgeCheck, Wrench, Hash, Clock, Anchor } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { parseInspectionPassport, passportTrustVerdict, anchorLabel } from '@nexpec/shared-core';
+import { TrustSigil } from '@/components/trust/TrustSigil';
+import { inspectorHandle } from '@/lib/identity/inspectorHandle';
 
 export const dynamic = 'force-dynamic';
 
@@ -104,8 +106,25 @@ export default async function PassportPage({ params }: PageProps) {
             <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
               <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2} /> Inspector
             </h2>
-            <p className="text-base text-zinc-100">{passport.inspector.name}</p>
-            <p className="mt-2 text-sm text-zinc-400">
+            {/* ANTI-POACHING: pseudonymous handle + sigil, never a name. Links to
+                the anonymized trust card. */}
+            <Link
+              href={`/p/${passport.inspector.id}`}
+              className="group mt-1 inline-flex items-center gap-3"
+            >
+              <TrustSigil
+                id={passport.inspector.id}
+                size={40}
+                className="h-10 w-10 rounded-xl ring-1 ring-white/10"
+              />
+              <span className="min-w-0">
+                <span className="block text-base text-zinc-100">NEXPEC-Verified Inspector</span>
+                <span className="block font-mono text-sm text-violet-300 group-hover:text-violet-200">
+                  {inspectorHandle(passport.inspector.id)}
+                </span>
+              </span>
+            </Link>
+            <p className="mt-3 text-sm text-zinc-400">
               {passport.credentials.certificationsValidAtSeal} certification(s) valid at inspection
             </p>
           </div>

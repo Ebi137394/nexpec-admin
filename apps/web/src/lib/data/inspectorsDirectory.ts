@@ -36,6 +36,29 @@ export interface InspectorDirectoryRow {
   created_at: string;
 }
 
+/**
+ * ANTI-POACHING projection for the public /p/[userId] trust card. A strict
+ * subset of the directory columns with EVERY identity vector removed — no
+ * full_name, headline, bio, avatar_url, or city is ever requested, so none can
+ * reach the page, the network tab, or the API. The opaque `id` is kept only for
+ * the NX- handle, the generated sigil, and the admin-brokered hire reference.
+ */
+export interface InspectorTrustCard {
+  id: string;
+  location_province: string | null;
+  specialty_slugs: string[];
+  ndt_methods: string[];
+  certifications: string[];
+  verification_status: string | null;
+  rating_average: number | null;
+  rating_count: number | null;
+  recommend_percent: number | null;
+  completed_jobs_count: number | null;
+  total_jobs: number | null;
+  travel_radius_km: number | null;
+  created_at: string;
+}
+
 export interface DirectoryFilter {
   /** Free-text search across full_name + headline. */
   search?: string;
@@ -212,6 +235,56 @@ export async function fetchInspectorCardById(
     return normaliseRows([data])[0] ?? null;
   } catch (err) {
     console.error('[inspectorsDirectory] card threw', err);
+    return null;
+  }
+}
+
+const TRUST_CARD_COLUMNS =
+  'id, location_province, specialty_slugs, ndt_methods, certifications, ' +
+  'verification_status, rating_average, rating_count, recommend_percent, ' +
+  'completed_jobs_count, total_jobs, travel_radius_km, created_at';
+
+/**
+ * Fetch an inspector's ANONYMIZED trust card for the public /p/[userId] route.
+ * Selects ONLY PII-free columns (see InspectorTrustCard); identity never leaves
+ * the server, so there is nothing on the wire to poach. Returns null if the
+ * inspector isn't directory-eligible (suspended / deleted / nameless / not an
+ * inspector).
+ */
+export async function fetchInspectorTrustCard(
+  id: string,
+): Promise<InspectorTrustCard | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('inspectors_directory')
+      .select(TRUST_CARD_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      console.error('[inspectorsDirectory] trust card query error', error);
+      return null;
+    }
+    if (!data) return null;
+    const row = data as Record<string, unknown>;
+    const num = (v: unknown): number | null => (v == null ? null : Number(v));
+    return {
+      id: String(row.id),
+      location_province: (row.location_province as string | null) ?? null,
+      specialty_slugs: (row.specialty_slugs as string[] | null) ?? [],
+      ndt_methods: (row.ndt_methods as string[] | null) ?? [],
+      certifications: (row.certifications as string[] | null) ?? [],
+      verification_status: (row.verification_status as string | null) ?? null,
+      rating_average: num(row.rating_average),
+      rating_count: (row.rating_count as number | null) ?? null,
+      recommend_percent: num(row.recommend_percent),
+      completed_jobs_count: (row.completed_jobs_count as number | null) ?? null,
+      total_jobs: (row.total_jobs as number | null) ?? null,
+      travel_radius_km: (row.travel_radius_km as number | null) ?? null,
+      created_at: String(row.created_at),
+    };
+  } catch (err) {
+    console.error('[inspectorsDirectory] trust card threw', err);
     return null;
   }
 }

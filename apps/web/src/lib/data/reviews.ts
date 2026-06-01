@@ -21,7 +21,9 @@ export async function fetchReviewsForUser(
     const { data, error } = await supabase
       .from('reviews')
       .select(
-        'id, job_id, reviewer_id, reviewee_id, direction, rating, would_recommend, body, published_at, jobs(title), reviewer:profiles!reviews_reviewer_id_fkey(full_name, email)',
+        // ANTI-POACHING: the PUBLIC profile path joins NO reviewer identity.
+        // Reviewer renders as a generic "Verified client" (see ReviewCard).
+        'id, job_id, reviewer_id, reviewee_id, direction, rating, would_recommend, body, published_at, jobs(title)',
       )
       .eq('reviewee_id', userId)
       .order('published_at', { ascending: false })

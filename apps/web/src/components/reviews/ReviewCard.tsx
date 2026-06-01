@@ -30,7 +30,9 @@ export function ReviewCard({ review }: { review: Review }) {
             </span>
           </div>
           <p className="mt-2 text-xs text-zinc-500">
-            {review.reviewerLabel ?? 'A reviewer'} ·{' '}
+            {/* Public profile sends no reviewer identity → "Verified client".
+                Authenticated job pages still pass a real reviewerLabel. */}
+            {review.reviewerLabel ?? 'Verified client'} ·{' '}
             {REVIEW_DIRECTION_LABELS[review.direction]}
             {review.jobTitle ? ` · ${review.jobTitle}` : ''}
           </p>

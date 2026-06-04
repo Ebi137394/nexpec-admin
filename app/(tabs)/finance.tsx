@@ -13,11 +13,12 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useEarnings, formatUSD } from '../../hooks/useEarnings';
 import { formatDuration } from '../../utils/currency';
+import { formatUsd, toCents } from '../../src/core/utils/money';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLORS = { background: '#020420', surface: '#0F172A', surfaceLight: '#1E293B', border: '#1F2937', borderLight: '#334155', primary: '#7C3AED', primaryLight: '#8B5CF6', primaryDark: '#6D28D9', primaryBg: 'rgba(124, 58, 237, 0.12)', blue: '#3B82F6', blueBg: 'rgba(59, 130, 246, 0.12)', green: '#10B981', greenBg: 'rgba(16, 185, 129, 0.12)', red: '#EF4444', redBg: 'rgba(239, 68, 68, 0.12)', amber: '#F59E0B', amberBg: 'rgba(245, 158, 11, 0.12)', cyan: '#06B6D4', cyanBg: 'rgba(6, 182, 212, 0.12)', white: '#F8FAFC', textPrimary: '#F1F5F9', textSecondary: '#94A3B8', textMuted: '#64748B', textDark: '#475569' };
 
-type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise';
+type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier';
 interface Transaction { id: string; type: 'earning' | 'withdrawal' | 'deposit' | 'escrow' | 'refund' | 'fee' | 'payout'; amount: number; description: string; status: 'completed' | 'pending' | 'failed' | 'processing'; created_at: string; reference_id?: string; metadata?: Record<string, any>; }
 interface PaymentMethod { id: string; type: 'bank_account' | 'card' | 'paypal' | 'wise' | 'payoneer' | 'stripe'; label: string; last4: string; is_default: boolean; brand?: string; bank_name?: string; status: 'active' | 'pending' | 'expired'; }
 interface WalletStats { availableBalance: number; totalEarned: number; pendingAmount: number; escrowAmount: number; totalSpent: number; totalVolume: number; agencyRevenue: number; pendingPayouts: number; }
@@ -71,10 +72,12 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
   const roleLabel = userRole === 'inspector' ? 'Inspector'
     : userRole === 'client' ? 'Client'
     : userRole === 'enterprise' ? 'Enterprise'
+    : userRole === 'supplier' ? 'Supplier'
     : 'Agency';
   const roleIcon: keyof typeof Ionicons.glyphMap = userRole === 'inspector' ? 'shield-checkmark'
     : userRole === 'client' ? 'briefcase'
     : userRole === 'enterprise' ? 'business-outline'
+    : userRole === 'supplier' ? 'storefront-outline'
     : 'business';
 
   // Compute Stripe display from status — only show pill for inspectors

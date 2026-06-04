@@ -187,6 +187,35 @@ export default function SignUpScreen(): JSX.Element {
                   </View>
                 )}
               </TouchableOpacity>
+
+              {/* Supplier Button — Marketplace vendor (bids on RFQs) */}
+              <TouchableOpacity
+                style={[
+                  styles.roleButton,
+                  role === 'supplier' && styles.roleButtonSelected,
+                ]}
+                onPress={() => setRole('supplier')}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <Text style={styles.roleEmoji}>🏭</Text>
+                <Text
+                  style={[
+                    styles.roleTitle,
+                    role === 'supplier' && styles.roleTitleSelected,
+                  ]}
+                >
+                  Supplier
+                </Text>
+                <Text style={styles.roleDescription}>
+                  Supply goods, labs & equipment
+                </Text>
+                {role === 'supplier' && (
+                  <View style={styles.selectedBadge}>
+                    <Text style={styles.selectedBadgeText}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </ScrollView>
           </View>
 

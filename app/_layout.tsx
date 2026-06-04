@@ -34,6 +34,9 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 // ★ Phase A.5 — install the on-device Ed25519 model-signature verifier so the
 //   runtime enforces authenticity app-wide (tampered/unsigned models rejected).
 import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
+// ★ Phase 3 — canonical role→home map (single source of truth; defrags the
+//   duplicated routing chains in this AuthGate).
+import { roleHome } from '@/src/core/navigation/routeMap';
 
 function AuthGate() {
   const { session, loading, role } = useAuth();
@@ -130,6 +133,9 @@ function AuthGate() {
       // client + agency dashboards. Allows verified-inspector discovery
       // and invitation-to-job via invite_inspector_to_job RPC.
       'inspector-directory',
+      'tools',            // app/tools/* — Engineering Tool Foundry (list + runner)
+      'suppliers',        // app/suppliers/* — Supplier directory + onboarding
+      'rfqs',             // app/rfqs/* — RFQ hub, create (scope picker), detail/award
       // — Folder-backed segments with dynamic children —
       'profile',       // app/profile/* (11 sub-screens: edit, certifications,
                        //  experience, skills, rates, payments, security,
@@ -162,6 +168,13 @@ function AuthGate() {
       'cert',
       // — Route group for inspector role —
       '(inspector)',
+      // — Route group for client/buyer org screens (team, structure, vault,
+      //   finance, network, project…). Without this, navigating to any
+      //   /(client)/* route falls through to the role-home fallback below and
+      //   bounces the user to their dashboard. Per-screen access is enforced
+      //   server-side (RLS + org-membership RPCs); this only marks the group
+      //   as a known safe zone so authorized buyers actually land on it.
+      '(client)',
     ];
     const inAllowedRoute = allowedStandaloneRoutes.includes(currentSegment);
 
@@ -211,8 +224,8 @@ function AuthGate() {
     //  reflects what the user actually picked at signup.
     // ════════════════════════════════════════════════════════════════
 
-    // 🛑 STRICT ROLE ENFORCEMENT: Super Admins belong ONLY in (super-admin) OR allowed shared routes
-    if (isAuthenticated && role === 'super_admin' && !inAdminGroup && !inAllowedRoute) {
+    // 🛑 STRICT ROLE ENFORCEMENT: platform admins (admin ≡ super_admin) belong in the (admin) group OR allowed shared routes
+    if (isAuthenticated && (role === 'super_admin' || role === 'admin') && !inAdminGroup && !inAllowedRoute) {
       safeNavigate('/(admin)/dashboard');
       return;
     }
@@ -228,43 +241,18 @@ function AuthGate() {
       return;
     }
 
-    // 2. USER IS LOGGED IN but trying to see Auth pages -> Send to their Dashboard
+    // 2. USER IS LOGGED IN but trying to see Auth pages -> Send to their home.
+    //    Canonical role→home lives in src/core/navigation/routeMap — one source
+    //    of truth (defrags the two previously-duplicated, drifted chains).
     if (inAuthGroup && role) {
-      if (role === 'super_admin') safeNavigate('/(admin)/dashboard');
-      // ★ LANE-A-PHASE-2.3 — Repointed admin landing from /(senior)/inbox to
-//   the canonical /(admin)/admin-inbox. The (senior) route group
-//   is being stubbed in the same sub-phase; (super-admin) is the
-//   established admin-tier folder. Future Phase 2b rename of (super-admin)
-//   → (admin) will sweep this reference along with all other (super-admin)
-//   refs in one pass.
-      else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
-      // Agency + enterprise both land in the agency-dashboard tab. The
-      // entire downstream codebase normalises enterprise→agency (see
-      // matrix comment above) — flipping enterprise to a separate
-      // destination without first building one would land them on a
-      // blank Stack.
-      else if (role === 'agency') safeNavigate('/(tabs)/agency-dashboard');
-      else if (role === 'enterprise') safeNavigate('/(tabs)/enterprise-dashboard');
-      else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
-      else safeNavigate('/(tabs)');
+      safeNavigate(roleHome(role));
       return;
     }
 
-    // 3. FALLBACK: If path is unknown, send to role-based dashboard
-    if (role === 'super_admin') safeNavigate('/(admin)/dashboard');
-    // ★ LANE-A-PHASE-2.3 — Repointed admin landing from /(senior)/inbox to
-//   the canonical /(admin)/admin-inbox. The (senior) route group
-//   is being stubbed in the same sub-phase; (super-admin) is the
-//   established admin-tier folder. Future Phase 2b rename of (super-admin)
-//   → (admin) will sweep this reference along with all other (super-admin)
-//   refs in one pass.
-    else if (role === 'admin') safeNavigate('/(admin)/admin-inbox');
-    // Agency + enterprise both land in the agency-dashboard tab — see
-    // matrix comment above for the codebase-wide enterprise→agency
-    // normalisation rationale.
-    else if (role === 'agency' || role === 'enterprise') safeNavigate('/(tabs)/agency-dashboard');
-    else if (role === 'client') safeNavigate('/(tabs)/client-dashboard');
-    else safeNavigate('/(tabs)');
+    // 3. FALLBACK: unknown path → canonical role home (single source of truth).
+    //    NOTE: this also fixes a latent drift — enterprise now consistently
+    //    lands on /(tabs)/enterprise-dashboard here too (was agency-dashboard).
+    safeNavigate(roleHome(role));
 
     // rootNavState?.key is in the deps so the redirect re-runs the moment the
     // root navigator finishes mounting (it's null on the first pass).

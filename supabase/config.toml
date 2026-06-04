@@ -1,33 +1,58 @@
+# Supabase Edge Functions configuration.
+#
+# Policy: verify_jwt = false ONLY for endpoints whose caller cannot present a
+# Supabase JWT — Stripe-signed webhooks, the public connect redirect, the
+# x-worker-secret worker, the raw vendor bridge token, and CRON_SECRET cron jobs.
+# Every other function defaults to verify_jwt = true (a user or service-role JWT).
+# See docs/ops/DEPLOY_RUNBOOK.md (Stage C1).
 
 [functions.critical-alert-monitor]
 enabled = true
-verify_jwt = true
+verify_jwt = true   # TODO confirm caller: if invoked by external cron via WEBHOOK_SECRET, set false
 import_map = "./functions/critical-alert-monitor/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/critical-alert-monitor/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/critical-alert-monitor/*.html" ]
 
 [functions.process-payout]
 enabled = true
 verify_jwt = true
 import_map = "./functions/process-payout/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/process-payout/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/process-payout/*.html" ]
 
-[functions.sync-payment-methods]
+# ── Endpoints with no Supabase JWT (would 401 under the default) ──────────────
+
+[functions.stripe-payments-webhook]
 enabled = true
-verify_jwt = true
-import_map = "./functions/sync-payment-methods/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/sync-payment-methods/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/sync-payment-methods/*.html" ]
+verify_jwt = false   # Stripe signature (STRIPE_PAYMENTS_WEBHOOK_SECRET)
+
+[functions.stripe-connect-webhook]
+enabled = true
+verify_jwt = false   # Stripe signature (STRIPE_CONNECT_WEBHOOK_SECRET)
+
+[functions.stripe-connect-redirect]
+enabled = true
+verify_jwt = false   # public browser redirect
+
+[functions.ai-analysis-worker]
+enabled = true
+verify_jwt = false   # in-house worker auths via x-worker-secret (WORKER_SHARED_SECRET)
+
+[functions.vendor-bridge-auth]
+enabled = true
+verify_jwt = false   # vendors have no account; raw bridge token
+
+[functions.dispatch-notification-emails]
+enabled = true
+verify_jwt = false   # cron-invoked via CRON_SECRET
+
+[functions.refresh-fx-rates]
+enabled = true
+verify_jwt = false   # cron-invoked via CRON_SECRET
+
+[functions.generate-dispute-report]
+enabled = true
+verify_jwt = true    # admin/internal; called with a bearer (service-role or user JWT)
+entrypoint = "./functions/generate-dispute-report/mod.ts"   # entrypoint is mod.ts, not index.ts
+
+[functions.tool-document]
+enabled = true
+verify_jwt = true    # a signed-in professional generates the document

@@ -63,6 +63,7 @@ type Action =
   | 'create_upload_url'
   | 'register_uploaded_document'
   | 'declare_site_access'
+  | 'acknowledge_scope'
   | 'sign_arrival';
 
 interface RequestBody {
@@ -169,6 +170,9 @@ serve(async (req: Request): Promise<Response> => {
 
       case 'declare_site_access':
         return await dispatchDeclareSiteAccess(supabase, token, payload);
+
+      case 'acknowledge_scope':
+        return await dispatchAcknowledgeScope(supabase, token, payload);
 
       case 'sign_arrival':
         return await dispatchSignArrival(supabase, token, payload, req);
@@ -332,6 +336,24 @@ async function dispatchDeclareSiteAccess(
     p_raw_token: token,
     p_slot_id: slotId,
     p_payload: sitePayload,
+  });
+  if (error) return jsonResponse(400, { error: error.message });
+  return jsonResponse(200, { ok: true, slot: data });
+}
+
+// deno-lint-ignore no-explicit-any
+async function dispatchAcknowledgeScope(
+  supabase: any,
+  token: string,
+  payload: Record<string, unknown>,
+): Promise<Response> {
+  const slotId = stringField(payload, 'slot_id');
+  if (!slotId) return jsonResponse(400, { error: 'missing_slot_id' });
+  const ackPayload = (payload?.['scope'] ?? {}) as Record<string, unknown>;
+  const { data, error } = await supabase.rpc('bridge_vendor_acknowledge_scope', {
+    p_raw_token: token,
+    p_slot_id: slotId,
+    p_payload: ackPayload,
   });
   if (error) return jsonResponse(400, { error: error.message });
   return jsonResponse(200, { ok: true, slot: data });

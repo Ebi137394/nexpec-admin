@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { sqliteManager } from '../offline/db/SQLiteManager';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 
 export const useFormDrafts = () => {
   const saveDraft = async (templateId: string, data: any, draftId?: string) => {
-    const id = draftId || uuidv4();
+    const id = draftId || Crypto.randomUUID();
     const now = new Date().toISOString();
     await sqliteManager.execute(
       `INSERT OR REPLACE INTO form_drafts (id, template_id, form_data, last_updated) VALUES (?, ?, ?, ?)`,

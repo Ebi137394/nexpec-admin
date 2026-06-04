@@ -326,6 +326,33 @@ export async function getTotalUnreadCount(): Promise<{
   }
 }
 
+// ─── Chat attachment signed-URL TTLs ─────────────────────────────────
+// Private bucket. Signed URLs are bearer tokens — keep them SHORT and re-mint
+// on read. (Replaces the previous 1-year URL, which was a year-long leak.)
+const CHAT_ATTACHMENT_VIEW_TTL_SECONDS = 60 * 60;             // 1 hour — mint-on-read
+const CHAT_ATTACHMENT_PERSIST_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days — optimistic display only
+
+/**
+ * Re-mint a short-lived signed URL for a stored chat-attachment PATH.
+ * Backward-compatible: if `pathOrUrl` is already an http(s) URL (legacy rows
+ * that stored a long-lived signed URL), it is returned unchanged.
+ */
+export async function getChatAttachmentSignedUrl(
+  pathOrUrl: string,
+  ttlSeconds: number = CHAT_ATTACHMENT_VIEW_TTL_SECONDS
+): Promise<{ url: string | null; error: Error | null }> {
+  try {
+    if (/^https?:\/\//i.test(pathOrUrl)) return { url: pathOrUrl, error: null };
+    const { data, error } = await supabase.storage
+      .from('chat_attachments')
+      .createSignedUrl(pathOrUrl, ttlSeconds);
+    if (error) throw error;
+    return { url: data.signedUrl, error: null };
+  } catch (error) {
+    return { url: null, error: error as Error };
+  }
+}
+
 /**
  * Upload chat attachment
  */
@@ -334,7 +361,7 @@ export async function uploadChatAttachment(
   uri: string,
   fileName: string,
   mimeType: string
-): Promise<{ url: string | null; error: Error | null }> {
+): Promise<{ url: string | null; path: string | null; error: Error | null }> {
   try {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError) throw userError;
@@ -372,16 +399,18 @@ export async function uploadChatAttachment(
 
     if (uploadError) throw uploadError;
 
-    // Get signed URL
+    // Mint a SHORT-LIVED signed URL for immediate optimistic display only. The
+    // durable reference is the storage PATH (returned as `path`); readers should
+    // re-mint via getChatAttachmentSignedUrl() instead of persisting a long URL.
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('chat_attachments')
-      .createSignedUrl(uniqueName, 60 * 60 * 24 * 365); // 1 year
+      .createSignedUrl(uniqueName, CHAT_ATTACHMENT_PERSIST_TTL_SECONDS);
 
     if (signedUrlError) throw signedUrlError;
 
-    return { url: signedUrlData.signedUrl, error: null };
+    return { url: signedUrlData.signedUrl, path: uniqueName, error: null };
   } catch (error) {
-    return { url: null, error: error as Error };
+    return { url: null, path: null, error: error as Error };
   }
 }
 

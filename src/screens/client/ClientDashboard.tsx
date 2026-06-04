@@ -730,6 +730,12 @@ export default function ClientDashboardScreen() {
                 color={C.primaryBright}
               />
               <ActionCard
+                icon={<ShieldCheck size={22} color={C.success} strokeWidth={2.2} />}
+                label="Documents"
+                onPress={() => safeNav('/(client)/vault')}
+                color={C.success}
+              />
+              <ActionCard
                 icon={<Headphones size={22} color={C.pink} strokeWidth={2.2} />}
                 label="Support"
                 onPress={onSupport}

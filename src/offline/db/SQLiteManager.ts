@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 
 export const SQLITE_SCHEMA = `
   CREATE TABLE IF NOT EXISTS _sync_metadata (id INTEGER PRIMARY KEY AUTOINCREMENT, table_name TEXT UNIQUE, last_synced_at TEXT);
@@ -48,7 +48,7 @@ class SQLiteManager {
   }
 
   async addToOutbox(tableName: string, operation: string, recordId: string, payload: any) {
-    const uuid = uuidv4();
+    const uuid = Crypto.randomUUID();
     const now = new Date().toISOString();
     await this.execute(
       `INSERT INTO _sync_outbox (uuid, table_name, operation, record_id, payload, local_updated_at) VALUES (?, ?, ?, ?, ?, ?)`,

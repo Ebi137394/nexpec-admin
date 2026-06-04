@@ -97,7 +97,7 @@ async function ensureConnectedAccount(stripe: Stripe, supabaseAdmin: SupabaseCli
       account_holder_type: 'individual',
     },
     metadata: { platform: 'nexpec', inspector_id: payout.inspector_id },
-  });
+  }, { idempotencyKey: `nexpec_connect_acct_${payout.inspector_id}` });
 
   await supabaseAdmin.from('profiles').update({ stripe_connect_id: account.id }).eq('id', payout.inspector_id);
   return account.id;
@@ -153,13 +153,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (amountCents <= 0) throw Object.assign(new Error('Transfer amount must be positive'), { code: 'amount_invalid' });
 
+    // ★ Idempotency (Phase 2 · CRITICAL): without an idempotency key a retry
+    //   after a network blip or a failed DB write-back (see the CRITICAL log
+    //   below) creates a SECOND real transfer = double-pay. Keying on the
+    //   payout_request id makes Stripe return the original transfer on retry.
     const transfer = await stripe.transfers.create({
       amount: amountCents,
       currency: 'cad',
       destination: connectedAccountId,
       description: `NEXPEC payout · ${payoutId.slice(0, 8)}`,
       metadata: { payout_request_id: payoutId, inspector_id: typedPayout.inspector_id, platform: 'nexpec' },
-    });
+    }, { idempotencyKey: `nexpec_payout_transfer_${payoutId}` });
 
     const { error: finalizeErr } = await supabaseAdmin.from('payout_requests').update({ status: 'paid', stripe_transfer_id: transfer.id }).eq('id', payoutId);
     if (finalizeErr) console.error('[process-payout] CRITICAL: DB update failed!', { payoutId, transferId: transfer.id, error: finalizeErr });

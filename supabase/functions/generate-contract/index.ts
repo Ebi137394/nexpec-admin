@@ -1,9 +1,9 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { encode as base64Encode } from "https://deno.land/std@0.208.0/encoding/base64.ts";
-import { generateContractPDF } from "./pdf-generator";
-import { sendContractEmails } from "./email-service";
-import { WebhookPayload, Job, Profile, ContractData, ContractRecord } from "./types";
+import { generateContractPDF } from "./pdf-generator.ts";
+import { sendContractEmails } from "./email-service.ts";
+import { WebhookPayload, Job, Profile, ContractData, ContractRecord } from "./types.ts";
 
 // Environment variables
 const SUPABASE_URL = process.env.SUPABASE_URL!;

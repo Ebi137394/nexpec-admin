@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [pendingReportCount, setPendingReportCount] = useState(0);
   const [pendingHireCount, setPendingHireCount] = useState(0); // ★ CLIENT_SELECTED apps
+  const [atRisk, setAtRisk] = useState<any[]>([]); // SLA Sentinel — overdue, unsealed reports
 
 /* ── Sign Out Handler ───────────────────────── */
   const handleSignOut = () => {
@@ -123,6 +124,12 @@ export default function Dashboard() {
         const { count } = await q;
         openHelp = count ?? 0;
       } catch {}
+
+      // 3c. At-risk reports (SLA Sentinel) — overdue jobs with no sealed report
+      try {
+        const { data: ar } = await supabase.rpc('get_overdue_reports');
+        setAtRisk(ar ?? []);
+      } catch { /* sentinel migration not applied yet */ }
 
       setKpi({
         totalVolume, platformProfit, pendingPayouts,
@@ -387,6 +394,31 @@ export default function Dashboard() {
         <Ionicons name="chevron-forward" size={22} color="#EF4444" />
       </TouchableOpacity>
 
+      {/* ── At-risk reports (SLA Sentinel) ── */}
+      {atRisk.length > 0 && (
+        <TouchableOpacity
+          style={s.financialHeroCard}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(admin)/jobs' as any)}
+        >
+          <View style={s.financialHeroIcon}>
+            <Ionicons name="alert-circle" size={26} color="#F59E0B" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={s.financialHeroTitleRow}>
+              <Text style={s.financialHeroTitle}>At-risk reports</Text>
+              <View style={[s.financialHeroBadge, { backgroundColor: 'rgba(245,158,11,0.18)' }]}>
+                <Text style={[s.financialHeroBadgeText, { color: '#F59E0B' }]}>{atRisk.length}</Text>
+              </View>
+            </View>
+            <Text style={s.financialHeroSubtitle} numberOfLines={2}>
+              {atRisk.length} inspection{atRisk.length > 1 ? 's' : ''} overdue without a sealed report · SLA Sentinel is chasing the inspector
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color="#F59E0B" />
+        </TouchableOpacity>
+      )}
+
       {/* ── Quick Actions ──────────────── */}
       <Text style={s.sectionTitle}>Quick Actions</Text>
       <View style={s.navGrid}>
@@ -399,6 +431,11 @@ export default function Dashboard() {
         <NavCard label="Job Issues"      icon="chatbubble-ellipses-outline" route="/(admin)/communications/support"  badge={kpi.openSupport}          color={SA.danger} />
         <NavCard label="Live Helpdesk"   icon="mail-outline"       route="/(admin)/support-inbox"             badge={kpi.openHelpdesk}         color="#7C3AED" />
         <NavCard label="Verification"    icon="shield-checkmark-outline" route="/(admin)/verification"      badge={kpi.pendingVerifications} color={SA.success} />
+        {/* ★ TURNKEY MARKETPLACE — procurement suite + supplier directory.
+            Root routes (allow-listed in AuthGate); admin is god-mode so it
+            sees every RFQ/quote and can award (auto-spawns the source job). */}
+        <NavCard label="RFQs & Procurement" icon="document-text-outline" route="/rfqs"      badge={undefined} color="#8B5CF6" />
+        <NavCard label="Find Suppliers"     icon="search-outline"        route="/suppliers" badge={undefined} color="#06B6D4" />
         {/* ★ COMPLIANCE-MODE — CCI applications queue + compliance scope
             template library. Twin entry cards for the two admin surfaces
             shipped in Phase α (STEP 2 + STEP 3). */}

@@ -17,6 +17,7 @@
 
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=denonext';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireUser } from '../_shared/auth.ts';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
   apiVersion: '2024-06-20',
@@ -46,10 +47,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { user_id } = await req.json();
-
-    if (!user_id) {
-      return json({ error: 'Missing user_id' }, 400);
+    // ★ Auth (Phase 2): verify the caller's JWT and force the action onto the
+    //   authenticated user. Previously body.user_id was trusted with NO auth →
+    //   any caller could mint a Connect onboarding link for ANY user (IDOR).
+    let user_id: string;
+    {
+      let callerId: string;
+      try {
+        callerId = (await requireUser(req)).userId;
+      } catch (e) {
+        if (e instanceof Response) return e;
+        return json({ error: 'auth_failed' }, 401);
+      }
+      const body = await req.json().catch(() => ({} as Record<string, unknown>));
+      if (typeof body?.user_id === 'string' && body.user_id !== callerId) {
+        return json({ error: 'forbidden_not_self' }, 403);
+      }
+      user_id = callerId;
     }
 
     // ★ Stripe's SDK rejects non-HTTP(S) URLs (e.g. `nexpec://...`) at

@@ -22,6 +22,7 @@ import { supabase } from '@/lib/supabase';
 import { rpcWithRetry } from '@/src/core/net/supabaseRetry';
 // ★ Phase 5 — Industrial Black Box (inspector view, RLS-gated to their job)
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
@@ -659,6 +660,24 @@ const fetchApplication = async (uid: string) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
         }
       >
+        {/* SLA Sentinel — overdue report banner (scheduled date passed, no report) */}
+        {!!job.scheduled_date && (job.status === 'assigned' || job.status === 'in_progress') && new Date(job.scheduled_date).getTime() < Date.now() && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push(`/(inspector)/jobs/${id}/submit-report` as any)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: '#EF4444', borderRadius: 12, padding: 14, marginBottom: 16 }}
+          >
+            <Ionicons name="alert-circle" size={20} color="#EF4444" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 }}>Report overdue</Text>
+              <Text style={{ color: '#FCA5A5', fontSize: 12, marginTop: 2 }}>
+                Past the scheduled date by {Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000))} day{Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000)) > 1 ? 's' : ''}. Tap to submit your report.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+          </TouchableOpacity>
+        )}
+
         {/* Header Section */}
         <View style={styles.headerSection}>
           <View style={styles.companyLogoPlaceholder}>
@@ -781,6 +800,23 @@ const fetchApplication = async (uid: string) => {
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
+
+            {isHired && (
+              <TouchableOpacity
+                style={styles.toolButton}
+                onPress={() => router.push(`/inspector/coordination-bridge?job_id=${id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.toolButtonIcon, { backgroundColor: COLORS.purple + '20' }]}>
+                  <Ionicons name="git-network" size={24} color={COLORS.purple} />
+                </View>
+                <View style={styles.toolButtonInfo}>
+                  <Text style={styles.toolButtonTitle}>Coordinate with Vendor</Text>
+                  <Text style={styles.toolButtonSubtitle}>Schedule, site access & documents</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={styles.toolButton}
@@ -1008,6 +1044,9 @@ const fetchApplication = async (uid: string) => {
               </Text>
             </View>
           </View>
+          {/* Brokered War Room — meetings on this job (list + launch + schedule) */}
+          <MeetingsPanel jobId={String(id)} parties={job.client_id ? [{ id: job.client_id, label: 'Client', role: 'client' }] : []} />
+
           <AuditTimeline
             jobId={String(id)}
             inline

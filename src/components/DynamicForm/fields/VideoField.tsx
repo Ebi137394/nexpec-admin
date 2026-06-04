@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { Video, Film, AlertCircle, RotateCcw, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { optimizeVideo, formatFileSize } from '../../utils/mediaOptimizer';
+import { optimizeVideo, formatFileSize } from '../../../utils/mediaOptimizer';
 import { FieldProps } from '../types';
-import { COLORS, SIZES } from '../../constants/theme';
+import { COLORS, SIZES } from '../../../constants/theme';
 
 export const VideoField: React.FC<FieldProps> = ({
   field,

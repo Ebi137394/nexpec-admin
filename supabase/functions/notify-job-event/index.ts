@@ -192,6 +192,18 @@ serve(async (req) => {
         data: p.data,
       });
 
+      // ★ Consent gate (Phase 2) — respect the recipient's PUSH mute. The
+      //   in-app row above is ALWAYS written (the bell stays reliable); only
+      //   the device push is suppressed. should_deliver() is the single SQL
+      //   source of truth (master push switch + per-category toggle); it fails
+      //   OPEN, so a predicate error never silently drops a push.
+      const { data: pushAllowed } = await supa.rpc('should_deliver', {
+        p_recipient: p.recipientId,
+        p_kind: p.type,
+        p_channel: 'push',
+      });
+      if (pushAllowed === false) continue;
+
       // ★ NOTIF-FANOUT-001 — One Expo message per device. ExponentPushToken[…]
       //   prefix guard preserves the prior validation behaviour (rejects
       //   tokens written by buggy clients or simulator mock paths). Users

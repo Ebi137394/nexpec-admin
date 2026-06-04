@@ -10,6 +10,7 @@
 // ════════════════════════════════════════════════════════════════════════════════
 
 import Stripe from 'npm:stripe@17.7.0';
+import { requireUser } from '../_shared/auth.ts';
 
 // ── CORS Headers ────────────────────────────────────────────
 // Applied to EVERY response (preflight, success, and error).
@@ -156,6 +157,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const sanitizedUserId = userId.trim();
+
+    // ★ Auth (Phase 2): verify the caller's JWT and enforce self-only. This
+    //   endpoint previously trusted body.user_id with NO auth → any caller
+    //   could create a SetupIntent against ANY user's Stripe customer (IDOR).
+    try {
+      const { userId: callerId } = await requireUser(req);
+      if (sanitizedUserId !== callerId) {
+        return errorResponse('You can only manage your own payment methods.', 403, 'FORBIDDEN_NOT_SELF');
+      }
+    } catch (e) {
+      if (e instanceof Response) return e;
+      return errorResponse('Authentication failed.', 401, 'AUTH_FAILED');
+    }
 
     console.log(
       `[create-setup-intent] Processing request for user: ${sanitizedUserId}`

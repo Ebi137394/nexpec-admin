@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase';
 import {
   signInWithApple,
   signInWithGoogle,
+  signInWithLinkedIn,
   postAuthRoute,
 } from '@/src/lib/social-auth';
 
@@ -48,26 +49,11 @@ const LOCAL_COLORS = {
 };
 
 // ────────────────────────────────────────────────────────────────────
-// DEV-ONLY: SSO bypass for staging tests on the Free tier.
-//   Active only when ALL of:
-//     - __DEV__ build (Metro/Expo dev server, not a release bundle)
-//     - EXPO_PUBLIC_DEV_SSO_BYPASS=1 in the active .env
-//     - Email's domain is in DEV_SSO_BYPASS_DOMAINS
-//   Production bundles inline __DEV__ as false, so the entire branch
-//   below is dead-code-eliminated by the bundler. The env-var gate is
-//   defense-in-depth so the path can't activate in a dev preview build.
-//
-//   First run for a domain → supabase.auth.signUp() → handle_new_user
-//   trigger populates profiles.organization_id by joining the email
-//   domain against enterprise_domains.
-//   Subsequent runs → supabase.auth.signInWithPassword() → re-uses the
-//   existing user. Delete the auth user from Studio if you want to
-//   re-exercise the trigger.
+// SECURITY (Phase 1): the DEV-ONLY SSO bypass was removed entirely — it
+// shipped a hardcoded password and a password-based auth shortcut in the
+// bundle. There is no bypass path; sign-in uses real password auth or
+// supabase.auth.signInWithSSO().
 // ────────────────────────────────────────────────────────────────────
-const DEV_SSO_BYPASS_ENABLED =
-  __DEV__ && process.env.EXPO_PUBLIC_DEV_SSO_BYPASS === '1';
-const DEV_SSO_BYPASS_DOMAINS = ['acme.com'];
-const DEV_SSO_BYPASS_PASSWORD = 'devtest1234';
 
 // ============================================
 // CUSTOM INPUT COMPONENT
@@ -176,7 +162,7 @@ const SocialAuthButton = ({
   loading = false,
   disabled = false,
 }: {
-  provider: 'apple' | 'google';
+  provider: 'apple' | 'google' | 'linkedin_oidc';
   label: string;
   onPress: () => void;
   loading?: boolean;
@@ -206,7 +192,7 @@ const SocialAuthButton = ({
         ) : (
           <>
             <Ionicons
-              name={provider === 'apple' ? 'logo-apple' : 'logo-google'}
+              name={provider === 'apple' ? 'logo-apple' : provider === 'google' ? 'logo-google' : 'logo-linkedin'}
               size={16}
               color={LOCAL_COLORS.text}
               style={{ marginRight: 8 }}
@@ -330,15 +316,19 @@ export default function SignInScreen() {
   // we don't need a native module. After a successful sign-in we let
   // AuthGate take over routing UNLESS the user has no role yet — in
   // that case postAuthRoute() returns /(auth)/choose-role.
-  const handleSocialSignIn = async (provider: 'apple' | 'google') => {
-    setSocialBusy(provider);
+  const handleSocialSignIn = async (provider: 'apple' | 'google' | 'linkedin_oidc') => {
+    setSocialBusy(provider as any);
     try {
       const result =
-        provider === 'apple' ? await signInWithApple() : await signInWithGoogle();
+        provider === 'apple' ? await signInWithApple()
+        : provider === 'google' ? await signInWithGoogle()
+        : await signInWithLinkedIn();
       if (!result.ok) {
         if (result.error && result.error !== 'cancelled') {
           Alert.alert(
-            provider === 'apple' ? 'Apple sign-in failed' : 'Google sign-in failed',
+            provider === 'apple' ? 'Apple sign-in failed'
+            : provider === 'google' ? 'Google sign-in failed'
+            : 'LinkedIn sign-in failed',
             result.error,
           );
         }
@@ -359,57 +349,7 @@ export default function SignInScreen() {
   // which redirects to the configured SAML / OIDC provider.
   const handleSsoLogin = async (variant: 'sso' | 'enterprise') => {
     const tryDomain = async (domainStr: string) => {
-      // ── DEV-ONLY bypass ─ skip SAML, sign in with a seeded password
-      //    user. Lets us test the post-login routing + profile-trigger
-      //    behavior without paying for Supabase Pro / wiring an IdP.
-      //    No-op in production: __DEV__ is false in release bundles.
-      const emailDomain = (domainStr.split('@')[1] ?? domainStr).toLowerCase();
-      if (
-        DEV_SSO_BYPASS_ENABLED &&
-        DEV_SSO_BYPASS_DOMAINS.includes(emailDomain)
-      ) {
-        setIsLoading(true);
-        try {
-          const fullEmail = domainStr.includes('@')
-            ? domainStr
-            : `test@${domainStr}`;
-          // Try sign-in first; if user doesn't exist, sign-up bootstraps
-          // the handle_new_user trigger which should set
-          // profiles.organization_id from email domain → enterprise_domains.
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: fullEmail,
-            password: DEV_SSO_BYPASS_PASSWORD,
-          });
-          if (signInError) {
-            const { error: signUpError } = await supabase.auth.signUp({
-              email: fullEmail,
-              password: DEV_SSO_BYPASS_PASSWORD,
-            });
-            if (signUpError) throw signUpError;
-            // If email-confirmation is enabled in Supabase Auth, signUp
-            // returns no session and we can't proceed. The Alert below
-            // tells the dev to flip that off in Auth → Email settings.
-          }
-          Alert.alert(
-            'Dev SSO bypass active',
-            `Signed in as ${fullEmail}.\n\n` +
-              `Real signInWithSSO was skipped because SAML 2.0 is disabled. ` +
-              `AuthGate will route based on profiles.role. Verify the ` +
-              `organization_id trigger fired by checking the profiles row ` +
-              `for this user in Studio.`,
-          );
-        } catch (err: any) {
-          Alert.alert(
-            'Dev bypass failed',
-            err?.message ??
-              'Unknown error. If this says "Email not confirmed", ' +
-                'turn off email confirmation in Supabase Auth → Email settings.',
-          );
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
+      // (DEV-ONLY SSO bypass removed in Phase 1 — all sign-in uses real auth.)
 
       setIsLoading(true);
       try {
@@ -573,6 +513,13 @@ export default function SignInScreen() {
                   onPress={() => handleSocialSignIn('google')}
                   loading={socialBusy === 'google'}
                   disabled={socialBusy !== null && socialBusy !== 'google'}
+                />
+                <SocialAuthButton
+                  provider="linkedin_oidc"
+                  label="Continue with LinkedIn"
+                  onPress={() => handleSocialSignIn('linkedin_oidc')}
+                  loading={socialBusy === 'linkedin_oidc'}
+                  disabled={socialBusy !== null && socialBusy !== 'linkedin_oidc'}
                 />
 
                 {/* ★ ENTERPRISE — SSO + Enterprise side-by-side, kept from the

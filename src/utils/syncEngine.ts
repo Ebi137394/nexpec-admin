@@ -15,7 +15,7 @@ import type {
 // ─── Constants ──────────────────────────────────────────────
 const QUEUE_STORAGE_KEY = '@nexpec_sync_queue_v2';
 const LOCK_STORAGE_KEY = '@nexpec_sync_lock';
-const STORAGE_BUCKET_PHOTOS = 'inspection_photos';
+const STORAGE_BUCKET_PHOTOS = 'inspection-photos'; // canonical bucket (hyphen) — storage-hygiene unify 2026-08
 const STORAGE_BUCKET_SIGNATURES = 'inspection_signatures';
 const DB_TABLE = 'reports';
 

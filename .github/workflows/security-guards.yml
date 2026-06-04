@@ -1,0 +1,52 @@
+name: security-guards
+
+# Phase 1 regression fences. Fast, dependency-free grep guards that fail the
+# build if a closed vulnerability tries to creep back in. Add new guards here
+# as later phases close more gaps.
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No DEV SSO bypass / hardcoded dev password
+        run: |
+          if grep -rnE "DEV_SSO_BYPASS_(ENABLED|PASSWORD|DOMAINS)|password:\s*['\"]devtest" \
+               app src apps/web/src 2>/dev/null; then
+            echo "::error::DEV_SSO_BYPASS reintroduced — the dev auth bypass was eradicated in Phase 1.";
+            exit 1;
+          fi
+          echo "ok: no dev sso bypass"
+
+      - name: No long-lived chat attachment signed URLs
+        run: |
+          if grep -rnE "createSignedUrl\([^)]*60 \* 60 \* 24 \* (30|90|365)" \
+               src/core/chat 2>/dev/null; then
+            echo "::error::Long-lived chat-attachment signed URL — keep TTLs short and mint on read.";
+            exit 1;
+          fi
+          echo "ok: chat attachment TTLs are short"
+
+      - name: No stray .sql inside the Deno functions dir
+        run: |
+          if find supabase/functions -name '*.sql' | grep -q .; then
+            echo "::error::A .sql file is sitting in supabase/functions — move it to migrations/ or docs/ops/.";
+            find supabase/functions -name '*.sql';
+            exit 1;
+          fi
+          echo "ok: functions dir clean"
+
+      - name: "$0 — no paid AI / cloud SDKs in the worker or edge functions"
+        run: |
+          if grep -rniE "openai|anthropic|@google-cloud|googleapis|aws-sdk|@aws-sdk|textract|cognitiveservices|\bcohere\b|replicate|huggingface[^a-z]*inference|together\.ai|deepgram|assemblyai" \
+               scripts/worker supabase/functions 2>/dev/null; then
+            echo "::error::A paid AI/cloud SDK appeared in the worker/edge — Phase 4 is strictly \$0, in-house. Remove it.";
+            exit 1;
+          fi
+          echo "ok: no paid AI/cloud SDKs (\$0 in-house enforced)"

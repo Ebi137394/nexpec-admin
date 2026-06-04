@@ -36,6 +36,7 @@ import {
   Modal,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import {
@@ -139,6 +140,7 @@ interface BridgeDocument {
 
 export default function InspectorCoordinationBridgeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ job_id?: string; bridge_id?: string }>();
   const jobId = typeof params.job_id === 'string' ? params.job_id : '';
   const bridgeIdParam = typeof params.bridge_id === 'string' ? params.bridge_id : '';
@@ -181,6 +183,22 @@ export default function InspectorCoordinationBridgeScreen() {
           ),
         }}
       />
+
+      {/* This route renders without a Stack header, so the Stack.Screen
+          headerLeft above never shows. useSafeAreaInsets pads the control clear
+          of the status bar / notch; this is the actual back affordance. */}
+      <View style={[styles.headerBar, { paddingTop: insets.top + 4 }]}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          hitSlop={8}
+          style={({ pressed }) => [styles.inlineBackBtn, pressed && { opacity: 0.6 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ArrowLeft size={22} color={COLORS.textPrimary} />
+          <Text style={styles.inlineBackLabel}>Back</Text>
+        </Pressable>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {existingBridgeQuery.isLoading ? (
@@ -803,7 +821,7 @@ function BridgeAdminCard({ view, onMutate }: { view: InspectorBridgeView; onMuta
   }
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, styles.controlsCard]}>
       <Text style={styles.cardTitle}>Bridge controls</Text>
       <Pressable
         onPress={() => rotateMut.mutate()}
@@ -1118,6 +1136,9 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
   headerBackBtn: { paddingHorizontal: 6, paddingVertical: 6 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, gap: 14 },
+  headerBar: { backgroundColor: COLORS.background, paddingHorizontal: 16, paddingBottom: 8 },
+  inlineBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
+  inlineBackLabel: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '600' },
 
   loadingCard: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   loadingText: { color: COLORS.textMuted, fontSize: 14 },
@@ -1200,11 +1221,15 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
 
   secondaryBtn: {
-    marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10,
     backgroundColor: 'rgba(124, 58, 237, 0.08)', borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.3)',
   },
   secondaryBtnText: { color: COLORS.accent, fontSize: 13, fontWeight: '600' },
+  // Bridge controls: vertical gap so the title + the three action buttons read
+  // as distinct interactive rows instead of stacked text. (marginTop moved off
+  // secondaryBtn — used only here — so spacing is even top-to-bottom.)
+  controlsCard: { gap: 10 },
 
   footerHint: { marginTop: 12, color: COLORS.textMuted, fontSize: 12, lineHeight: 18 },
 

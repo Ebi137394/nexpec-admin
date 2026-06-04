@@ -51,7 +51,7 @@ async function checkNeedsRole(userId: string): Promise<boolean> {
  * to materialize a session.
  */
 async function oauthFlow(
-  provider: 'apple' | 'google',
+  provider: 'apple' | 'google' | 'linkedin_oidc',
 ): Promise<SocialSignInResult> {
   try {
     const redirectTo = Linking.createURL('/(auth)/oauth-callback');
@@ -85,6 +85,17 @@ async function oauthFlow(
       return { ok: false, needs_role: false, error: setErr?.message ?? 'Could not set session.' };
     }
 
+    // Funnel professional claims into our schema (fills profile blanks only;
+    // never blocks sign-in). Same sink will serve CV-import enrichment later.
+    if (provider === 'linkedin_oidc') {
+      try {
+        await supabase.rpc('hydrate_identity', {
+          p_provider: 'linkedin_oidc',
+          p_claims: (sessionData.user.user_metadata ?? {}) as any,
+        });
+      } catch { /* enrichment is best-effort */ }
+    }
+
     const needs_role = await checkNeedsRole(sessionData.user.id);
     return { ok: true, needs_role, user_id: sessionData.user.id };
   } catch (e: any) {
@@ -110,6 +121,15 @@ export async function signInWithApple(): Promise<SocialSignInResult> {
 
 export async function signInWithGoogle(): Promise<SocialSignInResult> {
   return oauthFlow('google');
+}
+
+/**
+ * LinkedIn (OIDC) — captures professional identity. After the session is set we
+ * call hydrate_identity() to funnel name/avatar (and any granted claims) into
+ * the profile. Enable the provider in Supabase Dashboard → Auth → Providers.
+ */
+export async function signInWithLinkedIn(): Promise<SocialSignInResult> {
+  return oauthFlow('linkedin_oidc');
 }
 
 /**

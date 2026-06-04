@@ -7,7 +7,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 
 const COLORS = { background: '#020420', surface: '#0F172A', border: '#1E293B', primary: '#7C3AED', textSecondary: '#94A3B8', textMuted: '#64748B', };
 
-type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise';
+type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier';
 
 const TabIcon = ({ name, nameOutline, color, focused }: { name: keyof typeof Ionicons.glyphMap; nameOutline: keyof typeof Ionicons.glyphMap; color: string; focused: boolean; }) => (
   <View style={styles.iconWrap}><Ionicons name={focused ? name : nameOutline} size={22} color={color} />{focused && <View style={styles.activeDot} />}</View>
@@ -44,10 +44,13 @@ export default function TabLayout() {
       <Tabs.Screen name="client-dashboard" options={{ title: 'Dashboard', href: role === 'client' ? '/client-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="agency-dashboard" options={{ title: 'Dashboard', href: role === 'agency' ? '/agency-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       <Tabs.Screen name="enterprise-dashboard" options={{ title: 'Dashboard', href: role === 'enterprise' ? '/enterprise-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="supplier-dashboard" options={{ title: 'Dashboard', href: role === 'supplier' ? '/supplier-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       
-      <Tabs.Screen name="jobs" options={{ title: 'Jobs', tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="finance" options={{ title: 'Finance', tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="resources" options={{ title: 'Docs', tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
+      {/* Suppliers (vendors) have a focused workspace — Dashboard + Profile only.
+         Jobs / Finance / Docs are inspector/buyer surfaces; hidden for suppliers. */}
+      <Tabs.Screen name="jobs" options={{ href: role === 'supplier' ? null : undefined, title: 'Jobs', tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="finance" options={{ href: role === 'supplier' ? null : undefined, title: 'Finance', tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="resources" options={{ href: role === 'supplier' ? null : undefined, title: 'Docs', tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
       
       {/* 👇 این خط رو درست کردم. فقط نوشته profile 👇 */}
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, focused }) => <TabIcon name="person" nameOutline="person-outline" color={color} focused={focused} /> }} />

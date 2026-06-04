@@ -69,3 +69,6 @@ ios/
 secrets/
 !*.pub.pem
 !*.pub.key
+
+# Raw live-DDL dumps from scripts/ops/dump-ghost-ddl.sh (reconciliation artifacts, not source)
+supabase/ghost-ddl/

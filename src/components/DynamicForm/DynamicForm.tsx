@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { PhotoField } from './fields/PhotoField';
 import { VideoField } from './fields/VideoField';
 import { SignatureField } from './fields/SignatureField';
 import { DateField } from './fields/DateField';
+import { DocumentField } from './fields/DocumentField';
 import { uploadInspectionPhoto } from '../../utils/storage';
 import { useFormDrafts } from '../../hooks/useFormDrafts';
 import { optimizeImage, optimizeVideo } from '../../utils/mediaOptimizer';
@@ -37,6 +38,7 @@ const FieldComponents: Record<
   video: VideoField,
   signature: SignatureField,
   date: DateField,
+  document: DocumentField,
 };
 
 export const DynamicForm: React.FC<DynamicFormProps> = ({
@@ -52,6 +54,18 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
   const { saveDraft } = useFormDrafts();
   const { colors, spacing, borderRadius, fontSize } = NEXPEC_THEME;
 
+  // Value-stable signatures of the inputs. Callers pass `schema` and
+  // `defaultValues` as fresh inline references every render, so depending on the
+  // references directly made the init effect re-run → setFormData → re-render →
+  // new refs → infinite loop ("Maximum update depth exceeded"). Keying on a
+  // serialized signature means the effect only re-runs when the content actually
+  // changes (e.g. switching to a different tool/form), not on every render.
+  const schemaSig = useMemo(
+    () => JSON.stringify((schema ?? []).map(f => [f.name, f.type, f.defaultValue])),
+    [schema]
+  );
+  const defaultsSig = useMemo(() => JSON.stringify(defaultValues ?? {}), [defaultValues]);
+
   // Initialize form data with default values
   useEffect(() => {
     const initialData: Record<string, any> = {};
@@ -65,7 +79,8 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
       }
     });
     setFormData(initialData);
-  }, [schema, defaultValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schemaSig, defaultsSig]);
 
   // Validation functions
   const validateField = useCallback((field: FormField, value: any): string | null => {

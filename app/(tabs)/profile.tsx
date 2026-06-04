@@ -46,7 +46,7 @@ interface Profile {
   headline?: string | null;
   title?: string | null;
   skills?: string[] | null;
-  role?: 'inspector' | 'client' | 'agency' | 'enterprise' | null;
+  role?: 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier' | null;
   is_verified: boolean;
   verification_status: 'unverified' | 'pending' | 'verified' | 'rejected';
   created_at: string;
@@ -457,7 +457,7 @@ export default function ProfileScreen() {
           {/* Name & Email */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
             <Text style={[styles.name, { color: colors.text }]}>
-              {profile?.full_name || (profile?.role === 'client' ? 'Client' : profile?.role === 'enterprise' ? 'Enterprise' : profile?.role === 'agency' ? 'Agency' : 'Inspector')}
+              {profile?.full_name || (profile?.role === 'client' ? 'Client' : profile?.role === 'enterprise' ? 'Enterprise' : profile?.role === 'agency' ? 'Agency' : profile?.role === 'supplier' ? 'Supplier' : 'Inspector')}
             </Text>
             {profile?.verification_status === 'verified' && (
               // NEXPEC Purple Checkmark
@@ -471,7 +471,7 @@ export default function ProfileScreen() {
             <View style={styles.vettedBadge}>
               <Ionicons name="shield-checkmark" size={16} color="#10B981" />
               <Text style={styles.vettedText}>
-                {profile?.role === 'client' ? 'Verified Client' : profile?.role === 'enterprise' ? 'Verified Enterprise' : profile?.role === 'agency' ? 'Verified Agency' : 'Vetted Inspector'}
+                {profile?.role === 'client' ? 'Verified Client' : profile?.role === 'enterprise' ? 'Verified Enterprise' : profile?.role === 'agency' ? 'Verified Agency' : profile?.role === 'supplier' ? 'Verified Supplier' : 'Vetted Inspector'}
               </Text>
             </View>
           )}
@@ -494,7 +494,7 @@ export default function ProfileScreen() {
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.text }]}>{stats.inspections}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              {profile?.role === 'client' ? t('Jobs Posted') : profile?.role === 'enterprise' ? t('Engagements') : profile?.role === 'agency' ? t('Active Contracts') : t('Inspections')}
+              {profile?.role === 'client' ? t('Jobs Posted') : profile?.role === 'enterprise' ? t('Engagements') : profile?.role === 'agency' ? t('Active Contracts') : profile?.role === 'supplier' ? t('Quotes') : t('Inspections')}
             </Text>
           </View>
           
@@ -514,7 +514,7 @@ export default function ProfileScreen() {
               {stats.rating > 0 && <Ionicons name="star" size={16} color="#F59E0B" />}
             </View>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              {profile?.role === 'client' ? t('Company Rating') : profile?.role === 'enterprise' ? t('Enterprise Rating') : profile?.role === 'agency' ? t('Agency Rating') : t('Rating')}
+              {profile?.role === 'client' ? t('Company Rating') : profile?.role === 'enterprise' ? t('Enterprise Rating') : profile?.role === 'agency' ? t('Agency Rating') : profile?.role === 'supplier' ? t('Supplier Rating') : t('Rating')}
             </Text>
           </View>
           
@@ -879,14 +879,40 @@ export default function ProfileScreen() {
           entering={FadeInDown.delay(300).springify()}
           style={styles.section}
         >
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Tools')}</Text>
+          <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
+            {renderMenuItem('construct-outline', t('Engineering Tools'), () => router.push('/tools' as any))}
+          </View>
+
+          {/* Turnkey Supplier Ecosystem — buyer/supplier/admin facing.
+             Hidden from inspectors entirely (role separation; mirrors the
+             Team/Organization gating). Find Suppliers is buyer+admin only;
+             suppliers see RFQs (to bid) + their listing. */}
+          {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise' || profile?.role === 'supplier' || profile?.role === 'admin' || profile?.role === 'super_admin') && (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Marketplace')}</Text>
+              <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
+                {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise' || profile?.role === 'admin' || profile?.role === 'super_admin') &&
+                  renderMenuItem('search-outline', t('Find Suppliers'), () => router.push('/suppliers' as any))}
+                {renderMenuItem('document-text-outline', t('RFQs & Procurement'), () => router.push('/rfqs' as any))}
+                {renderMenuItem('storefront-outline', t('Become a Supplier'), () => router.push('/suppliers/onboard' as any))}
+              </View>
+            </>
+          )}
+
           <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Account')}</Text>
           <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
             {renderMenuItem('person-outline', t('Personal Info'), () => router.push('/profile/edit' as any))}
             {renderMenuItem('lock-closed-outline', t('Security'), () => router.push('/profile/security' as any))}
             {renderMenuItem('card-outline', t('Payment Methods'), () => router.push('/profile/payments' as any))}
             {renderMenuItem('document-text-outline', t('My Contracts'), () => router.push('/contracts/' as any))}
-            {renderMenuItem('people-outline', t('Team'), () => router.push('/(client)/team' as any))}
-            {renderMenuItem('git-branch-outline', t('Organization'), () => router.push('/(client)/structure' as any))}
+            {/* Team + Organization are org-management screens (app/(client)/team + structure),
+               built for buyer/org roles. Hidden for the individual Inspector role, which has
+               no org and would otherwise be bounced by the route guard. */}
+            {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise') &&
+              renderMenuItem('people-outline', t('Team'), () => router.push('/(client)/team' as any))}
+            {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise') &&
+              renderMenuItem('git-branch-outline', t('Organization'), () => router.push('/(client)/structure' as any))}
             {renderMenuItem('notifications-outline', t('Notifications'), () => router.push('/notification-settings'))}
           </View>
         </Animated.View>

@@ -23,6 +23,7 @@ import type { Job } from '@/lib/super-admin/types';
 import { toCents } from '@/lib/money';
 // ★ Phase 5 — Industrial Black Box
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 // ★ HIRE-002/003: transactional admin dispatch
 import { adminDispatchJob } from '@/lib/assignJob';
 // ★ Layer 1+3 — passive inspection-domain badge (no-op for industrial_ndt)
@@ -943,6 +944,17 @@ export default function SpreadEditor() {
               <Ionicons name="arrow-forward" size={12} color="#7C3AED" />
             </TouchableOpacity>
           </View>
+
+          {/* Brokered War Room — admin convenes the cross-party call.
+             As organizer, the admin auto-satisfies the schedule_meeting guard,
+             so a client+inspector(+vendor) room is permitted here. */}
+          <MeetingsPanel
+            jobId={id}
+            parties={([
+              job?.client_id ? { id: job.client_id, label: 'Client', role: 'client' } : null,
+              (job as any)?.contractor_id ? { id: (job as any).contractor_id, label: 'Inspector', role: 'inspector' } : null,
+            ].filter(Boolean)) as any}
+          />
 
           <View style={auditCardStyle.timelineWrap}>
             <AuditTimeline

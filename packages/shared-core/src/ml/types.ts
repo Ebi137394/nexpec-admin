@@ -16,6 +16,8 @@ export type ModelKind =
   | 'speech_to_text'
   | 'nlu'
   | 'embedding'
+  | 'doc_extraction'
+  | 'doc_conformance'
   | 'other'
   | (string & {});
 
@@ -67,4 +69,36 @@ export interface ResolveResponse {
   device: { tier: DeviceTier; os: OsConstraint };
   appVersion?: string;
   models: ModelArtifact[];
+}
+
+// ─── Phase 4 · Document intelligence contracts (server/worker; pure types) ────
+
+/** A client's locked report rubric. Auto-derived from their sample, confirmed +
+ *  locked ONCE; hashed (spec_sha256) and bound into the seal. */
+export interface DocTemplateSpec {
+  version: 1;
+  sections: Array<{ key: string; title: string; required: boolean }>;
+  fields: Array<{
+    key: string;
+    label: string;
+    type: 'text' | 'number' | 'date' | 'enum' | 'boolean';
+    unit?: string;
+    required: boolean;
+    enumValues?: string[];
+  }>;
+  mandatoryClauses?: string[];
+  notes?: string;
+}
+
+/** The autonomous document-validation verdict. Canonicalized + hashed
+ *  (result_sha256) and folded into the inspection seal's doc_root. Advisory:
+ *  a low score flags admin review, it never auto-rejects the inspector. */
+export interface DocValidationVerdict {
+  version: 1;
+  conformanceScore: number; // 0..1 — completeness + structural + semantic
+  missing: string[];        // required sections/fields absent
+  inconsistencies: string[]; // unit/range/internal contradictions
+  evidenceGaps: string[];   // report claims not backed by inspection_captures
+  similarityFlags: string[]; // plagiarism / client-sample-copy signals
+  confidence: number;       // 0..1 — model self-confidence
 }

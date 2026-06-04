@@ -13,8 +13,9 @@
  * @type 'inspector' - Users who conduct safety inspections
  * @type 'agency' - Enterprise/Agency users who manage inspection teams
  * @type 'admin' - System administrators (optional)
+ * @type 'supplier' - Marketplace vendors who bid on RFQs (goods, labs, equipment)
  */
-export type UserRole = 'client' | 'inspector' | 'agency' | 'admin';
+export type UserRole = 'client' | 'inspector' | 'agency' | 'admin' | 'supplier';
 
 /**
  * @deprecated Use UserRole instead

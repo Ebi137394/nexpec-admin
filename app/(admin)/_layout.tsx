@@ -1,6 +1,6 @@
 // app/(admin)/_layout.tsx
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Isolated route group. Auth-guarded for super_admin only.
+// Isolated route group. Auth-guarded for platform admins (admin ≡ super_admin).
 // Dark-themed Stack navigator. ZERO contact with other groups.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -24,12 +24,12 @@ export default function SuperAdminLayout() {
     if (!user) return;
 
     // اگر کاربر لاگین بود اما نقشش سوپر ادمین نبود، بندازش بیرون
-    if (role !== 'super_admin') {
-      router.replace('/'); 
+    if (role !== 'super_admin' && role !== 'admin') {
+      router.replace('/');
     }
   }, [user, role, loading]);
 
-  if (loading || !user || role !== 'super_admin') {
+  if (loading || !user || (role !== 'super_admin' && role !== 'admin')) {
     return (
       <View style={s.center}>
         <ActivityIndicator size="large" color={SA.accent} />

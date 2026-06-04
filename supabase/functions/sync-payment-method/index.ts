@@ -6,6 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════════════
 
 import Stripe from 'npm:stripe@17.7.0';
+import { requireUser } from '../_shared/auth.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -47,6 +48,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const sanitizedSetupIntentId = setupIntentId.trim();
     const sanitizedUserId = userId.trim();
+
+    // ★ Auth (Phase 2): verify the caller's JWT + enforce self-only. Was open →
+    //   any caller could sync a card onto ANY user's account by passing user_id.
+    try {
+      const { userId: callerId } = await requireUser(req);
+      if (sanitizedUserId !== callerId) {
+        return errorResponse('You can only sync your own payment methods.', 403, 'FORBIDDEN_NOT_SELF');
+      }
+    } catch (e) {
+      if (e instanceof Response) return e;
+      return errorResponse('Authentication failed.', 401, 'AUTH_FAILED');
+    }
 
     // 1. Get SetupIntent from Stripe
     const setupIntent = await stripe.setupIntents.retrieve(sanitizedSetupIntentId);

@@ -1,4 +1,4 @@
-import { ContractData } from "./types";
+import { ContractData } from "./types.ts";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const FROM_EMAIL = process.env.FROM_EMAIL || "contracts@nexpec.com";

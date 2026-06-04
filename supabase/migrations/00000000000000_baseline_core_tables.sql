@@ -26,6 +26,76 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ─── public.profiles ────────────────────────────────────────────────────
+-- ════════════════════════════════════════════════════════════════════════
+--  GHOST FK-TARGET TABLES — folded in 2026-08 (canonical record: migration
+--  20260801120700). The baseline's own header flagged these four as FK targets
+--  that "must be created before this file runs"; they previously existed only on
+--  the live DB (out of band). They MUST precede `profiles` (which FK-references
+--  organizations + country_codes) and `jobs` (which FK-references all four).
+--
+--  Created here with NO OUTGOING foreign keys on purpose — organizations.owner_id
+--  → profiles would be a circular dependency with profiles.organization_id →
+--  organizations. The owner_id / client_id / created_by FKs (and any indexes,
+--  RLS, triggers) are layered idempotently by later migrations
+--  (20260801120500 / 120700) and the existing migration set. Reconcile-safe
+--  (CREATE IF NOT EXISTS) so an existing DB is untouched and `supabase db reset`
+--  re-runs cleanly. Reference DATA (the ISO country list) is loaded by seeds.
+-- ════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS public.country_codes (
+  code         text PRIMARY KEY,
+  name         text,
+  calling_code text,
+  region       text,
+  is_active    boolean NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          text,
+  kind          text NOT NULL DEFAULT 'enterprise',
+  owner_id      uuid,            -- FK → profiles deferred (circular dep); layered later
+  is_active     boolean NOT NULL DEFAULT true,
+  base_currency text,
+  slug          text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.inspection_scope_templates (
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug                     text,
+  name                     text,
+  version                  integer NOT NULL DEFAULT 1,
+  category                 text,
+  region                   text,
+  validity_months          integer,
+  base_price_cents         bigint,
+  requires_credential_tier text,
+  description_md           text,
+  is_active                boolean NOT NULL DEFAULT true,
+  domain                   text,
+  created_by               uuid,
+  created_at               timestamptz NOT NULL DEFAULT now(),
+  updated_at               timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.report_templates (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id          uuid,            -- FK → profiles layered by 20260801120500/120700
+  org_id             uuid,
+  source_document_id uuid,
+  name               text,
+  template_spec      jsonb NOT NULL DEFAULT '{}'::jsonb,
+  spec_sha256        text,
+  is_locked          boolean NOT NULL DEFAULT false,
+  locked_at          timestamptz,
+  locked_by          uuid,
+  created_by         uuid,
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.profiles (
   id                              UUID        NOT NULL,
   email                           TEXT        NOT NULL,

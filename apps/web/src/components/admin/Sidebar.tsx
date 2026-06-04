@@ -19,6 +19,8 @@ import {
   Star,
   Globe2,
   Gauge,
+  FileText,
+  Store,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -55,6 +57,8 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Operations',
     items: [
       { label: 'Jobs', href: '/admin/jobs', icon: Briefcase },
+      { label: 'RFQs & Procurement', href: '/rfqs', icon: FileText },
+      { label: 'Find Suppliers', href: '/suppliers', icon: Store },
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
       { label: 'Messages', href: '/admin/messages', icon: MessageCircle },
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },

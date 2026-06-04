@@ -21,6 +21,7 @@ import {
   Building2,
   Briefcase,
   Globe2,
+  Store,
   ArrowRight,
   ArrowLeft,
   Check,
@@ -39,7 +40,7 @@ import {
 } from '@/lib/auth/onboardingActions';
 import { SPECIALTY_GROUPS } from '@/lib/data/specialtyTaxonomy';
 
-type Role = 'inspector' | 'client' | 'agency' | 'enterprise';
+type Role = 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier';
 
 const ROLE_CARDS: ReadonlyArray<{
   key: Role;
@@ -95,6 +96,18 @@ const ROLE_CARDS: ReadonlyArray<{
       'MSA + DPA + NDA pack on signup',
       'Cost-centre & PO codes baked into invoices',
       'SOC2 + ISO27001 trail',
+    ],
+  },
+  {
+    key: 'supplier',
+    title: 'I am a Vendor',
+    pitch: 'Supply goods, labs & equipment. Bid on RFQs across every discipline.',
+    Icon: Store,
+    tone: 'cyan',
+    bullets: [
+      'Win RFQs from qualified, vetted buyers',
+      'Seal ISO certs & accreditations once — Bitcoin-timestamped',
+      'Get discovered in the supplier directory',
     ],
   },
 ];

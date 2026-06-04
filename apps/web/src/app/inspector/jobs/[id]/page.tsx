@@ -87,6 +87,27 @@ export default async function InspectorJobDetailPage({
 
   return (
     <div className="space-y-8">
+      {/* SLA Sentinel — report overdue banner (scheduled date passed, no report) */}
+      {job.scheduledDate &&
+        (job.status === 'assigned' || job.status === 'in_progress') &&
+        new Date(job.scheduledDate).getTime() < Date.now() &&
+        !report && (
+          <Link
+            href={`/inspector/jobs/${id}/submit-report`}
+            className="group flex items-center justify-between gap-4 rounded-xl border border-accent-red/50 bg-accent-red/10 px-4 py-3 transition-colors hover:bg-accent-red/15"
+          >
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-accent-red" />
+              <p className="text-sm font-medium text-accent-red">
+                Report overdue — this inspection is past its scheduled date. Submit your report to clear the flag.
+              </p>
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-industrial text-accent-red/80 group-hover:text-accent-red">
+              submit →
+            </span>
+          </Link>
+        )}
+
       <header>
         <Link
           href="/inspector/jobs"
@@ -312,13 +333,21 @@ function PrimaryAction({
   // "Application status below ↓" pill and left the user stranded.
   if (isHired && isActive && !report) {
     return (
-      <Link
-        href={`/inspector/jobs/${job.id}/submit-report`}
-        className="inline-flex items-center gap-2 self-start rounded-xl bg-cyan-glow px-5 py-2.5 text-sm font-bold uppercase tracking-industrial text-ink-900 transition hover:bg-cyan-glow/90 sm:self-auto"
-      >
-        <PenLine className="h-4 w-4" strokeWidth={2} />
-        Submit Inspection Report
-      </Link>
+      <div className="flex flex-col gap-2 self-start sm:flex-row sm:self-auto">
+        <Link
+          href={`/inspector/jobs/${job.id}/submit-report`}
+          className="inline-flex items-center gap-2 rounded-xl bg-cyan-glow px-5 py-2.5 text-sm font-bold uppercase tracking-industrial text-ink-900 transition hover:bg-cyan-glow/90"
+        >
+          <PenLine className="h-4 w-4" strokeWidth={2} />
+          Submit Inspection Report
+        </Link>
+        <Link
+          href={`/inspector/coordination-bridge?job_id=${job.id}`}
+          className="inline-flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-5 py-2.5 text-sm font-bold uppercase tracking-industrial text-violet-300 transition hover:bg-violet-500/20"
+        >
+          Coordinate with vendor
+        </Link>
+      </div>
     );
   }
 

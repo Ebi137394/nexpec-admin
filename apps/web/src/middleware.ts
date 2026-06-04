@@ -213,6 +213,8 @@ export async function middleware(request: NextRequest) {
         normalisedRole === 'enterprise'
       ) {
         dest = '/client/dashboard';
+      } else if (normalisedRole === 'supplier') {
+        dest = '/suppliers/dashboard';
       }
     }
 

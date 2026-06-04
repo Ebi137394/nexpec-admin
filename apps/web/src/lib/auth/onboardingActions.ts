@@ -21,7 +21,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-const ROLES = ['client', 'inspector', 'agency', 'enterprise'] as const;
+const ROLES = ['client', 'inspector', 'agency', 'enterprise', 'supplier'] as const;
 
 const ProfileSchema = z.object({
   role: z.enum(ROLES),
@@ -50,6 +50,7 @@ const ONBOARD_COOKIE_MAX_AGE = 60 * 30; // 30 minutes
 function destinationForRole(role: string): string {
   if (role === 'inspector') return '/inspector/dashboard';
   if (role === 'admin' || role === 'super_admin') return '/admin/dashboard';
+  if (role === 'supplier') return '/suppliers/dashboard';
   return '/client/dashboard';
 }
 

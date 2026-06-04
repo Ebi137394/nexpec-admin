@@ -29,6 +29,8 @@ import {
   ShieldCheck,
   Coins,
   Shield,
+  FileText,
+  Store,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -79,6 +81,8 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Procurement',
     items: [
+      { label: 'RFQs & Procurement', href: '/rfqs', icon: FileText },
+      { label: 'Find Suppliers', href: '/suppliers', icon: Store },
       { label: 'Command Center', href: '/client/compliance', icon: Shield },
       { label: 'Approvals', href: '/client/approvals', icon: ShieldCheck },
       { label: 'Budget envelopes', href: '/client/budget/envelopes', icon: Wallet },

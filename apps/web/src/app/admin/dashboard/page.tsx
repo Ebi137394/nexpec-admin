@@ -21,6 +21,7 @@ import {
   FolderLock,
 } from 'lucide-react';
 import { fetchDashboardMetrics } from '@/lib/data/dashboardMetrics';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { PipelineSection } from '@/components/jobs/PipelineSection';
 
 export const metadata: Metadata = {
@@ -46,6 +47,14 @@ const SHIPPING_NEXT = [
 
 export default async function AdminDashboardPage() {
   const metrics = await fetchDashboardMetrics();
+
+  // SLA Sentinel — overdue jobs with no sealed report (admin-only RPC, RLS-guarded)
+  let atRiskCount = 0;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data: overdue } = await supabase.rpc('get_overdue_reports');
+    atRiskCount = Array.isArray(overdue) ? overdue.length : 0;
+  } catch { /* sentinel migration not applied yet */ }
 
   return (
     <div className="space-y-10">
@@ -90,6 +99,24 @@ export default async function AdminDashboardPage() {
             </p>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-industrial text-accent-red/80 group-hover:text-accent-red">
+            review →
+          </span>
+        </Link>
+      )}
+
+      {/* SLA Sentinel — at-risk reports ribbon */}
+      {atRiskCount > 0 && (
+        <Link
+          href="/admin/jobs"
+          className="group flex items-center justify-between gap-4 rounded-xl border border-accent-amber/40 bg-accent-amber/10 px-4 py-3 transition-colors hover:bg-accent-amber/15"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-accent-amber" />
+            <p className="text-sm font-medium text-accent-amber">
+              {atRiskCount} at-risk report{atRiskCount === 1 ? '' : 's'} — inspection overdue without a sealed report · SLA Sentinel is chasing the inspector
+            </p>
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-industrial text-accent-amber/80 group-hover:text-accent-amber">
             review →
           </span>
         </Link>

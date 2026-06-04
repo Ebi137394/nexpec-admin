@@ -63,7 +63,9 @@
     "branding": "Image de marque",
     "commandConsole": "Console de commande",
     "clientPortal": "Portail Client",
-    "inspectorPortal": "Portail Inspecteur"
+    "inspectorPortal": "Portail Inspecteur",
+    "tools": "Outils",
+    "engineeringTools": "Outils d’ingénierie"
   },
   "auth": {
     "signInTitle": "Se connecter à NEXPEC",

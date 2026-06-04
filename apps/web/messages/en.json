@@ -55,8 +55,6 @@
     "users": "Users",
     "organizations": "Organizations",
     "documents": "Documents",
-    "legal": "Legal",
-    "contracts": "Contracts",
     "myJobs": "My jobs",
     "postJob": "Post a job",
     "deliverables": "Deliverables",
@@ -66,7 +64,9 @@
     "branding": "Branding",
     "commandConsole": "Command Console",
     "clientPortal": "Client Portal",
-    "inspectorPortal": "Inspector Portal"
+    "inspectorPortal": "Inspector Portal",
+    "tools": "Tools",
+    "engineeringTools": "Engineering tools"
   },
   "auth": {
     "signInTitle": "Sign in to NEXPEC",

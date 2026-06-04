@@ -63,7 +63,9 @@
     "branding": "العلامة التجارية",
     "commandConsole": "لوحة القيادة",
     "clientPortal": "بوابة العميل",
-    "inspectorPortal": "بوابة المفتش"
+    "inspectorPortal": "بوابة المفتش",
+    "tools": "الأدوات",
+    "engineeringTools": "أدوات هندسية"
   },
   "auth": {
     "signInTitle": "تسجيل الدخول إلى نِكسبيك",

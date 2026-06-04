@@ -63,7 +63,9 @@
     "branding": "Identidad de marca",
     "commandConsole": "Consola de comando",
     "clientPortal": "Portal del Cliente",
-    "inspectorPortal": "Portal del Inspector"
+    "inspectorPortal": "Portal del Inspector",
+    "tools": "Herramientas",
+    "engineeringTools": "Herramientas de ingeniería"
   },
   "auth": {
     "signInTitle": "Iniciar sesión en NEXPEC",

@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   FileCheck2,
   ArrowLeftRight,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -52,6 +53,12 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
     items: [
       { labelKey: 'activeAssignments', href: '/inspector/assignments', icon: ClipboardList },
       { labelKey: 'negotiations', href: '/inspector/negotiations', icon: ArrowLeftRight },
+    ],
+  },
+  {
+    titleKey: 'tools',
+    items: [
+      { labelKey: 'engineeringTools', href: '/inspector/tools', icon: Wrench },
     ],
   },
   {

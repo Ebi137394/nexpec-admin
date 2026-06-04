@@ -25,7 +25,7 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
   const [err, setErr] = useState<string | null>(null);
 
   const load = () => { setLoading(true); fetchMeetings({ jobId, rfqId }).then(setItems).catch(() => {}).finally(() => setLoading(false)); };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [jobId, rfqId]);
+  useEffect(() => { load(); }, [jobId, rfqId]);
 
   const toggle = (id: string) => setInvited((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 

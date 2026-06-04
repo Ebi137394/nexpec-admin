@@ -176,3 +176,50 @@ export async function fetchOverdueReports(): Promise<OverdueReport[]> {
   if (error) return [];
   return (data ?? []) as OverdueReport[];
 }
+
+// ── Vendor Document Vault (read; sealing happens in DocumentField) ──
+export interface VendorDocument {
+  id: string; doc_type: string; title: string | null; storage_path: string;
+  mime_type: string | null; byte_size: number | null; content_sha256: string;
+  seal_sha256: string; ots_status: string; ots_confirmed_at: string | null;
+  bound_type: string | null; status: string; expires_at: string | null; created_at: string;
+}
+export async function fetchMyVendorDocuments(): Promise<VendorDocument[]> {
+  const uid = await getUserId();
+  if (!uid) return [];
+  const { data } = await sb()
+    .from('vendor_documents')
+    .select('id,doc_type,title,storage_path,mime_type,byte_size,content_sha256,seal_sha256,ots_status,ots_confirmed_at,bound_type,status,expires_at,created_at')
+    .eq('vendor_id', uid)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  return (data ?? []) as VendorDocument[];
+}
+// Short-lived signed URL so a vendor can open their own sealed artifact.
+export async function signVendorDocument(path: string): Promise<string | null> {
+  const { data } = await sb().storage.from('vendor_documents').createSignedUrl(path, 60 * 60);
+  return data?.signedUrl ?? null;
+}
+
+// ── Supplier finance ledger (READ-ONLY — payouts are admin-brokered) ──
+// transactions.amount is a USD dollar figure; RLS exposes only the caller's rows.
+export interface SupplierTransaction {
+  id: string; type: string; amount: number; description: string | null; status: string; created_at: string;
+}
+export async function fetchSupplierTransactions(): Promise<SupplierTransaction[]> {
+  const uid = await getUserId();
+  if (!uid) return [];
+  const { data } = await sb()
+    .from('transactions')
+    .select('id,type,amount,description,status,created_at')
+    .eq('user_id', uid)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  return (data ?? []) as SupplierTransaction[];
+}
+
+// Capability catalog as a key→label map (for chips across the portal).
+export async function fetchCapabilityLabelMap(): Promise<Record<string, string>> {
+  const caps = await fetchCapabilityCatalog();
+  return Object.fromEntries(caps.map((c) => [c.key, c.label]));
+}

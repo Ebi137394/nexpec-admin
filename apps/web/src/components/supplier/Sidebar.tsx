@@ -1,26 +1,25 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  components/supplier/Sidebar.tsx — left rail for the Supplier portal
+//
+//  Sibling of components/inspector/Sidebar.tsx + components/client/Sidebar.tsx.
+//  Same visual treatment (sticky rail, sectioned nav, violet active state),
+//  different manifest. Plain labels (the client portal does the same).
+// ════════════════════════════════════════════════════════════════════════════
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  ScrollText,
-  Briefcase,
+  Megaphone,
   Send,
-  Users,
-  Building2,
-  ShieldCheck,
-  Receipt,
-  AlertTriangle,
-  Settings,
-  MessageCircle,
-  FolderOpen,
-  Scale,
-  Star,
-  Globe2,
-  Gauge,
-  FileText,
   Store,
+  FileCheck2,
+  Wallet,
+  MessageCircle,
+  LifeBuoy,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -29,67 +28,39 @@ import { cn } from '@/lib/cn';
 interface NavItem {
   label: string;
   href: string;
-  /**
-   * Use Lucide's own icon type. The previous narrowed
-   * `ComponentType<{ strokeWidth?: number }>` conflicted with Lucide's
-   * declaration that allows `strokeWidth: string | number`, which broke
-   * Vercel's stricter typecheck pass.
-   */
   icon: LucideIcon;
-  badge?: 'soon' | 'beta';
 }
 
-/**
- * Sections + items. Add/remove here — every consumer reads this manifest.
- * `soon` badge marks routes that exist as files but aren't wired to data
- * yet. They render a placeholder page so the navigation feels complete.
- */
 const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   {
     title: 'Overview',
+    items: [{ label: 'Dashboard', href: '/suppliers/dashboard', icon: LayoutDashboard }],
+  },
+  {
+    title: 'Marketplace',
     items: [
-      { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-      { label: 'Audit Trail', href: '/admin/audit', icon: ScrollText },
-      { label: 'Predictive Integrity', href: '/admin/integrity', icon: Gauge },
+      { label: 'Opportunities', href: '/suppliers/opportunities', icon: Megaphone },
+      { label: 'My Bids', href: '/suppliers/bids', icon: Send },
     ],
   },
   {
-    title: 'Operations',
+    title: 'My Business',
     items: [
-      { label: 'Jobs', href: '/admin/jobs', icon: Briefcase },
-      { label: 'RFQs & Procurement', href: '/rfqs', icon: FileText },
-      { label: 'Find Suppliers', href: '/directory', icon: Store },
-      { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
-      { label: 'Messages', href: '/admin/messages', icon: MessageCircle },
-      { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
-      { label: 'Reviews', href: '/admin/reviews', icon: Star },
-      { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
+      { label: 'Profile & Capabilities', href: '/suppliers/profile', icon: Store },
+      { label: 'Document Vault', href: '/suppliers/documents', icon: FileCheck2 },
+      { label: 'Finance', href: '/suppliers/finance', icon: Wallet },
     ],
   },
   {
-    title: 'Identity',
+    title: 'Coordination',
     items: [
-      { label: 'Users', href: '/admin/users', icon: Users },
-      { label: 'Organizations', href: '/admin/orgs', icon: Building2 },
-      { label: 'Compliance', href: '/admin/compliance', icon: ShieldCheck },
-      { label: 'Documents', href: '/admin/documents', icon: FolderOpen },
-    ],
-  },
-  {
-    title: 'Legal',
-    items: [
-      { label: 'Contracts', href: '/admin/contracts', icon: Scale },
+      { label: 'Messages', href: '/suppliers/messages', icon: MessageCircle },
+      { label: 'Help & Support', href: '/suppliers/support', icon: LifeBuoy },
     ],
   },
   {
     title: 'System',
-    items: [
-      // Layer 4 — platform-wide inspection domains config (industrial_ndt,
-      // civil, electrical, mechanical). Hidden until typed manually before
-      // this row landed.
-      { label: 'Domains', href: '/admin/domains', icon: Globe2 },
-      { label: 'Settings', href: '/admin/settings', icon: Settings },
-    ],
+    items: [{ label: 'Settings', href: '/suppliers/settings', icon: Settings }],
   },
 ];
 
@@ -103,12 +74,12 @@ export function Sidebar() {
         <div className="border-b border-white/[0.06] px-6 py-5">
           <Logo variant="wordmark" size="md" />
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Command Console
+            Supplier Portal
           </p>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
+        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Supplier navigation">
           {NAV.map((section) => (
             <div key={section.title} className="mb-5">
               <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
@@ -117,8 +88,7 @@ export function Sidebar() {
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
                   const active =
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
+                    pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
                     <li key={item.href}>
                       <Link
@@ -138,11 +108,6 @@ export function Sidebar() {
                           strokeWidth={1.75}
                         />
                         <span className="flex-1">{item.label}</span>
-                        {item.badge === 'soon' && (
-                          <span className="rounded-full bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-zinc-500">
-                            soon
-                          </span>
-                        )}
                       </Link>
                     </li>
                   );

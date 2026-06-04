@@ -3,11 +3,12 @@
 //
 //  Mirrors the mobile allow-list: buyers (client/agency/enterprise), suppliers,
 //  and admins (god-mode) may enter; inspectors are sent home. Server-side gate
-//  = defence-in-depth (RLS is the real enforcement). URLs stay /rfqs, /suppliers.
+//  = defence-in-depth (RLS is the real enforcement). Hosts /rfqs + /directory;
+//  the Supplier portal owns /suppliers/* under its own sidebar layout.
 // ════════════════════════════════════════════════════════════════════════════
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Store, FileText, LayoutDashboard } from 'lucide-react';
+import { Store, FileText } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -33,13 +34,13 @@ export default async function MarketplaceLayout({ children }: { children: React.
           <nav className="flex items-center gap-1">
             {role === 'supplier' && (
               <Link href="/suppliers/dashboard" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white">
-                <LayoutDashboard size={15} /> Dashboard
+                <Store size={15} /> My Portal
               </Link>
             )}
             <Link href="/rfqs" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white">
               <FileText size={15} /> RFQs
             </Link>
-            <Link href="/suppliers" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white">
+            <Link href="/directory" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white">
               <Store size={15} /> Suppliers
             </Link>
           </nav>

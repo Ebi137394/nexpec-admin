@@ -1,5 +1,6 @@
 'use client';
-// /suppliers — Supplier Directory (mirrors mobile app/suppliers/index.tsx)
+// /directory — Supplier Directory (buyer-facing browse; mirrors mobile app/suppliers/index.tsx).
+// Relocated here from /suppliers so the Supplier *portal* can own /suppliers/*.
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search, ShieldCheck, Star, Store } from 'lucide-react';
@@ -30,7 +31,7 @@ export default function SupplierDirectoryPage() {
           <h1 className="text-2xl font-extrabold">Find Suppliers</h1>
           <p className="mt-1 text-sm text-white/60">Source equipment, labs &amp; materials — any discipline.</p>
         </div>
-        <Link href="/suppliers/onboard" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet px-4 py-2 text-sm font-bold text-violet-glow hover:bg-violet/10"><Store size={15} /> Become a supplier</Link>
+        <Link href="/suppliers/profile" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet px-4 py-2 text-sm font-bold text-violet-glow hover:bg-violet/10"><Store size={15} /> Become a supplier</Link>
       </div>
 
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-ink-600 bg-ink-800 px-3">
@@ -50,7 +51,7 @@ export default function SupplierDirectoryPage() {
       ) : list.length === 0 ? (
         <div className="rounded-xl border border-ink-600 bg-ink-800 p-10 text-center">
           <p className="text-white/60">No suppliers yet.</p>
-          <Link href="/suppliers/onboard" className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-violet px-4 py-2 text-sm font-bold text-violet-glow hover:bg-violet/10"><Store size={15} /> Become a supplier</Link>
+          <Link href="/suppliers/profile" className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-violet px-4 py-2 text-sm font-bold text-violet-glow hover:bg-violet/10"><Store size={15} /> Become a supplier</Link>
         </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">

@@ -294,7 +294,7 @@ module.exports = {
         //   or run `eas init` to bind a new project. The placeholder below
         //   intentionally breaks any production build that hasn't been
         //   linked yet.
-        projectId: process.env.EAS_PROJECT_ID || 'REPLACE_WITH_EAS_PROJECT_ID',
+        projectId: process.env.EAS_PROJECT_ID,
       },
     },
   },

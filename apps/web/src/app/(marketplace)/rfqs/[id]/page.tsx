@@ -18,7 +18,7 @@ const QSTATUS: Record<string, { label: string; cls: string }> = {
 
 export default function RfqDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = params.id;
+  const id = (params?.id ?? '') as string;
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [uid, setUid] = useState<string | null>(null);

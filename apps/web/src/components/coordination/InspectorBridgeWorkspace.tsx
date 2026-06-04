@@ -273,7 +273,7 @@ function ScheduleSlot({ slot, bridgeId, disabled, onMutate }: {
   const proposedBy = String(slot.payload_json?.proposed_by_kind ?? '');
   const vendorCountered = slot.status === 'awaiting_inspector' && proposedBy === 'vendor';
 
-  const run = async (fn: () => Promise<{ error: unknown }>) => {
+  const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
     setBusy(true);
     try { const { error } = await fn(); if (error) throw error; setIso(''); onMutate(); }
     catch (e) { alert(e instanceof Error ? e.message : String(e)); }
@@ -383,7 +383,7 @@ function AddDocRequest({ bridgeId, onMutate }: { bridgeId: string; onMutate: () 
 
 function ControlsCard({ view, onMutate }: { view: BridgeView; onMutate: () => void }) {
   const [busy, setBusy] = useState(false);
-  const run = async (fn: () => Promise<{ error: unknown }>, confirmMsg?: string) => {
+  const run = async (fn: () => PromiseLike<{ error: unknown }>, confirmMsg?: string) => {
     if (confirmMsg && !confirm(confirmMsg)) return;
     setBusy(true);
     try { const { error } = await fn(); if (error) throw error; onMutate(); }

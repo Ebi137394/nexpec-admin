@@ -112,7 +112,7 @@ export default function RfqDetailPage() {
       ) : (
         <ul className="space-y-3">
           {quotes.map((q) => {
-            const st = QSTATUS[q.status] ?? QSTATUS.submitted;
+            const st = (QSTATUS[q.status] ?? QSTATUS.submitted) as { label: string; cls: string };
             const won = q.status === 'accepted'; const lost = q.status === 'declined';
             const cents = q.quote?.amount_cents ?? (q.quote?.amount != null ? toCents(q.quote.amount) : null);
             return (

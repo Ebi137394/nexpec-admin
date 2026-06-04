@@ -40,7 +40,7 @@ export default function RfqHubPage() {
       ) : (
         <ul className="space-y-3">
           {items.map((r) => {
-            const st = STATUS[r.status] ?? STATUS.open;
+            const st = (STATUS[r.status] ?? STATUS.open) as { label: string; cls: string };
             return (
               <li key={r.id}>
                 <Link href={`/rfqs/${r.id}`} className="block rounded-xl border border-ink-600 bg-ink-800 p-4 transition hover:border-violet/60">

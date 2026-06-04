@@ -128,7 +128,7 @@ export default function SupplierDashboardPage() {
         {quotes.length === 0 ? <p className="text-sm text-white/50">You haven’t bid yet — browse opportunities above.</p> : (
           <ul className="space-y-2">
             {quotes.slice(0, 8).map((q) => {
-              const st = QSTATUS[q.status] ?? QSTATUS.submitted;
+              const st = (QSTATUS[q.status] ?? QSTATUS.submitted) as { label: string; cls: string };
               const cents = q.quote?.amount_cents ?? (q.quote?.amount != null ? toCents(q.quote.amount) : null);
               return (
                 <li key={q.id}>

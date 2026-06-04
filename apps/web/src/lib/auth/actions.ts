@@ -78,6 +78,7 @@ async function destinationForUser(supabase: Awaited<ReturnType<typeof createSupa
   ) {
     return '/client/dashboard';
   }
+  if (normalisedRole === 'supplier') return '/suppliers/dashboard';
   return '/';
 }
 
@@ -187,7 +188,7 @@ export async function signOut() {
 
 export async function signInWithOAuth(formData: FormData) {
   const provider = String(formData.get('provider') ?? '').toLowerCase();
-  if (provider !== 'google' && provider !== 'apple') {
+  if (provider !== 'google' && provider !== 'apple' && provider !== 'linkedin_oidc') {
     redirect(buildErrorRedirect('/sign-in', 'Unsupported OAuth provider.'));
   }
 
@@ -205,7 +206,7 @@ export async function signInWithOAuth(formData: FormData) {
     'http://localhost:3000';
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: provider as 'google' | 'apple',
+    provider: provider as 'google' | 'apple' | 'linkedin_oidc',
     options: {
       redirectTo: `${origin}/auth/callback`,
     },

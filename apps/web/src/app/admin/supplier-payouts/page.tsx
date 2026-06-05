@@ -6,8 +6,9 @@
 //  wallet so they can withdraw via Stripe Connect.
 // ════════════════════════════════════════════════════════════════════════════
 import type { Metadata } from 'next';
-import { Banknote, AlertCircle, CheckCircle2, Store } from 'lucide-react';
+import { Banknote, AlertCircle, CheckCircle2, Store, FileSignature } from 'lucide-react';
 import { fetchAwardedSupplierContracts } from '@/lib/data/supplierReleases';
+import { fetchAdminSupplierContractsByQuote } from '@/lib/data/supplierContracts';
 import { SupplierReleaseRow } from '@/components/admin/SupplierReleaseRow';
 
 export const metadata: Metadata = { title: 'Admin · Supplier Releases' };
@@ -15,13 +16,19 @@ export const dynamic = 'force-dynamic';
 
 const usd = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-interface PageProps { searchParams?: Promise<{ error?: string; released?: string }>; }
+interface PageProps {
+  searchParams?: Promise<{ error?: string; released?: string; generated?: string; executed?: string }>;
+}
 
 export default async function SupplierReleasesPage({ searchParams }: PageProps) {
   const sp = (await searchParams) ?? {};
   const { contracts, totalOutstandingCents } = await fetchAwardedSupplierContracts();
+  const agreementMap = await fetchAdminSupplierContractsByQuote(contracts.map((c) => c.quoteId));
   const outstanding = contracts.filter((c) => c.outstandingCents > 0);
   const settled = contracts.filter((c) => c.contractCents > 0 && c.outstandingCents <= 0);
+  const awaitingAgreement = contracts.filter(
+    (c) => agreementMap.get(c.quoteId)?.status !== 'executed',
+  ).length;
 
   return (
     <div className="space-y-8">
@@ -44,10 +51,21 @@ export default async function SupplierReleasesPage({ searchParams }: PageProps) 
           <CheckCircle2 className="h-4 w-4 shrink-0" /> Funds released — the supplier&rsquo;s wallet has been credited.
         </div>
       )}
+      {sp.generated && (
+        <div className="flex items-center gap-2 rounded-xl border border-violet/30 bg-violet/10 px-4 py-3 text-sm text-violet-glow">
+          <FileSignature className="h-4 w-4 shrink-0" /> Agreement issued — the supplier has been notified to sign.
+        </div>
+      )}
+      {sp.executed && (
+        <div className="flex items-center gap-2 rounded-xl border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green">
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Agreement executed &amp; sealed — releases are now unlocked.
+        </div>
+      )}
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat icon={<Banknote size={18} />} tone="text-accent-amber" value={usd(totalOutstandingCents)} label="Outstanding to release" />
+        <Stat icon={<FileSignature size={18} />} tone="text-violet-glow" value={String(awaitingAgreement)} label="Awaiting signed agreement" />
         <Stat icon={<Store size={18} />} tone="text-cyan-glow" value={String(outstanding.length)} label="Contracts awaiting release" />
         <Stat icon={<CheckCircle2 size={18} />} tone="text-accent-green" value={String(settled.length)} label="Fully released" />
       </div>
@@ -63,13 +81,13 @@ export default async function SupplierReleasesPage({ searchParams }: PageProps) 
           {outstanding.length > 0 && (
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-industrial text-zinc-400">Awaiting release</h2>
-              <ul className="space-y-3">{outstanding.map((c) => <SupplierReleaseRow key={c.quoteId} c={c} />)}</ul>
+              <ul className="space-y-3">{outstanding.map((c) => <SupplierReleaseRow key={c.quoteId} c={c} agreement={agreementMap.get(c.quoteId) ?? null} />)}</ul>
             </section>
           )}
           {settled.length > 0 && (
             <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-industrial text-zinc-400">Fully released</h2>
-              <ul className="space-y-3">{settled.map((c) => <SupplierReleaseRow key={c.quoteId} c={c} />)}</ul>
+              <ul className="space-y-3">{settled.map((c) => <SupplierReleaseRow key={c.quoteId} c={c} agreement={agreementMap.get(c.quoteId) ?? null} />)}</ul>
             </section>
           )}
         </>

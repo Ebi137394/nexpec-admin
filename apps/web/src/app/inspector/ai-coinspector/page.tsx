@@ -1,36 +1,27 @@
 'use client';
-// /inspector/ai-coinspector — office-side AI Co-inspector.
-//
-// Sleek capture studio (drag-and-drop high-res / drone photos + webcam) for
-// visual review, paired with the LIVE AI findings the NEXPEC vision pipeline
-// produced for the selected job (ai_detections). Accepting a finding calls the
-// exact same provable-AI recorder the Expo app uses (pi_record_ai_detection,
-// p_accepted=true) — the detection stays cryptographically bound to its signed model.
+// /inspector/ai-coinspector — office-side AI Co-inspector with $0 CLIENT-SIDE
+// inference. Mirrors the Expo app's on-device model: the browser downloads the
+// vision model (TensorFlow.js) and runs inference locally on CPU/WebGL. No
+// backend, no GPU worker. Accepted findings record via pi_record_ai_detection,
+// provably bound to the active signed model — identical to the mobile contract.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScanEye, UploadCloud, Camera, X, ShieldCheck, CheckCircle2, AlertCircle,
-  Sparkles, ImageOff, Loader2, Cpu,
+  Sparkles, ImageOff, Loader2, Cpu, Wand2,
 } from 'lucide-react';
 import {
-  fetchInspectorJobs, fetchJobDetections, acceptDetection, analyzeImage,
-  type InspectorJobLite, type AiDetection,
+  fetchInspectorJobs, fetchJobDetections, recordDetection, fetchVisionModelRef,
+  type InspectorJobLite, type AiDetection, type VisionModelRef,
 } from '@/lib/data/aiCoinspector';
+import { classify, loadModel } from '@/lib/ai/visionModel';
 
-interface Staged { id: string; url: string; name: string; size: number }
+interface Staged { id: string; url: string; name: string }
+interface Suggestion { id: string; stagedId: string; thumbUrl: string; defectId: string; label: string; confidence: number }
+type ModelStatus = 'checking' | 'unconfigured' | 'ready' | 'error';
 
-// Downscale to a sane inference resolution (longest side) before sending — the
-// inspector keeps the full-res photo for review; the model only needs ~1280px.
-async function downscale(url: string, max = 1280): Promise<{ base64: string; mime: string }> {
-  const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-  const scale = Math.min(1, max / Math.max(img.width || max, img.height || max));
-  const w = Math.max(1, Math.round((img.width || max) * scale));
-  const h = Math.max(1, Math.round((img.height || max) * scale));
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  c.getContext('2d')?.drawImage(img, 0, 0, w, h);
-  const dataUrl = c.toDataURL('image/jpeg', 0.9);
-  return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg' };
-}
-
+const imgFromUrl = (url: string) => new Promise<HTMLImageElement>((res, rej) => {
+  const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image load failed')); i.src = url;
+});
 const sevCls = (s: string | null): string => {
   const v = (s ?? '').toLowerCase();
   if (v.includes('crit') || v.includes('high')) return 'bg-accent-red/15 text-accent-red';
@@ -46,17 +37,28 @@ export default function AiCoinspectorPage() {
   const [dragOver, setDragOver] = useState(false);
   const [dets, setDets] = useState<AiDetection[]>([]);
   const [detLoading, setDetLoading] = useState(false);
-  const [accepting, setAccepting] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [camOn, setCamOn] = useState(false);
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
-  const [analyzingAll, setAnalyzingAll] = useState(false);
+  const [modelRef, setModelRef] = useState<VisionModelRef | null>(null);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>('checking');
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => { fetchInspectorJobs().then(setJobs).catch(() => {}); }, []);
+  useEffect(() => {
+    fetchVisionModelRef()
+      .then((ref) => {
+        if (!ref) { setModelStatus('unconfigured'); return; }
+        setModelRef(ref); setModelStatus('ready');
+        loadModel(ref.url).catch(() => setModelStatus('error')); // warm the model
+      })
+      .catch(() => setModelStatus('error'));
+  }, []);
 
   const loadDets = useCallback((id: string) => {
     if (!id) { setDets([]); return; }
@@ -65,16 +67,14 @@ export default function AiCoinspectorPage() {
   }, []);
   useEffect(() => { loadDets(jobId); }, [jobId, loadDets]);
 
-  // ── Staging (drag-drop + file picker + webcam) ──
+  // ── Staging ──
   const addFiles = useCallback((files: FileList | File[]) => {
     const imgs = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    setStaged((prev) => [
-      ...prev,
-      ...imgs.map((f) => ({ id: `${f.name}-${f.size}-${Date.now()}-${Math.random()}`, url: URL.createObjectURL(f), name: f.name, size: f.size })),
-    ]);
+    setStaged((prev) => [...prev, ...imgs.map((f) => ({ id: `${f.name}-${Date.now()}-${Math.random()}`, url: URL.createObjectURL(f), name: f.name }))]);
   }, []);
   const removeStaged = (id: string) => setStaged((prev) => {
     const t = prev.find((x) => x.id === id); if (t) URL.revokeObjectURL(t.url);
+    setSuggestions((sg) => sg.filter((x) => x.stagedId !== id));
     return prev.filter((x) => x.id !== id);
   });
   useEffect(() => () => { staged.forEach((s) => URL.revokeObjectURL(s.url)); streamRef.current?.getTracks().forEach((t) => t.stop()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -94,45 +94,36 @@ export default function AiCoinspectorPage() {
     c.toBlob((b) => { if (b) addFiles([new File([b], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' })]); }, 'image/jpeg', 0.95);
   };
 
-  const onAccept = async (d: AiDetection) => {
-    setAccepting(d.id); setMsg(null);
-    try {
-      const res = await acceptDetection(d);
-      if (!res.ok) { setMsg({ kind: 'err', text: res.error ?? 'Could not record finding.' }); return; }
-      setMsg({ kind: 'ok', text: `Recorded "${d.label}" as a finding — provably bound to ${d.model_slug} v${d.model_version}.` });
-      loadDets(jobId);
-    } finally { setAccepting(null); }
-  };
-
+  // ── Client-side inference ──
   const analyzeOne = async (s: Staged) => {
+    if (modelStatus !== 'ready' || !modelRef) { setMsg({ kind: 'err', text: 'On-device model is not ready.' }); return; }
     if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
     setAnalyzingId(s.id); setMsg(null);
     try {
-      const { base64, mime } = await downscale(s.url);
-      const res = await analyzeImage(jobId, base64, mime);
-      if (!res.ok) { setMsg({ kind: 'err', text: res.detail || 'Analysis failed.' }); return; }
-      setMsg({ kind: 'ok', text: `AI recorded ${res.recorded ?? 0} finding${res.recorded === 1 ? '' : 's'}.` });
-      loadDets(jobId);
-    } catch { setMsg({ kind: 'err', text: 'Could not process the image.' }); }
+      const img = await imgFromUrl(s.url);
+      const cands = await classify(img, modelRef.url, modelRef.labels);
+      if (cands.length === 0) { setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' }); return; }
+      setSuggestions((prev) => [
+        ...prev.filter((x) => x.stagedId !== s.id),
+        ...cands.map((c) => ({ id: `${s.id}-${c.defectId}`, stagedId: s.id, thumbUrl: s.url, ...c })),
+      ]);
+      setMsg({ kind: 'ok', text: `${cands.length} on-device suggestion${cands.length === 1 ? '' : 's'} · ${modelRef.slug} v${modelRef.version}.` });
+    } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Inference failed.' }); }
     finally { setAnalyzingId(null); }
   };
-  const analyzeAll = async () => {
-    if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
-    setAnalyzingAll(true); setMsg(null);
-    let total = 0; let err: string | null = null;
+  const accept = async (sug: Suggestion) => {
+    if (!jobId || !modelRef) return;
+    setAcceptingId(sug.id); setMsg(null);
     try {
-      for (const s of staged) {
-        const { base64, mime } = await downscale(s.url);
-        const res = await analyzeImage(jobId, base64, mime);
-        if (!res.ok) { err = res.detail || 'Analysis failed.'; break; }
-        total += res.recorded ?? 0;
-      }
-      setMsg(err ? { kind: 'err', text: err } : { kind: 'ok', text: `AI recorded ${total} finding${total === 1 ? '' : 's'} across ${staged.length} photo${staged.length === 1 ? '' : 's'}.` });
+      const res = await recordDetection(jobId, { defectId: sug.defectId, label: sug.label, confidence: sug.confidence }, modelRef);
+      if (!res.ok) { setMsg({ kind: 'err', text: res.error ?? 'Could not record finding.' }); return; }
+      setSuggestions((prev) => prev.filter((x) => x.id !== sug.id));
+      setMsg({ kind: 'ok', text: `Recorded "${sug.label}" — bound to ${modelRef.slug} v${modelRef.version}.` });
       loadDets(jobId);
-    } finally { setAnalyzingAll(false); }
+    } finally { setAcceptingId(null); }
   };
 
-  const pending = useMemo(() => dets.filter((d) => !d.accepted_by_human), [dets]);
+  const recorded = useMemo(() => dets, [dets]);
 
   return (
     <div className="space-y-6">
@@ -141,9 +132,25 @@ export default function AiCoinspectorPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Inspector · Vision</p>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">AI Co-inspector</h1>
-          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Stage high-res or drone imagery for review, and accept the AI detections NEXPEC&rsquo;s vision pipeline produced for a job — each one cryptographically sealed to its signed model.</p>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Drop high-res or drone imagery and the model runs <span className="text-zinc-200">entirely in your browser</span> (TensorFlow.js, on your CPU/GPU). Accepted findings are sealed to the signed model — no data leaves for inference.</p>
         </div>
       </header>
+
+      {/* Model status */}
+      {modelStatus === 'ready' && modelRef ? (
+        <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green">
+          <Cpu size={13} /> On-device model ready · {modelRef.slug} v{modelRef.version}
+        </div>
+      ) : modelStatus === 'unconfigured' ? (
+        <div className="flex items-start gap-2 rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>On-device inference isn&rsquo;t configured. Set <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_MODEL_URL</code> (a TFJS <code className="font-mono text-[12px]">model.json</code>) — plus optional <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_LABELS</code> — to enable browser analysis. You can still review recorded findings below.</span>
+        </div>
+      ) : modelStatus === 'error' ? (
+        <div className="flex items-center gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red"><AlertCircle className="h-4 w-4" /> Could not load the on-device model.</div>
+      ) : (
+        <div className="inline-flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={13} className="animate-spin" /> Checking on-device model…</div>
+      )}
 
       {/* Job picker */}
       <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -164,7 +171,6 @@ export default function AiCoinspectorPage() {
         {/* ── Capture studio ── */}
         <section className="space-y-4">
           <h2 className="flex items-center gap-2 font-semibold text-white"><Camera size={16} className="text-violet-glow" /> Capture studio</h2>
-
           {camOn ? (
             <div className="overflow-hidden rounded-2xl border border-violet/40 bg-black">
               <video ref={videoRef} className="aspect-video w-full object-cover" muted playsInline />
@@ -190,78 +196,81 @@ export default function AiCoinspectorPage() {
           )}
 
           {staged.length > 0 && (
-            <>
-              <div className="flex flex-wrap items-center gap-3">
-                <button onClick={analyzeAll} disabled={!jobId || analyzingAll}
-                  className="inline-flex items-center gap-2 rounded-full bg-violet px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
-                  {analyzingAll ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-                  {analyzingAll ? 'Analysing…' : `Analyse ${staged.length} with AI`}
-                </button>
-                {!jobId && <span className="text-[11px] text-accent-amber">Select a job above to run analysis.</span>}
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {staged.map((s) => (
-                  <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
-                    <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
-                    <button onClick={() => analyzeOne(s)} disabled={!jobId || analyzingId === s.id}
-                      className="absolute inset-x-1 bottom-1 inline-flex items-center justify-center gap-1 rounded-md bg-violet/90 py-1 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100 disabled:opacity-60">
-                      {analyzingId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Analyse
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="grid grid-cols-3 gap-2">
+              {staged.map((s) => (
+                <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
+                  <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
+                  <button onClick={() => analyzeOne(s)} disabled={modelStatus !== 'ready' || !jobId || analyzingId === s.id}
+                    className="absolute inset-x-1 bottom-1 inline-flex items-center justify-center gap-1 rounded-md bg-violet/90 py-1 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100 disabled:opacity-60">
+                    {analyzingId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />} Analyse
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
-          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Dropped photos are analysed by NEXPEC&rsquo;s secured in-house vision worker; recorded findings appear under AI findings →</p>
+          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Inference runs locally in your browser — images are never uploaded for analysis.</p>
         </section>
 
-        {/* ── AI findings ── */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-semibold text-white"><Sparkles size={16} className="text-violet-glow" /> AI findings</h2>
-            {jobId && <span className="text-xs text-zinc-500">{pending.length} to review</span>}
-          </div>
-
-          {!jobId ? (
-            <Empty icon={<ScanEye size={22} className="text-violet-glow" />} title="Select a job" body="Choose an assigned job to load the AI detections produced for it." />
-          ) : detLoading ? (
-            <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-20 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />)}</div>
-          ) : dets.length === 0 ? (
-            <Empty icon={<ImageOff size={22} className="text-zinc-500" />} title="No detections yet" body="The vision worker hasn't recorded detections for this job. They'll appear here once field captures are analysed." />
-          ) : (
-            <ul className="space-y-3">
-              {dets.map((d) => (
-                <li key={d.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-white">{d.label}</p>
-                        {d.severity && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-industrial ${sevCls(d.severity)}`}>{d.severity}</span>}
-                      </div>
-                      <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><ShieldCheck size={11} className="text-accent-green" /> {d.model_slug} v{d.model_version}{d.model_sha256 ? ` · ${d.model_sha256.slice(0, 8)}…` : ''}</p>
+        {/* ── Suggestions + recorded findings ── */}
+        <section className="space-y-5">
+          {suggestions.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 font-semibold text-white"><Wand2 size={16} className="text-violet-glow" /> On-device suggestions</h2>
+              <ul className="space-y-2">
+                {suggestions.map((sg) => (
+                  <li key={sg.id} className="flex items-center gap-3 rounded-2xl border border-violet/25 bg-violet/[0.05] p-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={sg.thumbUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{sg.label}</p>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ink-950"><div className="h-full rounded-full bg-gradient-to-r from-violet to-violet-glow" style={{ width: `${Math.round(sg.confidence * 100)}%` }} /></div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-display text-lg font-semibold text-white">{Math.round(d.confidence * 100)}%</p>
-                      <p className="text-[10px] text-zinc-500">confidence</p>
-                    </div>
-                  </div>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-950"><div className="h-full rounded-full bg-gradient-to-r from-violet to-violet-glow" style={{ width: `${Math.round(d.confidence * 100)}%` }} /></div>
-                  <div className="mt-3 flex items-center justify-between">
-                    {d.standard_refs && d.standard_refs.length > 0 && <p className="truncate text-[11px] text-zinc-500">{d.standard_refs.join(' · ')}</p>}
-                    {d.accepted_by_human ? (
-                      <span className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-accent-green"><CheckCircle2 size={15} /> Accepted</span>
-                    ) : (
-                      <button onClick={() => onAccept(d)} disabled={accepting === d.id} className="ml-auto inline-flex items-center gap-2 rounded-full bg-violet px-4 py-1.5 text-xs font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
-                        {accepting === d.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Accept as finding
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    <span className="shrink-0 text-sm font-semibold text-white">{Math.round(sg.confidence * 100)}%</span>
+                    <button onClick={() => accept(sg)} disabled={acceptingId === sg.id} className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet px-3 py-1.5 text-xs font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
+                      {acceptingId === sg.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Accept
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-semibold text-white"><Sparkles size={16} className="text-violet-glow" /> Recorded findings</h2>
+              {jobId && <span className="text-xs text-zinc-500">{recorded.length} on file</span>}
+            </div>
+            {!jobId ? (
+              <Empty icon={<ScanEye size={22} className="text-violet-glow" />} title="Select a job" body="Choose an assigned job to analyse imagery and record findings against it." />
+            ) : detLoading ? (
+              <div className="space-y-3">{[0, 1].map((i) => <div key={i} className="h-20 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />)}</div>
+            ) : recorded.length === 0 ? (
+              <Empty icon={<ImageOff size={22} className="text-zinc-500" />} title="No findings yet" body="Analyse a photo on the left and accept a suggestion to record your first finding." />
+            ) : (
+              <ul className="space-y-3">
+                {recorded.map((d) => (
+                  <li key={d.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-white">{d.label}</p>
+                          {d.severity && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-industrial ${sevCls(d.severity)}`}>{d.severity}</span>}
+                        </div>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><ShieldCheck size={11} className="text-accent-green" /> {d.model_slug} v{d.model_version}{d.model_sha256 ? ` · ${d.model_sha256.slice(0, 8)}…` : ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-display text-lg font-semibold text-white">{Math.round(d.confidence * 100)}%</p>
+                        <p className="text-[10px] text-zinc-500">confidence</p>
+                      </div>
+                    </div>
+                    {d.accepted_by_human && <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-accent-green"><CheckCircle2 size={13} /> Accepted finding</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
       </div>
     </div>

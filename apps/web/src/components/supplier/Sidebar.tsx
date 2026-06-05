@@ -16,6 +16,7 @@ import {
   Send,
   Store,
   FileCheck2,
+  FileSignature,
   Wallet,
   MessageCircle,
   LifeBuoy,
@@ -47,6 +48,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'My Business',
     items: [
       { label: 'Profile & Capabilities', href: '/suppliers/profile', icon: Store },
+      { label: 'Agreements', href: '/suppliers/contracts', icon: FileSignature },
       { label: 'Document Vault', href: '/suppliers/documents', icon: FileCheck2 },
       { label: 'Finance', href: '/suppliers/finance', icon: Wallet },
     ],

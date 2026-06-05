@@ -16,7 +16,10 @@ const sb = () => createSupabaseBrowserClient();
 export interface CapabilityOption { key: string; label: string; category: string; }
 export interface ScopeTemplate { id: string; slug: string; name: string; category: string; domain: string; }
 export interface SupplierCard {
-  id: string; legal_name: string; headline: string | null; capabilities: string[];
+  // legal_name / headline are NO LONGER emitted by the anonymized supplier_directory
+  // view (anti-poaching). Kept optional only for back-compat; UI derives an NX-
+  // handle + Trust Sigil from `id` instead.
+  id: string; legal_name?: string | null; headline?: string | null; capabilities: string[];
   country_code: string | null; rating_avg: number; rating_count: number; standards: any; verified: boolean;
 }
 export interface Rfq {

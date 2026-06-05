@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { useSupplierDirectory, useCapabilityCatalog } from '../../src/hooks/useSupplierEcosystem';
+import { nxHandle } from '../../src/core/utils/handle';
 
 export default function SupplierDirectoryScreen() {
   const router = useRouter();
@@ -16,9 +17,13 @@ export default function SupplierDirectoryScreen() {
 
   const capLabel = useMemo(() => Object.fromEntries(caps.map((c) => [c.key, c.label])), [caps]);
   const chips = useMemo(() => ['all', ...caps.map((c) => c.key)], [caps]);
-  const list = useMemo(() => items.filter((s) =>
-    (cap === 'all' || (s.capabilities ?? []).includes(cap)) &&
-    (q.trim() === '' || `${s.legal_name} ${s.headline ?? ''}`.toLowerCase().includes(q.toLowerCase()))), [items, cap, q]);
+  // Anti-poaching: no name to search. Match the NX- handle, capabilities, country.
+  const list = useMemo(() => items.filter((s) => {
+    if (cap !== 'all' && !(s.capabilities ?? []).includes(cap)) return false;
+    if (q.trim() === '') return true;
+    const hay = `${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
+    return hay.includes(q.toLowerCase());
+  }), [items, cap, q, capLabel]);
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
@@ -58,13 +63,12 @@ export default function SupplierDirectoryScreen() {
         <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
           {list.map((sup) => (
             <View key={sup.id} style={s.card}>
-              <View style={s.avatar}><Text style={s.avatarTxt}>{(sup.legal_name ?? '?').slice(0, 1).toUpperCase()}</Text></View>
+              <View style={s.avatar}><Ionicons name="storefront" size={20} color={T.colors.primaryLight} /></View>
               <View style={{ flex: 1 }}>
                 <View style={s.titleRow}>
-                  <Text style={s.cardTitle} numberOfLines={1}>{sup.legal_name}</Text>
+                  <Text style={s.cardTitle} numberOfLines={1}>{nxHandle(sup.id)}</Text>
                   {sup.verified && <Ionicons name="shield-checkmark" size={14} color={T.colors.success} />}
                 </View>
-                {!!sup.headline && <Text style={s.cardSub} numberOfLines={1}>{sup.headline}</Text>}
                 <View style={s.capRow}>
                   {(sup.capabilities ?? []).slice(0, 3).map((k) => (
                     <View key={k} style={s.capPill}><Text style={s.capPillTxt}>{capLabel[k] ?? k}</Text></View>

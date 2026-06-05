@@ -40,6 +40,10 @@ export function inspectorHandle(id: string | null | undefined): string {
   return 'NX-' + out;
 }
 
+/** Role-neutral alias — the same pseudonymous NX- handle for any opaque id
+ *  (inspectors, suppliers, …). Anti-poaching: derived from id, never PII. */
+export const nxHandle = inspectorHandle;
+
 // Curated, on-brand gradient pairs (violet / cyan / indigo family) so generated
 // sigils stay visually consistent with the NEXPEC palette while varying per id.
 const SIGIL_GRADIENTS: ReadonlyArray<readonly [string, string]> = [

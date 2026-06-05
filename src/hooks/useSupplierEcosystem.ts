@@ -11,7 +11,9 @@ import { toCents } from '../core/utils/money';
 export interface CapabilityOption { key: string; label: string; category: string; }
 export interface ScopeTemplate { id: string; slug: string; name: string; category: string; domain: string; }
 export interface SupplierCard {
-  id: string; legal_name: string; headline: string | null; capabilities: string[];
+  // legal_name / headline are no longer emitted by the anonymized supplier_directory
+  // view (anti-poaching). Optional for back-compat; UI derives an NX- handle from id.
+  id: string; legal_name?: string | null; headline?: string | null; capabilities: string[];
   country_code: string | null; rating_avg: number; rating_count: number; standards: any; verified: boolean;
 }
 export interface Rfq {

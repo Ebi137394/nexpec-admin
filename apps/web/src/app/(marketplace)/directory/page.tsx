@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search, ShieldCheck, Star, Store, ChevronRight } from 'lucide-react';
 import { fetchSupplierDirectory, fetchCapabilityCatalog, type SupplierCard, type CapabilityOption } from '@/lib/data/marketplace';
+import { TrustSigil } from '@/components/trust/TrustSigil';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 
 export default function SupplierDirectoryPage() {
   const [items, setItems] = useState<SupplierCard[]>([]);
@@ -20,9 +22,13 @@ export default function SupplierDirectoryPage() {
   }, []);
 
   const capLabel = useMemo(() => Object.fromEntries(caps.map((c) => [c.key, c.label])), [caps]);
-  const list = useMemo(() => items.filter((s) =>
-    (cap === 'all' || (s.capabilities ?? []).includes(cap)) &&
-    (q.trim() === '' || `${s.legal_name} ${s.headline ?? ''}`.toLowerCase().includes(q.toLowerCase()))), [items, cap, q]);
+  // Anti-poaching: no name to search. Match the NX- handle, capabilities, country.
+  const list = useMemo(() => items.filter((s) => {
+    if (cap !== 'all' && !(s.capabilities ?? []).includes(cap)) return false;
+    if (q.trim() === '') return true;
+    const hay = `${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
+    return hay.includes(q.toLowerCase());
+  }), [items, cap, q, capLabel]);
 
   return (
     <div>
@@ -58,13 +64,12 @@ export default function SupplierDirectoryPage() {
           {list.map((s) => (
             <li key={s.id}>
               <Link href={`/directory/${s.id}`} className="flex items-center gap-3 rounded-xl border border-ink-600 bg-ink-800 p-4 transition hover:border-violet/60">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-violet/20 text-lg font-extrabold text-violet-glow">{(s.legal_name ?? '?').slice(0, 1).toUpperCase()}</div>
+                <div className="shrink-0 overflow-hidden rounded-lg"><TrustSigil id={s.id} size={44} /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <h3 className="truncate font-semibold">{s.legal_name}</h3>
+                    <h3 className="truncate font-mono font-semibold">{nxHandle(s.id)}</h3>
                     {s.verified && <ShieldCheck size={14} className="shrink-0 text-accent-green" />}
                   </div>
-                  {s.headline && <p className="truncate text-xs text-white/60">{s.headline}</p>}
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {(s.capabilities ?? []).slice(0, 3).map((k) => <span key={k} className="rounded border border-ink-600 bg-ink-950 px-1.5 py-0.5 text-[10px] font-semibold text-white/60">{capLabel[k] ?? k}</span>)}
                   </div>

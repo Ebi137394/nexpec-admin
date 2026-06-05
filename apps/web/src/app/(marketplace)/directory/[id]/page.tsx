@@ -9,6 +9,8 @@ import { ArrowLeft, ShieldCheck, Star, MapPin, FileText, Award } from 'lucide-re
 import {
   fetchSupplierById, fetchCapabilityCatalog, type SupplierCard, type CapabilityOption,
 } from '@/lib/data/marketplace';
+import { TrustSigil } from '@/components/trust/TrustSigil';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 
 export default function SupplierDetailPage() {
   const params = useParams<{ id: string }>();
@@ -54,19 +56,17 @@ export default function SupplierDetailPage() {
       {/* Header */}
       <header className="rounded-2xl border border-ink-600 bg-gradient-to-br from-violet/[0.1] to-ink-950 p-6">
         <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-violet/20 text-2xl font-extrabold text-violet-glow">
-            {(supplier.legal_name ?? '?').slice(0, 1).toUpperCase()}
-          </div>
+          <div className="shrink-0 overflow-hidden rounded-2xl"><TrustSigil id={supplier.id} size={64} /></div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">{supplier.legal_name}</h1>
+              <h1 className="font-display font-mono text-2xl font-semibold tracking-tight text-white sm:text-3xl">{nxHandle(supplier.id)}</h1>
               {supplier.verified && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-accent-green/30 bg-accent-green/10 px-2.5 py-1 text-[11px] font-bold text-accent-green">
                   <ShieldCheck size={13} /> Verified
                 </span>
               )}
             </div>
-            {supplier.headline && <p className="mt-1 text-sm text-white/70">{supplier.headline}</p>}
+            <p className="mt-1 text-xs text-white/50">Identity protected — NEXPEC brokers all engagement. Raise an RFQ to transact.</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/60">
               <span className="inline-flex items-center gap-1"><Star size={12} className="text-accent-amber" /> {Number(supplier.rating_avg ?? 0).toFixed(1)} ({supplier.rating_count ?? 0} reviews)</span>
               {supplier.country_code && <span className="inline-flex items-center gap-1"><MapPin size={12} /> {supplier.country_code}</span>}

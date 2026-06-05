@@ -61,7 +61,14 @@ Confirm the **input shape** (e.g. `[1, 224, 224, 3]`) and **output length** (num
 
 ## Path B — Run the `.tflite` directly (✅ NOW ACTIVE — no conversion)
 
-`lib/ai/visionModel.ts` now loads your `.tflite` as-is with `@tensorflow/tfjs-tflite` (WebAssembly + XNNPACK) — **the exact same model file the Expo app runs**, executed in the browser. TFJS (pinned 3.21) + the TFLite runtime + its WASM are pulled from `cdn.jsdelivr.net` at runtime; inference uses `pixel/255 → [0,1]` and top-K (matches your classifier).
+`lib/ai/visionModel.ts` now loads your `.tflite` as-is with `@tensorflow/tfjs-tflite` (WebAssembly + XNNPACK) — **the exact same model file the Expo app runs**, executed in the browser. The TF runtime (TFJS 3.21 + the TFLite runtime + its WASM) is **self-hosted under `apps/web/public/tf/`** — zero external-CDN dependency. Inference uses `pixel/255 → [0,1]` and top-K (matches your classifier).
+
+**Vendor the runtime once** (run on your machine — the registry is reachable there):
+```bash
+bash scripts/ops/fetch-tf-assets.sh   # downloads tf.min.js + tf-tflite + wasm into public/tf
+git add apps/web/public/tf && git commit -m "chore(web): vendor self-hosted TF runtime"
+```
+See `apps/web/public/tf/README.md` for the exact file list.
 
 You only need to:
 1. **Host the `.tflite` file** publicly (single file — no shards). A public Supabase bucket is easiest:
@@ -134,7 +141,8 @@ Run through these before the final push:
 - [ ] Bucket/host CORS allows your domain (open devtools → Network → no CORS error when the model loads).
 - [ ] `NEXT_PUBLIC_VISION_LABELS` order matches the model's output indices.
 - [ ] A **published + signed** `vision_defect` model exists in `model_artifacts` (or the manual identity envs point at one) — otherwise "Accept" records will be rejected.
-- [ ] CSP allows `cdn.jsdelivr.net` in **both** `script-src` (the two TF scripts) **and** `connect-src` (the `.wasm` + `.tflite` fetches) — or ask me to self-host the three TF assets in `/public`.
+- [ ] TF runtime vendored: `bash scripts/ops/fetch-tf-assets.sh` ran and `public/tf/tf.min.js` + `public/tf/tflite/*.wasm` are committed.
+- [ ] CSP is now **self-only**: `script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'` (the `'wasm-unsafe-eval'` is required to compile the WASM). No third-party CDN needed.
 - [ ] Smoke test: inspector signs in → AI Co-inspector shows **"On-device model ready"** → select a job → drop a photo → **Analyse** → a suggestion appears → **Accept** → it shows under **Recorded findings**.
 
 **Sanity (already green in code)**

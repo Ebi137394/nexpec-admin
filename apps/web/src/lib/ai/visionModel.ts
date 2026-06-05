@@ -5,18 +5,16 @@
 // conversion, no backend, no GPU worker. Inference happens on the inspector's
 // own CPU/WebGL; images never leave the device.
 //
-// TFJS + the TFLite runtime + its WASM are loaded from CDN at runtime (no
-// bundler/dependency changes). CSP note: allow `cdn.jsdelivr.net` in BOTH
-// `script-src` (the two scripts) and `connect-src` (the .wasm fetch), or
-// self-host these three assets under /public and repoint the constants below.
-//
-// tfjs is pinned to 3.x to match the tfjs-tflite alpha runtime; tfjs-tflite +
-// its wasm are taken as latest from the same dist. If a future version breaks
-// compatibility, pin tfjs-tflite to a known version here.
+// TFJS + the TFLite runtime + its WASM are SELF-HOSTED under apps/web/public/tf
+// — zero reliance on external CDNs (enterprise requirement). Everything is
+// same-origin. Populate these files once with scripts/ops/fetch-tf-assets.sh
+// (see public/tf/README.md). CSP only needs:
+//   script-src 'self' 'wasm-unsafe-eval'      (the two scripts + WASM compile)
+//   connect-src 'self'                        (the .wasm + model fetches)
 
-const TFJS_CDN = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js';
-const TFLITE_CDN = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite/dist/tf-tflite.min.js';
-const TFLITE_WASM_DIR = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite/dist/';
+const TFJS_SRC = '/tf/tf.min.js';
+const TFLITE_SRC = '/tf/tflite/tf-tflite.min.js';
+const TFLITE_WASM_DIR = '/tf/tflite/';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Tf = any;
@@ -38,9 +36,9 @@ async function loadDeps(): Promise<{ tf: Tf; tflite: Tflite }> {
   if (depsPromise) return depsPromise;
   depsPromise = (async () => {
     const g = globalThis as any;
-    if (!g.tf) await injectScript(TFJS_CDN);
+    if (!g.tf) await injectScript(TFJS_SRC);
     if (!g.tf) throw new Error('TensorFlow.js failed to initialise.');
-    if (!g.tflite) await injectScript(TFLITE_CDN);
+    if (!g.tflite) await injectScript(TFLITE_SRC);
     if (!g.tflite) throw new Error('TFLite runtime failed to initialise.');
     try { g.tflite.setWasmPath(TFLITE_WASM_DIR); } catch { /* already set */ }
     await g.tf.ready();

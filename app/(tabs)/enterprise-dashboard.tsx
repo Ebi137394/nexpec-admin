@@ -70,6 +70,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   Bell,
+  MessageCircle,
   Plus,
   Briefcase,
   Crown,
@@ -670,6 +671,16 @@ export default function EnterpriseDashboard() {
               </View>
 
               <View style={s.heroRight}>
+                <Pressable
+                  onPress={() => router.push('/inbox' as any)}
+                  style={({ pressed }) => [
+                    s.iconBtn,
+                    pressed && { transform: [{ scale: 0.93 }] },
+                  ]}
+                  hitSlop={8}
+                >
+                  <MessageCircle size={18} color={C.text} />
+                </Pressable>
                 <Pressable
                   onPress={() => router.push('/notifications' as any)}
                   style={({ pressed }) => [

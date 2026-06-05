@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toCents } from '../core/utils/money';
 
 export interface CapabilityOption { key: string; label: string; category: string; }
 export interface ScopeTemplate { id: string; slug: string; name: string; category: string; domain: string; }
@@ -181,4 +182,122 @@ export function useMyQuotes() {
   }, []);
   useEffect(() => { load(); }, [load]);
   return { items, loading, refetch: load };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Vendor Document Vault (read)
+// ════════════════════════════════════════════════════════════════════════════
+export interface VendorDocument {
+  id: string; doc_type: string; title: string | null; storage_path: string;
+  mime_type: string | null; byte_size: number | null; content_sha256: string;
+  seal_sha256: string; ots_status: string; ots_confirmed_at: string | null;
+  bound_type: string | null; status: string; expires_at: string | null; created_at: string;
+}
+export function useMyVendorDocuments() {
+  const [items, setItems] = useState<VendorDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) { setItems([]); setLoading(false); return; }
+    const { data } = await supabase
+      .from('vendor_documents')
+      .select('id,doc_type,title,storage_path,mime_type,byte_size,content_sha256,seal_sha256,ots_status,ots_confirmed_at,bound_type,status,expires_at,created_at')
+      .eq('vendor_id', uid).eq('status', 'active').order('created_at', { ascending: false });
+    setItems((data ?? []) as VendorDocument[]); setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return { items, loading, refetch: load };
+}
+export async function signVendorDocument(path: string): Promise<string | null> {
+  const { data } = await supabase.storage.from('vendor_documents').createSignedUrl(path, 60 * 60);
+  return data?.signedUrl ?? null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Advanced Supplier Finance — READ-ONLY analytics (mirror of web engine).
+//  No mutable balance — payouts are admin-brokered. Derived from accepted quotes
+//  (contracted value), live bids (pipeline) and the transactions ledger.
+// ════════════════════════════════════════════════════════════════════════════
+export interface SupplierTransaction { id: string; type: string; amount: number; description: string | null; status: string; created_at: string; }
+export interface FinanceMonth { key: string; label: string; awardedCents: number; receivedCents: number; }
+export interface AwardedContract { id: string; rfq_id: string; title: string; amountCents: number; dispatched: boolean; created_at: string; }
+export interface SupplierFinance {
+  contractedCents: number; inBidCents: number; receivedCents: number; pendingCents: number; outstandingCents: number;
+  wonCount: number; activeCount: number; lostCount: number; bidCount: number;
+  winRate: number | null; avgAwardCents: number | null;
+  funnel: { submitted: number; shortlisted: number; awarded: number };
+  months: FinanceMonth[]; awardedContracts: AwardedContract[]; transactions: SupplierTransaction[];
+}
+const POSITIVE_TX = new Set(['earning', 'deposit', 'refund', 'payout']);
+const qCents = (q: MyQuote): number => q.quote?.amount_cents ?? (q.quote?.amount != null ? toCents(q.quote.amount) : 0);
+
+export function computeSupplierFinance(quotes: MyQuote[], txns: SupplierTransaction[]): SupplierFinance {
+  const accepted = quotes.filter((q) => q.status === 'accepted');
+  const active = quotes.filter((q) => q.status === 'submitted' || q.status === 'shortlisted');
+  const lost = quotes.filter((q) => q.status === 'declined');
+  const contractedCents = accepted.reduce((s, q) => s + qCents(q), 0);
+  const inBidCents = active.reduce((s, q) => s + qCents(q), 0);
+  let receivedCents = 0, pendingCents = 0;
+  for (const t of txns) {
+    const c = toCents(Math.abs(t.amount));
+    if (t.status === 'pending' || t.status === 'processing') pendingCents += c;
+    else if (t.status === 'completed' && POSITIVE_TX.has(t.type)) receivedCents += c;
+  }
+  const wonCount = accepted.length, lostCount = lost.length;
+  const winRate = wonCount + lostCount > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : null;
+  const now = new Date();
+  const months: FinanceMonth[] = [];
+  const idx = new Map<string, number>();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    idx.set(key, months.length);
+    months.push({ key, label: d.toLocaleDateString('en-US', { month: 'short' }), awardedCents: 0, receivedCents: 0 });
+  }
+  const bucket = (iso: string): FinanceMonth | null => {
+    const d = new Date(iso); if (Number.isNaN(d.getTime())) return null;
+    const i = idx.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    return i == null ? null : months[i]!;
+  };
+  for (const q of accepted) { const m = bucket(q.created_at); if (m) m.awardedCents += qCents(q); }
+  for (const t of txns) { if (t.status === 'completed' && POSITIVE_TX.has(t.type)) { const m = bucket(t.created_at); if (m) m.receivedCents += toCents(Math.abs(t.amount)); } }
+  return {
+    contractedCents, inBidCents, receivedCents, pendingCents,
+    outstandingCents: Math.max(contractedCents - receivedCents, 0),
+    wonCount, activeCount: active.length, lostCount, bidCount: quotes.length,
+    winRate, avgAwardCents: wonCount > 0 ? Math.round(contractedCents / wonCount) : null,
+    funnel: { submitted: quotes.length, shortlisted: quotes.filter((q) => q.status === 'shortlisted' || q.status === 'accepted').length, awarded: wonCount },
+    months,
+    awardedContracts: accepted.map((q) => ({ id: q.id, rfq_id: q.rfq_id, title: q.rfq_title || 'Awarded contract', amountCents: qCents(q), dispatched: !!q.spawned_job_id, created_at: q.created_at })),
+    transactions: txns,
+  };
+}
+
+export function useSupplierFinance() {
+  const [data, setData] = useState<SupplierFinance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) { setData(null); setLoading(false); return; }
+    const [{ data: quotes }, { data: txns }] = await Promise.all([
+      supabase.from('supplier_quotes').select('*').eq('supplier_id', uid).order('created_at', { ascending: false }),
+      supabase.from('transactions').select('id,type,amount,description,status,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(50),
+    ]);
+    const qlist = (quotes ?? []) as Quote[];
+    const ids = Array.from(new Set(qlist.map((q) => q.rfq_id)));
+    let rfqMap: Record<string, any> = {};
+    if (ids.length) {
+      const { data: rfqs } = await supabase.from('supplier_rfqs').select('id,title,status,spawned_job_id').in('id', ids);
+      rfqMap = Object.fromEntries(((rfqs ?? []) as any[]).map((r) => [r.id, r]));
+    }
+    const enriched: MyQuote[] = qlist.map((q) => ({ ...q, rfq_title: rfqMap[q.rfq_id]?.title, rfq_status: rfqMap[q.rfq_id]?.status, spawned_job_id: rfqMap[q.rfq_id]?.spawned_job_id }));
+    setData(computeSupplierFinance(enriched, (txns ?? []) as SupplierTransaction[]));
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return { data, loading, refetch: load };
 }

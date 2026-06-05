@@ -136,7 +136,7 @@ export default function SupplierDashboard() {
           {/* ── Active Opportunities ── */}
           <View style={s.sectionHead}>
             <Text style={s.sectionTitle}>Active Opportunities</Text>
-            <TouchableOpacity onPress={() => router.push('/rfqs' as any)} hitSlop={8}><Text style={s.link}>Browse all</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/suppliers/opportunities' as any)} hitSlop={8}><Text style={s.link}>Browse all</Text></TouchableOpacity>
           </View>
           {opportunities.length === 0 ? (
             <Empty icon="megaphone-outline" text="No open opportunities right now." />
@@ -160,7 +160,10 @@ export default function SupplierDashboard() {
           ))}
 
           {/* ── My Bids ── */}
-          <Text style={[s.sectionTitle, { marginTop: T.spacing.xl }]}>My Bids</Text>
+          <View style={[s.sectionHead, { marginTop: T.spacing.xl }]}>
+            <Text style={s.sectionTitle}>My Bids</Text>
+            <TouchableOpacity onPress={() => router.push('/suppliers/bids' as any)} hitSlop={8}><Text style={s.link}>View all</Text></TouchableOpacity>
+          </View>
           {myQuotes.length === 0 ? (
             <Empty icon="document-text-outline" text="You haven't bid yet — browse opportunities above." />
           ) : myQuotes.slice(0, 8).map((q) => {
@@ -180,11 +183,14 @@ export default function SupplierDashboard() {
             );
           })}
 
-          {/* ── Quick actions ── */}
-          <Text style={[s.sectionTitle, { marginTop: T.spacing.xl }]}>Quick Actions</Text>
+          {/* ── My Workspace ── */}
+          <Text style={[s.sectionTitle, { marginTop: T.spacing.xl }]}>My Workspace</Text>
           <View style={s.actionsRow}>
-            <Action icon="search-outline" label="Browse RFQs" onPress={() => router.push('/rfqs' as any)} />
-            <Action icon="storefront-outline" label="My Listing" onPress={() => router.push('/suppliers/onboard' as any)} />
+            <Action icon="megaphone-outline" label="Opportunities" onPress={() => router.push('/suppliers/opportunities' as any)} />
+            <Action icon="send-outline" label="My Bids" onPress={() => router.push('/suppliers/bids' as any)} />
+            <Action icon="wallet-outline" label="Finance" onPress={() => router.push('/suppliers/finance' as any)} />
+            <Action icon="shield-checkmark-outline" label="Documents" onPress={() => router.push('/suppliers/documents' as any)} />
+            <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/support-chat' as any)} />
             <Action icon="construct-outline" label="Tools" onPress={() => router.push('/tools' as any)} />
           </View>
 
@@ -281,8 +287,8 @@ const s = StyleSheet.create({
   statusChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: T.borderRadius.full },
   statusChipTxt: { fontSize: 10, fontWeight: '800' },
 
-  actionsRow: { flexDirection: 'row', gap: 10 },
-  action: { flex: 1, alignItems: 'center', gap: 6, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, paddingVertical: T.spacing.md },
+  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  action: { width: '31%', flexGrow: 1, alignItems: 'center', gap: 6, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, paddingVertical: T.spacing.md },
   actionTxt: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, fontWeight: '600' },
 
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder },

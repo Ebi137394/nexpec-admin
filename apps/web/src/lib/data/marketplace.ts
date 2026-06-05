@@ -230,3 +230,94 @@ export async function fetchCapabilityLabelMap(): Promise<Record<string, string>>
   const caps = await fetchCapabilityCatalog();
   return Object.fromEntries(caps.map((c) => [c.key, c.label]));
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Advanced Supplier Finance — analytics engine (READ-ONLY, derived from real
+//  rows). NEVER mutates a balance (the platform money model is admin-brokered;
+//  client-writable balances were the root of the mint-money incident). Every
+//  figure here is computed from accepted quotes (contracted value), the live bid
+//  pipeline, and the transactions ledger — so it's premium AND honest.
+// ════════════════════════════════════════════════════════════════════════════
+const POSITIVE_TX = new Set(['earning', 'deposit', 'refund', 'payout']);
+const quoteCents = (q: { quote?: { amount_cents?: number; amount?: number } }): number =>
+  q.quote?.amount_cents ?? (q.quote?.amount != null ? toCents(q.quote.amount) : 0);
+
+export interface FinanceMonth { key: string; label: string; awardedCents: number; receivedCents: number; }
+export interface AwardedContract { id: string; rfq_id: string; title: string; amountCents: number; dispatched: boolean; created_at: string; }
+export interface SupplierFinance {
+  contractedCents: number;   // Σ accepted-quote value — work you've won
+  inBidCents: number;        // Σ live (submitted+shortlisted) quote value — pipeline
+  receivedCents: number;     // Σ completed inbound transactions — settled to you
+  pendingCents: number;      // Σ pending/processing transactions
+  outstandingCents: number;  // contracted − received (awaiting brokered release)
+  wonCount: number; activeCount: number; lostCount: number; bidCount: number;
+  winRate: number | null;    // won / (won+lost)
+  avgAwardCents: number | null;
+  funnel: { submitted: number; shortlisted: number; awarded: number };
+  months: FinanceMonth[];    // trailing 6 months
+  awardedContracts: AwardedContract[];
+  transactions: SupplierTransaction[];
+}
+
+export function computeSupplierFinance(quotes: MyQuote[], txns: SupplierTransaction[]): SupplierFinance {
+  const accepted = quotes.filter((q) => q.status === 'accepted');
+  const active = quotes.filter((q) => q.status === 'submitted' || q.status === 'shortlisted');
+  const lost = quotes.filter((q) => q.status === 'declined');
+
+  const contractedCents = accepted.reduce((s, q) => s + quoteCents(q), 0);
+  const inBidCents = active.reduce((s, q) => s + quoteCents(q), 0);
+  let receivedCents = 0, pendingCents = 0;
+  for (const t of txns) {
+    const c = toCents(Math.abs(t.amount));
+    if (t.status === 'pending' || t.status === 'processing') pendingCents += c;
+    else if (t.status === 'completed' && POSITIVE_TX.has(t.type)) receivedCents += c;
+  }
+  const wonCount = accepted.length;
+  const lostCount = lost.length;
+  const winRate = wonCount + lostCount > 0 ? Math.round((wonCount / (wonCount + lostCount)) * 100) : null;
+
+  // Trailing 6-month buckets (awarded value by bid date + received by tx date).
+  const now = new Date();
+  const months: FinanceMonth[] = [];
+  const idx = new Map<string, number>();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    idx.set(key, months.length);
+    months.push({ key, label: d.toLocaleDateString('en-US', { month: 'short' }), awardedCents: 0, receivedCents: 0 });
+  }
+  const bucket = (iso: string): FinanceMonth | null => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const i = idx.get(key);
+    return i == null ? null : months[i]!;
+  };
+  for (const q of accepted) { const m = bucket(q.created_at); if (m) m.awardedCents += quoteCents(q); }
+  for (const t of txns) {
+    if (t.status === 'completed' && POSITIVE_TX.has(t.type)) { const m = bucket(t.created_at); if (m) m.receivedCents += toCents(Math.abs(t.amount)); }
+  }
+
+  return {
+    contractedCents, inBidCents, receivedCents, pendingCents,
+    outstandingCents: Math.max(contractedCents - receivedCents, 0),
+    wonCount, activeCount: active.length, lostCount, bidCount: quotes.length,
+    winRate, avgAwardCents: wonCount > 0 ? Math.round(contractedCents / wonCount) : null,
+    funnel: {
+      submitted: quotes.length,
+      shortlisted: quotes.filter((q) => q.status === 'shortlisted' || q.status === 'accepted').length,
+      awarded: wonCount,
+    },
+    months,
+    awardedContracts: accepted.map((q) => ({
+      id: q.id, rfq_id: q.rfq_id, title: q.rfq_title || 'Awarded contract',
+      amountCents: quoteCents(q), dispatched: !!q.spawned_job_id, created_at: q.created_at,
+    })),
+    transactions: txns,
+  };
+}
+
+export async function fetchSupplierFinance(): Promise<SupplierFinance> {
+  const [quotes, txns] = await Promise.all([fetchMyQuotes(), fetchSupplierTransactions()]);
+  return computeSupplierFinance(quotes, txns);
+}

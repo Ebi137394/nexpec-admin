@@ -24,6 +24,19 @@ export interface Rfq {
   scope_template_id: string | null; requires_source_inspection: boolean; spawned_job_id: string | null; created_at: string;
 }
 export interface Quote { id: string; rfq_id: string; supplier_id: string; quote: any; status: string; created_at: string; }
+// Client-facing offer — projected from rfq_client_offers_view. Carries ONLY the
+// admin-set marked-up price + an anonymized NX- handle. The raw supplier price,
+// amount, and supplier_id are NOT present (price-blindness / anti-poaching).
+export interface ClientOffer {
+  id: string; rfq_id: string; price_cents: number | null; status: string;
+  presented_at: string | null; created_at: string; lead_time: string | null; supplier_handle: string | null;
+}
+// Admin-only raw quote view (admin sees cost + supplier identity + margin).
+export interface AdminQuote {
+  id: string; rfq_id: string; supplier_id: string; supplier_name: string | null;
+  quote: any; status: string; client_price_cents: number | null; created_at: string;
+}
+export interface AdminRfqRow extends Rfq { quote_count: number; presented_count: number; }
 export interface VendorProfile {
   id: string; legal_name: string; headline: string | null; capabilities: string[];
   attributes: any; country_code: string | null; rating_avg: number; rating_count: number; is_active: boolean; verified: boolean;
@@ -70,10 +83,66 @@ export async function fetchRfqs(): Promise<Rfq[]> {
   return (data ?? []) as Rfq[];
 }
 
+export async function fetchRfq(id: string): Promise<Rfq | null> {
+  const { data } = await sb().from('supplier_rfqs').select('*').eq('id', id).maybeSingle();
+  return (data ?? null) as Rfq | null;
+}
+
+// Back-compat: rfq + the caller's RLS-accessible quotes. A supplier sees only
+// their OWN quote; a client now gets NONE (raw quotes are unreachable post-armor).
+// Used by the supplier opportunities detail page.
 export async function fetchRfqDetail(id: string): Promise<{ rfq: Rfq | null; quotes: Quote[] }> {
   const { data: r } = await sb().from('supplier_rfqs').select('*').eq('id', id).maybeSingle();
   const { data: q } = await sb().from('supplier_quotes').select('*').eq('rfq_id', id).order('created_at', { ascending: true });
   return { rfq: (r ?? null) as Rfq | null, quotes: (q ?? []) as Quote[] };
+}
+
+// CLIENT path — curated, marked-up offers only (raw supplier price is unreachable
+// by RLS; this view never exposes it). Use this for the RFQ owner.
+export async function fetchClientOffers(rfqId: string): Promise<ClientOffer[]> {
+  const { data } = await sb().from('rfq_client_offers_view').select('*').eq('rfq_id', rfqId).order('created_at', { ascending: true });
+  return (data ?? []) as ClientOffer[];
+}
+
+// SUPPLIER path — the caller's OWN quote (their own bid; RLS scopes to self).
+export async function fetchMyQuote(rfqId: string): Promise<Quote | null> {
+  const uid = await getUserId();
+  if (!uid) return null;
+  const { data } = await sb().from('supplier_quotes').select('*').eq('rfq_id', rfqId).eq('supplier_id', uid).maybeSingle();
+  return (data ?? null) as Quote | null;
+}
+
+// ADMIN path — raw quotes + supplier identity + the markup state (admin RLS).
+export async function fetchAdminRfqs(): Promise<AdminRfqRow[]> {
+  const { data: rfqs } = await sb().from('supplier_rfqs').select('*').order('created_at', { ascending: false });
+  const list = (rfqs ?? []) as Rfq[];
+  if (list.length === 0) return [];
+  const { data: q } = await sb().from('supplier_quotes').select('rfq_id, status');
+  const counts = new Map<string, { total: number; presented: number }>();
+  for (const row of (q ?? []) as Array<{ rfq_id: string; status: string }>) {
+    const c = counts.get(row.rfq_id) ?? { total: 0, presented: 0 };
+    c.total += 1; if (row.status === 'presented') c.presented += 1;
+    counts.set(row.rfq_id, c);
+  }
+  return list.map((r) => ({ ...r, quote_count: counts.get(r.id)?.total ?? 0, presented_count: counts.get(r.id)?.presented ?? 0 }));
+}
+
+export async function fetchAdminRfqQuotes(rfqId: string): Promise<{ rfq: Rfq | null; quotes: AdminQuote[] }> {
+  const { data: r } = await sb().from('supplier_rfqs').select('*').eq('id', rfqId).maybeSingle();
+  const { data: q } = await sb().from('supplier_quotes')
+    .select('id, rfq_id, supplier_id, quote, status, client_price_cents, created_at')
+    .eq('rfq_id', rfqId).order('created_at', { ascending: true });
+  const rows = (q ?? []) as Array<Omit<AdminQuote, 'supplier_name'>>;
+  const ids = Array.from(new Set(rows.map((x) => x.supplier_id)));
+  const nameMap = new Map<string, string>();
+  if (ids.length) {
+    const { data: profs } = await sb().from('supplier_profiles').select('id, legal_name').in('id', ids);
+    for (const p of (profs ?? []) as Array<{ id: string; legal_name: string }>) nameMap.set(p.id, p.legal_name);
+  }
+  return {
+    rfq: (r ?? null) as Rfq | null,
+    quotes: rows.map((x) => ({ ...x, supplier_name: nameMap.get(x.supplier_id) ?? null })),
+  };
 }
 
 export async function fetchMyVendorProfile(): Promise<VendorProfile | null> {
@@ -93,6 +162,9 @@ export const createRfq = (a: { title: string; spec?: any; scope_template_id?: st
 
 export const submitQuote = (rfqId: string, quote: any) => sb().rpc('submit_quote', { p_rfq_id: rfqId, p_quote: quote });
 export const awardQuote = (quoteId: string) => sb().rpc('award_quote', { p_quote_id: quoteId });
+// ADMIN: set the client-facing marked-up price and release the offer to the client.
+export const presentQuote = (quoteId: string, clientPriceCents: number, note?: string) =>
+  sb().rpc('admin_present_quote', { p_quote_id: quoteId, p_client_price_cents: clientPriceCents, p_admin_note: note ?? null });
 
 export const onboardSupplier = (a: { legal_name: string; capabilities: string[]; attributes?: any; country?: string | null; headline?: string | null; lat?: number | null; lng?: number | null; }) =>
   sb().rpc('supplier_onboard', {

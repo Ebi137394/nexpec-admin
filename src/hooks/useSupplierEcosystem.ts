@@ -19,6 +19,12 @@ export interface Rfq {
   scope_template_id: string | null; requires_source_inspection: boolean; spawned_job_id: string | null; created_at: string;
 }
 export interface Quote { id: string; rfq_id: string; supplier_id: string; quote: any; status: string; created_at: string; }
+// Client-facing offer (rfq_client_offers_view) — marked-up price + NX- handle ONLY.
+// The raw supplier price / amount / supplier_id are NOT present (price-blindness).
+export interface ClientOffer {
+  id: string; rfq_id: string; price_cents: number | null; status: string;
+  presented_at: string | null; created_at: string; lead_time: string | null; supplier_handle: string | null;
+}
 
 export function useCapabilityCatalog() {
   const [items, setItems] = useState<CapabilityOption[]>([]);
@@ -66,19 +72,37 @@ export function useRfqs() {
   return { items, loading, refetch: load };
 }
 
+// Role-aware: the CLIENT (owner) reads ONLY rfq_client_offers_view (marked-up
+// offers — raw price is unreachable by RLS); a SUPPLIER reads their OWN bid.
 export function useRfqDetail(id?: string) {
   const [rfq, setRfq] = useState<Rfq | null>(null);
-  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [offers, setOffers] = useState<ClientOffer[]>([]);
+  const [myQuote, setMyQuote] = useState<Quote | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    const myId = u.user?.id ?? null;
     const { data: r } = await supabase.from('supplier_rfqs').select('*').eq('id', id).maybeSingle();
-    const { data: q } = await supabase.from('supplier_quotes').select('*').eq('rfq_id', id).order('created_at', { ascending: true });
-    setRfq((r ?? null) as Rfq | null); setQuotes((q ?? []) as Quote[]); setLoading(false);
+    const rr = (r ?? null) as Rfq | null;
+    setUid(myId); setRfq(rr);
+    const owner = !!myId && !!rr && myId === rr.client_id;
+    if (owner) {
+      const { data: o } = await supabase.from('rfq_client_offers_view').select('*').eq('rfq_id', id).order('created_at', { ascending: true });
+      setOffers((o ?? []) as ClientOffer[]); setMyQuote(null);
+    } else if (myId) {
+      const { data: mq } = await supabase.from('supplier_quotes').select('*').eq('rfq_id', id).eq('supplier_id', myId).maybeSingle();
+      setMyQuote((mq ?? null) as Quote | null); setOffers([]);
+    } else {
+      setMyQuote(null); setOffers([]);
+    }
+    setLoading(false);
   }, [id]);
   useEffect(() => { load(); }, [load]);
-  return { rfq, quotes, loading, refetch: load };
+  const isOwner = !!uid && !!rfq && uid === rfq.client_id;
+  return { rfq, offers, myQuote, isOwner, uid, loading, refetch: load };
 }
 
 export function useCurrentUserId() {

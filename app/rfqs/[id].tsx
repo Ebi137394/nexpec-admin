@@ -1,18 +1,25 @@
-// app/rfqs/[id].tsx — RFQ detail: quotes, client award (auto-spawns inspection), supplier bid
-import React, { useCallback, useMemo, useState } from 'react';
+// app/rfqs/[id].tsx — role-aware RFQ detail (mirrors web /rfqs/[id]).
+//   CLIENT (owner): sees ONLY admin-curated offers (marked-up price + NX- handle);
+//     the raw supplier price is unreachable (RLS + offers view). Accept = award.
+//   SUPPLIER: sees their OWN bid (raw, their own number) + submit form.
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
-import { useRfqDetail, useCurrentUserId, submitQuote, awardQuote, type Quote } from '../../src/hooks/useSupplierEcosystem';
+import { useRfqDetail, submitQuote, awardQuote, type ClientOffer } from '../../src/hooks/useSupplierEcosystem';
 import { toCents, formatUsd } from '../../src/core/utils/money';
+
+const BID_STATUS: Record<string, string> = {
+  submitted: 'Under NEXPEC review', shortlisted: 'Shortlisted', presented: 'With the client',
+  accepted: 'Awarded', declined: 'Not selected', withdrawn: 'Withdrawn',
+};
 
 export default function RfqDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { rfq, quotes, loading, refetch } = useRfqDetail(id);
-  const uid = useCurrentUserId();
+  const { rfq, offers, myQuote, isOwner, loading, refetch } = useRfqDetail(id);
 
   const [amount, setAmount] = useState('');
   const [lead, setLead] = useState('');
@@ -22,8 +29,6 @@ export default function RfqDetailScreen() {
 
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-  const isOwner = !!uid && !!rfq && uid === rfq.client_id;
-  const myQuote = useMemo(() => (uid ? quotes.find((q) => q.supplier_id === uid) : undefined), [quotes, uid]);
   const awardable = !!rfq && (rfq.status === 'open' || rfq.status === 'quoted') && !rfq.spawned_job_id;
 
   const doSubmit = async () => {
@@ -37,22 +42,22 @@ export default function RfqDetailScreen() {
       if (error) { Alert.alert('Could not submit', error.message); return; }
       setAmount(''); setLead(''); setNote('');
       await refetch();
-      Alert.alert('Quote submitted', 'The client has received your bid.');
+      Alert.alert('Quote submitted', 'NEXPEC will review your bid and broker the award.');
     } finally { setBusy(false); }
   };
 
-  const doAward = (q: Quote) => {
-    Alert.alert('Award this quote?', rfq?.requires_source_inspection
-      ? 'NEXPEC will auto-create a source/FAT inspection job and dispatch a discipline-matched inspector to the supplier facility.'
-      : 'This RFQ is procurement-only; awarding will close it to the winning supplier.',
-      [{ text: 'Cancel', style: 'cancel' }, { text: 'Award', style: 'default', onPress: async () => {
-        setAwarding(q.id);
+  const doAccept = (offer: ClientOffer) => {
+    Alert.alert('Accept this offer?', rfq?.requires_source_inspection
+      ? 'NEXPEC will proceed and auto-create a source/FAT inspection job, dispatching a discipline-matched inspector.'
+      : 'Accepting authorizes NEXPEC to proceed with this engagement.',
+      [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept', style: 'default', onPress: async () => {
+        setAwarding(offer.id);
         try {
-          const { error } = await awardQuote(q.id);
-          if (error) { Alert.alert('Could not award', error.message); return; }
+          const { error } = await awardQuote(offer.id);
+          if (error) { Alert.alert('Could not proceed', error.message); return; }
           await refetch();
-          Alert.alert(rfq?.requires_source_inspection ? 'Awarded · Inspection dispatched' : 'Awarded',
-            rfq?.requires_source_inspection ? 'A source/FAT inspection job was created and is now in admin dispatch.' : 'The supplier has been notified.');
+          Alert.alert(rfq?.requires_source_inspection ? 'Accepted · Inspection dispatched' : 'Accepted',
+            rfq?.requires_source_inspection ? 'A source/FAT inspection job was created and is now in admin dispatch.' : 'NEXPEC is proceeding with your order.');
         } finally { setAwarding(null); }
       } }]);
   };
@@ -84,52 +89,85 @@ export default function RfqDetailScreen() {
             <Ionicons name="rocket" size={18} color={T.colors.success} />
             <View style={{ flex: 1 }}>
               <Text style={s.dispatchedTitle}>Inspection dispatched</Text>
-              <Text style={s.dispatchedSub}>A source/FAT job is in admin dispatch for the awarded supplier.</Text>
+              <Text style={s.dispatchedSub}>A source/FAT job is in admin dispatch for the awarded engagement.</Text>
             </View>
           </View>
         )}
 
-        {/* ── Supplier bid composer (non-owner, not yet awarded) ── */}
-        {!isOwner && awardable && (
-          <View style={s.bidCard}>
-            <Text style={s.bidTitle}>{myQuote ? 'Update your quote' : 'Submit a quote'}</Text>
-            <Text style={s.fieldLabel}>Amount (USD)</Text>
-            <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="e.g. 4200" placeholderTextColor={T.colors.textMuted} style={s.input} />
-            <Text style={s.fieldLabel}>Lead time</Text>
-            <TextInput value={lead} onChangeText={setLead} placeholder="e.g. 3 weeks" placeholderTextColor={T.colors.textMuted} style={s.input} />
-            <Text style={s.fieldLabel}>Note</Text>
-            <TextInput value={note} onChangeText={setNote} placeholder="Compliance, incoterms…" placeholderTextColor={T.colors.textMuted} style={[s.input, s.area]} multiline />
-            <TouchableOpacity style={[s.submit, busy && { opacity: 0.6 }]} onPress={doSubmit} disabled={busy} activeOpacity={0.85}>
-              {busy ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
-              <Text style={s.submitTxt}>{busy ? 'Submitting…' : myQuote ? 'Resubmit quote' : 'Submit quote'}</Text>
-            </TouchableOpacity>
-          </View>
+        {/* ───────────── SUPPLIER VIEW ───────────── */}
+        {!isOwner && (
+          <>
+            {awardable && (
+              <View style={s.bidCard}>
+                <Text style={s.bidTitle}>{myQuote ? 'Update your quote' : 'Submit a quote'}</Text>
+                <Text style={s.fieldLabel}>Amount (USD)</Text>
+                <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="e.g. 4200" placeholderTextColor={T.colors.textMuted} style={s.input} />
+                <Text style={s.fieldLabel}>Lead time</Text>
+                <TextInput value={lead} onChangeText={setLead} placeholder="e.g. 3 weeks" placeholderTextColor={T.colors.textMuted} style={s.input} />
+                <Text style={s.fieldLabel}>Note</Text>
+                <TextInput value={note} onChangeText={setNote} placeholder="Compliance, incoterms…" placeholderTextColor={T.colors.textMuted} style={[s.input, s.area]} multiline />
+                <TouchableOpacity style={[s.submit, busy && { opacity: 0.6 }]} onPress={doSubmit} disabled={busy} activeOpacity={0.85}>
+                  {busy ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={16} color="#fff" />}
+                  <Text style={s.submitTxt}>{busy ? 'Submitting…' : myQuote ? 'Resubmit quote' : 'Submit quote'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <Text style={s.section}>Your quote</Text>
+            {!myQuote ? <Text style={s.empty}>You haven&rsquo;t quoted yet.</Text> : (
+              <View style={s.quoteCard}>
+                <View style={s.quoteTop}>
+                  <Text style={s.quoteAmount}>{myQuote.quote?.amount_cents != null ? formatUsd(myQuote.quote.amount_cents) : (myQuote.quote?.amount != null ? formatUsd(toCents(myQuote.quote.amount)) : '—')}</Text>
+                  <View style={[s.qBadge, { backgroundColor: T.colors.inputBackground }]}>
+                    <Text style={[s.qBadgeTxt, { color: T.colors.textSecondary }]}>{BID_STATUS[myQuote.status] ?? myQuote.status}</Text>
+                  </View>
+                </View>
+                {!!myQuote.quote?.lead_time && <Text style={s.quoteMeta}>Lead time · {myQuote.quote.lead_time}</Text>}
+                {!!myQuote.quote?.note && <Text style={s.quoteNote}>{myQuote.quote.note}</Text>}
+              </View>
+            )}
+            <Text style={s.footnote}>NEXPEC reviews every quote and brokers the award. You&rsquo;ll be notified if yours is selected.</Text>
+          </>
         )}
 
-        {/* ── Quotes ── (RLS: supplier sees only own; client sees all) */}
-        <Text style={s.section}>{isOwner ? `Quotes (${quotes.length})` : 'Your quote'}</Text>
-        {quotes.length === 0 ? <Text style={s.empty}>{isOwner ? 'No quotes yet.' : 'You haven’t quoted yet.'}</Text> : quotes.map((q) => {
-          const won = q.status === 'accepted';
-          const lost = q.status === 'declined';
-          return (
-            <View key={q.id} style={[s.quoteCard, won && { borderColor: T.colors.success }]}>
-              <View style={s.quoteTop}>
-                <Text style={s.quoteAmount}>{q.quote?.amount_cents != null ? formatUsd(q.quote.amount_cents) : (q.quote?.amount != null ? formatUsd(toCents(q.quote.amount)) : '—')}</Text>
-                <View style={[s.qBadge, won ? { backgroundColor: 'rgba(16,185,129,0.16)' } : lost ? { backgroundColor: 'rgba(239,68,68,0.12)' } : { backgroundColor: T.colors.inputBackground }]}>
-                  <Text style={[s.qBadgeTxt, { color: won ? T.colors.success : lost ? T.colors.error : T.colors.textSecondary }]}>{q.status}</Text>
+        {/* ───────────── CLIENT (OWNER) VIEW — curated offers only ───────────── */}
+        {isOwner && (
+          <>
+            <Text style={s.section}>Offers</Text>
+            {offers.length === 0 ? (
+              <View style={s.sourcing}>
+                <Ionicons name="hourglass-outline" size={18} color={T.colors.primaryLight} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.sourcingTitle}>NEXPEC is sourcing your offer</Text>
+                  <Text style={s.sourcingSub}>Our team is reviewing the market and preparing a curated offer for your approval.</Text>
                 </View>
               </View>
-              {!!q.quote?.lead_time && <Text style={s.quoteMeta}>Lead time · {q.quote.lead_time}</Text>}
-              {!!q.quote?.note && <Text style={s.quoteNote}>{q.quote.note}</Text>}
-              {isOwner && awardable && !lost && (
-                <TouchableOpacity style={[s.awardBtn, awarding === q.id && { opacity: 0.6 }]} onPress={() => doAward(q)} disabled={!!awarding} activeOpacity={0.85}>
-                  {awarding === q.id ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="ribbon-outline" size={16} color="#fff" />}
-                  <Text style={s.awardTxt}>{awarding === q.id ? 'Awarding…' : 'Award & dispatch'}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
+            ) : offers.map((o) => {
+              const won = o.status === 'accepted';
+              const label = o.status === 'presented' ? 'Offer ready' : o.status === 'accepted' ? 'Accepted' : 'Closed';
+              return (
+                <View key={o.id} style={[s.quoteCard, won && { borderColor: T.colors.success }]}>
+                  <View style={s.quoteTop}>
+                    <Text style={s.quoteAmount}>{o.price_cents != null ? formatUsd(o.price_cents) : '—'}</Text>
+                    <View style={[s.qBadge, won ? { backgroundColor: 'rgba(16,185,129,0.16)' } : { backgroundColor: 'rgba(124,58,237,0.16)' }]}>
+                      <Text style={[s.qBadgeTxt, { color: won ? T.colors.success : T.colors.primaryLight }]}>{label}</Text>
+                    </View>
+                  </View>
+                  <View style={s.offerMetaRow}>
+                    {!!o.supplier_handle && <Text style={s.offerHandle}>{o.supplier_handle}</Text>}
+                    {!!o.lead_time && <Text style={s.quoteMeta}>Lead time · {o.lead_time}</Text>}
+                  </View>
+                  {o.status === 'presented' && awardable && (
+                    <TouchableOpacity style={[s.awardBtn, awarding === o.id && { opacity: 0.6 }]} onPress={() => doAccept(o)} disabled={!!awarding} activeOpacity={0.85}>
+                      {awarding === o.id ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="ribbon-outline" size={16} color="#fff" />}
+                      <Text style={s.awardTxt}>{awarding === o.id ? 'Processing…' : 'Accept & proceed'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+            <Text style={s.footnote}>Pricing is brokered by NEXPEC. Accepting an offer authorizes us to proceed and (where required) dispatch a source/FAT inspection.</Text>
+          </>
+        )}
         <View style={{ height: 28 }} />
       </ScrollView>
     </SafeAreaView>
@@ -150,6 +188,9 @@ const s = StyleSheet.create({
   dispatched: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: T.spacing.md, marginTop: T.spacing.md, backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 1, borderColor: T.colors.success, borderRadius: T.borderRadius.lg },
   dispatchedTitle: { color: T.colors.success, fontSize: T.fontSize.sm, fontWeight: '700' },
   dispatchedSub: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, marginTop: 2, lineHeight: 16 },
+  sourcing: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: T.spacing.md, backgroundColor: T.colors.cardBackground, borderWidth: 1, borderColor: T.colors.inputBorder, borderRadius: T.borderRadius.lg },
+  sourcingTitle: { color: T.colors.text, fontSize: T.fontSize.sm, fontWeight: '700' },
+  sourcingSub: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, marginTop: 2, lineHeight: 16 },
   bidCard: { padding: T.spacing.md, marginTop: T.spacing.lg, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder },
   bidTitle: { color: T.colors.text, fontSize: T.fontSize.md, fontWeight: '700', marginBottom: T.spacing.sm },
   fieldLabel: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6, marginTop: 8 },
@@ -159,13 +200,16 @@ const s = StyleSheet.create({
   submitTxt: { color: '#fff', fontSize: T.fontSize.sm, fontWeight: '700' },
   section: { color: T.colors.text, fontSize: T.fontSize.md, fontWeight: '700', marginTop: T.spacing.xl, marginBottom: T.spacing.sm },
   empty: { color: T.colors.textMuted, fontSize: T.fontSize.sm, paddingVertical: 12 },
+  footnote: { color: T.colors.textMuted, fontSize: T.fontSize.xs, marginTop: 12, lineHeight: 16 },
   quoteCard: { padding: T.spacing.md, marginBottom: 10, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder },
   quoteTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   quoteAmount: { color: T.colors.text, fontSize: T.fontSize.lg, fontWeight: '800' },
   qBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: T.borderRadius.full },
-  qBadgeTxt: { fontSize: 10, fontWeight: '700', textTransform: 'capitalize' },
-  quoteMeta: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, marginTop: 6 },
+  qBadgeTxt: { fontSize: 10, fontWeight: '700' },
+  quoteMeta: { color: T.colors.textSecondary, fontSize: T.fontSize.xs },
   quoteNote: { color: T.colors.textSecondary, fontSize: T.fontSize.sm, marginTop: 6, lineHeight: 18 },
+  offerMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 6 },
+  offerHandle: { color: T.colors.primaryLight, fontSize: T.fontSize.xs, fontWeight: '700' },
   awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: T.colors.primary, borderRadius: T.borderRadius.md, paddingVertical: T.spacing.md, marginTop: T.spacing.md },
   awardTxt: { color: '#fff', fontSize: T.fontSize.sm, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },

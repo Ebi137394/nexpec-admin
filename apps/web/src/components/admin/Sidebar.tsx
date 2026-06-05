@@ -58,7 +58,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Operations',
     items: [
       { label: 'Jobs', href: '/admin/jobs', icon: Briefcase },
-      { label: 'RFQs & Procurement', href: '/rfqs', icon: FileText },
+      { label: 'RFQs & Procurement', href: '/admin/rfqs', icon: FileText },
       { label: 'Find Suppliers', href: '/directory', icon: Store },
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
       { label: 'Messages', href: '/admin/messages', icon: MessageCircle },

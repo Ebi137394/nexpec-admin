@@ -10,9 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
-import { useConversation, CONVERSATION_KIND_LABELS } from '../../src/hooks/useConversations';
-
-const ADMIN_ROLES = new Set(['admin', 'super_admin']);
+import { useConversation, CONVERSATION_KIND_LABELS, roleLabel } from '../../src/hooks/useConversations';
 
 export default function ThreadScreen() {
   const router = useRouter();
@@ -52,11 +50,10 @@ export default function ThreadScreen() {
             )}
             {messages.map((m) => {
               const mine = !!myId && m.senderId === myId;
-              const isAdmin = !mine && !!m.senderRole && ADMIN_ROLES.has(m.senderRole);
               return (
                 <View key={m.id} style={[s.bubbleRow, mine ? s.rowMine : s.rowTheirs]}>
                   <View style={[s.bubble, mine ? s.bubbleMine : s.bubbleTheirs]}>
-                    {!mine && <Text style={s.sender}>{isAdmin ? 'NEXPEC Admin' : 'Support'}</Text>}
+                    {!mine && <Text style={s.sender}>{roleLabel(m.senderRole)}</Text>}
                     {!!m.content && <Text style={[s.msgTxt, mine && { color: '#FFFFFF' }]}>{m.content}</Text>}
                     <Text style={[s.time, mine && { color: 'rgba(255,255,255,0.7)' }]}>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                   </View>

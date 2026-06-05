@@ -65,7 +65,8 @@
     "clientPortal": "بوابة العميل",
     "inspectorPortal": "بوابة المفتش",
     "tools": "الأدوات",
-    "engineeringTools": "أدوات هندسية"
+    "engineeringTools": "أدوات هندسية",
+    "aiCoinspector": "المفتش المساعد بالذكاء"
   },
   "auth": {
     "signInTitle": "تسجيل الدخول إلى نِكسبيك",

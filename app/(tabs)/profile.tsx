@@ -932,7 +932,7 @@ export default function ProfileScreen() {
               />
             ))}
             {renderMenuItem('language-outline', t('Language'), () => router.push('/profile/language' as any))}
-            {renderMenuItem('help-circle-outline', t('Help & Support'), () => router.push('/support-chat' as any))}
+            {renderMenuItem('help-circle-outline', t('Help & Support'), () => router.push('/inbox' as any))}
             {/* ★ LEGAL-WIRING-001 — Terms & Privacy renders the Tier-1 platform
                 pack (TOS-001 + PRIV-001) via the new registry-backed viewer. */}
             {renderMenuItem('document-outline', t('Terms & Privacy'), () => router.push('/profile/terms' as any))}

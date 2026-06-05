@@ -804,7 +804,7 @@ export default function DashboardHome() {
                   badge={unreadMessages}
                   onPress={() => {
                     try {
-                      router.push('/messages' as any);
+                      router.push('/inbox' as any);
                     } catch {}
                   }}
                 />

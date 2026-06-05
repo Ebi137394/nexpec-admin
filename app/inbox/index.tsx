@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
-import { useMyConversations, ensureHelpSupportConversation, CONVERSATION_KIND_LABELS, type ConversationKind } from '../../src/hooks/useConversations';
+import { useInbox, ensureHelpSupportConversation, CONVERSATION_KIND_LABELS, roleLabel, type ConversationKind } from '../../src/hooks/useConversations';
 
 function rel(iso: string | null): string {
   if (!iso) return '';
@@ -24,7 +24,7 @@ const ICON: Record<ConversationKind, any> = {
 
 export default function InboxScreen() {
   const router = useRouter();
-  const { items, loading, refetch } = useMyConversations();
+  const { items, isAdmin, loading, refetch } = useInbox();
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
 
@@ -46,9 +46,11 @@ export default function InboxScreen() {
       <View style={s.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <Text style={s.title}>Messages</Text>
-        <TouchableOpacity onPress={messageAdmin} hitSlop={8} disabled={opening}>
-          {opening ? <ActivityIndicator size="small" color={T.colors.primary} /> : <Ionicons name="create-outline" size={22} color={T.colors.primaryLight} />}
-        </TouchableOpacity>
+        {isAdmin ? <View style={{ width: 24 }} /> : (
+          <TouchableOpacity onPress={messageAdmin} hitSlop={8} disabled={opening}>
+            {opening ? <ActivityIndicator size="small" color={T.colors.primary} /> : <Ionicons name="create-outline" size={22} color={T.colors.primaryLight} />}
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (
@@ -56,29 +58,36 @@ export default function InboxScreen() {
       ) : items.length === 0 ? (
         <View style={s.empty}>
           <Ionicons name="chatbubbles-outline" size={30} color={T.colors.textMuted} />
-          <Text style={s.emptyTitle}>Your Coordination Bridge</Text>
-          <Text style={s.emptyTxt}>A private, admin-brokered line to the NEXPEC team. Buyers and inspectors can&rsquo;t see it.</Text>
-          <TouchableOpacity style={s.cta} onPress={messageAdmin} disabled={opening} activeOpacity={0.85}>
-            <Ionicons name="shield-checkmark" size={16} color="#FFF" />
-            <Text style={s.ctaTxt}>Message the team</Text>
-          </TouchableOpacity>
+          <Text style={s.emptyTitle}>{isAdmin ? 'Queue is clear' : 'Your Coordination Bridge'}</Text>
+          <Text style={s.emptyTxt}>{isAdmin ? 'No open conversations right now. Rooms from clients, inspectors and suppliers appear here.' : 'A private, admin-brokered line to the NEXPEC team. Buyers and inspectors can’t see it.'}</Text>
+          {!isAdmin && (
+            <TouchableOpacity style={s.cta} onPress={messageAdmin} disabled={opening} activeOpacity={0.85}>
+              <Ionicons name="shield-checkmark" size={16} color="#FFF" />
+              <Text style={s.ctaTxt}>Message the team</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.colors.primary} />}>
-          {items.map((c) => (
-            <TouchableOpacity key={c.id} style={s.row} activeOpacity={0.85} onPress={() => router.push(`/inbox/${c.id}` as any)}>
-              <View style={s.iconTile}><Ionicons name={ICON[c.kind] ?? 'chatbubble-ellipses-outline'} size={20} color={T.colors.primaryLight} /></View>
-              <View style={{ flex: 1 }}>
-                <View style={s.rowTop}>
-                  <Text style={s.rowTitle} numberOfLines={1}>{c.title || CONVERSATION_KIND_LABELS[c.kind]}</Text>
-                  <Text style={s.rowTime}>{rel(c.lastMessageAt)}</Text>
+          {items.map((c) => {
+            const title = isAdmin ? (c.userLabel || roleLabel(c.userRole)) : (c.title || CONVERSATION_KIND_LABELS[c.kind]);
+            const sub = isAdmin ? `${roleLabel(c.userRole)} · ${CONVERSATION_KIND_LABELS[c.kind]}` : (c.lastMessagePreview || CONVERSATION_KIND_LABELS[c.kind]);
+            const unread = isAdmin ? c.unreadForAdmin : c.unreadForUser;
+            return (
+              <TouchableOpacity key={c.id} style={s.row} activeOpacity={0.85} onPress={() => router.push(`/inbox/${c.id}` as any)}>
+                <View style={s.iconTile}><Ionicons name={ICON[c.kind] ?? 'chatbubble-ellipses-outline'} size={20} color={T.colors.primaryLight} /></View>
+                <View style={{ flex: 1 }}>
+                  <View style={s.rowTop}>
+                    <Text style={s.rowTitle} numberOfLines={1}>{title}</Text>
+                    <Text style={s.rowTime}>{rel(c.lastMessageAt)}</Text>
+                  </View>
+                  <Text style={s.rowSub} numberOfLines={1}>{sub}</Text>
                 </View>
-                <Text style={s.rowSub} numberOfLines={1}>{c.lastMessagePreview || CONVERSATION_KIND_LABELS[c.kind]}</Text>
-              </View>
-              {c.unreadForUser > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{c.unreadForUser > 99 ? '99+' : c.unreadForUser}</Text></View>}
-            </TouchableOpacity>
-          ))}
+                {unread > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{unread > 99 ? '99+' : unread}</Text></View>}
+              </TouchableOpacity>
+            );
+          })}
           <View style={{ height: 24 }} />
         </ScrollView>
       )}

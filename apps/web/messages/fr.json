@@ -65,7 +65,8 @@
     "clientPortal": "Portail Client",
     "inspectorPortal": "Portail Inspecteur",
     "tools": "Outils",
-    "engineeringTools": "Outils d’ingénierie"
+    "engineeringTools": "Outils d’ingénierie",
+    "aiCoinspector": "Co-inspecteur IA"
   },
   "auth": {
     "signInTitle": "Se connecter à NEXPEC",

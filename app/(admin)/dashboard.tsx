@@ -429,7 +429,7 @@ export default function Dashboard() {
         <NavCard label="Project Chats"   icon="chatbubbles-outline" route="/(admin)/communications"         badge={undefined}                color={SA.accent} />
         <NavCard label="System Alerts"   icon="mail-outline"       route="/(admin)/admin-inbox"             badge={undefined}                color="#8B5CF6" />
         <NavCard label="Job Issues"      icon="chatbubble-ellipses-outline" route="/(admin)/communications/support"  badge={kpi.openSupport}          color={SA.danger} />
-        <NavCard label="Live Helpdesk"   icon="mail-outline"       route="/(admin)/support-inbox"             badge={kpi.openHelpdesk}         color="#7C3AED" />
+        <NavCard label="Unified Inbox"   icon="chatbubbles-outline" route="/inbox"                          badge={kpi.openHelpdesk}         color="#7C3AED" />
         <NavCard label="Verification"    icon="shield-checkmark-outline" route="/(admin)/verification"      badge={kpi.pendingVerifications} color={SA.success} />
         {/* ★ TURNKEY MARKETPLACE — procurement suite + supplier directory.
             Root routes (allow-listed in AuthGate); admin is god-mode so it

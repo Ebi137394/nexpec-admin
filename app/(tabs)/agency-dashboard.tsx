@@ -971,7 +971,7 @@ export default function AgencyDashboard() {
               tint: C.ok,
               label: 'Messages',
               gradient: ['rgba(16,185,129,0.32)', 'rgba(16,185,129,0.06)'],
-              onPress: () => router.push('/messages' as any),
+              onPress: () => router.push('/inbox' as any),
             },
             {
               id: 'contracts',

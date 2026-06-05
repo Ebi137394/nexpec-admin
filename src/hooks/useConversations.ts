@@ -26,7 +26,18 @@ export const CONVERSATION_KIND_LABELS: Record<ConversationKind, string> = {
 export interface ConversationRow {
   id: string; kind: ConversationKind; jobId: string | null; userId: string;
   title: string | null; status: string; lastMessageAt: string | null;
-  lastMessagePreview: string | null; unreadForUser: number; createdAt: string;
+  lastMessagePreview: string | null; unreadForUser: number; unreadForAdmin: number; createdAt: string;
+  userLabel?: string | null; userRole?: string | null; // populated for the admin queue
+}
+
+// Human label for a sender/counterparty role (used by inbox + thread, both sides).
+export function roleLabel(role: string | null | undefined): string {
+  const r = (role ?? '').toLowerCase();
+  if (r === 'admin' || r === 'super_admin') return 'NEXPEC Admin';
+  if (r === 'inspector') return 'Inspector';
+  if (r === 'supplier') return 'Supplier';
+  if (r === 'client' || r === 'agency' || r === 'enterprise') return 'Client';
+  return 'Support';
 }
 export interface MessageRow {
   id: string; conversationId: string; senderId: string; senderRole: string | null;
@@ -39,6 +50,7 @@ function toConv(r: any): ConversationRow {
     userId: String(r.user_id), title: r.title ?? null, status: r.status ?? 'open',
     lastMessageAt: r.last_message_at ?? null, lastMessagePreview: r.last_message_preview ?? null,
     unreadForUser: typeof r.unread_for_user === 'number' ? r.unread_for_user : 0,
+    unreadForAdmin: typeof r.unread_for_admin === 'number' ? r.unread_for_admin : 0,
     createdAt: String(r.created_at ?? ''),
   };
 }
@@ -145,4 +157,41 @@ export function useConversation(convId?: string) {
   }, [convId]);
 
   return { conversation, messages, loading, sending, send, refetch: load, myId: uidRef.current };
+}
+
+// ── Role-aware inbox: admins see the FULL queue (with counterparty labels);
+//    everyone else sees their own rooms. One hook powers every role. ──
+export function useInbox() {
+  const [items, setItems] = useState<ConversationRow[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) { setItems([]); setLoading(false); return; }
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+    const role = ((prof as any)?.role ?? '').toString().toLowerCase();
+    const admin = role === 'admin' || role === 'super_admin';
+    setIsAdmin(admin);
+
+    const cols = 'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at';
+    let q = supabase.from('conversations').select(cols).order('last_message_at', { ascending: false }).limit(100);
+    if (!admin) q = q.eq('user_id', uid);
+    const { data } = await q;
+    let rows = ((data ?? []) as any[]).map(toConv);
+
+    // Admin queue: hydrate the counterparty name/role so the operator can tell rooms apart.
+    if (admin && rows.length) {
+      const ids = Array.from(new Set(rows.map((r) => r.userId)));
+      const { data: profs } = await supabase.from('profiles').select('id, full_name, email, role').in('id', ids);
+      const m = new Map(((profs ?? []) as any[]).map((p) => [String(p.id), p]));
+      rows = rows.map((r) => {
+        const p: any = m.get(r.userId);
+        return { ...r, userLabel: p?.full_name || p?.email || null, userRole: p?.role ?? null };
+      });
+    }
+    setItems(rows); setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return { items, isAdmin, loading, refetch: load };
 }

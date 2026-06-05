@@ -276,7 +276,7 @@ export default function DashboardScreen() {
   // ============================================
   const handleFindJobs = () => router.push('/map');
   const handleMyContracts = () => router.push('/(tabs)/my-jobs' as any); // ✅ Updated to correct route
-  const handleMessages = () => router.push('/messages' as any); // ✅ Updated to messages route
+  const handleMessages = () => router.push('/inbox' as any); // unified conversations inbox
   const handleNotifications = () => router.push('/notifications' as any);
   // ★ NX-DEEPLINK-003 — `/applications` and `/applications/<id>` have no
   //   on-disk backing in `app/`. Inspector-side "View applications"

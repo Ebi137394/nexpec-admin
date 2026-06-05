@@ -186,7 +186,7 @@ export async function openHelpSupport(returnToBase: string): Promise<void> {
 
 const OpenJobChatSchema = z.object({
   jobId: z.string().uuid(),
-  kind: z.enum(['job_client_admin', 'job_inspector_admin']),
+  kind: z.enum(['job_client_admin', 'job_inspector_admin', 'job_supplier_admin']),
   returnToBase: z.string().min(1),
 });
 

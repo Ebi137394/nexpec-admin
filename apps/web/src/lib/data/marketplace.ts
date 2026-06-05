@@ -321,3 +321,43 @@ export async function fetchSupplierFinance(): Promise<SupplierFinance> {
   const [quotes, txns] = await Promise.all([fetchMyQuotes(), fetchSupplierTransactions()]);
   return computeSupplierFinance(quotes, txns);
 }
+
+// ── Supplier wallet / Stripe Connect payouts (mirror of inspector wallet) ──
+export interface SupplierWallet { availableCents: number; connectStatus: string; payoutsEnabled: boolean; }
+export async function fetchSupplierWallet(): Promise<SupplierWallet> {
+  const uid = await getUserId();
+  if (!uid) return { availableCents: 0, connectStatus: 'not_connected', payoutsEnabled: false };
+  const client = sb();
+  const [{ data: e }, { data: p }] = await Promise.all([
+    client.from('supplier_earnings').select('available_balance_halalas').eq('supplier_id', uid).maybeSingle(),
+    client.from('profiles').select('stripe_connect_status, stripe_connect_payouts_enabled').eq('id', uid).maybeSingle(),
+  ]);
+  return {
+    availableCents: Number((e as { available_balance_halalas?: number } | null)?.available_balance_halalas ?? 0),
+    connectStatus: ((p as { stripe_connect_status?: string } | null)?.stripe_connect_status ?? 'not_connected'),
+    payoutsEnabled: !!(p as { stripe_connect_payouts_enabled?: boolean } | null)?.stripe_connect_payouts_enabled,
+  };
+}
+// Stripe Connect Express onboarding — same EF as inspectors.
+export async function startSupplierConnectOnboarding(): Promise<string | null> {
+  const uid = await getUserId();
+  if (!uid) return null;
+  const { data, error } = await sb().functions.invoke('create-stripe-connect-link', { body: { user_id: uid } });
+  if (error) return null;
+  return (data as { url?: string } | null)?.url ?? null;
+}
+// Trigger a payout via the parallel supplier EF (server re-derives + verifies).
+export async function supplierWithdraw(amountCents: number): Promise<{ ok: boolean; error?: string }> {
+  const uid = await getUserId();
+  if (!uid) return { ok: false, error: 'Not signed in.' };
+  const { error } = await sb().functions.invoke('create-supplier-payout', { body: { user_id: uid, amount_cents: amountCents } });
+  if (error) {
+    let msg = (error as { message?: string }).message ?? 'Payout failed';
+    try {
+      const body = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
+      if (body?.error) msg = body.error;
+    } catch { /* keep generic */ }
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
+}

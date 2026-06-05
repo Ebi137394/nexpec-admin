@@ -11,6 +11,7 @@ import {
   Trophy, Send, Rocket, MessageCircle, Target, BadgeDollarSign,
 } from 'lucide-react';
 import { fetchSupplierFinance, formatUsd, type SupplierFinance } from '@/lib/data/marketplace';
+import { SupplierPayoutCard } from '@/components/marketplace/SupplierPayoutCard';
 
 const STATUS_CLS: Record<string, string> = {
   completed: 'text-accent-green', pending: 'text-accent-amber', processing: 'text-accent-amber', failed: 'text-accent-red',
@@ -69,6 +70,9 @@ export default function SupplierFinancePage() {
           <Link href="/suppliers/messages" className="font-semibold text-violet-glow hover:text-white">Coordination Bridge</Link>.
         </p>
       </div>
+
+      {/* Withdrawable balance + Stripe Connect payouts (mirror inspector wallet) */}
+      <SupplierPayoutCard />
 
       {/* KPI rail */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

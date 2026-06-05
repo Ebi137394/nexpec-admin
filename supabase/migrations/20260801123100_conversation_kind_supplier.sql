@@ -1,0 +1,12 @@
+-- ============================================================================
+--  20260801123100_conversation_kind_supplier.sql
+--
+--  Adds the 'job_supplier_admin' value to the conversation_kind enum, mirroring
+--  'job_inspector_admin'. This MUST be its own migration: a newly-added enum
+--  value cannot be referenced (at runtime) until the transaction that added it
+--  has committed. The CHECK constraint + ensure_job_conversation update that USE
+--  this value live in the next migration (20260801123200).
+--
+--  Idempotent + safe to re-run.
+-- ============================================================================
+ALTER TYPE public.conversation_kind ADD VALUE IF NOT EXISTS 'job_supplier_admin';

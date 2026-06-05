@@ -9,7 +9,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
-import { MessageCircle, ShieldCheck, Briefcase, ChevronRight, HardHat, Building2 } from 'lucide-react';
+import { MessageCircle, ShieldCheck, Briefcase, ChevronRight, HardHat, Building2, Store } from 'lucide-react';
 import type { ConversationRow, ConversationKind } from '@/lib/data/conversations.types';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
@@ -157,6 +157,14 @@ function deriveAdminPartyChip(
       contextLabel: 'Inspector side · job chat',
       tone: 'cyan',
       Icon: HardHat,
+    };
+  }
+  if (kind === 'job_supplier_admin') {
+    return {
+      label: 'Supplier',
+      contextLabel: 'Supplier side · job chat',
+      tone: 'amber',
+      Icon: Store,
     };
   }
   // help_support — kind alone doesn't tell us who's writing. Use the joined

@@ -275,6 +275,49 @@ export function computeSupplierFinance(quotes: MyQuote[], txns: SupplierTransact
   };
 }
 
+// ── Supplier wallet / Stripe Connect payouts (mirror inspector wallet) ──
+export interface SupplierWallet { availableCents: number; connectStatus: string; payoutsEnabled: boolean; }
+export function useSupplierWallet() {
+  const [data, setData] = useState<SupplierWallet | null>(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) { setData(null); setLoading(false); return; }
+    const [{ data: e }, { data: p }] = await Promise.all([
+      supabase.from('supplier_earnings').select('available_balance_halalas').eq('supplier_id', uid).maybeSingle(),
+      supabase.from('profiles').select('stripe_connect_status, stripe_connect_payouts_enabled').eq('id', uid).maybeSingle(),
+    ]);
+    setData({
+      availableCents: Number((e as any)?.available_balance_halalas ?? 0),
+      connectStatus: ((p as any)?.stripe_connect_status ?? 'not_connected') as string,
+      payoutsEnabled: !!(p as any)?.stripe_connect_payouts_enabled,
+    });
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return { data, loading, refetch: load };
+}
+export async function startSupplierConnectOnboarding(): Promise<string | null> {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u.user?.id; if (!uid) return null;
+  const { data, error } = await supabase.functions.invoke('create-stripe-connect-link', { body: { user_id: uid } });
+  if (error) return null;
+  return (data as any)?.url ?? null;
+}
+export async function supplierWithdraw(amountCents: number): Promise<{ ok: boolean; error?: string }> {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u.user?.id; if (!uid) return { ok: false, error: 'Not signed in.' };
+  const { error } = await supabase.functions.invoke('create-supplier-payout', { body: { user_id: uid, amount_cents: amountCents } });
+  if (error) {
+    let msg = (error as any).message ?? 'Payout failed';
+    try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* keep */ }
+    return { ok: false, error: msg };
+  }
+  return { ok: true };
+}
+
 export function useSupplierFinance() {
   const [data, setData] = useState<SupplierFinance | null>(null);
   const [loading, setLoading] = useState(true);

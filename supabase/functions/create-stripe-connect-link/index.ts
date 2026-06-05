@@ -86,8 +86,12 @@ Deno.serve(async (req) => {
     if (profileErr || !profile) {
       return json({ error: 'Profile not found' }, 404);
     }
-    if (profile.role !== 'inspector') {
-      return json({ error: 'Stripe Connect onboarding is for inspectors only' }, 403);
+    // Stripe Connect Express onboarding is identical for inspectors and
+    // suppliers — both are paid out from the platform balance to their own
+    // connected account. The downstream payout EFs (create-stripe-payout /
+    // create-supplier-payout) enforce the role-specific wallet.
+    if (profile.role !== 'inspector' && profile.role !== 'supplier') {
+      return json({ error: 'Stripe Connect onboarding is for inspectors and suppliers only' }, 403);
     }
 
     // Step 1 — create the Express account if not already present

@@ -3,15 +3,18 @@
 // bids = pipeline, transactions = settlement). No mutable balance — payouts are
 // admin-brokered. Mirrors the web /suppliers/finance dashboard.
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl, Dimensions, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
 import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { formatUsd } from '../../src/core/utils/money';
-import { useSupplierFinance, type FinanceMonth } from '../../src/hooks/useSupplierEcosystem';
+import {
+  useSupplierFinance, useSupplierWallet, startSupplierConnectOnboarding, supplierWithdraw, type FinanceMonth,
+} from '../../src/hooks/useSupplierEcosystem';
 
 const POSITIVE = new Set(['earning', 'deposit', 'refund', 'payout']);
 const STATUS_COLOR: Record<string, string> = { completed: T.colors.success, pending: '#F59E0B', processing: '#F59E0B', failed: T.colors.error };
@@ -21,11 +24,40 @@ const SCREEN_W = Dimensions.get('window').width;
 export default function SupplierFinance() {
   const router = useRouter();
   const { data, loading, refetch } = useSupplierFinance();
+  const { data: wallet, refetch: refetchWallet } = useSupplierWallet();
   const [refreshing, setRefreshing] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [wBusy, setWBusy] = useState(false);
+  const [wMsg, setWMsg] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
-  const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
+  useFocusEffect(useCallback(() => { refetch(); refetchWallet(); }, [refetch, refetchWallet]));
+  const onRefresh = async () => { setRefreshing(true); await Promise.all([refetch(), refetchWallet()]); setRefreshing(false); };
   const goBack = () => (router.canGoBack() ? router.back() : router.push('/supplier-dashboard' as any));
+
+  const verified = !!wallet && wallet.connectStatus === 'verified' && wallet.payoutsEnabled;
+  const availableCents = wallet?.availableCents ?? 0;
+  const onboard = async () => {
+    setWBusy(true); setWMsg(null);
+    try {
+      const url = await startSupplierConnectOnboarding();
+      if (url) await WebBrowser.openBrowserAsync(url);
+      else setWMsg('Could not start onboarding. Try again shortly.');
+      await refetchWallet();
+    } finally { setWBusy(false); }
+  };
+  const doWithdraw = async () => {
+    setWMsg(null);
+    const cents = Math.round((parseFloat(amount) || 0) * 100);
+    if (cents < 5000) { setWMsg('Minimum withdrawal is $50.00.'); return; }
+    if (cents > availableCents) { setWMsg('Amount exceeds your available balance.'); return; }
+    setWBusy(true);
+    try {
+      const res = await supplierWithdraw(cents);
+      if (!res.ok) { setWMsg(res.error ?? 'Payout failed.'); return; }
+      setAmount(''); setWMsg('Payout initiated — funds arrive in 1–2 business days.');
+      await refetchWallet();
+    } finally { setWBusy(false); }
+  };
 
   const f = data;
   const hasActivity = !!f && (f.bidCount > 0 || f.transactions.length > 0);
@@ -55,6 +87,36 @@ export default function SupplierFinance() {
               <Sub label="Outstanding" value={formatUsd(f?.outstandingCents ?? 0)} color="#F59E0B" />
               <Sub label="In-bid" value={formatUsd(f?.inBidCents ?? 0)} color="#38BDF8" />
             </View>
+          </View>
+
+          {/* Withdrawable balance + Stripe Connect (mirror inspector wallet) */}
+          <View style={s.wCard}>
+            <View style={s.wHead}>
+              <Text style={s.wTitle}>Withdrawable balance</Text>
+              <View style={[s.wPill, { backgroundColor: verified ? 'rgba(16,185,129,0.16)' : 'rgba(245,158,11,0.16)' }]}>
+                <Ionicons name="shield-checkmark" size={12} color={verified ? T.colors.success : '#F59E0B'} />
+                <Text style={[s.wPillTxt, { color: verified ? T.colors.success : '#F59E0B' }]}>{verified ? 'Verified' : 'Setup needed'}</Text>
+              </View>
+            </View>
+            <Text style={s.wValue}>{formatUsd(availableCents)}</Text>
+            {!verified ? (
+              <TouchableOpacity style={s.wBtn} activeOpacity={0.85} onPress={onboard} disabled={wBusy}>
+                {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="card-outline" size={16} color="#FFF" />}
+                <Text style={s.wBtnTxt}>Set up payouts</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={s.wInputRow}>
+                <View style={s.wInputWrap}>
+                  <Text style={s.wDollar}>$</Text>
+                  <TextInput value={amount} onChangeText={setAmount} placeholder="Min $50" placeholderTextColor={T.colors.textMuted} keyboardType="decimal-pad" style={s.wInput} />
+                </View>
+                <TouchableOpacity style={[s.wBtn, s.wBtnInline]} activeOpacity={0.85} onPress={doWithdraw} disabled={wBusy || availableCents < 5000}>
+                  {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="arrow-up-circle-outline" size={16} color="#FFF" />}
+                  <Text style={s.wBtnTxt}>Withdraw</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!!wMsg && <Text style={[s.wMsg, { color: wMsg.startsWith('Payout initiated') ? T.colors.success : T.colors.error }]}>{wMsg}</Text>}
           </View>
 
           {/* Brokered explainer */}
@@ -220,4 +282,18 @@ const s = StyleSheet.create({
   emptyBtnTxt: { color: '#FFF', fontSize: T.fontSize.sm, fontWeight: '700' },
   miniEmpty: { backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, padding: T.spacing.md },
   miniEmptyTxt: { color: T.colors.textMuted, fontSize: T.fontSize.sm },
+  wCard: { backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, padding: T.spacing.lg, marginTop: T.spacing.md },
+  wHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wTitle: { color: T.colors.text, fontSize: T.fontSize.md, fontWeight: '700' },
+  wPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: T.borderRadius.full },
+  wPillTxt: { fontSize: 11, fontWeight: '700' },
+  wValue: { color: T.colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.5, marginTop: 8 },
+  wBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: T.colors.primary, borderRadius: T.borderRadius.md, paddingVertical: 12, marginTop: T.spacing.md },
+  wBtnInline: { marginTop: 0, flex: 0, paddingHorizontal: 18 },
+  wBtnTxt: { color: '#FFF', fontSize: T.fontSize.sm, fontWeight: '700' },
+  wInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: T.spacing.md },
+  wInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, height: 46, paddingHorizontal: T.spacing.md, backgroundColor: T.colors.background, borderRadius: T.borderRadius.md, borderWidth: 1, borderColor: T.colors.inputBorder },
+  wDollar: { color: T.colors.textMuted, fontSize: T.fontSize.md },
+  wInput: { flex: 1, color: T.colors.text, fontSize: T.fontSize.sm, paddingVertical: 0 },
+  wMsg: { fontSize: T.fontSize.xs, marginTop: T.spacing.sm, lineHeight: 17 },
 });

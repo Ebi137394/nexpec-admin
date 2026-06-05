@@ -5,9 +5,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Send, Rocket, ShieldCheck, Package, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Send, Rocket, ShieldCheck, Package, CheckCircle2, MessageSquare } from 'lucide-react';
 import { fetchRfqDetail, getUserId, submitQuote, formatUsd, toCents, type Rfq, type Quote } from '@/lib/data/marketplace';
 import { MeetingsPanel } from '@/components/marketplace/MeetingsPanel';
+import { openJobChat } from '@/lib/actions/messages';
 
 const inp = 'w-full rounded-lg border border-white/[0.08] bg-ink-950 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
 const QSTATUS: Record<string, { label: string; cls: string }> = {
@@ -87,6 +88,25 @@ export default function SupplierOpportunityPage() {
             <p className="text-xs text-zinc-400">This RFQ has been awarded and a source/FAT job is in admin dispatch.</p>
           </div>
         </div>
+      )}
+
+      {/* Project chat — awarded supplier ↔ NEXPEC admin (job_supplier_admin).
+          Mirrors the inspector job room; client/inspector can't see it. */}
+      {rfq.spawned_job_id && myQuote?.status === 'accepted' && (
+        <form action={openJobChat} className="rounded-2xl border border-violet/30 bg-violet/[0.07] p-4">
+          <input type="hidden" name="jobId" value={rfq.spawned_job_id} />
+          <input type="hidden" name="kind" value="job_supplier_admin" />
+          <input type="hidden" name="returnToBase" value="/suppliers/messages" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white">Project coordination chat</p>
+              <p className="mt-0.5 text-xs text-zinc-400">A private, admin-brokered room for this awarded job. The buyer and inspector cannot see it.</p>
+            </div>
+            <button type="submit" className="inline-flex shrink-0 items-center gap-2 rounded-full bg-violet px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-deep">
+              <MessageSquare size={15} /> Open chat
+            </button>
+          </div>
+        </form>
       )}
 
       {/* My quote status */}

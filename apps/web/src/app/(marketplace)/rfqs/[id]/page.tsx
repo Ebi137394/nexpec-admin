@@ -2,8 +2,9 @@
 // /rfqs/[id] — detail: quotes, client award (auto-spawns inspection), supplier bid
 // (price-blind by RLS). Mirrors mobile app/rfqs/[id].tsx.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Ribbon, Send, Rocket, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Ribbon, Send, Rocket, ShieldCheck } from 'lucide-react';
 import { fetchRfqDetail, getUserId, submitQuote, awardQuote, formatUsd, toCents, type Rfq, type Quote } from '@/lib/data/marketplace';
 import { MeetingsPanel } from '@/components/marketplace/MeetingsPanel';
 
@@ -63,11 +64,17 @@ export default function RfqDetailPage() {
   };
 
   if (loading) return <div className="h-40 animate-pulse rounded-xl border border-ink-600 bg-ink-800" />;
-  if (!rfq) return <p className="text-white/60">RFQ not found.</p>;
+  if (!rfq) return (
+    <div className="mx-auto max-w-2xl">
+      <BackToRfqs />
+      <p className="mt-6 text-white/60">RFQ not found.</p>
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-extrabold">{rfq.title}</h1>
+      <BackToRfqs />
+      <h1 className="mt-4 text-2xl font-extrabold">{rfq.title}</h1>
       {rfq.spec?.details && <p className="mt-2 text-sm leading-relaxed text-white/70">{rfq.spec.details}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
         {rfq.spec?.quantity && <Tag>{rfq.spec.quantity}</Tag>}
@@ -139,4 +146,12 @@ export default function RfqDetailPage() {
 
 function Tag({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <span className={`inline-flex items-center gap-1 rounded-full border border-ink-600 px-2 py-0.5 font-semibold text-white/70 ${className}`}>{children}</span>;
+}
+
+function BackToRfqs() {
+  return (
+    <Link href="/rfqs" className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/60 transition hover:text-white">
+      <ArrowLeft size={15} /> RFQs
+    </Link>
+  );
 }

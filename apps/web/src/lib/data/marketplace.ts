@@ -58,6 +58,13 @@ export async function fetchSupplierDirectory(): Promise<SupplierCard[]> {
   return (data ?? []) as SupplierCard[];
 }
 
+// Single supplier from the public directory projection (anti-poaching safe —
+// business-level fields only; admins + buyers see the same view).
+export async function fetchSupplierById(id: string): Promise<SupplierCard | null> {
+  const { data } = await sb().from('supplier_directory').select('*').eq('id', id).maybeSingle();
+  return (data ?? null) as SupplierCard | null;
+}
+
 export async function fetchRfqs(): Promise<Rfq[]> {
   const { data } = await sb().from('supplier_rfqs').select('*').order('created_at', { ascending: false });
   return (data ?? []) as Rfq[];

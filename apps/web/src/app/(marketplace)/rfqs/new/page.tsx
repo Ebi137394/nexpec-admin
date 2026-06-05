@@ -1,8 +1,9 @@
 'use client';
 // /rfqs/new — Create RFQ with cross-discipline scope picker (mirrors mobile app/rfqs/new.tsx)
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Send } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { fetchScopeTemplates, createRfq, type ScopeTemplate } from '@/lib/data/marketplace';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
@@ -47,6 +48,9 @@ export default function NewRfqPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <Link href="/rfqs" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-white/60 transition hover:text-white">
+        <ArrowLeft size={15} /> RFQs
+      </Link>
       <h1 className="text-2xl font-extrabold">New RFQ</h1>
       <p className="mt-1 text-sm text-white/60">Suppliers bid; on award NEXPEC auto-dispatches the matched inspector.</p>
 

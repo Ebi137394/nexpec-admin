@@ -149,7 +149,7 @@ export default function ThreadScreen() {
         name: `voice-${Date.now()}.${ext}`,
         mime: ext === 'm4a' ? 'audio/m4a' : ext === 'caf' ? 'audio/x-caf' : 'audio/mpeg',
         kind: 'voice',
-        label: `Voice message · ${fmtClock(recMs)}`,
+        label: `Voice message, ${fmtClock(recMs)}`,
       });
     } catch { /* ignore */ }
   }, [recMs]);
@@ -165,7 +165,7 @@ export default function ThreadScreen() {
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <View style={s.headerMid}>
           <Text style={s.title} numberOfLines={1}>{heading}</Text>
-          <Text style={s.subtitle} numberOfLines={1}>Admin-brokered · private</Text>
+          <Text style={s.subtitle} numberOfLines={1}>Admin-brokered, private</Text>
         </View>
         <View style={s.headerIcon}><Ionicons name="shield-checkmark" size={16} color={T.colors.primaryLight} /></View>
       </View>
@@ -176,7 +176,7 @@ export default function ThreadScreen() {
         ) : (
           <ScrollView ref={scrollRef} contentContainerStyle={s.thread} showsVerticalScrollIndicator={false} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
             {messages.length === 0 && (
-              <View style={s.threadEmpty}><Text style={s.threadEmptyTxt}>Start the conversation — the NEXPEC team will respond here.</Text></View>
+              <View style={s.threadEmpty}><Text style={s.threadEmptyTxt}>Start the conversation, the NEXPEC team will respond here.</Text></View>
             )}
             {messages.map((m) => {
               const mine = !!myId && m.senderId === myId;
@@ -216,7 +216,7 @@ export default function ThreadScreen() {
                 )}
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.stagedName} numberOfLines={1}>{staged.label ?? staged.name}</Text>
-                  <Text style={s.stagedMeta}>{staged.kind === 'voice' ? 'Voice message · ready' : `${fmtSize(staged.size)} · ready to send`}</Text>
+                  <Text style={s.stagedMeta}>{staged.kind === 'voice' ? 'Voice message, ready' : `${fmtSize(staged.size)}, ready to send`}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setStaged(null)} hitSlop={8} style={s.stagedX}><Ionicons name="close" size={16} color={T.colors.textSecondary} /></TouchableOpacity>
               </View>

@@ -191,7 +191,7 @@ export async function requeueForAuth(id: number): Promise<void> {
   await db.runAsync(
     `UPDATE outbox_operations
         SET status = 'pending',
-            last_error = 'auth: session expired — awaiting token refresh',
+            last_error = 'auth: session expired, awaiting token refresh',
             failure_class = NULL,
             next_attempt_at = ?
       WHERE id = ?`,

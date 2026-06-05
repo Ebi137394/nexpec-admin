@@ -54,7 +54,7 @@ const CLIENT_REQUESTS = [
   'Zoom in on Flange B',
   'Pan left to valve assembly',
   'Check weld seam on joint C4',
-  'Increase exposure — too dark',
+  'Increase exposure, too dark',
   'Hold position for screenshot',
   'Rotate 45° clockwise',
   'Focus on corrosion near bracket',

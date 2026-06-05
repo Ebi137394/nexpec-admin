@@ -942,7 +942,7 @@ const fetchApplication = async (uid: string) => {
                 </View>
                 <View style={styles.toolButtonInfo}>
                   <Text style={styles.toolButtonTitle}>Compliance Capture</Text>
-                  <Text style={styles.toolButtonSubtitle}>Walk the scope evidence checklist · camera-only · GPS-anchored</Text>
+                  <Text style={styles.toolButtonSubtitle}>Walk the scope evidence checklist, camera-only, GPS-anchored</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
@@ -1216,7 +1216,7 @@ const fetchApplication = async (uid: string) => {
         }}>
           <Ionicons name="checkmark-circle" size={18} color="#10F995" />
           <Text style={{ flex: 1, color: '#10F995', fontSize: 12.5, fontWeight: '700' }}>
-            Counter accepted · awaiting dispatch confirmation
+            Counter accepted, awaiting dispatch confirmation
           </Text>
         </View>
       )}
@@ -1235,7 +1235,7 @@ const fetchApplication = async (uid: string) => {
         }}>
           <Ionicons name="time-outline" size={18} color="#94A3B8" />
           <Text style={{ flex: 1, color: '#94A3B8', fontSize: 12.5, fontWeight: '700' }}>
-            Counter declined · admin may revise
+            Counter declined, admin may revise
           </Text>
         </View>
       )}
@@ -1317,18 +1317,18 @@ const fetchApplication = async (uid: string) => {
             }}>
               Admin will be notified and will review the request against
               your job's milestone schedule. Payouts continue to flow
-              through Stripe — this just signals admin to release.
+              through Stripe, this just signals admin to release.
             </Text>
 
             <Text style={{
               color: '#F4C430', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
             }}>
-              AMOUNT (USD) — optional
+              AMOUNT (USD), optional
             </Text>
             <TextInput
               value={milestoneAmount}
               onChangeText={setMilestoneAmount}
-              placeholder="e.g. 1500.00 — leave blank for full milestone"
+              placeholder="e.g. 1500.00, leave blank for full milestone"
               placeholderTextColor="#475569"
               keyboardType="decimal-pad"
               editable={!milestoneSubmitting}
@@ -1344,7 +1344,7 @@ const fetchApplication = async (uid: string) => {
             <Text style={{
               color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
             }}>
-              NOTE FOR ADMIN — optional
+              NOTE FOR ADMIN, optional
             </Text>
             <TextInput
               value={milestoneNote}

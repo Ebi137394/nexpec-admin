@@ -258,7 +258,7 @@ const JobCard: React.FC<JobCardProps> = React.memo(({ job, onPress, onStatusChan
         {job.title}
       </Text>
       <Text style={cardStyles.client}>
-        {job.client_name} — {job.client_company}
+        {job.client_name}, {job.client_company}
       </Text>
 
       {/* Location */}

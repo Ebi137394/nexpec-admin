@@ -98,7 +98,7 @@ export function OrgSwitcherTrigger({ onPress, compact = false }: Props) {
         </LinearGradient>
         <View style={styles.triggerBody}>
           <Text style={styles.triggerName} numberOfLines={1}>
-            NEXPEC · Platform
+            NEXPEC, Platform
           </Text>
           <Text style={styles.triggerMeta} numberOfLines={1}>
             NO ORG LINKED
@@ -138,7 +138,7 @@ export function OrgSwitcherTrigger({ onPress, compact = false }: Props) {
         </Text>
         <Text style={styles.triggerMeta} numberOfLines={1}>
           {(current.org_kind || '').toUpperCase()}
-          {current.role ? `  ·  ${prettyRole(current.role)}` : ''}
+          {current.role ? `, ${prettyRole(current.role)}` : ''}
         </Text>
       </View>
       {isInteractive && (

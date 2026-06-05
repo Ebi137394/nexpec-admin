@@ -204,7 +204,7 @@ const CertModal: React.FC<any> = ({ visible, selected, onToggle, onClose }) => {
             );
           })}
         </ScrollView>
-        <View style={st.modalFooter}><TouchableOpacity style={st.modalDoneBtn} onPress={onClose} activeOpacity={0.8}><Text style={st.modalDoneTxt}>Done · {selected.length} Selected</Text></TouchableOpacity></View>
+        <View style={st.modalFooter}><TouchableOpacity style={st.modalDoneBtn} onPress={onClose} activeOpacity={0.8}><Text style={st.modalDoneTxt}>Done, {selected.length} Selected</Text></TouchableOpacity></View>
       </SafeAreaView>
     </Modal>
   );
@@ -363,7 +363,7 @@ export default function CreateJobScreen() {
                   Need a compliance verification instead?
                 </Text>
                 <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                  Regulator-grade affidavit · CCI-only inspectors · tamper-evident GPS evidence
+                  Regulator-grade affidavit, CCI-only inspectors, tamper-evident GPS evidence
                 </Text>
               </View>
               <ChevronRight size={16} color="#A78BFA" />
@@ -460,7 +460,7 @@ export default function CreateJobScreen() {
             <SectionHeader icon={FileText} title="Basic Details" subtitle="Describe the inspection scope" step={1} />
             <View style={st.sectionCard}>
               <Field label="Job Title" placeholder="e.g. API 510 Pressure Vessel Inspection" value={form.title} onChangeText={(t: string) => updateField('title', t)} error={touched.has('title') ? errors.title : undefined} maxLength={120} icon={Briefcase} />
-              <Field label="Description" placeholder="Describe the scope of work..." value={form.description} onChangeText={(t: string) => updateField('description', t)} error={touched.has('description') ? errors.description : undefined} multiline maxLength={2000} icon={AlignLeft} helperText="Be detailed — this helps inspectors assess the job quickly." />
+              <Field label="Description" placeholder="Describe the scope of work..." value={form.description} onChangeText={(t: string) => updateField('description', t)} error={touched.has('description') ? errors.description : undefined} multiline maxLength={2000} icon={AlignLeft} helperText="Be detailed, this helps inspectors assess the job quickly." />
               <View style={st.fieldWrap}>
                 <Text style={st.fieldLabel}>Priority Level</Text>
                 <View style={st.urgencyRow}>

@@ -296,7 +296,7 @@ export default function PayoutsScreen() {
             <View style={s.avatar}><Text style={s.avatarTxt}>{initials(item.profiles)}</Text></View>
             <View style={s.cardInfo}>
               <Text style={s.cardName} numberOfLines={1}>{displayName(item)}</Text>
-              <Text style={s.cardDate}>{fmtDate(item.created_at)} · {fmtTime(item.created_at)}</Text>
+              <Text style={s.cardDate}>{fmtDate(item.created_at)}, {fmtTime(item.created_at)}</Text>
             </View>
           </View>
           <View style={s.cardRight}>
@@ -327,7 +327,7 @@ export default function PayoutsScreen() {
       <View style={s.emptyWrap}>
         <View style={s.emptyIconBg}><Ionicons name={iconMap[activeIdx] ?? 'document-outline'} size={44} color={T.textTertiary} /></View>
         <Text style={s.emptyTitle}>{activeIdx === 0 ? 'No Pending Payouts' : activeIdx === 1 ? 'No Paid Payouts Yet' : 'No Rejected Payouts'}</Text>
-        <Text style={s.emptySub}>{activeIdx === 0 ? 'All caught up — no payouts awaiting review.' : `No ${SEGMENTS[activeIdx].toLowerCase()} payouts to display.`}</Text>
+        <Text style={s.emptySub}>{activeIdx === 0 ? 'All caught up, no payouts awaiting review.' : `No ${SEGMENTS[activeIdx].toLowerCase()} payouts to display.`}</Text>
       </View>
     );
   };

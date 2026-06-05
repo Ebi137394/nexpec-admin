@@ -932,7 +932,7 @@ const OperationsDashboard: React.FC = () => {
   // Update ticker message logic to handle empty alerts
   const tickerMessage = alerts.length > 0 
     ? alerts.map(a => `⚠ ${a.severity.toUpperCase()}: ${a.message}`).join('   ◆   ')
-    : "✅ ALL SYSTEMS OPERATIONAL — NO CRITICAL DEFECTS DETECTED";
+    : "✅ ALL SYSTEMS OPERATIONAL, NO CRITICAL DEFECTS DETECTED";
 
   // Create operational metrics from the live data
   const operationalMetrics = [
@@ -1468,7 +1468,7 @@ const OperationsDashboard: React.FC = () => {
         {/* ── Footer ── */}
         <View style={styles.footer}>
           <View style={styles.footerLine} />
-          <Text style={styles.footerText}>NEXPEC OPS v2.7.1 — ENCRYPTED CHANNEL</Text>
+          <Text style={styles.footerText}>NEXPEC OPS v2.7.1, ENCRYPTED CHANNEL</Text>
           <View style={styles.footerLine} />
         </View>
       </ScrollView>

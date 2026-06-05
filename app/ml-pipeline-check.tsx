@@ -54,7 +54,7 @@ const COLORS = {
 
 const STAGE_LABEL: Record<ModelStage, string> = {
   resolving: 'Resolve from registry (RPC)',
-  'cache-hit': 'Cache hit — served offline',
+  'cache-hit': 'Cache hit, served offline',
   downloading: 'Download via signed URL',
   hashing: 'SHA-256 over raw bytes (expo-crypto)',
   verifying: 'Verify integrity + signature',
@@ -115,14 +115,14 @@ export default function MlPipelineCheckScreen() {
         stageStart = now;
       });
       push({
-        label: `Artifact verified — ${handle.artifact.slug} v${handle.artifact.version}`,
+        label: `Artifact verified, ${handle.artifact.slug} v${handle.artifact.version}`,
         status: 'ok',
         detail: `sha256 ${handle.artifact.sha256.slice(0, 16)}…  •  ${(handle.artifact.sizeBytes / 1024).toFixed(1)} KB  •  ${handle.artifact.runtime}`,
       });
 
       const inferStart = Date.now();
       const out = await rt.infer(DEMO_KIND, { ping: Date.now(), run: runCount + 1 }, DEMO_SLUG);
-      push({ label: 'Inference — noop echo backend', status: 'ok', ms: Date.now() - inferStart });
+      push({ label: 'Inference, noop echo backend', status: 'ok', ms: Date.now() - inferStart });
       setResult(out);
       push({ label: `Pipeline complete`, status: 'ok', ms: Date.now() - t0 });
       setRunCount((c) => c + 1);
@@ -147,7 +147,7 @@ export default function MlPipelineCheckScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>Phase A.5 · end-to-end runtime diagnostic</Text>
+        <Text style={styles.subtitle}>Phase A.5, end-to-end runtime diagnostic</Text>
 
         {/* flag chips */}
         <View style={styles.chipRow}>
@@ -168,7 +168,7 @@ export default function MlPipelineCheckScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Target model</Text>
               <Text style={styles.cardBody}>
-                kind <Text style={styles.mono}>{DEMO_KIND}</Text> · slug <Text style={styles.mono}>{DEMO_SLUG}</Text> · runtime <Text style={styles.mono}>noop</Text>
+                kind <Text style={styles.mono}>{DEMO_KIND}</Text>, slug <Text style={styles.mono}>{DEMO_SLUG}</Text>, runtime <Text style={styles.mono}>noop</Text>
               </Text>
               <Text style={[styles.cardBody, { color: COLORS.dim, marginTop: 4 }]}>
                 Publish it once with scripts/ml/register-model.mjs (see terminal block), then run the pipeline.

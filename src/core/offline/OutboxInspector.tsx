@@ -85,7 +85,7 @@ export function OutboxInspector() {
       <View style={styles.panelInner}>
         <View style={styles.header}>
           <Dot color={online ? '#22c55e' : '#ef4444'} />
-          <Text style={styles.title}>OUTBOX · {online ? 'online' : 'offline'}</Text>
+          <Text style={styles.title}>OUTBOX, {online ? 'online' : 'offline'}</Text>
           <View style={{ flex: 1 }} />
           <Pressable onPress={() => setOpen(false)} hitSlop={12}>
             <Text style={styles.close}>✕</Text>
@@ -127,8 +127,8 @@ function Row({ row, onChanged }: { row: OutboxRow; onChanged: () => void }) {
       </View>
       <View style={styles.rowMain}>
         <Text style={styles.rowKind}>
-          #{row.id} · {row.kind} · try {row.attempts}
-          {row.failure_class ? ` · ${row.failure_class}` : ''}
+          #{row.id}, {row.kind}, try {row.attempts}
+          {row.failure_class ? `, ${row.failure_class}` : ''}
         </Text>
         {row.last_error ? (
           <Text style={styles.rowErr} numberOfLines={1}>

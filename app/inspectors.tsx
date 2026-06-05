@@ -307,7 +307,7 @@ export default function InspectorsScreen() {
           <Text style={s.headerSub}>
             {counts.all === 0
               ? 'No one in your roster yet'
-              : `${counts.all} total · ${counts.live} live now`}
+              : `${counts.all} total, ${counts.live} live now`}
           </Text>
         </View>
         <View style={s.headerBtn} />

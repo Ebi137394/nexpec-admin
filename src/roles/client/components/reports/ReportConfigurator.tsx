@@ -71,7 +71,7 @@ const MOCK_REPORT_SECTIONS = [
 ];
 
 const MOCK_PROJECT = {
-  name: 'Platform Alpha — Annual Structural Inspection',
+  name: 'Platform Alpha, Annual Structural Inspection',
   code: 'PRJ-2024-0847',
   location: 'Arabian Gulf, Block 7',
   inspector: 'Mohammed Al-Rashid, API 653/570',

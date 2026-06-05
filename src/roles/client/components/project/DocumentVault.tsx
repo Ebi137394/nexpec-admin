@@ -108,7 +108,7 @@ const MOCK_DOCUMENTS: VaultDocument[] = [
   },
   {
     id: "doc-004",
-    name: "UT Thickness Data – Shell Plates",
+    name: "UT Thickness Data to Shell Plates",
     category: "Technical",
     fileType: "spreadsheet",
     size: "3.2 MB",

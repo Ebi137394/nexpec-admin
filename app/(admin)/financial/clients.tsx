@@ -112,7 +112,7 @@ export default function ClientsScreen() {
       <View style={ss.listHeaderArea}>
         <SectionHeader
           title="Client / Agency / Enterprise Accounts"
-          subtitle={`${data.length} ${data.length === 1 ? 'account' : 'accounts'} · billed · paid · outstanding · tap to expand`}
+          subtitle={`${data.length} ${data.length === 1 ? 'account' : 'accounts'}, billed, paid, outstanding, tap to expand`}
         />
       </View>
     ),

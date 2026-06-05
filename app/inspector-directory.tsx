@@ -542,7 +542,7 @@ export default function InspectorDirectoryScreen() {
                         <Text style={s.jobOptionSub} numberOfLines={1}>
                           {job.location ?? '—'}
                           {job.client_price_cents != null
-                            ? `  ·  ${formatUSD(job.client_price_cents)}`
+                            ? `, ${formatUSD(job.client_price_cents)}`
                             : ''}
                         </Text>
                       </View>
@@ -558,7 +558,7 @@ export default function InspectorDirectoryScreen() {
             <TextInput
               value={message}
               onChangeText={setMessage}
-              placeholder="A short note for the inspector — why this job is a fit."
+              placeholder="A short note for the inspector, why this job is a fit."
               placeholderTextColor={C.textDim}
               multiline
               maxLength={500}
@@ -617,7 +617,7 @@ function InspectorCard({
   const loc = [row.location_city, row.location_province, row.country_of_residence]
     .filter(Boolean)
     .slice(0, 2)
-    .join(' · ');
+    .join(', ');
   const rating = row.rating_average != null ? Number(row.rating_average) : 0;
   const ratingCount = row.rating_count ?? 0;
 

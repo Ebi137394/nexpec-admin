@@ -208,9 +208,9 @@ export default function TeamScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
           >
             <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-              <Text style={s.kicker}>CLIENT PORTAL · ORGANIZATION</Text>
+              <Text style={s.kicker}>CLIENT PORTAL, ORGANIZATION</Text>
               <Text style={s.title}>{activeOrg?.name ?? 'Team'}</Text>
-              <Text style={s.subtitle}>{members.length} member{members.length === 1 ? '' : 's'}{invites.length > 0 ? ` · ${invites.length} pending invite${invites.length === 1 ? '' : 's'}` : ''}.</Text>
+              <Text style={s.subtitle}>{members.length} member{members.length === 1 ? '' : 's'}{invites.length > 0 ? `, ${invites.length} pending invite${invites.length === 1 ? '' : 's'}` : ''}.</Text>
 
               {orgs.length > 1 && (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.orgRow}>
@@ -268,7 +268,7 @@ export default function TeamScreen() {
                     <View style={s.inviteIcon}><Ionicons name="mail-outline" size={16} color={C.amber} /></View>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={s.inviteEmail} numberOfLines={1}>{inv.email}</Text>
-                      <Text style={s.inviteMeta}>{ROLE_LABEL[inv.role]} · expires {formatDate(inv.expiresAt)}</Text>
+                      <Text style={s.inviteMeta}>{ROLE_LABEL[inv.role]}, expires {formatDate(inv.expiresAt)}</Text>
                     </View>
                     <TouchableOpacity onPress={() => revokeInvite(inv)} disabled={revoking === inv.id} style={s.revokeBtn} activeOpacity={0.7}>
                       {revoking === inv.id ? <ActivityIndicator size="small" color={C.red} /> : <Text style={s.revokeText}>Revoke</Text>}
@@ -299,7 +299,7 @@ export default function TeamScreen() {
               ))}
             </View>
 
-            <Text style={s.footnote}>Source · org_members + org_invitations · RLS org-scoped · invites via verified RPC.</Text>
+            <Text style={s.footnote}>Source, org_members + org_invitations, RLS org-scoped, invites via verified RPC.</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       )}

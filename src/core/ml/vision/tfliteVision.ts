@@ -50,7 +50,7 @@ export const tfliteVisionBackend: InferenceBackend = {
   runtimes: ['tflite'],
   async load({ localUri, params, slug, version }): Promise<LoadedModel> {
     if (!_tflite) {
-      throw new Error('react-native-fast-tflite unavailable — run a dev build with it installed');
+      throw new Error('react-native-fast-tflite unavailable, run a dev build with it installed');
     }
     const model = await _tflite.loadTensorflowModel({ url: localUri });
     const p = (params ?? {}) as VisionParams & DefectModelParams;

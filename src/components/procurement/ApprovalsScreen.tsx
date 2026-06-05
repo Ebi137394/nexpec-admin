@@ -102,7 +102,7 @@ export function ApprovalsScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>PROCUREMENT · APPROVALS</Text>
+          <Text style={styles.eyebrow}>PROCUREMENT, APPROVALS</Text>
           <View style={styles.titleRow}>
             <View style={styles.titleIcon}>
               <ShieldCheck
@@ -115,7 +115,7 @@ export function ApprovalsScreen() {
           </View>
           <Text style={styles.subtitle}>
             Jobs that triggered an approval gate land here. Self-approval is
-            schema-blocked — requests you posted yourself never appear.
+            schema-blocked, requests you posted yourself never appear.
           </Text>
         </View>
 
@@ -224,7 +224,7 @@ function ApprovalRow({
           </View>
           {row.department_name && (
             <Text style={styles.cardMetaText} numberOfLines={1}>
-              · {row.department_name}
+              {row.department_name}
             </Text>
           )}
           {row.cost_center && (

@@ -826,7 +826,7 @@ export default function ProfileScreen() {
                       ? t('Saving…')
                       : profile?.home_base_label
                       ? profile.home_base_label
-                      : t('Not set — tap to pick')}
+                      : t('Not set, tap to pick')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#64748B" />
@@ -850,7 +850,7 @@ export default function ProfileScreen() {
                     {savingPrefs === 'radius'
                       ? t('Saving…')
                       : profile?.travel_radius_km == null
-                      ? t('Unlimited — anywhere')
+                      ? t('Unlimited, anywhere')
                       : `${profile.travel_radius_km} km ${
                           profile?.home_base_label
                             ? `${t('from')} ${profile.home_base_label}`

@@ -230,7 +230,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onStartSession }) => {
 
       <View style={styles.securityBadge}>
         <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.accentGreen} />
-        <Text style={styles.securityText}>End-to-end encrypted · Audit-logged</Text>
+        <Text style={styles.securityText}>End-to-end encrypted, Audit-logged</Text>
       </View>
     </Animated.View>
   );

@@ -93,8 +93,8 @@ export default function InspectorStatementScreen() {
 
   const shareStatement = useCallback(async () => {
     try {
-      const header = `NEXPEC · Payout statement\n${inspectorName}\nPeriod: ${periodLabel}\nTotal paid: ${formatCents(total)} · ${lines.length} job${lines.length === 1 ? '' : 's'}\n`;
-      const body = lines.map((l) => `${l.paidAt ? formatDate(l.paidAt) : '—'} · ${l.title} · ${formatCents(l.payoutCents)}`).join('\n');
+      const header = `NEXPEC, Payout statement\n${inspectorName}\nPeriod: ${periodLabel}\nTotal paid: ${formatCents(total)}, ${lines.length} job${lines.length === 1 ? '' : 's'}\n`;
+      const body = lines.map((l) => `${l.paidAt ? formatDate(l.paidAt) : '—'}, ${l.title}, ${formatCents(l.payoutCents)}`).join('\n');
       await Share.share({ title: `Payout statement ${periodLabel}`, message: `${header}\n${body || 'No paid jobs in this period.'}` });
     } catch (e: unknown) {
       Alert.alert('Could not share', (e as Error)?.message ?? 'Unknown error.');
@@ -124,9 +124,9 @@ export default function InspectorStatementScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-          <Text style={s.kicker}>INSPECTOR · EARNINGS</Text>
+          <Text style={s.kicker}>INSPECTOR, EARNINGS</Text>
           <Text style={s.title}>Payout statement</Text>
-          <Text style={s.subtitle}>Your settled payouts for the period — your admin-set inspector price only.</Text>
+          <Text style={s.subtitle}>Your settled payouts for the period, your admin-set inspector price only.</Text>
         </Animated.View>
 
         {/* Year + granularity */}
@@ -163,7 +163,7 @@ export default function InspectorStatementScreen() {
 
         {/* Summary */}
         <Animated.View entering={FadeInDown.delay(60).duration(220)} style={s.summaryCard}>
-          <Text style={s.summaryLabel}>{periodLabel.toUpperCase()} · TOTAL PAID</Text>
+          <Text style={s.summaryLabel}>{periodLabel.toUpperCase()}, TOTAL PAID</Text>
           <Text style={s.summaryTotal}>{formatCents(total)}</Text>
           <Text style={s.summaryMeta}>{lines.length} settled job{lines.length === 1 ? '' : 's'}</Text>
         </Animated.View>
@@ -190,7 +190,7 @@ export default function InspectorStatementScreen() {
           <Ionicons name="share-outline" size={16} color="#fff" /><Text style={s.shareBtnText}>Share statement</Text>
         </TouchableOpacity>
 
-        <Text style={s.footnote}>Source · jobs (contractor_id = you, payout_status = paid) · GR2: your admin-set payout only, never the client price.</Text>
+        <Text style={s.footnote}>Source, jobs (contractor_id = you, payout_status = paid), GR2: your admin-set payout only, never the client price.</Text>
       </ScrollView>
     </SafeAreaView>
   );

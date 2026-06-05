@@ -63,7 +63,7 @@ function buildHTMLDocument(report: InspectionReport, branding: BrandingConfig | 
   const isCustom = branding?.use_custom_branding === true;
   const primaryColor = branding?.primary_color || DEFAULT_PRIMARY;
   const headerText = isCustom ? sanitize(branding?.report_header_text) || '' : 'Official Inspection Report';
-  const footerText = isCustom ? sanitize(branding?.report_footer_text) || '' : 'Generated via NEXPEC — Field Inspection Platform';
+  const footerText = isCustom ? sanitize(branding?.report_footer_text) || '' : 'Generated via NEXPEC, Field Inspection Platform';
   const reportId = report.id?.substring(0, 8)?.toUpperCase() || 'N/A';
 
   return `

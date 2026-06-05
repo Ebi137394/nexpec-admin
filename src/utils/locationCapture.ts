@@ -77,7 +77,7 @@ export async function captureCurrentLocation(): Promise<CapturedLocation | null>
       }
     } catch {
       // Reverse geocoding is nice-to-have, not critical
-      console.warn('[LocationCapture] Reverse geocode failed — non-critical.');
+      console.warn('[LocationCapture] Reverse geocode failed, non-critical.');
     }
 
     return result;

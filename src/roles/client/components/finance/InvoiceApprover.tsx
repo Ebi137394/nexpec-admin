@@ -66,7 +66,7 @@ const MOCK_INVOICES: Invoice[] = [
     id: 'INV-2025-0891',
     inspectorName: 'Marcus Chen',
     inspectorAvatar: 'MC',
-    project: 'Refinery Unit 7 — Turnaround',
+    project: 'Refinery Unit 7, Turnaround',
     amount: 3250.0,
     date: '2025-01-28',
     invoiceRef: 'INV-2025-0891',
@@ -128,7 +128,7 @@ const MOCK_INVOICES: Invoice[] = [
     id: 'INV-2025-0872',
     inspectorName: 'Thomas Okafor',
     inspectorAvatar: 'TO',
-    project: 'Tank Farm 3 — Annual Inspection',
+    project: 'Tank Farm 3, Annual Inspection',
     amount: 2100.0,
     date: '2025-01-20',
     invoiceRef: 'INV-2025-0872',
@@ -598,7 +598,7 @@ const InvoiceApprover: React.FC = () => {
         <View style={styles.swipeHint}>
           <Ionicons name="arrow-back" size={14} color={COLORS.danger} />
           <Text style={styles.swipeHintText}>
-            Swipe left to dispute · Swipe right to approve
+            Swipe left to dispute, Swipe right to approve
           </Text>
           <Ionicons name="arrow-forward" size={14} color={COLORS.success} />
         </View>

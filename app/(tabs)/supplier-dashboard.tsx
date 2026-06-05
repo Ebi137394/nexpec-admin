@@ -165,7 +165,7 @@ export default function SupplierDashboard() {
             <TouchableOpacity onPress={() => router.push('/suppliers/bids' as any)} hitSlop={8}><Text style={s.link}>View all</Text></TouchableOpacity>
           </View>
           {myQuotes.length === 0 ? (
-            <Empty icon="document-text-outline" text="You haven't bid yet — browse opportunities above." />
+            <Empty icon="document-text-outline" text="You haven't bid yet, browse opportunities above." />
           ) : myQuotes.slice(0, 8).map((q) => {
             const st = QUOTE_STATUS[q.status] ?? QUOTE_STATUS.submitted;
             return (
@@ -174,8 +174,8 @@ export default function SupplierDashboard() {
                   <Text style={s.bidTitle} numberOfLines={1}>{q.rfq_title || 'RFQ'}</Text>
                   <View style={s.bidMeta}>
                     <Text style={s.bidAmount}>{q.quote?.amount_cents != null ? formatUsd(q.quote.amount_cents) : (q.quote?.amount != null ? formatUsd(toCents(q.quote.amount)) : '—')}</Text>
-                    {!!q.quote?.lead_time && <Text style={s.bidLead}>· {q.quote.lead_time}</Text>}
-                    {q.status === 'accepted' && !!q.spawned_job_id && <Text style={s.dispatched}>· Inspection dispatched</Text>}
+                    {!!q.quote?.lead_time && <Text style={s.bidLead}>{q.quote.lead_time}</Text>}
+                    {q.status === 'accepted' && !!q.spawned_job_id && <Text style={s.dispatched}>Inspection dispatched</Text>}
                   </View>
                 </View>
                 <View style={[s.statusChip, { backgroundColor: st.bg }]}><Text style={[s.statusChipTxt, { color: st.color }]}>{st.label}</Text></View>

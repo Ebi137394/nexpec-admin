@@ -718,7 +718,7 @@ export default function DashboardHome() {
                     Ready for the next mission
                   </Text>
                   <Text style={styles.emptyFocusSub}>
-                    No active assignments — tap below to find your next job.
+                    No active assignments, tap below to find your next job.
                   </Text>
                 </View>
               )}

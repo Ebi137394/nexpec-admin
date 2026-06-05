@@ -140,7 +140,7 @@ export default function OrgManagementScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
         >
           <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-            <Text style={s.kicker}>PLATFORM · ORGANIZATIONS</Text>
+            <Text style={s.kicker}>PLATFORM, ORGANIZATIONS</Text>
             <Text style={s.title}>Organizations</Text>
             <Text style={s.subtitle}>Every enterprise and inspection agency on the platform. Tap one to open its department structure.</Text>
           </Animated.View>
@@ -175,7 +175,7 @@ export default function OrgManagementScreen() {
             </View>
           )}
 
-          <Text style={s.footnote}>Source · public.organizations · RLS admin-scoped · {counts.seats} total member seats.</Text>
+          <Text style={s.footnote}>Source, public.organizations, RLS admin-scoped, {counts.seats} total member seats.</Text>
         </ScrollView>
       )}
     </SafeAreaView>

@@ -566,7 +566,7 @@ export default function JobsScreen() {
           onClose={handleCloseRadiusSheet}
           subtitle={
             homeBase
-              ? `Adjust for this session only — your profile default stays put.`
+              ? `Adjust for this session only, your profile default stays put.`
               : `Set your home base in Profile first so we know where to measure from.`
           }
         />

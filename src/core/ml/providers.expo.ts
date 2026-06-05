@@ -80,7 +80,7 @@ export const expoHashProvider: HashProvider = {
     }
     // Fail closed: a base64-string hash would not match a raw-byte SHA-256, so
     // we refuse rather than emit a hash that can never validate.
-    throw new Error('[ml] expo-crypto digest() unavailable — cannot verify model integrity');
+    throw new Error('[ml] expo-crypto digest() unavailable, cannot verify model integrity');
   },
 };
 

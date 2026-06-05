@@ -181,7 +181,7 @@ export default function InspectorAssignmentsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-          <Text style={s.kicker}>INSPECTOR · ACTIVE WORK</Text>
+          <Text style={s.kicker}>INSPECTOR, ACTIVE WORK</Text>
           <Text style={s.title}>Assignments</Text>
           <Text style={s.subtitle}>{total} job{total === 1 ? '' : 's'} assigned to you, grouped by where they are in the pipeline.</Text>
         </Animated.View>
@@ -213,7 +213,7 @@ export default function InspectorAssignmentsScreen() {
           })
         )}
 
-        <Text style={s.footnote}>Source · applications (hired/accepted) + inspector_job_contracts_view · RLS-gated by applicant_id.</Text>
+        <Text style={s.footnote}>Source, applications (hired/accepted) + inspector_job_contracts_view, RLS-gated by applicant_id.</Text>
       </ScrollView>
     </SafeAreaView>
   );

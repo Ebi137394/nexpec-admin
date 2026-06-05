@@ -271,7 +271,7 @@ export default function PostComplianceJobScreen() {
       //    CHECK constraint. We populate claimed_address_geocoded only
       //    when GPS was captured — null is acceptable until the inspector
       //    pins it at site visit time.
-      const title = `${selected.name} — ${supplierName.trim()}`;
+      const title = `${selected.name}, ${supplierName.trim()}`;
       const ownerField: Record<string, string | null> = isClient
         ? { client_id: user.id, agency_id: null }
         : { client_id: null, agency_id: user.id };
@@ -413,7 +413,7 @@ export default function PostComplianceJobScreen() {
           </View>
 
           {/* SECTION 1: Scope template */}
-          <Section title="1 · Choose Scope" icon={FileBadge}>
+          <Section title="1, Choose Scope" icon={FileBadge}>
             {templatesLoading ? (
               <ActivityIndicator color={C.primary} />
             ) : templates.length === 0 ? (
@@ -430,7 +430,7 @@ export default function PostComplianceJobScreen() {
                     <View style={s.scopeTopRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={s.scopeName}>{t.name}</Text>
-                        <Text style={s.scopeSlug}>{t.slug} · v{t.version}</Text>
+                        <Text style={s.scopeSlug}>{t.slug}, v{t.version}</Text>
                       </View>
                       {on && <CheckCircle2 size={18} color={C.primarySoft} />}
                     </View>
@@ -450,7 +450,7 @@ export default function PostComplianceJobScreen() {
           </Section>
 
           {/* SECTION 2: Supplier details */}
-          <Section title="2 · Subject / Supplier" icon={Building2}>
+          <Section title="2, Subject / Supplier" icon={Building2}>
             <Text style={s.fieldLabel}>Supplier name</Text>
             <TextInput
               value={supplierName}
@@ -482,7 +482,7 @@ export default function PostComplianceJobScreen() {
                 <MapPin size={12} color={C.ok} />
                 <Text style={s.gpsResultText}>
                   {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}
-                  {gps.accuracy != null ? ` · ±${Math.round(gps.accuracy)}m` : ''}
+                  {gps.accuracy != null ? `, ±${Math.round(gps.accuracy)}m` : ''}
                 </Text>
               </View>
             )}
@@ -503,7 +503,7 @@ export default function PostComplianceJobScreen() {
           </Section>
 
           {/* SECTION 3: Documents */}
-          <Section title="3 · Supplier Documents (Optional)" icon={FileText}>
+          <Section title="3, Supplier Documents (Optional)" icon={FileText}>
             <Text style={s.fieldHelp}>
               Pre-attach trade license, tax certificate, or chamber-of-commerce extract. Admin
               will OCR + verify the documents against your scope.
@@ -594,7 +594,7 @@ export default function PostComplianceJobScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.docRowTitle} numberOfLines={1}>
-                        {DOC_TYPES.find((t) => t.key === lk.doc_type)?.label} · External
+                        {DOC_TYPES.find((t) => t.key === lk.doc_type)?.label}, External
                       </Text>
                       <Text style={s.docRowLink} numberOfLines={1}>{lk.url}</Text>
                     </View>
@@ -616,7 +616,7 @@ export default function PostComplianceJobScreen() {
             {submitting
               ? <ActivityIndicator color="#FFF" />
               : <Text style={s.submitText}>
-                  Post Compliance Job{selected ? ` · $${(selected.base_price_cents / 100).toFixed(0)}` : ''}
+                  Post Compliance Job{selected ? `, $${(selected.base_price_cents / 100).toFixed(0)}` : ''}
                 </Text>}
           </Pressable>
           {!canSubmit && (

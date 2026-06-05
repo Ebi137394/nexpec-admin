@@ -152,7 +152,7 @@ export default function NewFlashReportScreen() {
       } else {
         // Queued offline — confirm and return to the list; it syncs on reconnect.
         Alert.alert(
-          'Saved — will sync when online',
+          'Saved, will sync when online',
           'This report and its evidence are queued and will upload automatically once you have a connection.',
           [{ text: 'OK', onPress: () => router.replace(`/jobs/${jobId}/flash-reports` as any) }],
         );

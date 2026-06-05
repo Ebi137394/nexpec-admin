@@ -271,7 +271,7 @@ export default function VerifyPage() {
           <Section label="Subject Entity">
             <Text style={s.subjectName}>{row.subject_name}</Text>
             <Text style={s.scopeLine}>
-              {row.scope_name} · v{row.scope_version} · {row.scope_region.toUpperCase()}
+              {row.scope_name}, v{row.scope_version}, {row.scope_region.toUpperCase()}
             </Text>
           </Section>
         </Card>
@@ -382,7 +382,7 @@ export default function VerifyPage() {
         {/* ─── Footer ─────────────────────────────────────── */}
         <View style={s.footer}>
           <Text style={s.footerText}>
-            Verified by NEXPEC · The integrity of this affidavit can be re-checked at any
+            Verified by NEXPEC, The integrity of this affidavit can be re-checked at any
             time by visiting this URL. Independent verification: the platform signature
             above can be checked off-platform against the public key published at the
             signing key id shown.
@@ -457,7 +457,7 @@ const NotFound: React.FC<{ token: string; onBack: () => void }> = ({ token, onBa
       <Text style={[s.verdictHeroTitle, { color: C.warn }]}>Affidavit Not Found</Text>
       <Text style={s.verdictHeroSub}>
         No affidavit matches the verify token <Text style={s.mono}>{token.slice(0, 12)}…</Text>.
-        Confirm you have the correct URL — verify tokens are case-sensitive.
+        Confirm you have the correct URL, verify tokens are case-sensitive.
       </Text>
     </View>
     <Pressable onPress={onBack} style={s.downloadBtn}>

@@ -378,7 +378,7 @@ const FrontierLab: React.FC<FrontierLabProps> = ({ onExit }) => {
             <View style={styles.warningTextContainer}>
               <Text style={styles.warningTitle}>EXPERIMENTAL ZONE</Text>
               <Text style={styles.warningSubtitle}>
-                AUTHORIZED PERSONNEL ONLY — FEATURES MAY BE UNSTABLE
+                AUTHORIZED PERSONNEL ONLY, FEATURES MAY BE UNSTABLE
               </Text>
             </View>
           </View>

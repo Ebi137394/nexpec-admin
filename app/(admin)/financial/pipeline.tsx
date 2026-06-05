@@ -91,7 +91,7 @@ export default function PipelineScreen() {
       <View style={ss.listHeaderArea}>
         <SectionHeader
           title="Pipeline by Job Status"
-          subtitle={`${totalJobs} ${totalJobs === 1 ? 'job' : 'jobs'} total · all historical states`}
+          subtitle={`${totalJobs} ${totalJobs === 1 ? 'job' : 'jobs'} total, all historical states`}
         />
       </View>
     ),

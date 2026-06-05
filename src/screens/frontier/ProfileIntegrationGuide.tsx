@@ -93,7 +93,7 @@ const ProfileScreen: React.FC = () => {
                 Frontier Lab
               </Text>
               <Text style={profileStyles.labButtonSubtitle}>
-                Experimental Features — Enter at your own risk
+                Experimental Features, Enter at your own risk
               </Text>
             </View>
             <Text style={profileStyles.labButtonArrow}>→</Text>

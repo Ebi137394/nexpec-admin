@@ -221,7 +221,7 @@ export default function OperationsDashboardMinimal() {
         {/* ── Footer ─────────────────────────────────────── */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            NEXPEC Operations Control · Minimal Version
+            NEXPEC Operations Control, Minimal Version
           </Text>
         </View>
       </ScrollView>

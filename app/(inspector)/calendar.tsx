@@ -221,7 +221,7 @@ export default function InspectorCalendarScreen() {
           </View>
         )}
 
-        <Text style={s.footnote}>Source · jobs assigned to you (contractor_id) · scheduled_date · RLS-gated · tap the calendar icon to add to your device.</Text>
+        <Text style={s.footnote}>Source, jobs assigned to you (contractor_id), scheduled_date, RLS-gated, tap the calendar icon to add to your device.</Text>
       </ScrollView>
     </SafeAreaView>
   );

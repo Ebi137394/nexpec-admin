@@ -33,7 +33,7 @@ const PAYMENT_PROVIDERS: PaymentProviderOption[] = [
   // ★ Stripe Connect Express for inspector payouts. Stripe handles KYC,
   //   bank verification, multi-currency, and tax forms. Replaces the
   //   old manual 'bank' option that bounced users to the Withdraw form.
-  { id: 'stripe_connect', name: 'Bank Account (Stripe)', icon: 'business-outline', color: COLORS.green, description: 'Verified by Stripe — instant USD payouts', targetRole: 'inspector' },
+  { id: 'stripe_connect', name: 'Bank Account (Stripe)', icon: 'business-outline', color: COLORS.green, description: 'Verified by Stripe, instant USD payouts', targetRole: 'inspector' },
   { id: 'paypal', name: 'PayPal', icon: 'logo-paypal', color: '#0070BA', description: 'Connect PayPal account', targetRole: 'all' },
   { id: 'wise', name: 'Wise', icon: 'globe-outline', color: '#00B9FF', description: 'International transfer', targetRole: 'all' },
   { id: 'payoneer', name: 'Payoneer', icon: 'cash-outline', color: '#FF4800', description: 'Global payout method', targetRole: 'inspector' }
@@ -772,7 +772,7 @@ export default function FinanceScreen() {
           await determineUserRole();
           Alert.alert(
             'Stripe Connect',
-            'Onboarding complete. Your account is being verified — you\'re ready to receive payouts.',
+            'Onboarding complete. Your account is being verified, you\'re ready to receive payouts.',
           );
         } else {
           // 🌟 برای پی‌پال، وایز و پایونیر، همین مودالِ سریع رو باز می‌کنیم

@@ -314,7 +314,7 @@ export default function RootLayout() {
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     if (!rawStripeKey) {
       console.warn(
-        '[RootLayout] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY not set — using hard-coded test fallback. Production builds MUST override.',
+        '[RootLayout] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY not set, using hard-coded test fallback. Production builds MUST override.',
       );
     } else if (!isWellFormedStripeKey) {
       // Common mix-up: Supabase publishable key (`sb_publishable_*`) pasted

@@ -206,7 +206,7 @@ export default function InvoiceDetailScreen() {
                 Alert.alert(
                   'Could not approve',
                   updErr.message.includes('row-level security')
-                    ? 'You do not have permission to approve this invoice. The web app may have a more permissive flow — try there.'
+                    ? 'You do not have permission to approve this invoice. The web app may have a more permissive flow, try there.'
                     : updErr.message,
                 );
                 return;
@@ -468,7 +468,7 @@ export default function InvoiceDetailScreen() {
             start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
             style={s.hero}
           >
-            <Text style={s.heroKicker}>CLIENT PORTAL · INVOICE</Text>
+            <Text style={s.heroKicker}>CLIENT PORTAL, INVOICE</Text>
             <Text style={s.heroNumber}>{invoice.invoiceNumber}</Text>
             <Text style={s.heroJob} numberOfLines={2}>
               {invoice.jobTitle ?? '(untitled job)'}
@@ -477,7 +477,7 @@ export default function InvoiceDetailScreen() {
               <StatusPill status={invoice.status} />
               <Text style={s.heroMeta}>
                 Issued {formatDate(invoice.issuedAt)}
-                {invoice.dueDate ? ` · Due ${formatDate(invoice.dueDate)}` : ''}
+                {invoice.dueDate ? `, Due ${formatDate(invoice.dueDate)}` : ''}
               </Text>
             </View>
 
@@ -500,7 +500,7 @@ export default function InvoiceDetailScreen() {
         {invoice.status === 'approved' && invoice.approvedAt && (
           <Banner tone="violet" icon="checkmark-circle">
             <Text style={s.bannerBody}>
-              Approved on {formatDate(invoice.approvedAt)} · awaiting payment processing.
+              Approved on {formatDate(invoice.approvedAt)}, awaiting payment processing.
             </Text>
           </Banner>
         )}
@@ -537,7 +537,7 @@ export default function InvoiceDetailScreen() {
                     <Text style={s.lineItemDesc}>{item.description}</Text>
                     {item.contract_id ? (
                       <Text style={s.lineItemContract}>
-                        Contract · {item.contract_id.slice(0, 8)}…
+                        Contract, {item.contract_id.slice(0, 8)}…
                       </Text>
                     ) : null}
                   </View>

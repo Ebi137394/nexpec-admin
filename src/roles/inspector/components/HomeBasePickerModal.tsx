@@ -335,7 +335,7 @@ const HomeBasePickerModal: React.FC<HomeBasePickerModalProps> = ({
                   color={C.textMuted}
                 />
                 <Text style={s.footerHintText} numberOfLines={2}>
-                  We store only the city you choose — never live location tracking.
+                  We store only the city you choose, never live location tracking.
                 </Text>
               </View>
             </View>

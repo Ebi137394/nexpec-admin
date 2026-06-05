@@ -321,7 +321,7 @@ export default function SecuritySettingsScreen() {
           <SettingRow
             icon="shield-checkmark-outline"
             title="Two-Factor Authentication"
-            subtitle={is2FAEnabled ? 'Active · authenticator app' : 'Add a second sign-in step (TOTP)'}
+            subtitle={is2FAEnabled ? 'Active, authenticator app' : 'Add a second sign-in step (TOTP)'}
             rightElement={
               <Switch
                 value={is2FAEnabled}

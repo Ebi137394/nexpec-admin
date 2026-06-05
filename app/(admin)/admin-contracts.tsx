@@ -51,7 +51,7 @@ export default function AdminContracts() {
       if ((contractsData?.length ?? 0) === 0) {
         console.log(
           '⚠️ contracts query returned 0 rows. If the inspector can see ' +
-          'their own contracts, the table is NOT empty — your profile.role ' +
+          'their own contracts, the table is NOT empty, your profile.role ' +
           'is probably not in (admin, super_admin, support). Check the ' +
           'previous log line.'
         );

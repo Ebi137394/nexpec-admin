@@ -107,7 +107,7 @@ export default function SpecialtyPicker({
             ? 'Search & add specialties…'
             : `${value.length} selected${
                 maxSelections ? ` / ${maxSelections}` : ''
-              } — tap to edit`}
+              }, tap to edit`}
         </Text>
         <ChevronRight size={16} color={C.textMuted} strokeWidth={2} />
       </TouchableOpacity>
@@ -396,7 +396,7 @@ function SpecialtyPickerModal({
             activeOpacity={0.85}
           >
             <Text style={styles.modalDoneTxt}>
-              Done · {value.length} selected
+              Done, {value.length} selected
             </Text>
           </TouchableOpacity>
         </View>

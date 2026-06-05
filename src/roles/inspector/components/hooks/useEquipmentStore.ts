@@ -71,7 +71,7 @@ const MOCK_EQUIPMENT: EquipmentItem[] = [
     calibrationDate: '2024-03-10',
     calibrationDueDays: 365,
     isActive: true,
-    notes: 'Leeb rebound method – requires test block verification before each use',
+    notes: 'Leeb rebound method to requires test block verification before each use',
   },
   {
     id: 'eq_006',

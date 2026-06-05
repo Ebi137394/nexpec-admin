@@ -238,7 +238,7 @@ export default function BudgetEnvelopesScreen() {
       >
         <Animated.View entering={FadeIn.duration(200)}>
           <LinearGradient colors={[C.primaryDim, 'rgba(0,0,0,0)']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.hero}>
-            <Text style={s.heroKicker}>DEPARTMENT BUDGETS · {orgName.toUpperCase()}</Text>
+            <Text style={s.heroKicker}>DEPARTMENT BUDGETS, {orgName.toUpperCase()}</Text>
             <Text style={s.heroSub}>Per-department spending caps for the fiscal year.</Text>
           </LinearGradient>
         </Animated.View>
@@ -274,7 +274,7 @@ export default function BudgetEnvelopesScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.budgetDept} numberOfLines={1}>{b.deptName}</Text>
-                      <Text style={s.budgetMeta}>{fmtPeriod(b.periodStart)}{b.notes ? ` · ${b.notes}` : ''}</Text>
+                      <Text style={s.budgetMeta}>{fmtPeriod(b.periodStart)}{b.notes ? `, ${b.notes}` : ''}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={s.budgetAmount}>{formatUsd(b.allocatedCents)}</Text>

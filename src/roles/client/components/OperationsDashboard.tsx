@@ -230,7 +230,7 @@ export default function OperationsDashboard() {
         {/* ── Footer ─────────────────────────────────────── */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            NEXPEC Operations Control · v1.0
+            NEXPEC Operations Control, v1.0
           </Text>
         </View>
       </ScrollView>

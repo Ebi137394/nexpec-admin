@@ -159,7 +159,7 @@ const HumidityWarningBanner: React.FC<{ humidity: number }> = ({ humidity }) => 
     <Animated.View style={[styles.warningBanner, { opacity: pulseAnim }]}>
       <Ionicons name="warning" size={14} color="#FED7D7" />
       <Text style={styles.warningText}>
-        ⚠ HIGH HUMIDITY ({humidity}%) — Painting conditions critical
+        ⚠ HIGH HUMIDITY ({humidity}%), Painting conditions critical
       </Text>
     </Animated.View>
   );

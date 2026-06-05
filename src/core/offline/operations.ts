@@ -91,8 +91,8 @@ async function handleReportUpdate(row: OutboxRow): Promise<void> {
   if (!data || data.length === 0) {
     throw new SyncConflictError(
       expected_updated_at
-        ? 'Report changed on the server since this edit was made offline — your update was not applied.'
-        : 'Report no longer exists or is locked (it may have been finalized) — your update was not applied.',
+        ? 'Report changed on the server since this edit was made offline, your update was not applied.'
+        : 'Report no longer exists or is locked (it may have been finalized), your update was not applied.',
       { table: 'inspection_reports', id, expected_updated_at: expected_updated_at ?? null },
     );
   }
@@ -173,7 +173,7 @@ async function handlePhotoUpload(row: OutboxRow): Promise<void> {
     // harmlessly and re-checks; a discard is the user's explicit call.
     if (!existing) {
       throw new SyncConflictError(
-        'Photo uploaded, but its report no longer exists or is locked — it could not be attached.',
+        'Photo uploaded, but its report no longer exists or is locked, it could not be attached.',
         { table: 'inspection_reports', id: payload.link_to_report_id, object_key: objectKey },
       );
     }
@@ -190,7 +190,7 @@ async function handlePhotoUpload(row: OutboxRow): Promise<void> {
     if (updErr) throw updErr;
     if (!updated || updated.length === 0) {
       throw new SyncConflictError(
-        'Photo uploaded, but the report was finalized or removed mid-sync — it could not be attached.',
+        'Photo uploaded, but the report was finalized or removed mid-sync, it could not be attached.',
         { table: 'inspection_reports', id: payload.link_to_report_id, object_key: objectKey },
       );
     }

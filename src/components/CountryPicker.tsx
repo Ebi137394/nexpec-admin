@@ -139,16 +139,16 @@ export default function CountryPicker(props: CountryPickerProps) {
 
   const summary = (() => {
     if (loading) return 'Loading countries…';
-    if (error) return 'Tap to retry — couldn’t load countries';
+    if (error) return 'Tap to retry, couldn’t load countries';
     if (props.mode === 'single') {
       if (selectedCountries.length === 0) return 'Search & select a country…';
       const s = selectedCountries[0];
-      return `${s.code} · ${s.name}`;
+      return `${s.code}, ${s.name}`;
     }
     if (props.value.length === 0) return 'Search & add countries…';
     const cap =
       typeof props.maxSelections === 'number' ? ` / ${props.maxSelections}` : '';
-    return `${props.value.length} selected${cap} — tap to edit`;
+    return `${props.value.length} selected${cap}, tap to edit`;
   })();
 
   const handleClearSingle = (e: any) => {
@@ -211,7 +211,7 @@ export default function CountryPicker(props: CountryPickerProps) {
               accessibilityLabel={`Remove ${c.name}`}
             >
               <Text style={styles.selectedChipTxt} numberOfLines={1}>
-                {c.code} · {c.name}
+                {c.code}, {c.name}
               </Text>
               <X size={12} color={C.primary} strokeWidth={2.6} />
             </TouchableOpacity>
@@ -318,7 +318,7 @@ function CountryPickerModal({ visible, onClose, countries, props }: ModalProps) 
         )}
         <View style={styles.listRowText}>
           <Text style={styles.listRowLabel} numberOfLines={1}>
-            {item.code} · {item.name}
+            {item.code}, {item.name}
           </Text>
           {item.region_group ? (
             <Text style={styles.listRowSub}>{item.region_group}</Text>
@@ -428,7 +428,7 @@ function CountryPickerModal({ visible, onClose, countries, props }: ModalProps) 
               activeOpacity={0.85}
             >
               <Text style={styles.modalDoneTxt}>
-                Done · {props.value.length} selected
+                Done, {props.value.length} selected
               </Text>
             </TouchableOpacity>
           </View>

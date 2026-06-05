@@ -302,7 +302,7 @@ const ComplianceCard: React.FC<{
         <View style={styles.criticalBanner}>
           <Ionicons name="alert-circle" size={14} color={COLORS.danger} />
           <Text style={styles.criticalBannerText}>
-            PAYMENT BLOCKED — Insurance Non-Compliant
+            PAYMENT BLOCKED, Insurance Non-Compliant
           </Text>
         </View>
       )}

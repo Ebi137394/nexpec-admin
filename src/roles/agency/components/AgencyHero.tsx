@@ -193,7 +193,7 @@ export const AgencyHero: React.FC<AgencyHeroProps> = ({
           </Text>
           <View style={s.heroBadge}>
             <Sparkles size={10} color={C.primary} />
-            <Text style={s.heroBadgeText}>AGENCY · COMMAND CENTER</Text>
+            <Text style={s.heroBadgeText}>AGENCY, COMMAND CENTER</Text>
           </View>
         </View>
 
@@ -222,7 +222,7 @@ export const AgencyHero: React.FC<AgencyHeroProps> = ({
             live job{liveCount === 1 ? '' : 's'}
             {activeInspectorCount > 0 && (
               <>
-                {'  ·  '}
+                {', '}
                 <Text style={{ color: C.text, fontWeight: '800' }}>
                   {activeInspectorCount}
                 </Text>{' '}

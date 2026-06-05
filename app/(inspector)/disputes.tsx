@@ -298,7 +298,7 @@ export default function InspectorDisputesScreen() {
               <View style={s.emptyIcon}>
                 <Ionicons name="shield-checkmark" size={22} color={C.primary} />
               </View>
-              <Text style={s.emptyTitle}>No disputes — clean record</Text>
+              <Text style={s.emptyTitle}>No disputes, clean record</Text>
               <Text style={s.emptySub}>
                 If a client is late on payment or you have a scope disagreement,
                 file a dispute here. Admin pauses escrow and mediates.
@@ -383,7 +383,7 @@ export default function InspectorDisputesScreen() {
 
             <Text style={s.sheetExplain}>
               Filing freezes payouts on this job and brings admin in as
-              mediator. Late payment, unresponsive client, scope creep —
+              mediator. Late payment, unresponsive client, scope creep,
               be specific.
             </Text>
 
@@ -461,7 +461,7 @@ export default function InspectorDisputesScreen() {
             <TextInput
               value={body}
               onChangeText={setBody}
-              placeholder="Be specific — dates, expectations, evidence references…"
+              placeholder="Be specific, dates, expectations, evidence references…"
               placeholderTextColor={C.textDim}
               multiline
               maxLength={8000}
@@ -485,7 +485,7 @@ export default function InspectorDisputesScreen() {
                 <Ionicons name="alert-circle" size={14} color="#1F1300" />
               )}
               <Text style={s.submitBtnText}>
-                {filing ? 'Filing…' : 'File dispute · pause escrow'}
+                {filing ? 'Filing…' : 'File dispute, pause escrow'}
               </Text>
             </Pressable>
           </View>

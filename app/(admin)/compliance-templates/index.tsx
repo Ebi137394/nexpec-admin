@@ -217,7 +217,7 @@ export default function ComplianceTemplatesIndex() {
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Compliance Templates</Text>
           <Text style={s.headerSub}>
-            {templates.filter((t) => t.is_active).length} active · {templates.length} total
+            {templates.filter((t) => t.is_active).length} active, {templates.length} total
           </Text>
         </View>
         <Pressable
@@ -285,7 +285,7 @@ export default function ComplianceTemplatesIndex() {
                 <View style={[s.dot, { backgroundColor: item.is_active ? C.ok : C.textDim }]} />
               </View>
               <Text style={s.rowSlug} numberOfLines={1}>
-                {item.slug} · v{item.version}
+                {item.slug}, v{item.version}
               </Text>
               <View style={s.rowBadges}>
                 <Badge label={item.category.replace(/_/g, ' ')} tint={C.cyan} />
@@ -294,7 +294,7 @@ export default function ComplianceTemplatesIndex() {
               </View>
               <View style={s.rowMetaLine}>
                 <Text style={s.rowMeta}>
-                  {item.requirements_count} req · ${(item.base_price_cents / 100).toFixed(0)} · {item.validity_months} mo
+                  {item.requirements_count} req, ${(item.base_price_cents / 100).toFixed(0)}, {item.validity_months} mo
                 </Text>
               </View>
             </View>

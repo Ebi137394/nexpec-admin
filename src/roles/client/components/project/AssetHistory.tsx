@@ -48,7 +48,7 @@ const MOCK_INSPECTION_HISTORY: InspectionRecord[] = [
     inspector: "James Whitfield",
     type: "API-653 Internal",
     outcome: "In Progress",
-    notes: "Current inspection – shell UT measurements ongoing.",
+    notes: "Current inspection to shell UT measurements ongoing.",
     findings: 2,
   },
   {
@@ -105,7 +105,7 @@ const MOCK_INSPECTION_HISTORY: InspectionRecord[] = [
     inspector: "Sarah Chen",
     type: "ILI Correlation",
     outcome: "In Progress",
-    notes: "Scheduled – pig run data pending analysis.",
+    notes: "Scheduled to pig run data pending analysis.",
     findings: 0,
   },
   {
@@ -153,7 +153,7 @@ const MOCK_INSPECTION_HISTORY: InspectionRecord[] = [
     inspector: "David Park",
     type: "Structural Assessment",
     outcome: "In Progress",
-    notes: "On hold – awaiting dive team mobilization.",
+    notes: "On hold to awaiting dive team mobilization.",
     findings: 0,
   },
 ];

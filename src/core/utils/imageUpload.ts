@@ -224,7 +224,7 @@ export async function uploadImageToSupabase(
     }
 
     dlog(
-      `✅ Pre-flight ok — mime=${probed.mime} size=${(probed.sizeBytes / 1024).toFixed(1)} KB`,
+      `✅ Pre-flight ok, mime=${probed.mime} size=${(probed.sizeBytes / 1024).toFixed(1)} KB`,
     );
 
     // Step 1: Get authenticated user

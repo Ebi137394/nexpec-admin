@@ -215,7 +215,7 @@ const ReviewSubmissionScreen: React.FC<ReviewSubmissionScreenProps> = ({ jobId }
           </View>
           <Text style={s.successTitle}>You already reviewed this job</Text>
           <Text style={s.successSubtitle}>
-            One review per party per job — that's the rule. You rated{' '}
+            One review per party per job, that's the rule. You rated{' '}
             <Text style={{ color: C.amber, fontWeight: '800' }}>
               {existing.rating} ★
             </Text>.
@@ -285,7 +285,7 @@ const ReviewSubmissionScreen: React.FC<ReviewSubmissionScreenProps> = ({ jobId }
               <Text style={s.revieweeLabel}>Rating</Text>
               <Text style={s.revieweeName} numberOfLines={1}>{revieweeName}</Text>
               <Text style={s.revieweeMeta} numberOfLines={1}>
-                {revieweeRole}{ctx?.jobTitle ? `  ·  ${ctx.jobTitle}` : ''}
+                {revieweeRole}{ctx?.jobTitle ? `, ${ctx.jobTitle}` : ''}
               </Text>
             </View>
             {reviewee?.is_verified && (
@@ -319,7 +319,7 @@ const ReviewSubmissionScreen: React.FC<ReviewSubmissionScreenProps> = ({ jobId }
             </View>
             <Text style={s.starHint}>
               {rating === 0 && 'Tap a star to rate'}
-              {rating === 1 && 'Poor — significant issues'}
+              {rating === 1 && 'Poor, significant issues'}
               {rating === 2 && 'Below expectations'}
               {rating === 3 && 'Met expectations'}
               {rating === 4 && 'Above expectations'}

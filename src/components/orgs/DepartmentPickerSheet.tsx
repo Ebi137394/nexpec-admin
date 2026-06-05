@@ -262,7 +262,7 @@ export function DepartmentPickerSheet({
 
         {/* Footer */}
         <Text style={styles.footerCopy}>
-          ATTRIBUTION SNAPSHOTS THE COST-CENTER · IMMUNE TO RENAMES
+          ATTRIBUTION SNAPSHOTS THE COST-CENTER, IMMUNE TO RENAMES
         </Text>
       </BottomSheetView>
     </BottomSheetModal>

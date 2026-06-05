@@ -136,7 +136,7 @@ export default function JobModeration() {
           <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
           <Text style={s.cardSub} numberOfLines={1}>
             {item.client?.full_name ?? item.client?.company_name ?? 'Unknown client'}
-            {item.agency ? ` · ${item.agency.company_name ?? item.agency.full_name}` : ''}
+            {item.agency ? `, ${item.agency.company_name ?? item.agency.full_name}` : ''}
           </Text>
         </View>
         <View style={[s.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>

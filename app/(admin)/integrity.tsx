@@ -135,10 +135,10 @@ export default function IntegrityConsoleScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
         >
           <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-            <Text style={s.kicker}>PLATFORM · PREDICTIVE INTEGRITY</Text>
+            <Text style={s.kicker}>PLATFORM, PREDICTIVE INTEGRITY</Text>
             <Text style={s.title}>Inspector risk forecast</Text>
             <Text style={s.subtitle}>
-              Every inspector scored against the cohort on the signals that precede disputes —
+              Every inspector scored against the cohort on the signals that precede disputes,
               broken evidence chains, thin evidence, rushed seals. From cryptographic seal
               history; no self-reports.
             </Text>
@@ -179,7 +179,7 @@ export default function IntegrityConsoleScreen() {
           {rows.length === 0 ? (
             <View style={s.emptyState}>
               <Ionicons name="shield-checkmark-outline" size={32} color={C.textMute} />
-              <Text style={s.emptyText}>No sealed inspections in this window yet — nothing to score.</Text>
+              <Text style={s.emptyText}>No sealed inspections in this window yet, nothing to score.</Text>
             </View>
           ) : (
             <View style={{ gap: 10 }}>
@@ -189,7 +189,7 @@ export default function IntegrityConsoleScreen() {
             </View>
           )}
 
-          <Text style={s.footnote}>Source · inspector_integrity_analytics RPC · shared-core risk scorer · read-only.</Text>
+          <Text style={s.footnote}>Source, inspector_integrity_analytics RPC, shared-core risk scorer, read-only.</Text>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -247,7 +247,7 @@ function RiskCard({ row, open, onToggle }: { row: ScoredRow; open: boolean; onTo
               <View key={c.key} style={s.compRow}>
                 <View style={s.compHead}>
                   <Text style={s.compLabel}>{c.label}</Text>
-                  <Text style={[s.compPct, { color: barFg }]}>{Math.round(c.risk * 100)}%{c.z != null ? `  ·  z ${c.z > 0 ? '+' : ''}${c.z}` : ''}</Text>
+                  <Text style={[s.compPct, { color: barFg }]}>{Math.round(c.risk * 100)}%{c.z != null ? `, z ${c.z > 0 ? '+' : ''}${c.z}` : ''}</Text>
                 </View>
                 <View style={s.barTrack}><View style={[s.barFill, { width: `${Math.max(2, Math.round(c.risk * 100))}%`, backgroundColor: barFg }]} /></View>
                 <Text style={s.compNote}>{c.note}</Text>

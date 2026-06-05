@@ -590,7 +590,7 @@ export function PipelineSection({ userId, userRole }: Props) {
           <Ionicons name="hourglass" size={13} color={C.amber} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={s.kicker}>AWAITING ACTION · {items.length}</Text>
+          <Text style={s.kicker}>AWAITING ACTION, {items.length}</Text>
           <Text style={s.title}>Pipeline</Text>
         </View>
       </View>
@@ -641,7 +641,7 @@ const KIND_META: Record<
     icon: 'swap-horizontal',
   },
   awarded_pending_contract: {
-    label: 'Awarded · Awaiting Contract',
+    label: 'Awarded, Awaiting Contract',
     tone: C.primary,
     toneDim: C.primaryDim,
     icon: 'ribbon',
@@ -659,14 +659,14 @@ const KIND_META: Record<
     icon: 'shield-checkmark',
   },
   kickoff_pending: {
-    label: 'Contract Signed · Begin Work',
+    label: 'Contract Signed, Begin Work',
     tone: C.cyan,
     toneDim: C.cyanDim,
     icon: 'checkmark-done-circle',
   },
   // ── Admin gates ───────────────────────────────────────────────────────
   admin_open_dispute: {
-    label: 'Open Dispute · Mediate',
+    label: 'Open Dispute, Mediate',
     tone: '#EF4444',
     toneDim: 'rgba(239,68,68,0.14)',
     icon: 'flame',

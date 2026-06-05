@@ -152,7 +152,7 @@ export default function AdminDiagnosticsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
         >
           <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-            <Text style={s.kicker}>PLATFORM · SYSTEM HEALTH</Text>
+            <Text style={s.kicker}>PLATFORM, SYSTEM HEALTH</Text>
             <Text style={s.title}>Diagnostics</Text>
             <Text style={s.subtitle}>Notification pipeline smoke test, recent activity, and one-tap diagnostic pings.</Text>
           </Animated.View>
@@ -203,7 +203,7 @@ export default function AdminDiagnosticsScreen() {
           {/* Recent notifications */}
           <View style={{ gap: 8 }}>
             <Text style={s.sectionLabel}>MY RECENT NOTIFICATIONS</Text>
-            {notifs.length === 0 ? <Text style={s.muted}>No notifications — try a ping above.</Text> : notifs.map((n) => (
+            {notifs.length === 0 ? <Text style={s.muted}>No notifications, try a ping above.</Text> : notifs.map((n) => (
               <View key={n.id} style={s.row}>
                 <View style={s.rowIcon}><Ionicons name="notifications-outline" size={15} color={C.cyan} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
@@ -215,7 +215,7 @@ export default function AdminDiagnosticsScreen() {
             ))}
           </View>
 
-          <Text style={s.footnote}>Source · notification_smoke_test + jobs + notifications · admin-gated (nx_is_admin).</Text>
+          <Text style={s.footnote}>Source, notification_smoke_test + jobs + notifications, admin-gated (nx_is_admin).</Text>
         </ScrollView>
       )}
     </SafeAreaView>

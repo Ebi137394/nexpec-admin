@@ -241,7 +241,7 @@ export default function BudgetPoliciesScreen() {
   }, [orgId, load]);
 
   const bandRange = (p: PolicyRow) =>
-    p.maxCents == null ? `${formatUsd(p.minCents)}+` : `${formatUsd(p.minCents)} – ${formatUsd(p.maxCents)}`;
+    p.maxCents == null ? `${formatUsd(p.minCents)}+` : `${formatUsd(p.minCents)} to ${formatUsd(p.maxCents)}`;
 
   // ─── Render ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -270,8 +270,8 @@ export default function BudgetPoliciesScreen() {
       >
         <Animated.View entering={FadeIn.duration(200)}>
           <LinearGradient colors={[C.primaryDim, 'rgba(0,0,0,0)']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.hero}>
-            <Text style={s.heroKicker}>APPROVAL BANDS · {orgName.toUpperCase()}</Text>
-            <Text style={s.heroSub}>Tiered pre-authorization — gate spend by amount with required approvers.</Text>
+            <Text style={s.heroKicker}>APPROVAL BANDS, {orgName.toUpperCase()}</Text>
+            <Text style={s.heroSub}>Tiered pre-authorization, gate spend by amount with required approvers.</Text>
           </LinearGradient>
         </Animated.View>
 
@@ -305,8 +305,8 @@ export default function BudgetPoliciesScreen() {
                       </View>
                       <Text style={s.policyRange}>{bandRange(p)}</Text>
                       <Text style={s.policyMeta} numberOfLines={1}>
-                        {deptName(p.scopeDeptId)} · {p.minApprovers} approver{p.minApprovers === 1 ? '' : 's'} · {p.roles.map(roleLabel).join(', ')}
-                        {p.requiresSod ? ' · SoD' : ''}
+                        {deptName(p.scopeDeptId)}, {p.minApprovers} approver{p.minApprovers === 1 ? '' : 's'}, {p.roles.map(roleLabel).join(', ')}
+                        {p.requiresSod ? ', SoD' : ''}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => toggleActive(p)} hitSlop={8} style={s.toggleActiveBtn}>

@@ -142,9 +142,9 @@ export interface Translation {
     'Closer jobs surface first. Set unlimited to see them all.': string;
     'Home Base': string;
     'Saving…': string;
-    'Not set — tap to pick': string;
+    'Not set, tap to pick': string;
     'Travel Radius': string;
-    'Unlimited — anywhere': string;
+    'Unlimited, anywhere': string;
     'from': string;
     'Set your home base to enable distance-based sorting.': string;
     'Financial Hub': string;
@@ -321,9 +321,9 @@ const en: Translation = {
     'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
     'Home Base': 'Home Base',
     'Saving…': 'Saving…',
-    'Not set — tap to pick': 'Not set — tap to pick',
+    'Not set, tap to pick': 'Not set, tap to pick',
     'Travel Radius': 'Travel Radius',
-    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'Unlimited, anywhere': 'Unlimited, anywhere',
     'from': 'from',
     'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Financial Hub',
@@ -500,9 +500,9 @@ const it: Translation = {
     'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
     'Home Base': 'Home Base',
     'Saving…': 'Saving…',
-    'Not set — tap to pick': 'Not set — tap to pick',
+    'Not set, tap to pick': 'Not set, tap to pick',
     'Travel Radius': 'Travel Radius',
-    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'Unlimited, anywhere': 'Unlimited, anywhere',
     'from': 'from',
     'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Hub Finanziario',
@@ -679,9 +679,9 @@ const tr: Translation = {
     'Closer jobs surface first. Set unlimited to see them all.': 'Closer jobs surface first. Set unlimited to see them all.',
     'Home Base': 'Home Base',
     'Saving…': 'Saving…',
-    'Not set — tap to pick': 'Not set — tap to pick',
+    'Not set, tap to pick': 'Not set, tap to pick',
     'Travel Radius': 'Travel Radius',
-    'Unlimited — anywhere': 'Unlimited — anywhere',
+    'Unlimited, anywhere': 'Unlimited, anywhere',
     'from': 'from',
     'Set your home base to enable distance-based sorting.': 'Set your home base to enable distance-based sorting.',
     'Financial Hub': 'Finansal Hub',

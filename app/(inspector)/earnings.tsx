@@ -133,7 +133,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Income Breakdown</Text>
-      <Text style={styles.cardSubtitle}>Current month · paid transactions</Text>
+      <Text style={styles.cardSubtitle}>Current month, paid transactions</Text>
 
       <View style={styles.breakdownRow}>
         <Text style={styles.breakdownLabel}>Gross Earnings</Text>
@@ -199,7 +199,7 @@ const WeeklyBarChart = React.memo(({
           {formatHalalas(weeklyTotalHalalas, true)}
         </Text>
       </View>
-      <Text style={styles.cardSubtitle}>Net payout · this week</Text>
+      <Text style={styles.cardSubtitle}>Net payout, this week</Text>
 
       <View style={styles.barsContainer}>
         {weeklyEarnings.map((day, idx) => {
@@ -380,7 +380,7 @@ const TransactionItem = React.memo(({ item }: { item: EarningsTransaction }) => 
         {/* Real client name */}
         <Text style={styles.txClient} numberOfLines={1}>{clientName}</Text>
         <Text style={styles.txJob} numberOfLines={1}>
-          {jobCode ? `${jobCode} · ` : ''}{jobTitle}
+          {jobCode ? `${jobCode}, ` : ''}{jobTitle}
         </Text>
         <Text style={styles.txDate}>{date}</Text>
       </View>

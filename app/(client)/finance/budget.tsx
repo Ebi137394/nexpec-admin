@@ -263,17 +263,17 @@ export default function BudgetOverviewScreen() {
             them. Our header below adds the role kicker + subtitle +
             scope chip that the native header can't express. */}
         <Animated.View entering={FadeIn.duration(220)} style={s.header}>
-          <Text style={s.kicker}>{roleLabel.toUpperCase()} PORTAL · FINANCE</Text>
+          <Text style={s.kicker}>{roleLabel.toUpperCase()} PORTAL, FINANCE</Text>
           <Text style={s.title}>Budget Overview</Text>
           <Text style={s.subtitle}>
-            Live spend tracker — what's committed, what's in escrow, what's
+            Live spend tracker, what's committed, what's in escrow, what's
             settled. Visibility runs under your account's role.
           </Text>
 
           <View style={[s.scopeChip, { backgroundColor: scopeChip.bg, borderColor: scopeChip.color + '55' }]}>
             <Ionicons name={scopeChip.icon} size={12} color={scopeChip.color} />
             <Text style={[s.scopeChipText, { color: scopeChip.color }]}>
-              SCOPE · {scopeChip.label.toUpperCase()}
+              SCOPE, {scopeChip.label.toUpperCase()}
             </Text>
           </View>
         </Animated.View>
@@ -337,21 +337,21 @@ export default function BudgetOverviewScreen() {
             icon="wallet"
             label="In escrow"
             value={formatCents(summary.inEscrowCents)}
-            sub="Funded · awaiting completion"
+            sub="Funded, awaiting completion"
             tone="cyan"
           />
           <HeroTile
             icon="checkmark-done"
             label="Paid out"
             value={formatCents(summary.paidOutCents)}
-            sub="Released · settled with inspector"
+            sub="Released, settled with inspector"
             tone="green"
           />
           <HeroTile
             icon="hourglass"
             label="Awaiting payout"
             value={formatCents(summary.awaitingPayoutCents)}
-            sub="Completed · pending release"
+            sub="Completed, pending release"
             tone="amber"
           />
         </Animated.View>
@@ -407,7 +407,7 @@ export default function BudgetOverviewScreen() {
                     </Text>
                     <Text style={s.inspectorMeta}>
                       {row.jobCount} job{row.jobCount === 1 ? '' : 's'}
-                      {row.lastJobAt ? `  ·  last ${relativeTime(row.lastJobAt)}` : ''}
+                      {row.lastJobAt ? `, last ${relativeTime(row.lastJobAt)}` : ''}
                     </Text>
                   </View>
                   <Text style={s.inspectorAmount}>{formatCents(row.totalCents)}</Text>
@@ -463,8 +463,8 @@ export default function BudgetOverviewScreen() {
 
         {/* ─── Audit footnote ──────────────────────────────────────── */}
         <Text style={s.footnote}>
-          Source · get_budget_summary, get_budget_monthly, get_budget_by_inspector,
-          get_budget_recent_activity · RLS-gated via fin_visible_client_ids().
+          Source, get_budget_summary, get_budget_monthly, get_budget_by_inspector,
+          get_budget_recent_activity, RLS-gated via fin_visible_client_ids().
         </Text>
       </ScrollView>
     </SafeAreaView>

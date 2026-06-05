@@ -41,7 +41,7 @@ const SEED_MILESTONES: Milestone[] = [
   {
     id: "ms-001",
     label: "Project Deposit",
-    description: "30% upfront — mobilization & material procurement",
+    description: "30% upfront, mobilization & material procurement",
     percentage: 30,
     amount: 52500,
     status: "paid",
@@ -51,7 +51,7 @@ const SEED_MILESTONES: Milestone[] = [
   {
     id: "ms-002",
     label: "Hull Completion",
-    description: "25% — hull repairs, welding, and blasting complete",
+    description: "25%, hull repairs, welding, and blasting complete",
     percentage: 25,
     amount: 43750,
     status: "paid",
@@ -61,7 +61,7 @@ const SEED_MILESTONES: Milestone[] = [
   {
     id: "ms-003",
     label: "Systems Installation",
-    description: "25% — mechanical, electrical, plumbing rough-in",
+    description: "25%, mechanical, electrical, plumbing rough-in",
     percentage: 25,
     amount: 43750,
     status: "pending_approval",
@@ -70,7 +70,7 @@ const SEED_MILESTONES: Milestone[] = [
   {
     id: "ms-004",
     label: "Final Delivery",
-    description: "20% — sea trials, commissioning, and handover",
+    description: "20%, sea trials, commissioning, and handover",
     percentage: 20,
     amount: 35000,
     status: "upcoming",

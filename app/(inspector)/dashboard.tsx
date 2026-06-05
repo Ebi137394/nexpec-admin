@@ -350,7 +350,7 @@ const JobsTab = React.memo(({ data }: TabProps) => {
           </View>
         )}
         <Text style={styles.jobsSubtitle}>
-          {activeJobsCount} active · {jobs.length} total assignment
+          {activeJobsCount} active, {jobs.length} total assignment
           {jobs.length !== 1 ? 's' : ''}
         </Text>
       </View>

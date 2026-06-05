@@ -91,7 +91,7 @@ export function RecoveryCodesModal({ visible, codes, onClose }: Props) {
           >
             <View style={styles.headerRow}>
               <View>
-                <Text style={styles.kicker}>Recovery codes · save now</Text>
+                <Text style={styles.kicker}>Recovery codes, save now</Text>
                 <Text style={styles.title}>
                   These are your only way back in
                 </Text>

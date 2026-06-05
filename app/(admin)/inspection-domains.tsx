@@ -68,11 +68,11 @@ interface DomainRow {
 }
 
 function computeVerdict(d: DomainRow): { kind: Verdict; reason: string } {
-  if (d.isLaunched) return { kind: 'live', reason: 'Launched · publicly visible' };
+  if (d.isLaunched) return { kind: 'live', reason: 'Launched, publicly visible' };
   if (!d.isActive) return { kind: 'blocked', reason: 'Kill-switch off (inactive)' };
   if (d.scopeTemplateCount === 0) return { kind: 'blocked', reason: 'No active scope templates' };
   if (d.defaultGroups.length === 0) return { kind: 'blocked', reason: 'No specialty groups carved' };
-  return { kind: 'ready', reason: 'Content complete — ready to launch' };
+  return { kind: 'ready', reason: 'Content complete, ready to launch' };
 }
 
 const VERDICT_STYLE: Record<Verdict, { label: string; color: string; bg: string }> = {
@@ -209,8 +209,8 @@ export default function InspectionDomainsScreen() {
       >
         <Animated.View entering={FadeIn.duration(200)}>
           <LinearGradient colors={[C.primaryDim, 'rgba(0,0,0,0)']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={s.hero}>
-            <Text style={s.heroKicker}>PLATFORM · INSPECTION DOMAINS</Text>
-            <Text style={s.heroSub}>{liveCount} live · {domains.length} configured. Launch a domain when its content + pool are ready.</Text>
+            <Text style={s.heroKicker}>PLATFORM, INSPECTION DOMAINS</Text>
+            <Text style={s.heroSub}>{liveCount} live, {domains.length} configured. Launch a domain when its content + pool are ready.</Text>
           </LinearGradient>
         </Animated.View>
 
@@ -300,7 +300,7 @@ export default function InspectionDomainsScreen() {
               );
             })}
             <Text style={s.footnote}>
-              Domain content (name, pitch, specialty groups, regulatory bodies) is seeded by migration and read-only here — the launch decision is the only control, exactly as on web.
+              Domain content (name, pitch, specialty groups, regulatory bodies) is seeded by migration and read-only here, the launch decision is the only control, exactly as on web.
             </Text>
           </View>
         )}

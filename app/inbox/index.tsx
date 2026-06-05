@@ -72,7 +72,7 @@ export default function InboxScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.colors.primary} />}>
           {items.map((c) => {
             const title = isAdmin ? (c.userLabel || roleLabel(c.userRole)) : (c.title || CONVERSATION_KIND_LABELS[c.kind]);
-            const sub = isAdmin ? `${roleLabel(c.userRole)} · ${CONVERSATION_KIND_LABELS[c.kind]}` : (c.lastMessagePreview || CONVERSATION_KIND_LABELS[c.kind]);
+            const sub = isAdmin ? `${roleLabel(c.userRole)}, ${CONVERSATION_KIND_LABELS[c.kind]}` : (c.lastMessagePreview || CONVERSATION_KIND_LABELS[c.kind]);
             const unread = isAdmin ? c.unreadForAdmin : c.unreadForUser;
             return (
               <TouchableOpacity key={c.id} style={s.row} activeOpacity={0.85} onPress={() => router.push(`/inbox/${c.id}` as any)}>

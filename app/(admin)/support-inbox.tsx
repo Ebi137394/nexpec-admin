@@ -375,7 +375,7 @@ export default function SupportInboxScreen() {
           threads.length === 0
             ? 'No conversations yet'
             : totalUnread > 0
-            ? `${threads.length} thread${threads.length === 1 ? '' : 's'} · ${totalUnread} unread`
+            ? `${threads.length} thread${threads.length === 1 ? '' : 's'}, ${totalUnread} unread`
             : `${threads.length} thread${threads.length === 1 ? '' : 's'}`
         }
         unread={totalUnread}

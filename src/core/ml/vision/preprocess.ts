@@ -52,7 +52,7 @@ export async function imageUriToTensor(
   params: VisionParams,
 ): Promise<PreprocessResult> {
   if (!_skia) {
-    throw new Error('@shopify/react-native-skia unavailable — run a dev build with Skia installed');
+    throw new Error('@shopify/react-native-skia unavailable, run a dev build with Skia installed');
   }
   const W = params.input?.width ?? 224;
   const H = params.input?.height ?? 224;

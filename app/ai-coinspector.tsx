@@ -52,7 +52,7 @@ export default function AiCoInspectorScreen() {
   }, [imageUri, da]);
 
   const accept = useCallback(async (d: DefectDetection) => {
-    if (!jobId) { setNote('Demo mode — open with ?jobId=… to persist findings.'); return; }
+    if (!jobId) { setNote('Demo mode, open with ?jobId=… to persist findings.'); return; }
     try {
       const assist = buildAiAssist(
         d,
@@ -86,7 +86,7 @@ export default function AiCoInspectorScreen() {
         ) : (
           <>
             <Text style={styles.subtitle}>
-              {jobId ? `Job ${String(jobId).slice(0, 8)}… · findings will be sealed` : 'Demo mode — no job linked'}
+              {jobId ? `Job ${String(jobId).slice(0, 8)}…, findings will be sealed` : 'Demo mode, no job linked'}
             </Text>
 
             <TouchableOpacity style={styles.pick} onPress={pickImage} activeOpacity={0.85}>

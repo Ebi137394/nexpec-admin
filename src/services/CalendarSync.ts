@@ -158,7 +158,7 @@ export async function syncJobToCalendar(
     const endDate = new Date(startDate.getTime() + durationMs);
 
     const locationString = job.address
-      ? `${job.location} — ${job.address}`
+      ? `${job.location}, ${job.address}`
       : job.location;
 
     const notesLines = [

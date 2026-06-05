@@ -153,7 +153,7 @@ export default function SupportCenter() {
           <View style={{ flex: 1 }}>
             <Text style={s.cardSubject} numberOfLines={1}>{item.subject}</Text>
             <Text style={s.cardFrom}>
-              {userProfile?.full_name ?? 'Unknown'} · {userProfile?.role ?? '—'}
+              {userProfile?.full_name ?? 'Unknown'}, {userProfile?.role ?? '—'}
             </Text>
           </View>
           <View style={[s.statusBadge, { backgroundColor: statusColor(item.status) + '20' }]}>

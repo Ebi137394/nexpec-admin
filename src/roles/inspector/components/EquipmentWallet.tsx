@@ -220,7 +220,7 @@ const EquipmentWallet: React.FC<EquipmentWalletProps> = ({
                 ]}
               >
                 {status === 'expired'
-                  ? '🔒 Locked – Recalibrate'
+                  ? '🔒 Locked to Recalibrate'
                   : item.isActive
                   ? '✓ Active for Reports'
                   : 'Activate for Reports'}

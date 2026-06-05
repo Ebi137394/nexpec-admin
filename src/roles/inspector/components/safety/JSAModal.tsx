@@ -516,7 +516,7 @@ const JSAModal: React.FC<JSAModalProps> = ({
                 !canProceed && styles.proceedButtonTextDisabled,
               ]}
             >
-              {canProceed ? 'SAFETY VERIFIED — START INSPECTION' : 'COMPLETE ALL CHECKS TO PROCEED'}
+              {canProceed ? 'SAFETY VERIFIED, START INSPECTION' : 'COMPLETE ALL CHECKS TO PROCEED'}
             </Text>
           </TouchableOpacity>
         </View>

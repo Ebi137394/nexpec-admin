@@ -44,9 +44,9 @@ function buildTitle(type: string, result: string | null): string {
     audit: "Audit",
   };
   const base = typeLabel[type] ?? type;
-  if (result === "fail") return `${base} — FAILED`;
-  if (result === "pass") return `${base} — Passed`;
-  if (result === "pending") return `${base} — Pending`;
+  if (result === "fail") return `${base}, FAILED`;
+  if (result === "pass") return `${base}, Passed`;
+  if (result === "pending") return `${base}, Pending`;
   return base;
 }
 

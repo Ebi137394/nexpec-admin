@@ -64,7 +64,7 @@ const ReviewItem: React.FC<ReviewItemProps> = ({ review }) => {
             <Ionicons name="shield-checkmark" size={11} color={C.green} style={{ marginLeft: 4 }} />
           )}
           {role && (
-            <Text style={s.role} numberOfLines={1}>  ·  {role}</Text>
+            <Text style={s.role} numberOfLines={1}>, {role}</Text>
           )}
         </View>
 

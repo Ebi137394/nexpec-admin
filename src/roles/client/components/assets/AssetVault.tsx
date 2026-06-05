@@ -152,7 +152,7 @@ const ASSETS: Asset[] = [
     name: 'Pressure Vessel Tank',
     tag: 'TANK-101',
     type: 'Pressure Vessel',
-    location: 'Platform Alpha — Level 2',
+    location: 'Platform Alpha, Level 2',
     status: 'operational',
     lastInspection: '2024-11-18',
     nextDue: '2025-05-18',
@@ -165,7 +165,7 @@ const ASSETS: Asset[] = [
     name: 'Centrifugal Pump B2',
     tag: 'PUMP-B2',
     type: 'Rotating Equipment',
-    location: 'Platform Alpha — Engine Room',
+    location: 'Platform Alpha, Engine Room',
     status: 'maintenance',
     lastInspection: '2024-10-02',
     nextDue: '2025-01-02',
@@ -178,7 +178,7 @@ const ASSETS: Asset[] = [
     name: 'Heat Exchanger E-401',
     tag: 'HX-E401',
     type: 'Static Equipment',
-    location: 'Platform Bravo — Process Area',
+    location: 'Platform Bravo, Process Area',
     status: 'flagged',
     lastInspection: '2024-09-14',
     nextDue: '2024-12-14',
@@ -196,7 +196,7 @@ const TIMELINE_EVENTS: TimelineEvent[] = [
     type: 'inspection',
     title: 'Scheduled API 510 Internal Inspection',
     description:
-      'Full internal visual and UT thickness survey. Wall thickness readings within acceptable range. Minor pitting observed on lower shell — documented for trending.',
+      'Full internal visual and UT thickness survey. Wall thickness readings within acceptable range. Minor pitting observed on lower shell, documented for trending.',
     inspector: 'Cpt. M. Rivera',
     result: 'pass',
     referenceNo: 'INS-2024-0847',
@@ -206,9 +206,9 @@ const TIMELINE_EVENTS: TimelineEvent[] = [
     assetId: 'AST-001',
     date: '2024-08-03',
     type: 'repair',
-    title: 'Nozzle Weld Overlay — N3 Connection',
+    title: 'Nozzle Weld Overlay, N3 Connection',
     description:
-      'Weld overlay applied to nozzle N3 to address erosion pattern. Post-weld heat treatment completed. NDE passed — MT and UT satisfactory.',
+      'Weld overlay applied to nozzle N3 to address erosion pattern. Post-weld heat treatment completed. NDE passed, MT and UT satisfactory.',
     inspector: 'Lt. K. Tanaka',
     result: 'pass',
     referenceNo: 'WO-2024-0392',
@@ -254,10 +254,10 @@ const TIMELINE_EVENTS: TimelineEvent[] = [
     assetId: 'AST-001',
     date: '2023-06-08',
     type: 'audit',
-    title: 'RBI Program Audit — Class Society',
+    title: 'RBI Program Audit, Class Society',
     description:
       'Risk-Based Inspection program audit by DNV GL. Methodology and documentation reviewed. Compliance confirmed. Next audit cycle: 2026.',
-    inspector: 'External — DNV GL',
+    inspector: 'External, DNV GL',
     result: 'pass',
     referenceNo: 'AUD-2023-DNV-044',
   },
@@ -1026,7 +1026,7 @@ const AssetTimeline: React.FC = memo(() => (
   <View>
     <SectionHeader
       title="ASSET TIMELINE"
-      subtitle="Chronological event history — TANK-101"
+      subtitle="Chronological event history, TANK-101"
       delay={500}
       accentColor={T.cyan}
     />
@@ -1479,7 +1479,7 @@ const AssetVault: React.FC = () => {
         <View style={styles.footer}>
           <View style={styles.footerLine} />
           <Text style={styles.footerText}>
-            NEXPEC VAULT v3.1.0 — AES-256 ENCRYPTED
+            NEXPEC VAULT v3.1.0, AES-256 ENCRYPTED
           </Text>
           <View style={styles.footerLine} />
         </View>

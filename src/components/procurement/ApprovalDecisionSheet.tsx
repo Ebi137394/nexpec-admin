@@ -199,7 +199,7 @@ function DecisionBody({
             </View>
             {request.department_name && (
               <Text style={styles.headerMetaText} numberOfLines={1}>
-                · {request.department_name}
+                {request.department_name}
               </Text>
             )}
             {request.cost_center && (
@@ -247,7 +247,7 @@ function DecisionBody({
           </Text>
           {' of '}
           {request.min_approvers_required} approval
-          {request.min_approvers_required === 1 ? '' : 's'} so far · valid
+          {request.min_approvers_required === 1 ? '' : 's'} so far, valid
           approvers:{' '}
           {request.required_approver_roles
             .map((r) => prettyRole(String(r)))

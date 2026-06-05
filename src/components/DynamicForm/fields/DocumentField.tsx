@@ -115,7 +115,7 @@ export const DocumentField: React.FC<FieldProps> = ({ field, value, onChange, on
             <>
               <Ionicons name="cloud-upload-outline" size={26} color={colors.primaryLight} />
               <Text style={[styles.dzText, { color: colors.text, fontSize: fontSize.sm }]}>Upload document</Text>
-              <Text style={[styles.dzSub, { color: colors.textMuted, fontSize: fontSize.xs }]}>PDF, image or Office file · sealed on upload</Text>
+              <Text style={[styles.dzSub, { color: colors.textMuted, fontSize: fontSize.xs }]}>PDF, image or Office file, sealed on upload</Text>
             </>
           )}
         </TouchableOpacity>

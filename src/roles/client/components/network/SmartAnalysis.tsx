@@ -64,14 +64,14 @@ const SEED_INSPECTORS: InspectorProfile[] = [
     equipment: [
       {
         id: "eq-1",
-        instrument: "UT Thickness Gauge — Olympus 38DL Plus",
+        instrument: "UT Thickness Gauge, Olympus 38DL Plus",
         lastCalibrated: "2025-05-10",
         nextDue: "2025-11-10",
         status: "current",
       },
       {
         id: "eq-2",
-        instrument: "Phased Array — Zetec TOPAZ 64",
+        instrument: "Phased Array, Zetec TOPAZ 64",
         lastCalibrated: "2025-04-20",
         nextDue: "2025-10-20",
         status: "current",
@@ -115,7 +115,7 @@ const SEED_INSPECTORS: InspectorProfile[] = [
     equipment: [
       {
         id: "eq-3",
-        instrument: "ROV Sonar — BlueRobotics Navigator",
+        instrument: "ROV Sonar, BlueRobotics Navigator",
         lastCalibrated: "2025-03-01",
         nextDue: "2025-09-01",
         status: "current",
@@ -149,7 +149,7 @@ const SEED_INSPECTORS: InspectorProfile[] = [
       {
         id: "cert-6",
         code: "PCN-Level3",
-        label: "NDT Level 3 — All Methods",
+        label: "NDT Level 3, All Methods",
         issuedBy: "PCN / BINDT",
         expiresAt: "2028-02-28",
         verified: true,
@@ -174,21 +174,21 @@ const SEED_INSPECTORS: InspectorProfile[] = [
     equipment: [
       {
         id: "eq-5",
-        instrument: "TOFD System — Sonatest Veo+",
+        instrument: "TOFD System, Sonatest Veo+",
         lastCalibrated: "2025-06-01",
         nextDue: "2025-12-01",
         status: "current",
       },
       {
         id: "eq-6",
-        instrument: "3D Laser Scanner — FARO Focus",
+        instrument: "3D Laser Scanner, FARO Focus",
         lastCalibrated: "2025-05-15",
         nextDue: "2025-11-15",
         status: "current",
       },
       {
         id: "eq-7",
-        instrument: "MFL Pipeline Scanner — Rosen",
+        instrument: "MFL Pipeline Scanner, Rosen",
         lastCalibrated: "2025-04-01",
         nextDue: "2025-10-01",
         status: "current",
@@ -200,7 +200,7 @@ const SEED_INSPECTORS: InspectorProfile[] = [
   },
 ];
 
-const JOB_TYPE = "Tank Inspection — API-653";
+const JOB_TYPE = "Tank Inspection, API-653";
 
 // ──────────────────────────────────────────────
 // Analysis Engine

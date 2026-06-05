@@ -596,7 +596,7 @@ export default function SpreadEditor() {
               <View style={s.gatekeeperBanner}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                   <Ionicons name="person-add" size={16} color="#3B82F6" />
-                  <Text style={s.gatekeeperTitle}>CLIENT SELECTED — Awaiting Admin Confirmation</Text>
+                  <Text style={s.gatekeeperTitle}>CLIENT SELECTED, Awaiting Admin Confirmation</Text>
                 </View>
                 <Text style={s.gatekeeperName}>
                   {displayedInspectorName || 'Inspector'}
@@ -621,7 +621,7 @@ export default function SpreadEditor() {
                     color="#10B981"
                   />
                   <Text style={s.activeInspectorTitle}>
-                    {isCompleted ? 'HIRED — JOB COMPLETED' : 'HIRED — ACTIVE INSPECTOR'}
+                    {isCompleted ? 'HIRED, JOB COMPLETED' : 'HIRED, ACTIVE INSPECTOR'}
                   </Text>
                 </View>
                 <Text style={s.gatekeeperName}>
@@ -722,7 +722,7 @@ export default function SpreadEditor() {
 
             {(selectedApp.admin_feedback || selectedApp.admin_attachment) && (
               <Text style={s.replyDeliveredHint}>
-                ✓ Delivered — the client can see this on their job detail screen.
+                ✓ Delivered, the client can see this on their job detail screen.
               </Text>
             )}
           </View>
@@ -927,7 +927,7 @@ export default function SpreadEditor() {
             <View style={{ flex: 1 }}>
               <Text style={auditCardStyle.title}>Audit Trail</Text>
               <Text style={auditCardStyle.sub}>
-                Every status, pricing, hiring, and payout change — immutable
+                Every status, pricing, hiring, and payout change, immutable
               </Text>
             </View>
             <TouchableOpacity
@@ -980,7 +980,7 @@ export default function SpreadEditor() {
             <View style={{ flex: 1 }}>
               <Text style={auditCardStyle.title}>Flash Reports</Text>
               <Text style={auditCardStyle.sub}>
-                NCRs raised by parties to this job — calibration, safety, defects, disputes
+                NCRs raised by parties to this job, calibration, safety, defects, disputes
               </Text>
             </View>
             <TouchableOpacity

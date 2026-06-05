@@ -154,18 +154,18 @@ export default function ClientReportsScreen() {
       >
         {/* Header */}
         <Animated.View entering={FadeIn.duration(220)} style={s.header}>
-          <Text style={s.kicker}>CLIENT PORTAL · DELIVERABLES</Text>
+          <Text style={s.kicker}>CLIENT PORTAL, DELIVERABLES</Text>
           <Text style={s.title}>Reports</Text>
           <Text style={s.subtitle}>
             Inspection reports reviewed by our team and ready for you. Each
-            one was verified before hand-off — tap to open the full job.
+            one was verified before hand-off, tap to open the full job.
           </Text>
 
           <View style={s.countChip}>
             <Ionicons name="document-text" size={12} color={C.primary} />
             <Text style={s.countChipText}>
               {rows.length} DELIVERABLE{rows.length === 1 ? '' : 'S'}
-              {releasedCount > 0 ? ` · ${releasedCount} RELEASED` : ''}
+              {releasedCount > 0 ? `, ${releasedCount} RELEASED` : ''}
             </Text>
           </View>
         </Animated.View>
@@ -193,7 +193,7 @@ export default function ClientReportsScreen() {
         )}
 
         <Text style={s.footnote}>
-          Source · public.jobs · handed-off (admin-reviewed) · RLS-gated by client_id.
+          Source, public.jobs, handed-off (admin-reviewed), RLS-gated by client_id.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -228,7 +228,7 @@ function ReportCard({ r }: { r: ReportRow }) {
         <View style={s.reportMeta}>
           <Ionicons name="person-outline" size={10} color={C.textMute} />
           <Text style={s.reportMetaText} numberOfLines={1}>
-            {r.inspectorName ?? 'Inspector —'}
+            {r.inspectorName ?? 'Inspector'}
           </Text>
         </View>
         <View style={s.reportMeta}>

@@ -48,7 +48,7 @@ export default function AuthScreen() {
   const handleSignIn = async () => {
     // Guard 1: Verify the client object exists
     if (!supabase) {
-      console.error('[Auth] supabase object is undefined — check import path');
+      console.error('[Auth] supabase object is undefined, check import path');
       Alert.alert('Error', 'Authentication service failed to load.');
       return;
     }

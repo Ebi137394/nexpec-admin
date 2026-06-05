@@ -83,11 +83,11 @@ export default function ToolRunnerScreen() {
                     </View>
                   ))}
                 </View>
-                {!!result.citations?.length && <Text style={s.cite}>{result.citations.join('   ·   ')}</Text>}
+                {!!result.citations?.length && <Text style={s.cite}>{result.citations.join(', ')}</Text>}
                 {!!result.result_sha256 && (
                   <View style={s.sealRow}>
                     <Ionicons name="shield-checkmark" size={14} color={T.colors.success} />
-                    <Text style={s.sealText}>Sealed · {result.result_sha256.slice(0, 12)}…</Text>
+                    <Text style={s.sealText}>Sealed, {result.result_sha256.slice(0, 12)}…</Text>
                   </View>
                 )}
                 <TouchableOpacity style={s.cta} onPress={reset} activeOpacity={0.85}>

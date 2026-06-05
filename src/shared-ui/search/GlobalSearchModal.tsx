@@ -433,7 +433,7 @@ function EmptyHint() {
       <Text style={styles.emptyTitle}>One search across the platform</Text>
       <Text style={styles.emptyBody}>
         Find inspectors by name or specialty, jump to one of your jobs, or
-        pull up a scope template — all from this box.
+        pull up a scope template, all from this box.
       </Text>
     </View>
   );

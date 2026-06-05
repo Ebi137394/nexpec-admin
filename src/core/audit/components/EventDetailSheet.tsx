@@ -201,7 +201,7 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) =
                 <Text style={s.metaValue} numberOfLines={1}>
                   {event.actor_label ?? 'Unknown'}
                   {event.actor_role && (
-                    <Text style={s.metaRoleSuffix}>  ·  {event.actor_role}</Text>
+                    <Text style={s.metaRoleSuffix}>, {event.actor_role}</Text>
                   )}
                 </Text>
               </View>
@@ -218,7 +218,7 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) =
                 <Ionicons name="cube-outline" size={14} color={C.textMuted} />
                 <Text style={s.metaLabel}>Subject</Text>
                 <Text style={s.metaValue} numberOfLines={1}>
-                  {event.subject_table}  ·  {event.subject_id.slice(0, 8)}…
+                  {event.subject_table}, {event.subject_id.slice(0, 8)}…
                 </Text>
               </View>
               {intent && (

@@ -68,7 +68,7 @@ const C = {
 const RESOLUTIONS = [
   {
     value: 'completed',
-    label: "Client's favour · release escrow",
+    label: "Client's favour, release escrow",
     description: 'Job is marked complete and the inspector is paid out. Use when work was delivered as agreed.',
     icon: 'checkmark-circle',
     tone: C.ok,
@@ -77,7 +77,7 @@ const RESOLUTIONS = [
   },
   {
     value: 'cancelled',
-    label: "Inspector's favour · refund client",
+    label: "Inspector's favour, refund client",
     description: 'Job is cancelled and escrow is refunded to the client. Use when the inspector failed to deliver.',
     icon: 'close-circle',
     tone: C.danger,
@@ -86,7 +86,7 @@ const RESOLUTIONS = [
   },
   {
     value: 'in_progress',
-    label: 'Back to mediation · keep frozen',
+    label: 'Back to mediation, keep frozen',
     description: 'Reopen the job for further negotiation. Escrow stays frozen. Use when more evidence is needed.',
     icon: 'sync',
     tone: C.info,
@@ -254,7 +254,7 @@ export default function AdminDisputesScreen() {
   const handleResolve = useCallback(async () => {
     if (!resolving) return;
     if (reason.trim().length < 10) {
-      Alert.alert('Reason required', 'Provide at least a one-sentence reason — this is audit-annotated.');
+      Alert.alert('Reason required', 'Provide at least a one-sentence reason, this is audit-annotated.');
       return;
     }
     setSubmitting(true);
@@ -270,7 +270,7 @@ export default function AdminDisputesScreen() {
           ? 'Escrow released to the inspector.'
           : resolution === 'cancelled'
             ? 'Escrow refunded to the client.'
-            : 'Escrow stays frozen — job back in mediation.';
+            : 'Escrow stays frozen, job back in mediation.';
       Alert.alert('Dispute resolved', verb);
       setResolving(null);
       await fetchAll();
@@ -302,7 +302,7 @@ export default function AdminDisputesScreen() {
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.kicker}>COMMAND CONSOLE · LIVE</Text>
+            <Text style={s.kicker}>COMMAND CONSOLE, LIVE</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={s.headerTitle}>Disputes Board</Text>
               {jobs.length > 0 && <PulseDot size={7} />}
@@ -461,7 +461,7 @@ function DisputedJobCard({
             </Text>
           </View>
         ) : (
-          <Text style={s.noDisputeText}>No dispute row found — manual investigation needed.</Text>
+          <Text style={s.noDisputeText}>No dispute row found, manual investigation needed.</Text>
         )}
 
         <Pressable
@@ -517,7 +517,7 @@ function ResolveSheet({
           </View>
 
           <Text style={s.sheetExplain}>
-            Pick the outcome. Escrow moves the moment you confirm — audit
+            Pick the outcome. Escrow moves the moment you confirm, audit
             row + notifications to both parties are written atomically.
           </Text>
 
@@ -556,7 +556,7 @@ function ResolveSheet({
               })}
             </View>
 
-            <Text style={s.sheetLabel}>REASON (REQUIRED — AUDIT-ANNOTATED)</Text>
+            <Text style={s.sheetLabel}>REASON (REQUIRED, AUDIT-ANNOTATED)</Text>
             <TextInput
               value={reason}
               onChangeText={onChangeReason}

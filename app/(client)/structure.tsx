@@ -268,9 +268,9 @@ export default function StructureScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
         >
           <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-            <Text style={s.kicker}>CLIENT PORTAL · ORGANIZATION</Text>
+            <Text style={s.kicker}>CLIENT PORTAL, ORGANIZATION</Text>
             <Text style={s.title}>{activeOrg?.name ?? 'Structure'}</Text>
-            <Text style={s.subtitle}>{depts.length} department{depts.length === 1 ? '' : 's'}. {canManage ? 'Build cost-center trees and assign members.' : 'Read-only — you can view the hierarchy.'}</Text>
+            <Text style={s.subtitle}>{depts.length} department{depts.length === 1 ? '' : 's'}. {canManage ? 'Build cost-center trees and assign members.' : 'Read-only, you can view the hierarchy.'}</Text>
 
             {orgs.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.orgRow}>
@@ -333,7 +333,7 @@ export default function StructureScreen() {
             </View>
           )}
 
-          <Text style={s.footnote}>Source · departments via fetch_department_tree · edits via can_manage_org_structure RPCs.</Text>
+          <Text style={s.footnote}>Source, departments via fetch_department_tree, edits via can_manage_org_structure RPCs.</Text>
         </ScrollView>
       )}
 
@@ -379,7 +379,7 @@ export default function StructureScreen() {
       <Modal visible={!!membersFor} transparent animationType="fade" onRequestClose={() => setMembersFor(null)}>
         <View style={s.modalWrap}>
           <View style={s.modalCard}>
-            <Text style={s.modalTitle}>Members · {membersFor?.name}</Text>
+            <Text style={s.modalTitle}>Members, {membersFor?.name}</Text>
             <Text style={s.modalSub}>Tap to assign or remove.</Text>
             {membersBusy && <ActivityIndicator size="small" color={C.primary} style={{ marginVertical: 6 }} />}
             <ScrollView style={{ maxHeight: 360 }}>
@@ -403,14 +403,14 @@ export default function StructureScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.modalWrap}>
           <View style={s.modalCard}>
             <Text style={s.modalTitle}>New organization</Text>
-            <Text style={s.modalSub}>You become the owner — invite teammates and build departments next.</Text>
+            <Text style={s.modalSub}>You become the owner, invite teammates and build departments next.</Text>
             <TextInput value={newOrgName} onChangeText={setNewOrgName} placeholder="Organization name" placeholderTextColor={C.textMute} style={s.input} autoFocus />
             <View style={s.kindRow}>
               {(['enterprise', 'agency'] as const).map((k) => {
                 const active = newOrgKind === k;
                 return (
                   <TouchableOpacity key={k} onPress={() => setNewOrgKind(k)} style={[s.kindChip, active && { backgroundColor: C.primaryDim, borderColor: 'rgba(124,58,237,0.45)' }]} activeOpacity={0.7}>
-                    <Text style={[s.kindChipText, active && { color: C.primary, fontWeight: '700' }]}>{k === 'enterprise' ? 'Enterprise · buyer' : 'Agency · inspection'}</Text>
+                    <Text style={[s.kindChipText, active && { color: C.primary, fontWeight: '700' }]}>{k === 'enterprise' ? 'Enterprise, buyer' : 'Agency, inspection'}</Text>
                   </TouchableOpacity>
                 );
               })}

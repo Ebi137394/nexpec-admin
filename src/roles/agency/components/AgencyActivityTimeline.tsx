@@ -153,7 +153,7 @@ export const AgencyActivityTimeline: React.FC<AgencyActivityTimelineProps> = ({
                   <Text style={{ color: a.toneColor, fontWeight: '700' }}>
                     {a.label}
                   </Text>
-                  {'  ·  '}
+                  {', '}
                   {a.jobTitle}
                 </Text>
               </View>

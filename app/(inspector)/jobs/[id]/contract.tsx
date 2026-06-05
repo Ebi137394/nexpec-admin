@@ -178,8 +178,8 @@ export default function JobContractResolver() {
             <Text style={styles.cardTitle}>Contract pending</Text>
             <Text style={styles.cardBody}>
               The NEXPEC admin team is still finalising the binding contract
-              for this job. You'll be notified — and this screen will open
-              automatically — once it's ready to sign.
+              for this job. You'll be notified, and this screen will open
+              automatically, once it's ready to sign.
             </Text>
             <View style={styles.helpRow}>
               <ShieldCheck size={14} color={COLORS.accent} />

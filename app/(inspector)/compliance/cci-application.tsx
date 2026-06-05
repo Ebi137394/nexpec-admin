@@ -369,7 +369,7 @@ export default function CciApplicationScreen() {
             </View>
 
             {/* SECTION 1: Tier */}
-            <Section title="1 · Select Tier" icon={FileBadge}>
+            <Section title="1, Select Tier" icon={FileBadge}>
               {TIER_CARDS.map((t) => (
                 <Pressable
                   key={t.tier}
@@ -386,7 +386,7 @@ export default function CciApplicationScreen() {
             </Section>
 
             {/* SECTION 2: Government ID */}
-            <Section title="2 · Government-Issued ID" icon={IdCard}>
+            <Section title="2, Government-Issued ID" icon={IdCard}>
               <Text style={s.fieldLabel}>Issuing country</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
                 {COUNTRIES.map((c) => (
@@ -413,7 +413,7 @@ export default function CciApplicationScreen() {
             </Section>
 
             {/* SECTION 3: Experience */}
-            <Section title="3 · Documented Experience" icon={Clock}>
+            <Section title="3, Documented Experience" icon={Clock}>
               <Text style={s.fieldLabel}>Years of relevant experience (min 2)</Text>
               <TextInput
                 value={experienceYears}
@@ -423,7 +423,7 @@ export default function CciApplicationScreen() {
                 placeholder="2.0"
                 placeholderTextColor={C.textDim}
               />
-              <Text style={[s.fieldLabel, { marginTop: 14 }]}>Evidence (CV, certificates, reference letters — up to 6)</Text>
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>Evidence (CV, certificates, reference letters, up to 6)</Text>
               {experienceLocalUris.length > 0 && (
                 <View style={s.expGrid}>
                   {experienceLocalUris.map((u, i) => (
@@ -440,9 +440,9 @@ export default function CciApplicationScreen() {
             </Section>
 
             {/* SECTION 4: Strict-Liability Agreement */}
-            <Section title="4 · Strict-Liability Agreement" icon={Lock} accent>
+            <Section title="4, Strict-Liability Agreement" icon={Lock} accent>
               <Text style={s.agreementMeta}>
-                Version {AGREEMENT_VERSION} · sha256 {agreementSha ? agreementSha.slice(0, 10) + '…' : 'computing…'}
+                Version {AGREEMENT_VERSION}, sha256 {agreementSha ? agreementSha.slice(0, 10) + '…' : 'computing…'}
               </Text>
               <View style={s.agreementBox}>
                 <ScrollView onScroll={onAgreementScroll} scrollEventThrottle={120} nestedScrollEnabled>
@@ -550,7 +550,7 @@ const DecidedPanel: React.FC<{ existing: CredentialRow }> = ({ existing }) => {
       ]}>
         <ShieldCheck size={36} color={ok ? C.ok : C.danger} />
       </View>
-      <Text style={s.statusTitle}>{ok ? `${tierLabel(existing.tier)} — Approved` : 'Suspended'}</Text>
+      <Text style={s.statusTitle}>{ok ? `${tierLabel(existing.tier)}, Approved` : 'Suspended'}</Text>
       <Text style={s.statusSub}>
         {ok
           ? `You may now accept compliance jobs at the ${tierLabel(existing.tier)} tier.`

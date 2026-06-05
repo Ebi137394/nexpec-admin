@@ -71,7 +71,7 @@ export type ConsentKey = typeof CONSENTS[number]['key'];
 export const AGREEMENT_TEXT = `NEXPEC COMPLIANCE-CERTIFIED INSPECTOR (CCI) STRICT-LIABILITY AGREEMENT
 Version 1.0
 
-This Strict-Liability Agreement ("Agreement") governs your participation as a Compliance-Certified Inspector ("CCI") on the NEXPEC platform. By signing this Agreement you are entering into a binding legal commitment. Read it carefully before accepting. If you do not accept any provision, do not sign — your application will not proceed.
+This Strict-Liability Agreement ("Agreement") governs your participation as a Compliance-Certified Inspector ("CCI") on the NEXPEC platform. By signing this Agreement you are entering into a binding legal commitment. Read it carefully before accepting. If you do not accept any provision, do not sign, your application will not proceed.
 
 1. THE ROLE
 A CCI is engaged to physically attend a subject site, perform a defined inspection scope, and capture verifiable evidence that supports a Verified Compliance Affidavit ("VCA"). VCAs are relied upon by commercial buyers, regulators, and other third parties to make material decisions. The integrity of every VCA depends on the integrity of the underlying captures, which depends on the integrity of you, the inspector.
@@ -84,7 +84,7 @@ You undertake to conduct each inspection in good faith, with diligence, and to t
   (d) refuse to inspect any site where you have a conflict of interest, financial relationship, or family relationship with the subject entity, and disclose any such circumstance to NEXPEC immediately.
 
 3. STRICT LIABILITY FOR MATERIAL FALSEHOODS
-You accept strict personal liability for any material misrepresentation, falsified evidence, fabricated capture, staged photograph, post-hoc edit, or false statement of fact in any VCA you sign. "Strict liability" means liability without proof of intent — if the misrepresentation is material and you signed the affidavit, you are liable, regardless of whether you knew or should have known. This standard applies because buyers and regulators rely on VCAs in ways that cannot tolerate ordinary-negligence-grade error.
+You accept strict personal liability for any material misrepresentation, falsified evidence, fabricated capture, staged photograph, post-hoc edit, or false statement of fact in any VCA you sign. "Strict liability" means liability without proof of intent, if the misrepresentation is material and you signed the affidavit, you are liable, regardless of whether you knew or should have known. This standard applies because buyers and regulators rely on VCAs in ways that cannot tolerate ordinary-negligence-grade error.
 
 4. INDEMNIFICATION
 You will indemnify, defend, and hold harmless NEXPEC, its affiliates, officers, employees, agents, and every commissioning buyer of an inspection you signed, from and against any and all claims, demands, losses, costs, damages, fines, penalties, and reasonable legal fees arising out of:
@@ -124,9 +124,9 @@ If any provision of this Agreement is held to be invalid, illegal, or unenforcea
 This Agreement, together with NEXPEC's terms of service and any tier-specific addenda, constitutes the entire agreement between you and NEXPEC concerning your CCI role. It supersedes any prior or contemporaneous understanding, written or oral.
 
 14. ACKNOWLEDGEMENT
-By signing below — by ticking each consent checkbox, typing your full legal name, and submitting your application — you acknowledge that you have read this Agreement in its entirety, that you understand its terms, and that you intend to be legally bound by it. The platform records your typed name, the agreement version, the cryptographic hash of the agreement text, your IP, your device, and the timestamp of signature; these records, together with the entire signature payload, will be used as proof of your assent.
+By signing below, by ticking each consent checkbox, typing your full legal name, and submitting your application, you acknowledge that you have read this Agreement in its entirety, that you understand its terms, and that you intend to be legally bound by it. The platform records your typed name, the agreement version, the cryptographic hash of the agreement text, your IP, your device, and the timestamp of signature; these records, together with the entire signature payload, will be used as proof of your assent.
 
-— end of agreement —
+— end of agreement,
 `;
 
 // ─────────────────────────────────────────────────────────────

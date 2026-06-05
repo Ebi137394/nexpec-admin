@@ -126,7 +126,7 @@ export const STANDARDS_DATA: Standard[] = [
   {
     id: 'std-006',
     code: 'ISO 19232-1',
-    title: 'Non-Destructive Testing — Image Quality of Radiographs — Part 1: Wire-Type IQI',
+    title: 'Non-Destructive Testing, Image Quality of Radiographs, Part 1: Wire-Type IQI',
     organization: 'ISO',
     version: '2013 Edition',
     scope:

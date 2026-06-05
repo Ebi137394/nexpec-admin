@@ -411,7 +411,7 @@ const TransactionRow: React.FC<{
         <View style={s.txnMidLine}>
           <Text style={s.txnContext} numberOfLines={1}>
             {isStandalone
-              ? 'Standalone · System transfer'
+              ? 'Standalone, System transfer'
               : txn.jobTitle ?? 'Linked job'}
           </Text>
         </View>
@@ -479,7 +479,7 @@ const InspectorLeaderRow: React.FC<{
       <View style={{ flex: 1 }}>
         <Text style={s.leaderName} numberOfLines={1}>{item.name}</Text>
         <Text style={s.leaderSubline}>
-          {item.jobCount} {item.jobCount === 1 ? 'job' : 'jobs'} · avg{' '}
+          {item.jobCount} {item.jobCount === 1 ? 'job' : 'jobs'}, avg{' '}
           {formatUSDCompact(item.avgEarningsCents)}
         </Text>
       </View>
@@ -643,7 +643,7 @@ const ActiveJobRow: React.FC<{
         <View style={s.activeJobMeta}>
           <Ionicons name="person-outline" size={11} color={C.textMuted} />
           <Text style={s.activeJobMetaText} numberOfLines={1}>
-            {item.inspectorName ?? 'Unassigned'} · {item.clientName ?? 'No client'}
+            {item.inspectorName ?? 'Unassigned'}, {item.clientName ?? 'No client'}
           </Text>
         </View>
       </View>
@@ -681,7 +681,7 @@ const RemainingPayoutRow: React.FC<{
     <View style={{ flex: 1 }}>
       <Text style={s.remainingTitle} numberOfLines={1}>{item.title}</Text>
       <Text style={s.remainingSub} numberOfLines={1}>
-        owed to {item.inspectorName} · completed{' '}
+        owed to {item.inspectorName}, completed{' '}
         {item.completedDate ? formatShortDate(item.completedDate) : '—'}
       </Text>
     </View>
@@ -1019,7 +1019,7 @@ export default function FinancialDashboard() {
           <View>
             <Text style={s.headerTitle}>Financial Control Center</Text>
             <Text style={s.headerSubtitle}>
-              Platform-level view · Live data
+              Platform-level view, Live data
             </Text>
           </View>
           <Ionicons name="trending-up" size={28} color={C.primary} />
@@ -1038,10 +1038,10 @@ export default function FinancialDashboard() {
             <Ionicons name="bar-chart" size={20} color={C.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.budgetOverviewLabel}>NEW · FINANCIAL SUITE</Text>
+            <Text style={s.budgetOverviewLabel}>NEW, FINANCIAL SUITE</Text>
             <Text style={s.budgetOverviewTitle}>Budget Overview</Text>
             <Text style={s.budgetOverviewSubtitle} numberOfLines={2}>
-              Platform-wide buyer spend — committed budget, escrow, top inspectors by spend
+              Platform-wide buyer spend, committed budget, escrow, top inspectors by spend
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={C.primary} />
@@ -1215,7 +1215,7 @@ export default function FinancialDashboard() {
         <View style={s.card}>
           <SectionHeader
             title="Financial Reports & Details"
-            subtitle="Deep dives — tap to open dedicated screens"
+            subtitle="Deep dives, tap to open dedicated screens"
           />
           <View style={s.reportsGrid}>
             <TouchableOpacity
@@ -1227,7 +1227,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="trophy-outline" size={20} color={C.green} />
               </View>
               <Text style={s.reportTitle}>Inspector Earnings</Text>
-              <Text style={s.reportSubtitle}>Leaderboard · per-job breakdown</Text>
+              <Text style={s.reportSubtitle}>Leaderboard, per-job breakdown</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
 
@@ -1240,7 +1240,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="business-outline" size={20} color={C.primary} />
               </View>
               <Text style={s.reportTitle}>Client Accounts</Text>
-              <Text style={s.reportSubtitle}>Billed · Paid · Outstanding</Text>
+              <Text style={s.reportSubtitle}>Billed, Paid, Outstanding</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
 
@@ -1253,7 +1253,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="git-branch-outline" size={20} color={C.cyan} />
               </View>
               <Text style={s.reportTitle}>Job Pipeline</Text>
-              <Text style={s.reportSubtitle}>Status counts · escrow rollups</Text>
+              <Text style={s.reportSubtitle}>Status counts, escrow rollups</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
 
@@ -1266,7 +1266,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="calendar-outline" size={20} color={C.blue} />
               </View>
               <Text style={s.reportTitle}>Active Jobs</Text>
-              <Text style={s.reportSubtitle}>Dates · payout status</Text>
+              <Text style={s.reportSubtitle}>Dates, payout status</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
 
@@ -1294,7 +1294,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="document-text-outline" size={20} color={C.primary} />
               </View>
               <Text style={s.reportTitle}>Invoices</Text>
-              <Text style={s.reportSubtitle}>Review · approve · mark paid · void · adjudicate</Text>
+              <Text style={s.reportSubtitle}>Review, approve, mark paid, void, adjudicate</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
           </View>
@@ -1304,7 +1304,7 @@ export default function FinancialDashboard() {
         <View style={s.card}>
           <SectionHeader
             title="Recent Transactions"
-            subtitle={`${recentTxns.length} most recent · tap a job-linked row to inspect`}
+            subtitle={`${recentTxns.length} most recent, tap a job-linked row to inspect`}
           />
           {recentTxns.length > 0 ? (
             <View style={{ marginTop: 8 }}>

@@ -305,7 +305,7 @@ export default function FlashReportDetailScreen() {
           <View style={styles.criticalAlert}>
             <AlertTriangle size={16} color={C.error} strokeWidth={2.2} />
             <Text style={styles.criticalAlertTxt}>
-              Critical report — admin has been notified via the audit
+              Critical report, admin has been notified via the audit
               trail. Acknowledge to begin remediation.
             </Text>
           </View>

@@ -225,7 +225,7 @@ export default function CciApplicationReview() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle} numberOfLines={1}>{displayName}</Text>
-          <Text style={s.headerSub}>{tierLabel(row.tier)} · {row.inspector?.email}</Text>
+          <Text style={s.headerSub}>{tierLabel(row.tier)}, {row.inspector?.email}</Text>
         </View>
         <View style={[s.statusPill, statusTone(row.status)]}>
           <Text style={[s.statusPillText, { color: statusTone(row.status).borderColor }]}>{row.status.toUpperCase()}</Text>

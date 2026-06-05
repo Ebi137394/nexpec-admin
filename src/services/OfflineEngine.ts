@@ -261,7 +261,7 @@ class OfflineEngine {
         client_name: "Sarah Mitchell",
         client_company: "Petrovast Energy",
         project_type: "tank_inspection",
-        location: "Permian Basin, TX — Tank Farm #7",
+        location: "Permian Basin, TX, Tank Farm #7",
         latitude: 31.9973,
         longitude: -102.0779,
         status: "in_progress",
@@ -281,7 +281,7 @@ class OfflineEngine {
       },
       {
         id: "job-002",
-        title: "Pipeline Weld Inspection — 16\" Gas Line",
+        title: "Pipeline Weld Inspection, 16\" Gas Line",
         client_name: "James Harrington",
         client_company: "TransGulf Pipeline Co.",
         project_type: "welding",
@@ -305,7 +305,7 @@ class OfflineEngine {
       },
       {
         id: "job-003",
-        title: "Protective Coating Inspection — Ballast Tanks",
+        title: "Protective Coating Inspection, Ballast Tanks",
         client_name: "Elena Vasquez",
         client_company: "Nordic Maritime AS",
         project_type: "coating",
@@ -329,7 +329,7 @@ class OfflineEngine {
       },
       {
         id: "job-004",
-        title: "Structural Integrity Assessment — Jacket Platform",
+        title: "Structural Integrity Assessment, Jacket Platform",
         client_name: "Omar Al-Rashid",
         client_company: "Arabian Gulf Offshore",
         project_type: "structural",
@@ -353,7 +353,7 @@ class OfflineEngine {
       },
       {
         id: "job-005",
-        title: "Electrical Systems Inspection — FPSO",
+        title: "Electrical Systems Inspection, FPSO",
         client_name: "Aisha Patel",
         client_company: "IndoMaritime Consultants",
         project_type: "electrical",
@@ -418,7 +418,7 @@ class OfflineEngine {
       interpass_temp: 250,
       weld_process: "SMAW",
       electrode_type: "E7018",
-      notes: "Weld #3 shows minor undercut — within acceptance criteria",
+      notes: "Weld #3 shows minor undercut, within acceptance criteria",
     });
 
     await this.db.runAsync(
@@ -656,7 +656,7 @@ class OfflineEngine {
 
     // Simulate 5% failure rate for realism
     if (Math.random() < 0.05) {
-      throw new Error("Simulated network timeout — will retry");
+      throw new Error("Simulated network timeout, will retry");
     }
 
     console.log(

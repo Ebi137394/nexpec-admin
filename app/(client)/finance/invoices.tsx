@@ -175,7 +175,7 @@ export default function InvoicesListScreen() {
       >
         {/* Header */}
         <Animated.View entering={FadeIn.duration(220)} style={s.header}>
-          <Text style={s.kicker}>CLIENT PORTAL · FINANCE</Text>
+          <Text style={s.kicker}>CLIENT PORTAL, FINANCE</Text>
           <Text style={s.title}>Invoices</Text>
           <Text style={s.subtitle}>
             Every executed contract auto-issues an invoice here. Review,
@@ -186,7 +186,7 @@ export default function InvoicesListScreen() {
           <View style={s.outstandingChip}>
             <Ionicons name="hourglass" size={12} color={C.amber} />
             <Text style={s.outstandingChipText}>
-              OUTSTANDING · {formatCents(counts.outstandingCents)}
+              OUTSTANDING, {formatCents(counts.outstandingCents)}
             </Text>
           </View>
         </Animated.View>
@@ -248,7 +248,7 @@ export default function InvoicesListScreen() {
         )}
 
         <Text style={s.footnote}>
-          Source · public.invoices · RLS-gated by client_id and admin scope.
+          Source, public.invoices, RLS-gated by client_id and admin scope.
         </Text>
       </ScrollView>
     </SafeAreaView>

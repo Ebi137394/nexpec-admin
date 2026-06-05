@@ -710,7 +710,7 @@ export default function AgencyDashboard() {
         icon: ShieldCheck,
         tint: C.primary,
         title: `${m.awaitingDispatch} pending Confirm & Dispatch`,
-        sub: 'You selected an inspector — admin finalizes the hire',
+        sub: 'You selected an inspector, admin finalizes the hire',
         onPress: () => router.push('/(tabs)/jobs' as any),
         urgent: true,
       });
@@ -1229,7 +1229,7 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
           <FileSignature size={14} color={C.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={contractsSec.kicker}>V3 · STATE MACHINE</Text>
+          <Text style={contractsSec.kicker}>V3, STATE MACHINE</Text>
           <Text style={contractsSec.title}>Contracts Pipeline</Text>
         </View>
         <Pressable
@@ -1294,7 +1294,7 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
                         maximumFractionDigits: 0,
                       }).format(c.client_price_cents / 100)
                     : '—'}{' '}
-                  · awaiting your signature
+                  awaiting your signature
                 </Text>
               </View>
               <View style={contractsSec.rowPill}>

@@ -162,7 +162,7 @@ function AlertBanner({
           {alert.description}
         </Text>
         <Text style={styles.alertMeta}>
-          {alert.project?.title ?? 'Unknown Project'} · {timeAgo}
+          {alert.project?.title ?? 'Unknown Project'}, {timeAgo}
         </Text>
       </View>
 

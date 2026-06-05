@@ -216,7 +216,7 @@ export default function OperationsDashboardTest() {
         {/* ── Footer ─────────────────────────────────────── */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            NEXPEC Operations Control · Test Version
+            NEXPEC Operations Control, Test Version
           </Text>
         </View>
       </ScrollView>

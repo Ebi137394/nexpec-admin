@@ -1891,7 +1891,7 @@ const OrganizationManager: React.FC = () => {
         <View style={st.footer}>
           <View style={st.footerLine} />
           <Text style={st.footerText}>
-            NEXPEC ORG v2.4.0 — RBAC ENFORCED
+            NEXPEC ORG v2.4.0, RBAC ENFORCED
           </Text>
           <View style={st.footerLine} />
         </View>

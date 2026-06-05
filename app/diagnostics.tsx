@@ -147,7 +147,7 @@ async function probeAuth(): Promise<ProbeResult> {
       ? 'Inspector signed in'
       : isAdmin
         ? `Operator role: ${role}`
-        : `Non-inspector role: ${role || '(empty)'} — this app is for inspectors`,
+        : `Non-inspector role: ${role || '(empty)'}, this app is for inspectors`,
     rows: [
       { k: 'user.id', v: user.id, tone: 'dim' },
       { k: 'user.email', v: user.email ?? '—', tone: 'ok' },
@@ -241,7 +241,7 @@ async function probeNotificationsSchema(): Promise<ProbeResult> {
 /** Probe #3 — RLS sanity (how many rows can I see?) */
 async function probeNotificationsRls(userId: string | null): Promise<ProbeResult> {
   if (!userId) {
-    return { status: 'warn', summary: 'No user id — sign in first' };
+    return { status: 'warn', summary: 'No user id, sign in first' };
   }
   const { count, error } = await supabase
     .from('notifications')
@@ -273,7 +273,7 @@ async function probeNotificationsRls(userId: string | null): Promise<ProbeResult
 
   return {
     status: 'ok',
-    summary: `RLS reachable — ${mine ?? '?'} for me, ${count ?? '?'} total visible`,
+    summary: `RLS reachable, ${mine ?? '?'} for me, ${count ?? '?'} total visible`,
     rows: [
       { k: 'total visible (RLS)', v: String(count ?? '?'), tone: 'ok' },
       { k: `for me via ${filterUsed}`, v: String(mine ?? '?'), tone: 'ok' },
@@ -318,7 +318,7 @@ async function probeContractsViews(): Promise<ProbeResult> {
   if (viewOk && !baseBlocked) {
     return {
       status: 'warn',
-      summary: 'View reachable but base also exposed — GR2 leak risk',
+      summary: 'View reachable but base also exposed, GR2 leak risk',
       rows,
     };
   }
@@ -395,7 +395,7 @@ export default function DiagnosticsScreen() {
           eventCountRef.current += 1;
           setRealtime((prev) => ({
             ...prev,
-            summary: `${prev.summary.split(' · ')[0]} · events: ${eventCountRef.current}`,
+            summary: `${prev.summary.split(', ')[0]}, events: ${eventCountRef.current}`,
           }));
         },
       )
@@ -403,7 +403,7 @@ export default function DiagnosticsScreen() {
         if (status === 'SUBSCRIBED') {
           setRealtime({
             status: 'ok',
-            summary: 'SUBSCRIBED · events: 0',
+            summary: 'SUBSCRIBED, events: 0',
             rows: [{ k: 'channel state', v: 'SUBSCRIBED', tone: 'ok' }],
           });
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -466,7 +466,7 @@ export default function DiagnosticsScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Diagnostics</Text>
-          <Text style={styles.headerSubtitle}>Sprint 1 · Lane 4 · Pre-flight</Text>
+          <Text style={styles.headerSubtitle}>Sprint 1, Lane 4, Pre-flight</Text>
         </View>
         <TouchableOpacity
           style={styles.refreshBtn}
@@ -487,11 +487,11 @@ export default function DiagnosticsScreen() {
         <StatusGlyph status={overall} size={18} />
         <Text style={[styles.overallText, { color: overallTextColor(overall) }]}>
           {overall === 'ok'
-            ? 'All probes passing — mobile is aligned with web v3.'
+            ? 'All probes passing, mobile is aligned with web v3.'
             : overall === 'warn'
-              ? 'Drift detected — see warnings below.'
+              ? 'Drift detected, see warnings below.'
               : overall === 'fail'
-                ? 'Critical mismatch — see failures below.'
+                ? 'Critical mismatch, see failures below.'
                 : 'Probing live backend…'}
         </Text>
       </View>

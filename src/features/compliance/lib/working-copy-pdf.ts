@@ -63,7 +63,7 @@ const WORKING_COPY_OVERLAY_CSS = `
   /* Per-page header band — printed at the top margin of each page. */
   @page {
     @top-center {
-      content: "WORKING COPY — NOT CRYPTOGRAPHICALLY SIGNED";
+      content: "WORKING COPY, NOT CRYPTOGRAPHICALLY SIGNED";
       font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
       font-size: 8pt;
       color: #B45309;
@@ -90,7 +90,7 @@ const WORKING_COPY_OVERLAY_CSS = `
 
 const WORKING_COPY_BANNER_HTML = `
 <div class="nx-working-copy-banner">
-  ⚠ WORKING COPY — NOT CRYPTOGRAPHICALLY SIGNED ⚠
+  ⚠ WORKING COPY, NOT CRYPTOGRAPHICALLY SIGNED ⚠
 </div>
 `;
 

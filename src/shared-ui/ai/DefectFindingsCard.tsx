@@ -66,7 +66,7 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss 
               <View style={styles.gradePill}>
                 <Text style={styles.gradeText}>
                   {d.severity}
-                  {d.severityScale ? ` · ${d.severityScale}` : ''}
+                  {d.severityScale ? `, ${d.severityScale}` : ''}
                 </Text>
               </View>
             )}
@@ -85,7 +85,7 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss 
           </View>
 
           {!!d.standardRefs?.length && (
-            <Text style={styles.standards}>{d.standardRefs.join('  ·  ')}</Text>
+            <Text style={styles.standards}>{d.standardRefs.join(', ')}</Text>
           )}
 
           <View style={styles.actions}>
@@ -111,7 +111,7 @@ function Header() {
         <Ionicons name="sparkles-outline" size={14} color={COLORS.violet} />
       </View>
       <Text style={styles.headerTitle}>AI Co-Inspector</Text>
-      <Text style={styles.headerHint}>drafts — you verify & seal</Text>
+      <Text style={styles.headerHint}>drafts, you verify & seal</Text>
     </View>
   );
 }
@@ -119,7 +119,7 @@ function Header() {
 function Attribution({ analysis }: { analysis: DefectAnalysis }) {
   return (
     <Text style={styles.attribution}>
-      {analysis.modelSlug} v{analysis.modelVersion} · {analysis.inferenceMs} ms · on-device · AI suggestion, verify before sealing
+      {analysis.modelSlug} v{analysis.modelVersion}, {analysis.inferenceMs} ms, on-device, AI suggestion, verify before sealing
     </Text>
   );
 }

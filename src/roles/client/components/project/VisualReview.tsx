@@ -53,28 +53,28 @@ const SEED_PHOTOS: InspectionPhoto[] = [
   {
     id: "photo-001",
     uri: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800",
-    label: "Hull — Port Side",
+    label: "Hull, Port Side",
     takenAt: "2025-06-20T09:30:00Z",
     pins: [],
   },
   {
     id: "photo-002",
     uri: "https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=800",
-    label: "Deck Surface — Forward",
+    label: "Deck Surface, Forward",
     takenAt: "2025-06-20T09:45:00Z",
     pins: [],
   },
   {
     id: "photo-003",
     uri: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800",
-    label: "Engine Bay — Overview",
+    label: "Engine Bay, Overview",
     takenAt: "2025-06-20T10:00:00Z",
     pins: [],
   },
   {
     id: "photo-004",
     uri: "https://images.unsplash.com/photo-1575992254942-80e739fc81d3?w=800",
-    label: "Keel — Starboard",
+    label: "Keel, Starboard",
     takenAt: "2025-06-20T10:15:00Z",
     pins: [],
   },
@@ -88,7 +88,7 @@ const SEED_PHOTOS: InspectionPhoto[] = [
   {
     id: "photo-006",
     uri: "https://images.unsplash.com/photo-1605281317010-fe5ffe798166?w=800",
-    label: "Waterline — Bow",
+    label: "Waterline, Bow",
     takenAt: "2025-06-20T10:45:00Z",
     pins: [],
   },
@@ -457,7 +457,7 @@ const VisualReview: React.FC<VisualReviewProps> = ({ projectId, onVerdictSubmit 
                     <View style={styles.pinListContent}>
                       <Text style={styles.pinListNote}>{pin.note}</Text>
                       <Text style={styles.pinListCoords}>
-                        x: {(pin.x * 100).toFixed(0)}% · y: {(pin.y * 100).toFixed(0)}%
+                        x: {(pin.x * 100).toFixed(0)}%, y: {(pin.y * 100).toFixed(0)}%
                       </Text>
                     </View>
                   </TouchableOpacity>

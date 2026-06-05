@@ -168,10 +168,10 @@ export default function VaultListScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
         >
           <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-            <Text style={s.kicker}>PLATFORM · EVIDENCE VAULT</Text>
+            <Text style={s.kicker}>PLATFORM, EVIDENCE VAULT</Text>
             <Text style={s.title}>Documents</Text>
             <Text style={s.subtitle}>
-              Every compliance document uploaded across the platform — drawings,
+              Every compliance document uploaded across the platform, drawings,
               specs, NDAs, regulatory and vendor evidence. Tap to open the file.
             </Text>
           </Animated.View>
@@ -212,7 +212,7 @@ export default function VaultListScreen() {
             </View>
           )}
 
-          <Text style={s.footnote}>Source · public.client_documents · RLS cdocs_admin_all (admin sees all).</Text>
+          <Text style={s.footnote}>Source, public.client_documents, RLS cdocs_admin_all (admin sees all).</Text>
         </ScrollView>
       )}
     </SafeAreaView>

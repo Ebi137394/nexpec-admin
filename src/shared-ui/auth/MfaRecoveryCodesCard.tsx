@@ -197,7 +197,7 @@ export function MfaRecoveryCodesCard({
           {!loadingCount && remaining !== null && remaining < 3 && remaining > 0 && (
             <View style={[styles.pill, styles.pillWarn]}>
               <Text style={[styles.pillText, styles.pillTextWarn]}>
-                Low — regenerate soon
+                Low, regenerate soon
               </Text>
             </View>
           )}

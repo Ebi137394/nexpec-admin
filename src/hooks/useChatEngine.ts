@@ -354,7 +354,7 @@ export function useChatEngine(options: UseChatEngineOptions): UseChatEngineRetur
 
       if (!online) {
         // ── OFFLINE PATH ────────────────────────────────────
-        console.log(`[ChatEngine] Offline — queueing message ${tempId}`);
+        console.log(`[ChatEngine] Offline, queueing message ${tempId}`);
 
         await enqueueChatMessage({
           tempId,

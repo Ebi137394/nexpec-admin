@@ -360,7 +360,7 @@ function TokenJustCreatedView({ token, bridgeId }: { token: string; bridgeId: st
       </View>
 
       <Text style={styles.footerHint}>
-        We'll never show this exact token again — we only store its hash. The vendor can re-open
+        We'll never show this exact token again, we only store its hash. The vendor can re-open
         their portal from the invitation email at any time until the token expires.
       </Text>
 
@@ -457,7 +457,7 @@ function BridgeHeaderCard({ view, onRefresh }: { view: InspectorBridgeView; onRe
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle}>{view.vendor.company_name}</Text>
           <Text style={styles.cardSubtitle}>
-            {view.vendor.contact_name ? `${view.vendor.contact_name} · ` : ''}
+            {view.vendor.contact_name ? `${view.vendor.contact_name}, ` : ''}
             {view.vendor.contact_email}
           </Text>
         </View>
@@ -549,7 +549,7 @@ function InspectorSlotCard({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.docName} numberOfLines={1}>{d.original_filename}</Text>
                   <Text style={styles.docMeta}>
-                    {humanSize(d.file_size_bytes)} · SHA-256 {d.sha256_client_computed.slice(0, 14)}…
+                    {humanSize(d.file_size_bytes)}, SHA-256 {d.sha256_client_computed.slice(0, 14)}…
                   </Text>
                   {d.rejected_reason ? (
                     <Text style={[styles.docMeta, { color: COLORS.danger }]}>Rejected: {d.rejected_reason}</Text>
@@ -925,7 +925,7 @@ function SlotPill({ status, required }: { status: string; required: boolean }) {
       : status === 'awaiting_vendor'
       ? 'AWAITING VENDOR'
       : status.toUpperCase().replace(/_/g, ' ');
-  return <Pill color={color} label={`${label}${required ? '' : ' · OPT'}`} />;
+  return <Pill color={color} label={`${label}${required ? '' : ', OPT'}`} />;
 }
 
 function Pill({ color, label }: { color: string; label: string }) {

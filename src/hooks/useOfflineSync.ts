@@ -68,7 +68,7 @@ export function useOfflineSync(
     // Throttle: don't sync more frequently than minInterval
     const now = Date.now();
     if (now - lastSyncRef.current < minInterval) {
-      console.log('[useOfflineSync] Throttled — too soon since last sync.');
+      console.log('[useOfflineSync] Throttled, too soon since last sync.');
       return;
     }
 

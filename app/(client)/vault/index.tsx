@@ -153,10 +153,10 @@ export default function ClientVaultScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         <Animated.View entering={FadeIn.duration(220)} style={s.heroWrap}>
-          <Text style={s.kicker}>YOUR · EVIDENCE VAULT</Text>
+          <Text style={s.kicker}>YOUR, EVIDENCE VAULT</Text>
           <Text style={s.title}>Documents</Text>
           <Text style={s.subtitle}>
-            Your compliance documents — drawings, specs, NDAs, regulatory and vendor
+            Your compliance documents, drawings, specs, NDAs, regulatory and vendor
             evidence. Upload here and attach them to jobs. Tap to open a file.
           </Text>
         </Animated.View>
@@ -200,7 +200,7 @@ export default function ClientVaultScreen() {
           <View style={{ gap: 10 }}>{visible.map((d) => <VaultCard key={d.id} d={d} />)}</View>
         )}
 
-        <Text style={s.footnote}>Source · public.client_documents · RLS cdocs_owner_all (you see only your own).</Text>
+        <Text style={s.footnote}>Source, public.client_documents, RLS cdocs_owner_all (you see only your own).</Text>
       </ScrollView>
 
       <UploadModal visible={uploadOpen} onClose={() => setUploadOpen(false)} onUploaded={() => { setUploadOpen(false); void load(); }} />

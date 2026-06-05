@@ -160,7 +160,7 @@ export default function ClientVaultDetailScreen() {
               </TouchableOpacity>
             ) : null}
 
-            <Text style={s.footnote}>Source · public.client_documents · file via signed URL (5 min) · RLS cdocs_owner_all.</Text>
+            <Text style={s.footnote}>Source, public.client_documents, file via signed URL (5 min), RLS cdocs_owner_all.</Text>
           </Animated.View>
         </ScrollView>
       )}

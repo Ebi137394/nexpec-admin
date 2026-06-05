@@ -280,7 +280,7 @@ export default function ClientDisputesScreen() {
               <View style={s.emptyIcon}>
                 <Ionicons name="shield-checkmark" size={22} color={C.primary} />
               </View>
-              <Text style={s.emptyTitle}>No disputes — clean record</Text>
+              <Text style={s.emptyTitle}>No disputes, clean record</Text>
               <Text style={s.emptySub}>
                 When something goes wrong on a job, file a dispute here. Admin
                 pauses escrow and mediates between you and the inspector.
@@ -432,7 +432,7 @@ function FileDisputeSheet(props: {
 
           <Text style={s.sheetExplain}>
             Filing freezes payouts on this job and brings admin in as
-            mediator. Be specific — admin needs context to resolve fairly.
+            mediator. Be specific, admin needs context to resolve fairly.
           </Text>
 
           <Text style={s.sheetLabel}>JOB</Text>
@@ -514,7 +514,7 @@ function FileDisputeSheet(props: {
           <TextInput
             value={props.body}
             onChangeText={props.onChangeBody}
-            placeholder="What went wrong? Be specific — dates, expectations, evidence references…"
+            placeholder="What went wrong? Be specific, dates, expectations, evidence references…"
             placeholderTextColor={C.textDim}
             multiline
             maxLength={8000}
@@ -538,7 +538,7 @@ function FileDisputeSheet(props: {
               <Ionicons name="alert-circle" size={14} color="#FFF" />
             )}
             <Text style={s.submitBtnText}>
-              {props.submitting ? 'Filing…' : 'File dispute · pause escrow'}
+              {props.submitting ? 'Filing…' : 'File dispute, pause escrow'}
             </Text>
           </Pressable>
         </View>

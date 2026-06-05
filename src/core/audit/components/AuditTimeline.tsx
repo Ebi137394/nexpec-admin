@@ -152,7 +152,7 @@ const AuditEventRow: React.FC<AuditRowProps> = React.memo(({ event, onPress }) =
           <Text style={s.rowActor} numberOfLines={1}>
             {event.actor_label ?? 'Unknown'}
             {event.actor_role && (
-              <Text style={s.rowRole}>  ·  {event.actor_role}</Text>
+              <Text style={s.rowRole}>, {event.actor_role}</Text>
             )}
           </Text>
           <Text style={s.rowTime}>{formatRelativeTime(event.created_at)}</Text>

@@ -86,7 +86,7 @@ async function readQueue(): Promise<SyncQueueState> {
 
     // Version check — future-proof for schema migrations
     if (parsed.version !== QUEUE_SCHEMA_VERSION) {
-      console.warn('[SyncEngine] Queue version mismatch — migrating.');
+      console.warn('[SyncEngine] Queue version mismatch, migrating.');
       // For now, preserve items. In the future, add migration logic.
       return { ...parsed, version: QUEUE_SCHEMA_VERSION };
     }
@@ -105,7 +105,7 @@ async function writeQueue(queue: SyncQueueState): Promise<void> {
   try {
     await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
   } catch (error) {
-    console.error('[SyncEngine] CRITICAL — Failed to write queue:', error);
+    console.error('[SyncEngine] CRITICAL, Failed to write queue:', error);
     // This is a critical failure. We do NOT throw because the caller
     // should handle gracefully, but we log aggressively.
   }
@@ -237,7 +237,7 @@ export async function enqueueReport(payload: {
 
     return { queued: true, reportId };
   } catch (error: any) {
-    console.error('[SyncEngine] CRITICAL — Failed to enqueue report:', error);
+    console.error('[SyncEngine] CRITICAL, Failed to enqueue report:', error);
     // Even if file ops fail, try to save what we can
     throw new Error(`Failed to save report offline: ${error.message}`);
   }

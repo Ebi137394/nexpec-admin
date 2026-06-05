@@ -127,7 +127,7 @@ export default function CciApplicationsIndex() {
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>CCI Applications</Text>
           <Text style={s.headerSub}>
-            {pendingRows.length} pending · {decidedRows.length} decided
+            {pendingRows.length} pending, {decidedRows.length} decided
           </Text>
         </View>
         <View style={s.iconWrap}><Users size={18} color={C.primarySoft} /></View>

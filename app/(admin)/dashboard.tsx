@@ -312,7 +312,7 @@ export default function Dashboard() {
             </View>
           </View>
           <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-            Cash flow · Inspector payouts · Platform margin · Pipeline analytics
+            Cash flow, Inspector payouts, Platform margin, Pipeline analytics
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#7C3AED" />
@@ -338,7 +338,7 @@ export default function Dashboard() {
             </View>
           </View>
           <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-            Industrial black box · Every status, pricing, hiring, and payout event — immutable
+            Industrial black box, Every status, pricing, hiring, and payout event, immutable
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#7C3AED" />
@@ -363,7 +363,7 @@ export default function Dashboard() {
             </View>
           </View>
           <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-            Hide, dispute, or flag abusive reviews · Private feedback channel · Auto-audited
+            Hide, dispute, or flag abusive reviews, Private feedback channel, Auto-audited
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#7C3AED" />
@@ -388,7 +388,7 @@ export default function Dashboard() {
             </View>
           </View>
           <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-            Resolve disputed jobs · Release or refund escrow · Audit-annotated
+            Resolve disputed jobs, Release or refund escrow, Audit-annotated
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#EF4444" />
@@ -412,7 +412,7 @@ export default function Dashboard() {
               </View>
             </View>
             <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-              {atRisk.length} inspection{atRisk.length > 1 ? 's' : ''} overdue without a sealed report · SLA Sentinel is chasing the inspector
+              {atRisk.length} inspection{atRisk.length > 1 ? 's' : ''} overdue without a sealed report, SLA Sentinel is chasing the inspector
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={22} color="#F59E0B" />

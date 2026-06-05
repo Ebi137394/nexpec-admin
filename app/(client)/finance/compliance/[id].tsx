@@ -253,7 +253,7 @@ export default function VaultDetailScreen() {
             start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
             style={s.hero}
           >
-            <Text style={s.heroKicker}>CLIENT PORTAL · COMPLIANCE</Text>
+            <Text style={s.heroKicker}>CLIENT PORTAL, COMPLIANCE</Text>
             <Text style={s.heroLabel}>{doc.label}</Text>
             <View style={s.heroBadgeRow}>
               <View style={s.categoryBadge}>
@@ -304,7 +304,7 @@ export default function VaultDetailScreen() {
             <View style={{ flex: 1 }}>
               <Text style={s.downloadLabel}>FILE</Text>
               <Text style={s.downloadTitle}>Open document</Text>
-              <Text style={s.downloadSub}>Signed URL · expires in 5 minutes</Text>
+              <Text style={s.downloadSub}>Signed URL, expires in 5 minutes</Text>
             </View>
             <Ionicons name="open-outline" size={18} color={C.cyan} />
           </TouchableOpacity>
@@ -346,7 +346,7 @@ export default function VaultDetailScreen() {
           <View style={s.section}>
             <Text style={s.sectionTitle}>Actions</Text>
             <Text style={s.sectionHint}>
-              {isAdmin && doc.isOwn ? 'You own this AND have admin powers — both action sets available.'
+              {isAdmin && doc.isOwn ? 'You own this AND have admin powers, both action sets available.'
                 : isAdmin ? 'Admin powers: verify or revoke.'
                 : 'You can archive this document.'}
             </Text>
@@ -404,7 +404,7 @@ export default function VaultDetailScreen() {
         )}
 
         <Text style={s.footnote}>
-          Source · public.client_documents · client_documents bucket · RLS
+          Source, public.client_documents, client_documents bucket, RLS
         </Text>
       </ScrollView>
     </SafeAreaView>

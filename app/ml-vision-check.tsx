@@ -46,7 +46,7 @@ const COLORS = {
 
 const STAGE_LABEL: Record<ModelStage, string> = {
   resolving: 'Resolve from registry (RPC)',
-  'cache-hit': 'Cache hit — served offline',
+  'cache-hit': 'Cache hit, served offline',
   downloading: 'Download via signed URL',
   hashing: 'SHA-256 over raw bytes',
   verifying: 'Verify integrity + Ed25519 signature',
@@ -147,7 +147,7 @@ export default function MlVisionCheckScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        <Text style={styles.subtitle}>Phase B.1 · on-device inference proof ({DEMO_KIND}/{DEMO_SLUG})</Text>
+        <Text style={styles.subtitle}>Phase B.1, on-device inference proof ({DEMO_KIND}/{DEMO_SLUG})</Text>
 
         {!ML_RUNTIME_ENABLED ? (
           <View style={[styles.card, { borderColor: COLORS.red }]}>

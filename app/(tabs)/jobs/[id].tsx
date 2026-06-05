@@ -634,7 +634,7 @@ export default function JobDetailScreen() {
                     <View style={styles.pendingAdminBanner}>
                       <Clock size={16} color={COLORS.warning} />
                       <Text style={styles.pendingAdminText}>
-                        Sent to Admin — Awaiting Confirm & Dispatch
+                        Sent to Admin, Awaiting Confirm & Dispatch
                       </Text>
                     </View>
 
@@ -703,7 +703,7 @@ export default function JobDetailScreen() {
                   <View style={[styles.pendingAdminBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
                     <Clock size={16} color="#10B981" />
                     <Text style={[styles.pendingAdminText, { color: '#10B981' }]}>
-                      Hired — Inspector Dispatched
+                      Hired, Inspector Dispatched
                     </Text>
                   </View>
                 ) : proposal.status === 'rejected' || proposal.status === 'withdrawn' ? (

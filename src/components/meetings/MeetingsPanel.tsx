@@ -62,7 +62,7 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
           <View key={m.id} style={[s.card, m.status === 'cancelled' && { opacity: 0.5 }]}>
             <View style={{ flex: 1 }}>
               <Text style={s.mTitle} numberOfLines={1}>{m.title}</Text>
-              <Text style={s.mMeta}>{m.provider.toUpperCase()} · {new Date(m.scheduled_at).toLocaleString()}{m.status !== 'scheduled' ? ` · ${m.status}` : ''}</Text>
+              <Text style={s.mMeta}>{m.provider.toUpperCase()}, {new Date(m.scheduled_at).toLocaleString()}{m.status !== 'scheduled' ? `, ${m.status}` : ''}</Text>
             </View>
             {m.status !== 'cancelled' && (
               <TouchableOpacity style={s.launch} onPress={() => launch(m)} activeOpacity={0.85}>
@@ -79,7 +79,7 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
             <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}><Ionicons name="close" size={22} color={T.colors.text} /></TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled">
-            <TextInput value={title} onChangeText={setTitle} placeholder="Title — e.g. FAT pre-sync" placeholderTextColor={T.colors.textMuted} style={s.input} />
+            <TextInput value={title} onChangeText={setTitle} placeholder="Title, e.g. FAT pre-sync" placeholderTextColor={T.colors.textMuted} style={s.input} />
             <View style={s.segRow}>
               {PROVIDERS.map(([v, l]) => (
                 <TouchableOpacity key={v} onPress={() => setProvider(v)} style={[s.seg, provider === v && s.segOn]}><Text style={[s.segTxt, provider === v && { color: '#fff' }]}>{l}</Text></TouchableOpacity>

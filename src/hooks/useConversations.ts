@@ -19,8 +19,8 @@ export type ConversationKind =
 
 export const CONVERSATION_KIND_LABELS: Record<ConversationKind, string> = {
   help_support: 'Coordination Bridge',
-  job_client_admin: 'Job chat · client',
-  job_inspector_admin: 'Job chat · inspector',
+  job_client_admin: 'Job chat, client',
+  job_inspector_admin: 'Job chat, inspector',
   job_supplier_admin: 'Project chat',
 };
 

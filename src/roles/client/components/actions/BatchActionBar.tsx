@@ -48,12 +48,12 @@ export interface BatchProject {
 }
 
 export const MOCK_BATCH_PROJECTS: BatchProject[] = [
-  { id: 'p1', name: 'Platform Alpha — Structural', status: 'review', progress: 92, value: '$245,000' },
+  { id: 'p1', name: 'Platform Alpha, Structural', status: 'review', progress: 92, value: '$245,000' },
   { id: 'p2', name: 'Pipeline Segment B7', status: 'pending', progress: 45, value: '$128,500' },
-  { id: 'p3', name: 'Storage Tank Farm — Corrosion', status: 'active', progress: 78, value: '$389,000' },
-  { id: 'p4', name: 'Offshore Rig Delta — NDT', status: 'review', progress: 100, value: '$512,000' },
+  { id: 'p3', name: 'Storage Tank Farm, Corrosion', status: 'active', progress: 78, value: '$389,000' },
+  { id: 'p4', name: 'Offshore Rig Delta, NDT', status: 'review', progress: 100, value: '$512,000' },
   { id: 'p5', name: 'Subsea Pipeline Integrity', status: 'active', progress: 63, value: '$198,750' },
-  { id: 'p6', name: 'Refinery Unit 4 — Shutdown', status: 'completed', progress: 100, value: '$675,000' },
+  { id: 'p6', name: 'Refinery Unit 4, Shutdown', status: 'completed', progress: 100, value: '$675,000' },
   { id: 'p7', name: 'Gas Compressor Station C', status: 'pending', progress: 22, value: '$87,300' },
   { id: 'p8', name: 'Terminal Loading Arm Inspection', status: 'review', progress: 88, value: '$156,200' },
 ];

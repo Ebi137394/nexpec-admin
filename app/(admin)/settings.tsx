@@ -221,7 +221,7 @@ export default function AdminSettingsScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
           >
             <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-              <Text style={s.kicker}>PLATFORM · FEE SCHEDULE</Text>
+              <Text style={s.kicker}>PLATFORM, FEE SCHEDULE</Text>
               <Text style={s.title}>Settings</Text>
               <Text style={s.subtitle}>The global rates applied to every new transaction. Changes take effect immediately and are audit-logged with your reason.</Text>
             </Animated.View>
@@ -253,12 +253,12 @@ export default function AdminSettingsScreen() {
 
             {/* Reason — required, audit-critical */}
             <Animated.View entering={FadeInDown.delay(100).duration(220)} style={s.sectionCard}>
-              <Text style={s.sectionLabel}>REASON FOR CHANGE · REQUIRED</Text>
+              <Text style={s.sectionLabel}>REASON FOR CHANGE, REQUIRED</Text>
               <TextInput
                 style={s.reasonInput}
                 value={reason}
                 onChangeText={setReason}
-                placeholder="e.g. Q3 pricing review — lower commission to 12%"
+                placeholder="e.g. Q3 pricing review, lower commission to 12%"
                 placeholderTextColor={C.textMute}
                 multiline
                 maxLength={1000}
@@ -287,7 +287,7 @@ export default function AdminSettingsScreen() {
               <Text style={s.secretsText}>Integration secrets (Stripe keys, webhooks) are managed server-side and intentionally not shown on mobile.</Text>
             </View>
 
-            <Text style={s.footnote}>Source · public_get_fee_schedule + admin_set_fee_schedule · admin-gated (nx_is_admin) · server-validated.</Text>
+            <Text style={s.footnote}>Source, public_get_fee_schedule + admin_set_fee_schedule, admin-gated (nx_is_admin), server-validated.</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       )}

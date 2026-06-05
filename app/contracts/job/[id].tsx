@@ -964,7 +964,7 @@ const Header: React.FC<{
         <ArrowLeft size={18} color={C.text} />
       </Pressable>
       <View style={s.headerCenter}>
-        <Text style={s.headerKicker}>V3 · BINDING</Text>
+        <Text style={s.headerKicker}>V3, BINDING</Text>
         <Text style={s.headerTitle}>{title}</Text>
       </View>
       {status ? (
@@ -1038,7 +1038,7 @@ const TimelineStep: React.FC<{
       </Text>
       {signedAt ? (
         <Text style={s.tlMeta} numberOfLines={1}>
-          {signedName ? `${signedName} · ` : ''}
+          {signedName ? `${signedName}, ` : ''}
           {new Date(signedAt).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',

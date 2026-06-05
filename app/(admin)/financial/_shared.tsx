@@ -215,7 +215,7 @@ export const InspectorLeaderRow: React.FC<{
       <View style={{ flex: 1 }}>
         <Text style={ss.leaderName} numberOfLines={1}>{item.name}</Text>
         <Text style={ss.leaderSubline}>
-          {item.jobCount} {item.jobCount === 1 ? 'job' : 'jobs'} · avg{' '}
+          {item.jobCount} {item.jobCount === 1 ? 'job' : 'jobs'}, avg{' '}
           {formatUSDCompact(item.avgEarningsCents)}
         </Text>
       </View>
@@ -368,7 +368,7 @@ export const ActiveJobRow: React.FC<{
         <View style={ss.activeJobMeta}>
           <Ionicons name="person-outline" size={11} color={C.textMuted} />
           <Text style={ss.activeJobMetaText} numberOfLines={1}>
-            {item.inspectorName ?? 'Unassigned'} · {item.clientName ?? 'No client'}
+            {item.inspectorName ?? 'Unassigned'}, {item.clientName ?? 'No client'}
           </Text>
         </View>
       </View>
@@ -403,7 +403,7 @@ export const RemainingPayoutRow: React.FC<{
     <View style={{ flex: 1 }}>
       <Text style={ss.remainingTitle} numberOfLines={1}>{item.title}</Text>
       <Text style={ss.remainingSub} numberOfLines={1}>
-        owed to {item.inspectorName} · completed{' '}
+        owed to {item.inspectorName}, completed{' '}
         {item.completedDate ? formatShortDate(item.completedDate) : '—'}
       </Text>
     </View>

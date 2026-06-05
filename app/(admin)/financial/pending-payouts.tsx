@@ -89,7 +89,7 @@ export default function PendingPayoutsScreen() {
       <View style={ss.listHeaderArea}>
         <SectionHeader
           title="Pending Inspector Payouts"
-          subtitle={`${data.length} ${data.length === 1 ? 'payment' : 'payments'} owed · sorted by amount`}
+          subtitle={`${data.length} ${data.length === 1 ? 'payment' : 'payments'} owed, sorted by amount`}
         />
       </View>
     ),

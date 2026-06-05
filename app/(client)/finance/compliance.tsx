@@ -208,7 +208,7 @@ export default function ComplianceVaultScreen() {
         }
       >
         <Animated.View entering={FadeIn.duration(220)} style={s.header}>
-          <Text style={s.kicker}>CLIENT PORTAL · COMPLIANCE</Text>
+          <Text style={s.kicker}>CLIENT PORTAL, COMPLIANCE</Text>
           <Text style={s.title}>Compliance Vault</Text>
           <Text style={s.subtitle}>
             Corporate compliance documents (insurance, licenses, NDAs, MSAs)
@@ -230,7 +230,7 @@ export default function ComplianceVaultScreen() {
             style={[s.tab, tab === 'documents' && s.tabActive]}
           >
             <Text style={[s.tabText, tab === 'documents' && s.tabTextActive]}>
-              My Documents · {counts.total}
+              My Documents, {counts.total}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -272,7 +272,7 @@ export default function ComplianceVaultScreen() {
                   onPress={() => setCategory(null)}
                   style={[s.chip, !category && s.chipActive]}
                 >
-                  <Text style={[s.chipText, !category && s.chipTextActive]}>All · {counts.total}</Text>
+                  <Text style={[s.chipText, !category && s.chipTextActive]}>All, {counts.total}</Text>
                 </TouchableOpacity>
                 {counts.byCategory.map((c) => {
                   const active = category === c.category;
@@ -283,7 +283,7 @@ export default function ComplianceVaultScreen() {
                       style={[s.chip, active && s.chipActive]}
                     >
                       <Text style={[s.chipText, active && s.chipTextActive]}>
-                        {CATEGORY_LABEL[c.category]} · {c.count}
+                        {CATEGORY_LABEL[c.category]}, {c.count}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -325,7 +325,7 @@ export default function ComplianceVaultScreen() {
         )}
 
         <Text style={s.footnote}>
-          Source · public.client_documents · public.trust_certificates · RLS owner+admin
+          Source, public.client_documents, public.trust_certificates, RLS owner+admin
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -412,7 +412,7 @@ function CertCard({ cert }: { cert: TrustCert }) {
           {cert.scopeTemplateName ?? 'Trust certificate'}
         </Text>
         <Text style={s.docMetaText}>
-          Issued for {cert.supplierName ?? 'a supplier'} · valid through {formatDate(cert.validUntil)}
+          Issued for {cert.supplierName ?? 'a supplier'}, valid through {formatDate(cert.validUntil)}
         </Text>
         <View style={[s.docMeta, { marginTop: 6 }]}>
           {revoked ? (

@@ -552,7 +552,7 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
           <View style={styles.offerSentContainer}>
             <View style={styles.offerSentBadge}>
               <Clock size={14} color={COLORS.primary} />
-              <Text style={styles.offerSentText}>Offer Sent — Awaiting Admin Confirmation</Text>
+              <Text style={styles.offerSentText}>Offer Sent, Awaiting Admin Confirmation</Text>
             </View>
           </View>
         );

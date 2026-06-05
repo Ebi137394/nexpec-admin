@@ -725,8 +725,8 @@ export default function EnterpriseDashboard() {
               />
               <Text style={s.heroStatusText}>
                 {metrics.overdueCount > 0
-                  ? `${metrics.overdueCount} engagement${metrics.overdueCount === 1 ? '' : 's'} past SLA — review needed`
-                  : `All systems normal · ${metrics.inFlight.length} in flight`}
+                  ? `${metrics.overdueCount} engagement${metrics.overdueCount === 1 ? '' : 's'} past SLA, review needed`
+                  : `All systems normal, ${metrics.inFlight.length} in flight`}
               </Text>
             </View>
           </Animated.View>
@@ -950,7 +950,7 @@ export default function EnterpriseDashboard() {
             <Sparkline values={metrics.sparkBuckets} tint={C.gold} height={42} />
             <Text style={s.spendCaption}>
               Bar height reflects total committed engagement value per week.
-              GR2 blind pricing in effect — values shown are your client-side
+              GR2 blind pricing in effect, values shown are your client-side
               price only.
             </Text>
           </Animated.View>
@@ -1211,7 +1211,7 @@ const ContractRowCard: React.FC<{
             {jobTitle ?? 'Per-job agreement'}
           </Text>
           <Text style={s.contractSub} numberOfLines={1}>
-            {dollars(contract.client_price_cents)} ·{' '}
+            {dollars(contract.client_price_cents)},{' '}
             {timeAgo(contract.updated_at ?? contract.created_at)}
           </Text>
         </View>

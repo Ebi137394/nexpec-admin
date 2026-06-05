@@ -69,8 +69,8 @@ function fmtMonth(iso: string | null): string {
 function fmtRange(start: string | null, end: string | null, isCurrent: boolean | null, presentLabel: string): string {
   const s = fmtMonth(start);
   if (!s) return '';
-  if (isCurrent || !end) return `${s} — ${presentLabel}`;
-  return `${s} — ${fmtMonth(end)}`;
+  if (isCurrent || !end) return `${s} to ${presentLabel}`;
+  return `${s} to ${fmtMonth(end)}`;
 }
 
 function calcDuration(start: string | null, end: string | null): string {
@@ -168,7 +168,7 @@ export default function ApplicantBlindProfileScreen() {
     const name = profile?.full_name ?? t('blind.this_inspector', 'this inspector');
     Alert.alert(
       t('blind.confirm_title', 'Confirm Selection'),
-      t('blind.confirm_body', `You are selecting ${name} for this job.\n\nThis does not finalize the hire — NEXPEC administration will contact the inspector to confirm availability and negotiate terms on your behalf.`),
+      t('blind.confirm_body', `You are selecting ${name} for this job.\n\nThis does not finalize the hire, NEXPEC administration will contact the inspector to confirm availability and negotiate terms on your behalf.`),
       [
         { text: t('blind.cancel', 'Cancel'), style: 'cancel' },
         {
@@ -246,7 +246,7 @@ export default function ApplicantBlindProfileScreen() {
         </View>
         <View style={[styles.trustBadge, row]}>
           <ShieldCheck size={14} color={D.success} strokeWidth={2.2} />
-          <Text style={styles.trustTxt}>{t('blind.trust_badge', 'Contact Info Protected · Blind Profile')}</Text>
+          <Text style={styles.trustTxt}>{t('blind.trust_badge', 'Contact Info Protected, Blind Profile')}</Text>
         </View>
         {profile?.bio ? (
           <View style={styles.bioWrap}>
@@ -512,8 +512,8 @@ export default function ApplicantBlindProfileScreen() {
             <CheckCircle size={18} color={D.success} strokeWidth={2.5} />
             <Text style={styles.selectedTxt}>
               {appStatus === 'admin_confirmed'
-                ? t('blind.admin_confirmed', 'Confirmed — Assignment Finalized')
-                : t('blind.already_selected', 'Selected — Pending Admin Confirmation')}
+                ? t('blind.admin_confirmed', 'Confirmed, Assignment Finalized')
+                : t('blind.already_selected', 'Selected, Pending Admin Confirmation')}
             </Text>
           </View>
         </View>

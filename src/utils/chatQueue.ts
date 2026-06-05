@@ -64,7 +64,7 @@ async function writeChatQueue(queue: ChatQueueState): Promise<void> {
   try {
     await AsyncStorage.setItem(CHAT_QUEUE_KEY, JSON.stringify(queue));
   } catch (error) {
-    console.error('[ChatQueue] CRITICAL — Write failed:', error);
+    console.error('[ChatQueue] CRITICAL, Write failed:', error);
   }
 }
 

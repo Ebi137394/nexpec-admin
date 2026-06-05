@@ -86,8 +86,8 @@ export default function ActiveJobsScreen() {
     () => (
       <View style={ss.listHeaderArea}>
         <SectionHeader
-          title="Active Jobs · Financials"
-          subtitle={`${data.length} ${data.length === 1 ? 'job' : 'jobs'} in flight · start → end · payout status`}
+          title="Active Jobs, Financials"
+          subtitle={`${data.length} ${data.length === 1 ? 'job' : 'jobs'} in flight, start → end, payout status`}
         />
       </View>
     ),

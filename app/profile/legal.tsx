@@ -119,7 +119,7 @@ export default function LegalComplianceScreen() {
           >
             <Ionicons name="alert-circle-outline" size={18} color="#F59E0B" />
             <Text style={[styles.roleBannerText, { color: '#F59E0B' }]}>
-              No active role detected — showing universal documents only.
+              No active role detected, showing universal documents only.
             </Text>
           </View>
         )}

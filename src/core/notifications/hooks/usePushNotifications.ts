@@ -93,7 +93,7 @@ export function usePushNotifications() {
         );
         if (!target) {
           console.warn(
-            '[push] tap with unroutable payload — ignored:',
+            '[push] tap with unroutable payload, ignored:',
             JSON.stringify(response?.notification?.request?.content?.data ?? null),
           );
           return;

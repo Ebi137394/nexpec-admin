@@ -79,9 +79,9 @@ interface ProjectDetail {
 const MOCK_PROJECTS: Record<string, ProjectDetail> = {
   "proj-001": {
     id: "proj-001",
-    title: "API-653 Tank Inspection – Tank-101",
+    title: "API-653 Tank Inspection to Tank-101",
     status: "In Progress",
-    location: "Houston Refinery, TX – Unit 4A",
+    location: "Houston Refinery, TX to Unit 4A",
     client: "Meridian Energy Corp.",
     inspector: "James Whitfield, API-653 Certified",
     asset_tag: "Tank-101",
@@ -103,9 +103,9 @@ const MOCK_PROJECTS: Record<string, ProjectDetail> = {
   },
   "proj-002": {
     id: "proj-002",
-    title: "Pipeline Integrity – PL-2200",
+    title: "Pipeline Integrity to PL-2200",
     status: "Scheduled",
-    location: "Permian Basin, TX – Section 12",
+    location: "Permian Basin, TX to Section 12",
     client: "TransWest Pipeline LLC",
     inspector: "Sarah Chen, NACE Level III",
     asset_tag: "PL-2200",
@@ -126,9 +126,9 @@ const MOCK_PROJECTS: Record<string, ProjectDetail> = {
   },
   "proj-003": {
     id: "proj-003",
-    title: "Pressure Vessel – PV-440",
+    title: "Pressure Vessel to PV-440",
     status: "Completed",
-    location: "Lake Charles, LA – Plant B",
+    location: "Lake Charles, LA to Plant B",
     client: "Gulf Coast Chemicals",
     inspector: "Marcus Johnson, API-510",
     asset_tag: "PV-440",
@@ -150,9 +150,9 @@ const MOCK_PROJECTS: Record<string, ProjectDetail> = {
   },
   "proj-004": {
     id: "proj-004",
-    title: "Structural Assessment – BR-55",
+    title: "Structural Assessment to BR-55",
     status: "On Hold",
-    location: "Galveston Bay, TX – Dock 7",
+    location: "Galveston Bay, TX to Dock 7",
     client: "Maritime Structures Inc.",
     inspector: "David Park, PE, CWI",
     asset_tag: "BR-55",

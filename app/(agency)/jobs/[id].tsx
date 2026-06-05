@@ -475,7 +475,7 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
               <View style={styles.offerSentBadge}>
                 <Clock size={14} color={COLORS.primary} />
                 <Text style={styles.offerSentText}>
-                  Sent to Admin — Awaiting Confirm & Dispatch
+                  Sent to Admin, Awaiting Confirm & Dispatch
                 </Text>
               </View>
             </View>

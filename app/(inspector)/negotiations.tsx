@@ -348,7 +348,7 @@ export default function InspectorNegotiationsScreen() {
                         <Text style={s.decisionMeta}>
                           You {n.inspector_decision === 'accepted' ? 'accepted' : 'declined'}{' '}
                           {new Date(n.inspector_decision_at).toLocaleString()}
-                          {n.inspector_decision_note ? ` · "${n.inspector_decision_note}"` : ''}
+                          {n.inspector_decision_note ? `, "${n.inspector_decision_note}"` : ''}
                         </Text>
                       )}
 

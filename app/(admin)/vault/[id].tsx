@@ -190,7 +190,7 @@ export default function VaultDetailScreen() {
               </TouchableOpacity>
             ) : null}
 
-            <Text style={s.footnote}>Source · public.client_documents · file via signed URL (5 min) · RLS cdocs_admin_all.</Text>
+            <Text style={s.footnote}>Source, public.client_documents, file via signed URL (5 min), RLS cdocs_admin_all.</Text>
           </Animated.View>
         </ScrollView>
       )}

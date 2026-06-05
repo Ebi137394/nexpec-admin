@@ -25,7 +25,7 @@ export async function registerVisionBackend(): Promise<{ ok: boolean; reason?: s
       return {
         ok: false,
         reason:
-          'native vision libs (@shopify/react-native-skia + react-native-fast-tflite) not present — run a dev build',
+          'native vision libs (@shopify/react-native-skia + react-native-fast-tflite) not present, run a dev build',
       };
     }
     registerInferenceBackend(mod.tfliteVisionBackend);

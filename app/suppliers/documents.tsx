@@ -72,7 +72,7 @@ export default function SupplierDocuments() {
         ) : items.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="lock-closed-outline" size={26} color={T.colors.textMuted} />
-            <Text style={s.emptyTxt}>No documents sealed yet. Upload ISO, accreditation or insurance certificates — each is hashed, sealed into the Trust Spine and anchored to Bitcoin.</Text>
+            <Text style={s.emptyTxt}>No documents sealed yet. Upload ISO, accreditation or insurance certificates, each is hashed, sealed into the Trust Spine and anchored to Bitcoin.</Text>
           </View>
         ) : items.map((d) => (
           <View key={d.id} style={s.docCard}>

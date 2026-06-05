@@ -43,7 +43,7 @@ const MOCK_CERTIFICATES: Certificate[] = [
   },
   {
     id: 'cert_004',
-    name: 'ASNT NDT Level II – UT',
+    name: 'ASNT NDT Level II to UT',
     issuingBody: 'American Society for Nondestructive Testing',
     certNumber: 'ASNT-UT2-2024-88412',
     issueDate: '2024-05-01',
@@ -53,7 +53,7 @@ const MOCK_CERTIFICATES: Certificate[] = [
   },
   {
     id: 'cert_005',
-    name: 'ASNT NDT Level II – MT',
+    name: 'ASNT NDT Level II to MT',
     issuingBody: 'American Society for Nondestructive Testing',
     certNumber: 'ASNT-MT2-2023-77301',
     issueDate: '2023-09-12',

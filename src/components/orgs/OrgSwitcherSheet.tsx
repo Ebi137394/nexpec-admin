@@ -236,7 +236,7 @@ export function OrgSwitcherSheet({ sheetRef }: Props) {
 
         {/* ─── Footer microcopy ─── */}
         <Text style={styles.footerCopy}>
-          PINNED ON PROFILE · SYNCS ACROSS WEB + MOBILE
+          PINNED ON PROFILE, SYNCS ACROSS WEB + MOBILE
         </Text>
       </BottomSheetView>
     </BottomSheetModal>
@@ -283,7 +283,7 @@ function OrgRow({
         </View>
         <Text style={styles.rowMeta} numberOfLines={1}>
           {(org.org_kind || '').toUpperCase()}
-          {org.role ? `  ·  ${prettyRole(org.role)}` : ''}
+          {org.role ? `, ${prettyRole(org.role)}` : ''}
         </Text>
       </View>
       <View style={styles.rowTrailing}>

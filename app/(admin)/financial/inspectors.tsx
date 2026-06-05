@@ -106,7 +106,7 @@ export default function InspectorsScreen() {
       <View style={ss.listHeaderArea}>
         <SectionHeader
           title="Inspector Earnings Leaderboard"
-          subtitle={`${data.length} ${data.length === 1 ? 'inspector' : 'inspectors'} · all-time totals · tap to expand`}
+          subtitle={`${data.length} ${data.length === 1 ? 'inspector' : 'inspectors'}, all-time totals, tap to expand`}
         />
       </View>
     ),

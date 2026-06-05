@@ -107,7 +107,7 @@ const ROLE_CONFIG: Record<
     color: "#30D158",
     bg: "rgba(48,209,88,0.12)",
     icon: "💼",
-    description: "Financial access — can release funds and view reports",
+    description: "Financial access, can release funds and view reports",
   },
   project_manager: {
     label: "Project Manager",

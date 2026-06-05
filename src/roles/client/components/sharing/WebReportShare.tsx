@@ -239,7 +239,7 @@ interface WebReportShareProps {
 const WebReportShare: React.FC<WebReportShareProps> = ({
   visible,
   onClose,
-  projectName = 'Platform Alpha — Annual Structural Inspection',
+  projectName = 'Platform Alpha, Annual Structural Inspection',
   projectCode = 'PRJ-2024-0847',
 }) => {
   // ── State ────────────────────────────────────────────────────────

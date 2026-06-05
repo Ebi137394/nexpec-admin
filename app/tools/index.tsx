@@ -51,7 +51,7 @@ export default function ToolsListScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>Engineering Tools</Text>
-          <Text style={s.sub}>Field-grade calculators · sealed results</Text>
+          <Text style={s.sub}>Field-grade calculators, sealed results</Text>
         </View>
         <View style={s.brandTile}><Ionicons name="construct" size={20} color={T.colors.primary} /></View>
       </View>

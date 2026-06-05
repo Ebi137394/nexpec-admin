@@ -613,7 +613,7 @@ export default function JobDetailScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={clientReviewCta.title}>Leave a Review</Text>
                 <Text style={clientReviewCta.sub}>
-                  Rate the inspector — public on their profile, or private to admin only.
+                  Rate the inspector, public on their profile, or private to admin only.
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#7C3AED" />

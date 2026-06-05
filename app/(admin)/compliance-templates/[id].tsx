@@ -360,7 +360,7 @@ export default function ComplianceTemplateEditor() {
     }
     Alert.alert(
       'Delete requirement?',
-      `"${req.label}" — this cannot be undone.`,
+      `"${req.label}", this cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -444,7 +444,7 @@ export default function ComplianceTemplateEditor() {
             {isNew ? 'New Template' : (form.name || 'Untitled')}
           </Text>
           <Text style={s.headerSub} numberOfLines={1}>
-            {isNew ? 'Compliance scope library' : `${form.slug} · v${form.version}`}
+            {isNew ? 'Compliance scope library' : `${form.slug}, v${form.version}`}
           </Text>
         </View>
         <Pressable
@@ -602,7 +602,7 @@ export default function ComplianceTemplateEditor() {
                     {r.sort_order}. {r.label || <Text style={{ color: C.textDim, fontStyle: 'italic' }}>(no label)</Text>}
                   </Text>
                   <Text style={s.reqKind}>
-                    {r.kind} · {r.required ? 'required' : 'optional'} · {r.min_count}–{r.max_count}
+                    {r.kind}, {r.required ? 'required' : 'optional'}, {r.min_count}–{r.max_count}
                   </Text>
                 </View>
                 <View style={s.reqActions}>

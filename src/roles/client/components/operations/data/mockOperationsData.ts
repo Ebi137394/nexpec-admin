@@ -97,7 +97,7 @@ export const mockCriticalAlerts: CriticalAlert[] = [
   {
     id: 'CA-001',
     type: 'critical_finding',
-    message: '⚠ CRITICAL: Deck-02 structural fatigue exceeds threshold — immediate review required',
+    message: '⚠ CRITICAL: Deck-02 structural fatigue exceeds threshold, immediate review required',
     zone: 'B2',
     severity: 'critical',
     timestamp: '09:41 AM',
@@ -106,7 +106,7 @@ export const mockCriticalAlerts: CriticalAlert[] = [
   {
     id: 'CA-002',
     type: 'critical_finding',
-    message: '⚠ CRITICAL: Boiler-1 corrosion depth at 4.2mm — exceeds class limit of 3.0mm',
+    message: '⚠ CRITICAL: Boiler-1 corrosion depth at 4.2mm, exceeds class limit of 3.0mm',
     zone: 'C3',
     severity: 'critical',
     timestamp: '09:38 AM',
@@ -115,7 +115,7 @@ export const mockCriticalAlerts: CriticalAlert[] = [
   {
     id: 'CA-003',
     type: 'critical_finding',
-    message: '⚠ CRITICAL: Cargo-2 coating breakdown — active pitting observed across 60% surface',
+    message: '⚠ CRITICAL: Cargo-2 coating breakdown, active pitting observed across 60% surface',
     zone: 'D4',
     severity: 'critical',
     timestamp: '09:35 AM',
@@ -124,7 +124,7 @@ export const mockCriticalAlerts: CriticalAlert[] = [
   {
     id: 'CA-004',
     type: 'critical_finding',
-    message: '⚠ WARNING: Hull-AFT shows moderate wastage pattern — schedule follow-up NDT',
+    message: '⚠ WARNING: Hull-AFT shows moderate wastage pattern, schedule follow-up NDT',
     zone: 'A3',
     severity: 'warning',
     timestamp: '09:22 AM',

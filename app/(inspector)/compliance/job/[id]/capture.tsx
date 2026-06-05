@@ -630,7 +630,7 @@ export default function ComplianceCaptureWizard() {
       // Route through the outbox — offline-safe + idempotent (client_op_id). #QA
       await enqueueAiDetection(args as Record<string, unknown>);
       setAiRecorded((r) => (r.includes(d.defectId) ? r : [...r, d.defectId]));
-      setAiNote(`Recorded "${d.label}" — provably tied to ${assist.modelSlug} v${assist.modelVersion}; it folds into this inspection's seal.`);
+      setAiNote(`Recorded "${d.label}", provably tied to ${assist.modelSlug} v${assist.modelVersion}; it folds into this inspection's seal.`);
     } catch (e: any) {
       setAiNote('Save failed: ' + (e?.message ?? 'error'));
     }
@@ -656,7 +656,7 @@ export default function ComplianceCaptureWizard() {
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle} numberOfLines={1}>{job.scope?.name ?? 'Compliance Job'}</Text>
           <Text style={s.headerSub}>
-            Req {activeIdx + 1} of {requirements.length} · {captures.length} captures
+            Req {activeIdx + 1} of {requirements.length}, {captures.length} captures
           </Text>
         </View>
         {allDone && (
@@ -687,7 +687,7 @@ export default function ComplianceCaptureWizard() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
         {/* Active requirement card */}
         <View style={s.reqCard}>
-          <Text style={s.reqKind}>{kindLabel(active.kind)} · {active.required ? 'Required' : 'Optional'}</Text>
+          <Text style={s.reqKind}>{kindLabel(active.kind)}, {active.required ? 'Required' : 'Optional'}</Text>
           <Text style={s.reqLabel}>{active.label}</Text>
           {!!active.hint && <Text style={s.reqHint}>{active.hint}</Text>}
           <View style={s.reqMeta}>
@@ -695,7 +695,7 @@ export default function ComplianceCaptureWizard() {
               {activeCount}/{active.min_count}–{active.max_count} captured
             </Text>
             {requirementSatisfied(active) && (
-              <Text style={[s.reqMetaText, { color: C.ok }]}>· requirement satisfied ✓</Text>
+              <Text style={[s.reqMetaText, { color: C.ok }]}>requirement satisfied ✓</Text>
             )}
           </View>
         </View>
@@ -779,7 +779,7 @@ export default function ComplianceCaptureWizard() {
               <View key={c.id} style={s.capRow}>
                 <View style={[s.capDot, validationDot(c.server_validation_status)]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.capName}>#{i + 1} · {kindLabel(c.kind as EvidenceKind)}</Text>
+                  <Text style={s.capName}>#{i + 1}, {kindLabel(c.kind as EvidenceKind)}</Text>
                   <Text style={s.capSha}>
                     <Hash size={9} color={C.textDim} /> {(c.capture_sha256 ?? '').slice(0, 16)}…
                   </Text>
@@ -799,7 +799,7 @@ export default function ComplianceCaptureWizard() {
           <View style={s.aiWrap}>
             <View style={s.aiHead}>
               <ShieldCheck size={14} color={C.primarySoft} />
-              <Text style={s.aiHeadText}>AI Co-Inspector · review &amp; accept</Text>
+              <Text style={s.aiHeadText}>AI Co-Inspector, review &amp; accept</Text>
             </View>
             <DefectFindingsCard
               analysis={da.analysis}
@@ -809,11 +809,11 @@ export default function ComplianceCaptureWizard() {
             />
             {da.status === 'unavailable' && (
               <Text style={s.aiNote}>
-                {da.error ?? 'Model unavailable — publish the universal-detector model and run a dev build with the ML runtime enabled.'}
+                {da.error ?? 'Model unavailable, publish the universal-detector model and run a dev build with the ML runtime enabled.'}
               </Text>
             )}
             {!!aiRecorded.length && (
-              <Text style={s.aiRecorded}>{aiRecorded.length} AI finding(s) recorded ✓ — sealed with this inspection.</Text>
+              <Text style={s.aiRecorded}>{aiRecorded.length} AI finding(s) recorded ✓, sealed with this inspection.</Text>
             )}
             {!!aiNote && <Text style={s.aiNote}>{aiNote}</Text>}
           </View>
@@ -861,7 +861,7 @@ export default function ComplianceCaptureWizard() {
             {vcaResult && (
               <View style={s.vcaSuccessWrap}>
                 <Text style={s.vcaSuccessLine}>
-                  Issued · {vcaResult.chain.total} captures · key {vcaResult.signing_key_id}
+                  Issued, {vcaResult.chain.total} captures, key {vcaResult.signing_key_id}
                 </Text>
                 <Pressable
                   onPress={() => router.push(`/verify/${vcaResult.public_verify_token}` as any)}

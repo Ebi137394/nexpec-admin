@@ -89,7 +89,7 @@ export default function UseWebPortalScreen() {
             <Wrench size={32} color={COLORS.primary} strokeWidth={1.5} />
           </View>
 
-          <Text style={styles.kicker}>NEXPEC · INSPECTOR APP</Text>
+          <Text style={styles.kicker}>NEXPEC, INSPECTOR APP</Text>
 
           <Text style={styles.title}>
             This app is built for inspectors

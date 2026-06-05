@@ -106,18 +106,29 @@ BEGIN
   v_text := COALESCE(p_contract_text_md, format(
 $md$# NEXPEC Supplier Agreement
 
-**Parties:** NEXPEC (the "Broker") and the awarded Supplier.
+**Parties:** NEXPEC (the "Broker-of-Record" and Prime Contractor) and the awarded Supplier (the "Supplier").
 **Engagement:** %s
 **Awarded value:** $%s
 
-1. **Scope.** The Supplier shall furnish the goods/services described in the referenced RFQ, to the agreed specifications and standards.
-2. **Brokered settlement.** Payment is administered by NEXPEC and released against verified milestones to the Supplier's connected payout account. The Supplier holds no claim to funds prior to NEXPEC's release.
-3. **Source / FAT inspection.** Where the RFQ requires it, the Supplier shall grant a NEXPEC-dispatched inspector reasonable access for source/FAT inspection prior to shipment.
-4. **Confidentiality & non-circumvention.** The Supplier shall not solicit or transact directly with the end client introduced through NEXPEC; all coordination runs through the NEXPEC platform.
-5. **Quality & provenance.** Certificates and evidence supplied are sealed into NEXPEC's Trust Spine and must be accurate and current.
-6. **Term & termination.** This agreement governs the awarded engagement and may be terminated for material breach.
+The Supplier is an independent contractor; nothing here creates an employment, partnership, joint venture, or agency relationship. NEXPEC contracts the end client separately and is the Supplier's sole counterparty for this engagement.
 
-By signing, the Supplier accepts these terms. NEXPEC countersigns to execute.$md$,
+1. **Scope & standards.** The Supplier shall furnish the goods and/or services described in the referenced RFQ in strict conformance with the agreed specifications, drawings, codes, and recognized industry standards, performed in a professional and workmanlike manner and in compliance with all applicable laws and safety and environmental regulations.
+
+2. **Brokered settlement & escrow leverage.** Payment is administered by NEXPEC and held in escrow. Funds are released solely at NEXPEC's direction, against verified milestones, and only upon zero-liability completion — meaning no open defect, non-conformance, equipment or property damage, personal-injury claim, warranty issue, or dispute attributable to the Supplier. The Supplier holds no claim, lien, or entitlement to any funds prior to NEXPEC's release. NEXPEC may withhold, set off, deduct from, or claw back escrowed or released amounts to satisfy the Supplier's liabilities or indemnity obligations under this Agreement.
+
+3. **Strict indemnification — Supplier bears one hundred percent (100) of the liability.** The Supplier assumes full and sole responsibility for its goods, services, acts, and omissions, and shall defend, indemnify, and hold harmless NEXPEC, its affiliates, officers, employees, and the end client (together, the "Indemnified Parties") from and against any and all claims, demands, losses, damages, liabilities, fines, penalties, and costs (including reasonable legal fees and expert costs) arising out of or relating to: (a) defective, non-conforming, late, or deficient goods or services; (b) damage to industrial equipment, facilities, or any property; (c) bodily injury or death; (d) the Supplier's negligence, recklessness, or willful misconduct; (e) infringement of any intellectual-property or other third-party right; or (f) the Supplier's breach of this Agreement or violation of law. This indemnity is primary and non-contributory, is not capped, and survives termination or completion.
+
+4. **Professional liability (E&O) insurance.** Throughout the term and any applicable warranty period, the Supplier shall maintain, at its own expense, valid Professional Liability / Errors & Omissions (E&O) insurance, together with Commercial General Liability and any statutorily required workers' compensation coverage, with limits customary for the industry and commensurate with the value and risk of the engagement. On request, the Supplier shall furnish certificates of insurance, name NEXPEC as additional insured, and confirm such coverage is primary and non-contributory. Lapse of required insurance is a material breach and entitles NEXPEC to suspend release of funds.
+
+5. **Source / FAT inspection & quality.** Where the RFQ requires it, the Supplier shall grant a NEXPEC-dispatched inspector reasonable access for source / Factory Acceptance Testing prior to shipment. All certificates and evidence are sealed into NEXPEC's Trust Spine and must be accurate, complete, and current. The Supplier warrants good title and conformance of all deliverables.
+
+6. **Confidentiality & non-circumvention.** The Supplier shall not solicit, contact, or transact directly with the end client introduced through NEXPEC during the engagement and for twelve (12) months thereafter; all coordination runs through the NEXPEC platform.
+
+7. **NEXPEC limitation.** NEXPEC acts solely as broker and payment administrator. NEXPEC's aggregate liability to the Supplier shall not exceed the amounts actually payable to the Supplier for the engagement, and NEXPEC shall not be liable for any indirect, incidental, or consequential damages.
+
+8. **Term, termination & survival.** This Agreement governs the awarded engagement and may be terminated for material breach. Sections 2, 3, 4, 6, and 7 survive termination or completion.
+
+By signing, the Supplier accepts these terms in full. NEXPEC countersigns to execute.$md$,
     v_title, to_char(v_amount / 100.0, 'FM999,999,990.00')));
 
   -- supersede any prior non-void contract for this quote

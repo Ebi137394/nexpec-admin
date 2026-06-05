@@ -52,39 +52,74 @@ function buildContractTemplate(opts: {
 **Job:** ${opts.jobTitle}
 
 This Inspection Services Agreement (the "Agreement") is entered into between
-NEXPEC, on behalf of **${opts.clientName}** (the "Client") and the assigned
-inspector **${opts.inspectorName}** (the "Inspector").
+NEXPEC (the "Prime Contractor" and Broker-of-Record), which contracts directly
+with **${opts.clientName}** (the "Client"). The on-site inspection is performed
+by the NEXPEC-assigned independent inspector **${opts.inspectorName}** (the
+"Inspector"). NEXPEC coordinates vetted, independent service providers; the
+Inspector is not an employee or agent of the Client.
 
 ## 1. Scope of work
-The Inspector will perform the inspection described in the job posting and
-deliver an audit-grade report through the NEXPEC platform.
+The engagement covers the inspection described in the job posting, delivered as
+an audit-grade report through the NEXPEC platform. Work outside that scope
+requires a separate written change order.
 
-## 2. Compensation and escrow
-Payment is held in escrow by NEXPEC and released to the Inspector upon
-Client and Admin sign-off on the final report. Refer to your role-specific
-contract view for your applicable monetary figure.
+## 2. Compensation, escrow & release
+The Client's fees are held in escrow by NEXPEC and are released only after both
+the Client and NEXPEC sign off on the final report AND the engagement is
+completed free of any unresolved defect, damage, claim, or dispute
+("zero-liability completion"). Until those conditions are met, NEXPEC may
+continue to hold the escrowed funds. The fees payable are those set out in this
+Agreement.
 
-## 3. Confidentiality
+## 3. Limitation of liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, NEXPEC'S TOTAL AGGREGATE LIABILITY TO
+THE CLIENT ARISING OUT OF OR RELATING TO THIS AGREEMENT — WHETHER IN CONTRACT,
+TORT (INCLUDING NEGLIGENCE), STATUTE, INDEMNITY, OR OTHERWISE — SHALL NOT
+EXCEED THE TOTAL FEES PAYABLE BY THE CLIENT UNDER THIS SPECIFIC AGREEMENT.
+NEXPEC SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL,
+SPECIAL, EXEMPLARY, OR PUNITIVE DAMAGES, NOR FOR LOSS OF PROFITS, REVENUE,
+PRODUCTION, DATA, OR BUSINESS INTERRUPTION, EVEN IF ADVISED OF THE POSSIBILITY.
+As Broker-of-Record, NEXPEC coordinates independent providers and does not
+itself perform the physical inspection or warrant the condition of any
+equipment or facility.
+
+## 4. Independent providers & insurance
+The inspection and any related supply are performed by independent providers who
+are contractually required to carry and maintain their own Professional
+Liability (Errors & Omissions) and commercial general liability insurance.
+Certificates of insurance are available on reasonable request.
+
+## 5. Indemnification
+Responsibility for the acts, omissions, negligence, or work product of a
+provider flows down to and is borne by that provider, who indemnifies NEXPEC and
+the Client. Each party shall additionally indemnify the other against losses
+arising from its own gross negligence or willful misconduct, subject to the
+limitation in Section 3.
+
+## 6. Confidentiality & non-circumvention
 All project details, deliverables, and counterparty identities are
-confidential. Direct counterparty communication outside the NEXPEC platform
-is prohibited.
+confidential. Direct counterparty engagement outside the NEXPEC platform is
+prohibited during the engagement and for twelve (12) months thereafter.
 
-## 4. Standards of care
-The Inspector warrants performance to the applicable industry standards
-(API, ASME, ISO, AWS, NACE/AMPP, NEC, etc.) referenced in the scope.
+## 7. Standards of care
+The inspection is performed to the applicable industry standards (API, ASME,
+ISO, AWS, NACE/AMPP, NEC, etc.) referenced in the scope.
 
-## 5. Indemnity
-Each party indemnifies the other for losses arising from their gross
-negligence or willful misconduct, subject to the cap set forth in the
-NEXPEC Master Services Agreement.
+## 8. Warranties
+Except for the express obligations stated here, and to the maximum extent
+permitted by law, the services are provided without further warranties. NEXPEC
+does not guarantee outcomes that depend on third-party equipment or site
+conditions outside its reasonable control.
 
-## 6. Termination
-Either party may terminate for material breach with 5 business days'
-written notice via the NEXPEC platform.
+## 9. Termination
+Either party may terminate for material breach on five (5) business days'
+written notice via the NEXPEC platform. Sections 2 through 6 and Section 8
+survive termination.
 
-## 7. Acceptance
-Typed full legal name + checkbox below constitutes a binding electronic
-signature under ESIGN / eIDAS. Timestamp, IP, and user-agent are recorded.`;
+## 10. Acceptance
+Typing your full legal name plus the checkbox below constitutes a binding
+electronic signature under ESIGN / UETA / eIDAS. Timestamp, IP address, and
+user-agent are recorded as evidence of execution.`;
 }
 
 export async function generateJobContract(formData: FormData): Promise<void> {

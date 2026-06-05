@@ -93,7 +93,7 @@ export default async function ClientReleasePage({
         <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
           {qp.already === '1'
             ? 'You had already approved this report. Admin has the signal.'
-            : 'Approval recorded. Admin will process the inspector payout shortly.'}
+            : 'Approval recorded. Admin will process the release shortly.'}
         </Banner>
       )}
       {qp.revision && (
@@ -129,7 +129,6 @@ export default async function ClientReleasePage({
           label="Your price"
           value={formatPrice(state.clientPriceCents)}
           tone="violet"
-          sub="What you pay — distinct from the inspector's payout."
         />
       </section>
 
@@ -196,7 +195,7 @@ function ResolvedCard({
             </h2>
             <p className="mt-1 text-sm text-zinc-400">
               Signal recorded {new Date(signal.at).toLocaleString()}. Our team
-              processes the inspector payout from here — you&apos;ll see the
+              takes it from here — you&apos;ll see the
               completed report in <Link href="/client/reports" className="text-violet-glow hover:text-white">deliverables</Link>.
             </p>
           </div>
@@ -255,7 +254,7 @@ function DecisionCard({ jobId }: { jobId: string }) {
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
           You accept the inspector&apos;s report as delivered. This signals
-          our team to release the inspector&apos;s payout from escrow. We
+          our team to release the funds from escrow. We
           move the funds — you don&apos;t handle Stripe yourself.
         </p>
         <button
@@ -352,7 +351,7 @@ function ProcessExplainer() {
         />
         <Step
           n={3}
-          text="Your approval signals admin. Our team executes the Stripe Connect payout to the inspector. You never see card forms, escrow buttons, or Stripe sheets."
+          text="Your approval signals admin. Our team executes the release from escrow. You never see card forms, escrow buttons, or Stripe sheets."
         />
         <Step
           n={4}

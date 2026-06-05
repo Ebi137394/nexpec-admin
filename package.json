@@ -20,7 +20,9 @@
     "test": "npm run test --workspaces --if-present",
     "test:cov": "npm run test:cov --workspaces --if-present",
     "qa:outbox": "node scripts/qa/check-outbox-routing.mjs",
-    "qa:outbox:baseline": "node scripts/qa/check-outbox-routing.mjs --write-baseline"
+    "qa:outbox:baseline": "node scripts/qa/check-outbox-routing.mjs --write-baseline",
+    "qa:db-refs": "node scripts/qa/check-db-refs.mjs",
+    "qa:db-refs:baseline": "node scripts/qa/check-db-refs.mjs --write-baseline"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

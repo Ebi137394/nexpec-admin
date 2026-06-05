@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: No DEV SSO bypass / hardcoded dev password
         run: |
           if grep -rnE "DEV_SSO_BYPASS_(ENABLED|PASSWORD|DOMAINS)|password:\s*['\"]devtest" \
@@ -50,3 +54,6 @@ jobs:
             exit 1;
           fi
           echo "ok: no paid AI/cloud SDKs (\$0 in-house enforced)"
+
+      - name: No DB refs without a migration (schema-drift guard)
+        run: node scripts/qa/check-db-refs.mjs

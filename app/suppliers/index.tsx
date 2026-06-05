@@ -21,7 +21,7 @@ export default function SupplierDirectoryScreen() {
   const list = useMemo(() => items.filter((s) => {
     if (cap !== 'all' && !(s.capabilities ?? []).includes(cap)) return false;
     if (q.trim() === '') return true;
-    const hay = `${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
+    const hay = `${s.legal_name ?? ''} ${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
     return hay.includes(q.toLowerCase());
   }), [items, cap, q, capLabel]);
 
@@ -66,7 +66,7 @@ export default function SupplierDirectoryScreen() {
               <View style={s.avatar}><Ionicons name="storefront" size={20} color={T.colors.primaryLight} /></View>
               <View style={{ flex: 1 }}>
                 <View style={s.titleRow}>
-                  <Text style={s.cardTitle} numberOfLines={1}>{nxHandle(sup.id)}</Text>
+                  <Text style={s.cardTitle} numberOfLines={1}>{sup.legal_name?.trim() || nxHandle(sup.id)}</Text>
                   {sup.verified && <Ionicons name="shield-checkmark" size={14} color={T.colors.success} />}
                 </View>
                 <View style={s.capRow}>

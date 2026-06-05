@@ -26,7 +26,7 @@ export default function SupplierDirectoryPage() {
   const list = useMemo(() => items.filter((s) => {
     if (cap !== 'all' && !(s.capabilities ?? []).includes(cap)) return false;
     if (q.trim() === '') return true;
-    const hay = `${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
+    const hay = `${s.legal_name ?? ''} ${nxHandle(s.id)} ${(s.capabilities ?? []).map((k) => capLabel[k] ?? k).join(' ')} ${s.country_code ?? ''}`.toLowerCase();
     return hay.includes(q.toLowerCase());
   }), [items, cap, q, capLabel]);
 
@@ -67,7 +67,7 @@ export default function SupplierDirectoryPage() {
                 <div className="shrink-0 overflow-hidden rounded-lg"><TrustSigil id={s.id} size={44} /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <h3 className="truncate font-mono font-semibold">{nxHandle(s.id)}</h3>
+                    <h3 className={`truncate font-semibold ${s.legal_name ? '' : 'font-mono'}`}>{s.legal_name?.trim() || nxHandle(s.id)}</h3>
                     {s.verified && <ShieldCheck size={14} className="shrink-0 text-accent-green" />}
                   </div>
                   <div className="mt-1.5 flex flex-wrap gap-1">

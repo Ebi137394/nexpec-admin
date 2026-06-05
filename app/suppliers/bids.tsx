@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { toCents, formatUsd } from '../../src/core/utils/money';
 import { useMyQuotes } from '../../src/hooks/useSupplierEcosystem';
+import { ensureJobConversation } from '../../src/hooks/useConversations';
 
 const STATUS: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   submitted: { label: 'Submitted', color: '#38BDF8', bg: 'rgba(56,189,248,0.16)', icon: 'time-outline' },
@@ -21,6 +22,15 @@ export default function SupplierBids() {
   const router = useRouter();
   const { items, loading } = useMyQuotes();
   const [tab, setTab] = useState<Tab>('active');
+  const [chatBusy, setChatBusy] = useState(false);
+
+  const openProjectChat = async (jobId: string) => {
+    setChatBusy(true);
+    try {
+      const cid = await ensureJobConversation(jobId, 'job_supplier_admin');
+      if (cid) router.push(`/inbox/${cid}` as any);
+    } finally { setChatBusy(false); }
+  };
 
   const counts = useMemo(() => ({
     active: items.filter((q) => q.status === 'submitted' || q.status === 'shortlisted').length,
@@ -75,6 +85,11 @@ export default function SupplierBids() {
                   <Text style={s.cardSub}>{cents != null ? formatUsd(cents) : 'Quote on file'} · {new Date(q.created_at).toLocaleDateString()}{q.status === 'accepted' && q.spawned_job_id ? ' · dispatched' : ''}</Text>
                 </View>
                 <View style={[s.chip, { backgroundColor: st.bg }]}><Text style={[s.chipTxt, { color: st.color }]}>{st.label}</Text></View>
+                {q.status === 'accepted' && !!q.spawned_job_id && (
+                  <TouchableOpacity style={s.chatBtn} onPress={() => openProjectChat(q.spawned_job_id!)} disabled={chatBusy} hitSlop={6}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={T.colors.primaryLight} />
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -101,6 +116,7 @@ const s = StyleSheet.create({
   cardSub: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, marginTop: 4 },
   chip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: T.borderRadius.full },
   chipTxt: { fontSize: 10, fontWeight: '800' },
+  chatBtn: { width: 38, height: 38, borderRadius: T.borderRadius.md, borderWidth: 1, borderColor: T.colors.inputBorder, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
   emptyTxt: { color: T.colors.textMuted, fontSize: T.fontSize.sm, textAlign: 'center', lineHeight: 20 },
   emptyBtn: { borderWidth: 1, borderColor: T.colors.primary, borderRadius: T.borderRadius.full, paddingHorizontal: 18, paddingVertical: 9 },

@@ -190,7 +190,7 @@ export default function SupplierDashboard() {
             <Action icon="send-outline" label="My Bids" onPress={() => router.push('/suppliers/bids' as any)} />
             <Action icon="wallet-outline" label="Finance" onPress={() => router.push('/suppliers/finance' as any)} />
             <Action icon="shield-checkmark-outline" label="Documents" onPress={() => router.push('/suppliers/documents' as any)} />
-            <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/support-chat' as any)} />
+            <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/inbox' as any)} />
             <Action icon="construct-outline" label="Tools" onPress={() => router.push('/tools' as any)} />
           </View>
 

@@ -21,6 +21,7 @@ import {
   Gauge,
   FileText,
   Store,
+  Banknote,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -64,6 +65,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
       { label: 'Reviews', href: '/admin/reviews', icon: Star },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
+      { label: 'Supplier Releases', href: '/admin/supplier-payouts', icon: Banknote },
     ],
   },
   {

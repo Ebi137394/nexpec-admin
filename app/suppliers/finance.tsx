@@ -120,7 +120,7 @@ export default function SupplierFinance() {
           </View>
 
           {/* Brokered explainer */}
-          <TouchableOpacity style={s.broker} activeOpacity={0.85} onPress={() => router.push('/support-chat' as any)}>
+          <TouchableOpacity style={s.broker} activeOpacity={0.85} onPress={() => router.push('/inbox' as any)}>
             <Ionicons name="business-outline" size={18} color={T.colors.primaryLight} />
             <Text style={s.brokerTxt}>Payouts are admin-brokered — NEXPEC releases funds as milestones clear. Tap to reach the team.</Text>
           </TouchableOpacity>

@@ -50,6 +50,27 @@ export async function fetchJobDetections(jobId: string): Promise<AiDetection[]> 
   return (data ?? []) as AiDetection[];
 }
 
+// Ad-hoc server inference — sends a (client-downscaled) image to the analyze-image
+// edge function, which runs it on the in-house vision worker and records each
+// detection under the active signed model. Returns how many were recorded.
+export interface AnalyzeResult { ok: boolean; recorded?: number; error?: string; detail?: string }
+export async function analyzeImage(jobId: string, imageBase64: string, mime = 'image/jpeg'): Promise<AnalyzeResult> {
+  const { data, error } = await sb().functions.invoke('analyze-image', {
+    body: { job_id: jobId, image_base64: imageBase64, mime },
+  });
+  if (error) {
+    let detail = (error as { message?: string }).message ?? 'Analysis failed.';
+    try {
+      const b = await (error as { context?: { json?: () => Promise<{ error?: string; detail?: string }> } }).context?.json?.();
+      if (b?.detail || b?.error) detail = b.detail || b.error || detail;
+    } catch { /* keep generic */ }
+    return { ok: false, error: 'analysis_failed', detail };
+  }
+  const d = data as { ok?: boolean; recorded?: number; error?: string; detail?: string } | null;
+  if (d && d.ok === false) return { ok: false, error: d.error, detail: d.detail };
+  return { ok: true, recorded: d?.recorded ?? 0 };
+}
+
 // Accept a detection as a finding — provably bound to its signed model, exactly
 // like the mobile "accept" path (pi_record_ai_detection with p_accepted=true).
 export async function acceptDetection(d: AiDetection): Promise<{ ok: boolean; error?: string }> {

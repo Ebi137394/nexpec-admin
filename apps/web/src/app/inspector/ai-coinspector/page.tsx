@@ -12,11 +12,24 @@ import {
   Sparkles, ImageOff, Loader2, Cpu,
 } from 'lucide-react';
 import {
-  fetchInspectorJobs, fetchJobDetections, acceptDetection,
+  fetchInspectorJobs, fetchJobDetections, acceptDetection, analyzeImage,
   type InspectorJobLite, type AiDetection,
 } from '@/lib/data/aiCoinspector';
 
 interface Staged { id: string; url: string; name: string; size: number }
+
+// Downscale to a sane inference resolution (longest side) before sending — the
+// inspector keeps the full-res photo for review; the model only needs ~1280px.
+async function downscale(url: string, max = 1280): Promise<{ base64: string; mime: string }> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  const scale = Math.min(1, max / Math.max(img.width || max, img.height || max));
+  const w = Math.max(1, Math.round((img.width || max) * scale));
+  const h = Math.max(1, Math.round((img.height || max) * scale));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d')?.drawImage(img, 0, 0, w, h);
+  const dataUrl = c.toDataURL('image/jpeg', 0.9);
+  return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg' };
+}
 
 const sevCls = (s: string | null): string => {
   const v = (s ?? '').toLowerCase();
@@ -36,6 +49,8 @@ export default function AiCoinspectorPage() {
   const [accepting, setAccepting] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [camOn, setCamOn] = useState(false);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [analyzingAll, setAnalyzingAll] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -87,6 +102,34 @@ export default function AiCoinspectorPage() {
       setMsg({ kind: 'ok', text: `Recorded "${d.label}" as a finding — provably bound to ${d.model_slug} v${d.model_version}.` });
       loadDets(jobId);
     } finally { setAccepting(null); }
+  };
+
+  const analyzeOne = async (s: Staged) => {
+    if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
+    setAnalyzingId(s.id); setMsg(null);
+    try {
+      const { base64, mime } = await downscale(s.url);
+      const res = await analyzeImage(jobId, base64, mime);
+      if (!res.ok) { setMsg({ kind: 'err', text: res.detail || 'Analysis failed.' }); return; }
+      setMsg({ kind: 'ok', text: `AI recorded ${res.recorded ?? 0} finding${res.recorded === 1 ? '' : 's'}.` });
+      loadDets(jobId);
+    } catch { setMsg({ kind: 'err', text: 'Could not process the image.' }); }
+    finally { setAnalyzingId(null); }
+  };
+  const analyzeAll = async () => {
+    if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
+    setAnalyzingAll(true); setMsg(null);
+    let total = 0; let err: string | null = null;
+    try {
+      for (const s of staged) {
+        const { base64, mime } = await downscale(s.url);
+        const res = await analyzeImage(jobId, base64, mime);
+        if (!res.ok) { err = res.detail || 'Analysis failed.'; break; }
+        total += res.recorded ?? 0;
+      }
+      setMsg(err ? { kind: 'err', text: err } : { kind: 'ok', text: `AI recorded ${total} finding${total === 1 ? '' : 's'} across ${staged.length} photo${staged.length === 1 ? '' : 's'}.` });
+      loadDets(jobId);
+    } finally { setAnalyzingAll(false); }
   };
 
   const pending = useMemo(() => dets.filter((d) => !d.accepted_by_human), [dets]);
@@ -147,17 +190,31 @@ export default function AiCoinspectorPage() {
           )}
 
           {staged.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {staged.map((s) => (
-                <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
-                  <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={analyzeAll} disabled={!jobId || analyzingAll}
+                  className="inline-flex items-center gap-2 rounded-full bg-violet px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
+                  {analyzingAll ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                  {analyzingAll ? 'Analysing…' : `Analyse ${staged.length} with AI`}
+                </button>
+                {!jobId && <span className="text-[11px] text-accent-amber">Select a job above to run analysis.</span>}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {staged.map((s) => (
+                  <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
+                    <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
+                    <button onClick={() => analyzeOne(s)} disabled={!jobId || analyzingId === s.id}
+                      className="absolute inset-x-1 bottom-1 inline-flex items-center justify-center gap-1 rounded-md bg-violet/90 py-1 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100 disabled:opacity-60">
+                      {analyzingId === s.id ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Analyse
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
-          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Staged imagery is a review workspace. Field captures are analysed by NEXPEC&rsquo;s secured vision worker; results appear under AI findings →</p>
+          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Dropped photos are analysed by NEXPEC&rsquo;s secured in-house vision worker; recorded findings appear under AI findings →</p>
         </section>
 
         {/* ── AI findings ── */}

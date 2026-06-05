@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Store, FileText, LayoutDashboard } from 'lucide-react';
+import { Store, FileText, LayoutDashboard, ArrowLeft } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -53,7 +53,17 @@ export default async function MarketplaceLayout({ children }: { children: React.
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 py-6">
+        {/* Persistent return path into the user's own portal — the marketplace
+            shell is a separate layout, so without this the section is a dead-end. */}
+        <Link
+          href={dashboardHref}
+          className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-sm font-semibold text-white/80 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+        >
+          <ArrowLeft size={15} /> Back to dashboard
+        </Link>
+        {children}
+      </main>
     </div>
   );
 }

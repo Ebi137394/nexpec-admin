@@ -190,7 +190,7 @@ export function RichComposer({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{preview.name}</p>
             <p className="text-[11px] text-zinc-500">
-              {fmtSize(preview.size)} · ready to send
+              {fmtSize(preview.size)} ready to send
             </p>
           </div>
           <button
@@ -229,7 +229,7 @@ export function RichComposer({
           <label
             htmlFor={`attach-${conversationId}`}
             className="inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:border-violet/40 hover:text-white"
-            title="Attach a file — image, PDF, doc, sheet, zip, video or audio (max 50 MB)"
+            title="Attach a file (image, PDF, doc, sheet, zip, video or audio; max 50 MB)"
           >
             <Paperclip className="h-4 w-4" strokeWidth={1.75} />
           </label>
@@ -262,8 +262,8 @@ export function RichComposer({
             interferes with the text form's submit. */}
         <VoiceRecorder conversationId={conversationId} returnTo={returnTo} />
         <p className="hidden text-[10px] text-zinc-600 sm:block">
-          Enter to send · Shift+Enter for a new line · 📎 to attach · drag, drop
-          or paste an image · tap the mic for voice.
+          Press Enter to send, Shift+Enter for a new line. Attach a file, or drag,
+          drop, or paste an image. Tap the mic to record a voice message.
         </p>
       </div>
     </div>

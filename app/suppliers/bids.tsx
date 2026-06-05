@@ -82,7 +82,7 @@ export default function SupplierBids() {
                 <View style={[s.iconTile, { backgroundColor: st.bg }]}><Ionicons name={st.icon} size={20} color={st.color} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{q.rfq_title || 'RFQ'}</Text>
-                  <Text style={s.cardSub}>{cents != null ? formatUsd(cents) : 'Quote on file'} · {new Date(q.created_at).toLocaleDateString()}{q.status === 'accepted' && q.spawned_job_id ? ' · dispatched' : ''}</Text>
+                  <Text style={s.cardSub}>{cents != null ? formatUsd(cents) : 'Quote on file'}, {new Date(q.created_at).toLocaleDateString()}{q.status === 'accepted' && q.spawned_job_id ? ', dispatched' : ''}</Text>
                 </View>
                 <View style={[s.chip, { backgroundColor: st.bg }]}><Text style={[s.chipTxt, { color: st.color }]}>{st.label}</Text></View>
                 {q.status === 'accepted' && !!q.spawned_job_id && (

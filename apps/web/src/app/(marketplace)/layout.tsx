@@ -38,7 +38,7 @@ export default async function MarketplaceLayout({ children }: { children: React.
       <header className="sticky top-0 z-20 border-b border-ink-600/70 bg-ink-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/rfqs" className="text-sm font-extrabold tracking-tight">
-            NE<span className="text-cyan">X</span>PEC <span className="text-white/50 font-semibold">· Marketplace</span>
+            NE<span className="text-cyan">X</span>PEC <span className="text-white/50 font-semibold">Marketplace</span>
           </Link>
           <nav className="flex items-center gap-1">
             <Link href={dashboardHref} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-white/80 hover:bg-white/5 hover:text-white">

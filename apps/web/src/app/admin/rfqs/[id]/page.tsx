@@ -39,10 +39,10 @@ export default function AdminRfqDetailPage() {
     <div className="space-y-6">
       <Link href="/admin/rfqs" className="inline-flex items-center gap-1.5 text-xs text-zinc-400 transition hover:text-violet-glow"><ArrowLeft className="h-3.5 w-3.5" /> Quote Review</Link>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Brokerage · Markup</p>
+        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Brokerage Markup</p>
         <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">{rfq.title}</h1>
         <p className="mt-2 text-sm text-zinc-400">
-          {quotes.length} quote{quotes.length === 1 ? '' : 's'} · status <span className="text-zinc-200">{rfq.status}</span>
+          {quotes.length} quote{quotes.length === 1 ? '' : 's'}<span className="ml-3">status <span className="text-zinc-200">{rfq.status}</span></span>
           {rfq.requires_source_inspection && <span className="ml-2 inline-flex items-center gap-1 text-violet-glow"><ShieldCheck className="h-3.5 w-3.5" /> Source / FAT</span>}
         </p>
       </header>
@@ -50,7 +50,7 @@ export default function AdminRfqDetailPage() {
       {rfq.spawned_job_id && (
         <div className="flex items-center gap-3 rounded-2xl border border-accent-green/40 bg-accent-green/10 p-4">
           <Rocket size={18} className="text-accent-green" />
-          <p className="text-sm font-semibold text-accent-green">Awarded — inspection dispatched. Pricing is locked.</p>
+          <p className="text-sm font-semibold text-accent-green">Awarded. Inspection dispatched. Pricing is locked.</p>
         </div>
       )}
 
@@ -121,7 +121,7 @@ function QuoteCard({ q, awardable, onChange, onError }: {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">{q.supplier_name ?? 'Supplier'}</p>
           <p className="mt-0.5 text-xs text-zinc-500">
-            {q.quote?.lead_time ? `Lead time · ${q.quote.lead_time}` : 'No lead time'} · {new Date(q.created_at).toLocaleDateString()}
+            {q.quote?.lead_time ? <><span className="text-zinc-500">Lead time</span> {q.quote.lead_time}</> : 'No lead time'}<span className="ml-2">{new Date(q.created_at).toLocaleDateString()}</span>
           </p>
         </div>
         <div className="text-right">
@@ -133,7 +133,7 @@ function QuoteCard({ q, awardable, onChange, onError }: {
 
       {accepted ? (
         <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-green">
-          <CheckCircle2 size={15} /> Accepted · client paid {q.client_price_cents != null ? formatUsd(q.client_price_cents) : '—'}
+          <CheckCircle2 size={15} /> Accepted, client paid {q.client_price_cents != null ? formatUsd(q.client_price_cents) : '—'}
         </p>
       ) : declined ? (
         <p className="mt-3 text-sm font-semibold text-zinc-500">Not selected</p>
@@ -159,11 +159,11 @@ function QuoteCard({ q, awardable, onChange, onError }: {
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
             <span className={belowCost ? 'text-accent-red' : 'text-accent-green'}>
-              Margin · {formatUsd(marginCents)} ({marginPct.toFixed(0)}%)
+              <span className="text-zinc-500">Margin</span> {formatUsd(marginCents)} ({marginPct.toFixed(0)}%)
             </span>
             {presented && (
               <span className="inline-flex items-center gap-1 text-violet-glow">
-                <CheckCircle2 size={12} /> Presented at {formatUsd(q.client_price_cents ?? 0)} — awaiting client
+                <CheckCircle2 size={12} /> Presented at {formatUsd(q.client_price_cents ?? 0)}, awaiting client
               </span>
             )}
           </div>

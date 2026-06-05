@@ -23,7 +23,7 @@ export default function RfqHubPage() {
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold">RFQs &amp; Procurement</h1>
-          <p className="mt-1 text-sm text-white/60">Source anything — inspection auto-dispatches on award.</p>
+          <p className="mt-1 text-sm text-white/60">Source anything. Inspection auto-dispatches on award.</p>
         </div>
         <Link href="/rfqs/new" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet px-4 py-2 text-sm font-bold hover:bg-violet-deep">
           <Plus size={16} /> New RFQ

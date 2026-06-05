@@ -77,7 +77,7 @@ export default function SupplierOpportunities() {
                   {o.matched && <View style={s.matchPill}><Text style={s.matchTxt}>MATCH</Text></View>}
                   {o.alreadyQuoted && <View style={s.bidPill}><Text style={s.bidTxt}>YOU BID</Text></View>}
                 </View>
-                <Text style={s.cardSub}>{o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'} · {new Date(o.created_at).toLocaleDateString()}</Text>
+                <Text style={s.cardSub}>{o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'}, {new Date(o.created_at).toLocaleDateString()}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={T.colors.textMuted} />
             </TouchableOpacity>

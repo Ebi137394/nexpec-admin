@@ -71,7 +71,7 @@ export default function RfqDetailPage() {
       if (note.trim()) quote.note = note.trim();
       const { error } = await submitQuote(id, quote);
       if (error) { setMsg(error.message); return; }
-      setAmount(''); setLead(''); setNote(''); await load(); setMsg('Quote submitted — NEXPEC will review it.');
+      setAmount(''); setLead(''); setNote(''); await load(); setMsg('Quote submitted. NEXPEC will review it.');
     } finally { setBusy(false); }
   };
 
@@ -130,9 +130,9 @@ export default function RfqDetailPage() {
             <div className="mt-6 rounded-xl border border-ink-600 bg-ink-800 p-4">
               <h2 className="mb-3 font-bold">{myQuote ? 'Update your quote' : 'Submit a quote'}</h2>
               <div className="space-y-3">
-                <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount (USD) — e.g. 4200" className={inp} />
-                <input value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Lead time — e.g. 3 weeks" className={inp} />
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Note — compliance, incoterms…" className={inp} />
+                <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount in USD (e.g. 4200)" className={inp} />
+                <input value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Lead time (e.g. 3 weeks)" className={inp} />
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Notes (compliance, incoterms…)" className={inp} />
                 <button onClick={doSubmit} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-violet px-4 py-2 text-sm font-bold hover:bg-violet-deep disabled:opacity-60">
                   <Send size={15} /> {busy ? 'Submitting…' : myQuote ? 'Resubmit quote' : 'Submit quote'}
                 </button>
@@ -176,7 +176,7 @@ export default function RfqDetailPage() {
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
                       {o.supplier_handle && <span className="inline-flex items-center gap-1"><Sparkles size={11} className="text-violet-glow" /> {o.supplier_handle}</span>}
-                      {o.lead_time && <span>Lead time · {o.lead_time}</span>}
+                      {o.lead_time && <span><span className="text-white/40">Lead time</span> {o.lead_time}</span>}
                     </div>
                     {o.status === 'presented' && awardable && (
                       <button onClick={() => doAccept(o)} disabled={!!awarding} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-violet px-4 py-2 text-sm font-bold hover:bg-violet-deep disabled:opacity-60">
@@ -206,7 +206,7 @@ function BidRow({ quote }: { quote: Quote }) {
         <span className="text-lg font-extrabold">{cents != null ? formatUsd(cents) : '—'}</span>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${st.cls}`}>{st.label}</span>
       </div>
-      {quote.quote?.lead_time && <p className="mt-1 text-xs text-white/60">Lead time · {quote.quote.lead_time}</p>}
+      {quote.quote?.lead_time && <p className="mt-1 text-xs text-white/60"><span className="text-white/40">Lead time</span> {quote.quote.lead_time}</p>}
       {quote.quote?.note && <p className="mt-1 text-sm text-white/70">{quote.quote.note}</p>}
     </li>
   );

@@ -54,7 +54,7 @@ export default function SupplierFinance() {
     try {
       const res = await supplierWithdraw(cents);
       if (!res.ok) { setWMsg(res.error ?? 'Payout failed.'); return; }
-      setAmount(''); setWMsg('Payout initiated — funds arrive in 1–2 business days.');
+      setAmount(''); setWMsg('Payout initiated. Funds arrive in 1–2 business days.');
       await refetchWallet();
     } finally { setWBusy(false); }
   };
@@ -80,7 +80,7 @@ export default function SupplierFinance() {
           {/* Hero — contracted value */}
           <View style={s.hero}>
             <LinearGradient colors={['rgba(124,58,237,0.20)', 'rgba(124,58,237,0.05)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-            <Text style={s.heroKicker}>CONTRACTED VALUE · AWARDED WORK</Text>
+            <Text style={s.heroKicker}>CONTRACTED VALUE OF AWARDED WORK</Text>
             <Text style={s.heroValue}>{formatUsd(f?.contractedCents ?? 0)}</Text>
             <View style={s.subRow}>
               <Sub label="Settled" value={formatUsd(f?.receivedCents ?? 0)} color={T.colors.success} />
@@ -122,7 +122,7 @@ export default function SupplierFinance() {
           {/* Brokered explainer */}
           <TouchableOpacity style={s.broker} activeOpacity={0.85} onPress={() => router.push('/inbox' as any)}>
             <Ionicons name="business-outline" size={18} color={T.colors.primaryLight} />
-            <Text style={s.brokerTxt}>Payouts are admin-brokered — NEXPEC releases funds as milestones clear. Tap to reach the team.</Text>
+            <Text style={s.brokerTxt}>Payouts are admin-brokered. NEXPEC releases funds as milestones clear. Tap to reach the team.</Text>
           </TouchableOpacity>
 
           {/* KPI grid */}
@@ -164,7 +164,7 @@ export default function SupplierFinance() {
                   <View style={[s.iconTile, { backgroundColor: 'rgba(16,185,129,0.14)' }]}><Ionicons name="trophy-outline" size={18} color={T.colors.success} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.rowTitle} numberOfLines={1}>{c.title}</Text>
-                    <Text style={s.rowSub}>Awarded {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? ' · in delivery' : ' · mobilising'}</Text>
+                    <Text style={s.rowSub}>Awarded {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? ', in delivery' : ', mobilising'}</Text>
                   </View>
                   <Text style={s.rowAmount}>{formatUsd(c.amountCents)}</Text>
                 </TouchableOpacity>
@@ -173,7 +173,7 @@ export default function SupplierFinance() {
               {/* Ledger */}
               <Text style={s.sectionTitle}>Settlement history</Text>
               {f!.transactions.length === 0 ? (
-                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>No settlements yet — brokered payouts appear here.</Text></View>
+                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>No settlements yet. Brokered payouts appear here.</Text></View>
               ) : f!.transactions.map((t) => {
                 const positive = POSITIVE.has(t.type);
                 return (
@@ -181,7 +181,7 @@ export default function SupplierFinance() {
                     <View style={[s.iconTile, { backgroundColor: T.colors.inputBackground }]}><Ionicons name={positive ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={18} color={positive ? T.colors.success : T.colors.textSecondary} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.rowTitle} numberOfLines={1}>{t.description || t.type}</Text>
-                      <Text style={s.rowSub}><Text style={{ textTransform: 'capitalize' }}>{t.type}</Text> · <Text style={{ color: STATUS_COLOR[t.status] ?? T.colors.textMuted, fontWeight: '700', textTransform: 'capitalize' }}>{t.status}</Text> · {new Date(t.created_at).toLocaleDateString()}</Text>
+                      <Text style={s.rowSub}><Text style={{ textTransform: 'capitalize' }}>{t.type}</Text>, <Text style={{ color: STATUS_COLOR[t.status] ?? T.colors.textMuted, fontWeight: '700', textTransform: 'capitalize' }}>{t.status}</Text>, {new Date(t.created_at).toLocaleDateString()}</Text>
                     </View>
                     <Text style={[s.rowAmount, { color: positive ? T.colors.success : T.colors.text }]}>{positive ? '+' : '−'}{formatUsd(Math.round(Math.abs(t.amount) * 100))}</Text>
                   </View>

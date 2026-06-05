@@ -103,7 +103,7 @@ export default function SupplierContractsListScreen() {
             <ArrowLeft size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.headerKicker}>SUPPLIER · LEGAL</Text>
+            <Text style={s.headerKicker}>SUPPLIER &amp; LEGAL</Text>
             <Text style={s.headerTitle}>Agreements</Text>
           </View>
           <View style={{ width: 38 }} />
@@ -229,7 +229,7 @@ function ContractRow({
           {c.rfq_title ?? 'Awarded agreement'}
         </Text>
         <Text style={s.rowMeta} numberOfLines={1}>
-          {formatUsd(c.amount_cents)} · issued{' '}
+          {formatUsd(c.amount_cents)}, issued{' '}
           {new Date(c.created_at).toLocaleDateString()}
         </Text>
       </View>

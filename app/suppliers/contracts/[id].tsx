@@ -396,7 +396,7 @@ const Header: React.FC<{
         <ArrowLeft size={18} color={C.text} />
       </Pressable>
       <View style={s.headerCenter}>
-        <Text style={s.headerKicker}>BINDING · BROKERED</Text>
+        <Text style={s.headerKicker}>BINDING &amp; BROKERED</Text>
         <Text style={s.headerTitle}>Agreement</Text>
       </View>
       {status ? (
@@ -453,7 +453,7 @@ const Step: React.FC<{
       <Text style={[s.tlLabel, { color: tone }]} numberOfLines={1}>{label}</Text>
       {at ? (
         <Text style={s.tlMeta} numberOfLines={1}>
-          {name ? `${name} · ` : ''}
+          {name ? `${name}, ` : ''}
           {new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </Text>
       ) : active ? (

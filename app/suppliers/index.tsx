@@ -32,7 +32,7 @@ export default function SupplierDirectoryScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>Find Suppliers</Text>
-          <Text style={s.sub}>Source equipment, labs & materials — any discipline</Text>
+          <Text style={s.sub}>Source equipment, labs and materials across any discipline</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/rfqs/new' as any)} style={s.cta} activeOpacity={0.85}>
           <Ionicons name="add" size={16} color="#fff" /><Text style={s.ctaText}>RFQ</Text>
@@ -77,7 +77,7 @@ export default function SupplierDirectoryScreen() {
                 <View style={s.metaRow}>
                   <Ionicons name="star" size={12} color="#F59E0B" />
                   <Text style={s.meta}>{Number(sup.rating_avg ?? 0).toFixed(1)} ({sup.rating_count ?? 0})</Text>
-                  {!!sup.country_code && <Text style={s.meta}>· {sup.country_code}</Text>}
+                  {!!sup.country_code && <Text style={[s.meta, { marginLeft: 6 }]}>{sup.country_code}</Text>}
                 </View>
               </View>
               <TouchableOpacity style={s.quoteBtn} activeOpacity={0.85} onPress={() => router.push('/rfqs/new' as any)}>

@@ -32,7 +32,7 @@ export default function RfqHubScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>RFQs & Procurement</Text>
-          <Text style={s.sub}>Source anything — inspection auto-dispatches on award</Text>
+          <Text style={s.sub}>Source anything. Inspection auto-dispatches on award</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/rfqs/new' as any)} style={s.cta} activeOpacity={0.85}>
           <Ionicons name="add" size={16} color="#fff" /><Text style={s.ctaText}>New</Text>

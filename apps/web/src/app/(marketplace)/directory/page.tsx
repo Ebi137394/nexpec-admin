@@ -35,7 +35,7 @@ export default function SupplierDirectoryPage() {
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold">Find Suppliers</h1>
-          <p className="mt-1 text-sm text-white/60">Source equipment, labs &amp; materials — any discipline.</p>
+          <p className="mt-1 text-sm text-white/60">Source equipment, labs and materials across any discipline.</p>
         </div>
         <Link href="/suppliers/profile" className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet px-4 py-2 text-sm font-bold text-violet-glow hover:bg-violet/10"><Store size={15} /> Become a supplier</Link>
       </div>
@@ -74,7 +74,7 @@ export default function SupplierDirectoryPage() {
                     {(s.capabilities ?? []).slice(0, 3).map((k) => <span key={k} className="rounded border border-ink-600 bg-ink-950 px-1.5 py-0.5 text-[10px] font-semibold text-white/60">{capLabel[k] ?? k}</span>)}
                   </div>
                   <div className="mt-1.5 flex items-center gap-1 text-[11px] text-white/50">
-                    <Star size={11} className="text-accent-amber" />{Number(s.rating_avg ?? 0).toFixed(1)} ({s.rating_count ?? 0}){s.country_code && <span>· {s.country_code}</span>}
+                    <Star size={11} className="text-accent-amber" />{Number(s.rating_avg ?? 0).toFixed(1)} ({s.rating_count ?? 0}){s.country_code && <span>{s.country_code}</span>}
                   </div>
                 </div>
                 <ChevronRight size={16} className="shrink-0 text-white/30" />

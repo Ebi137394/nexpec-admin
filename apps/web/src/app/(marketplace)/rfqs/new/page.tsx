@@ -79,7 +79,7 @@ export default function NewRfqPage() {
               <option value="">Choose discipline / scope…</option>
               {Object.entries(byDomain).map(([domain, list]) => (
                 <optgroup key={domain} label={domain.toUpperCase()}>
-                  {list.map((sc) => <option key={sc.id} value={sc.id}>{sc.name} — {sc.category}</option>)}
+                  {list.map((sc) => <option key={sc.id} value={sc.id}>{sc.name} ({sc.category})</option>)}
                 </optgroup>
               ))}
             </select>

@@ -66,7 +66,7 @@ export default function SupplierDetailPage() {
                 </span>
               )}
             </div>
-            <p className="mt-1 text-xs text-white/50">Identity protected — NEXPEC brokers all engagement. Raise an RFQ to transact.</p>
+            <p className="mt-1 text-xs text-white/50">Identity protected. NEXPEC brokers all engagement. Raise an RFQ to transact.</p>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/60">
               <span className="inline-flex items-center gap-1"><Star size={12} className="text-accent-amber" /> {Number(supplier.rating_avg ?? 0).toFixed(1)} ({supplier.rating_count ?? 0} reviews)</span>
               {supplier.country_code && <span className="inline-flex items-center gap-1"><MapPin size={12} /> {supplier.country_code}</span>}
@@ -106,7 +106,7 @@ export default function SupplierDetailPage() {
 
       {/* Trust note */}
       <p className="flex items-center gap-1.5 text-xs text-white/40">
-        <ShieldCheck size={13} /> Verification and certificates are reviewed by NEXPEC. Sourcing is admin-brokered — raise an RFQ to engage this supplier.
+        <ShieldCheck size={13} /> Verification and certificates are reviewed by NEXPEC. Sourcing is admin-brokered. Raise an RFQ to engage this supplier.
       </p>
     </div>
   );

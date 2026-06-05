@@ -54,7 +54,7 @@ export default function SupplierOnboardScreen() {
       {loading ? <View style={s.center}><ActivityIndicator size="large" color={T.colors.primary} /></View> : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <Field label="Company / legal name *"><TextInput value={legalName} onChangeText={setLegalName} placeholder="ACME Manufacturing GmbH" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
-          <Field label="Headline"><TextInput value={headline} onChangeText={setHeadline} placeholder="ISO 17025 calibration lab · GCC" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
+          <Field label="Headline"><TextInput value={headline} onChangeText={setHeadline} placeholder="ISO 17025 calibration lab, GCC" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
           <Field label="Country code"><TextInput value={country} onChangeText={(v) => setCountry(v.toUpperCase())} maxLength={2} autoCapitalize="characters" placeholder="AE" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
 
           <Text style={s.section}>Capabilities *</Text>
@@ -78,7 +78,7 @@ export default function SupplierOnboardScreen() {
           <Field label="Standards served (comma-separated)"><TextInput value={standards} onChangeText={setStandards} placeholder="ASME, EN, ISO" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
 
           <Text style={s.section}>Certifications & Documents</Text>
-          <Text style={s.docNote}>Optional now — every file is cryptographically sealed and timestamped on upload, then reviewed for verification. You can add more anytime from your dashboard.</Text>
+          <Text style={s.docNote}>Optional now. Every file is cryptographically sealed and timestamped on upload, then reviewed for verification. You can add more anytime from your dashboard.</Text>
           <DocumentField
             field={{ name: 'iso_cert', label: 'ISO / Quality certificate', type: 'document', docType: 'iso_cert', helperText: 'e.g. ISO 9001 or ISO 17025' }}
             value={isoCert} onChange={setIsoCert} onBlur={() => {}}

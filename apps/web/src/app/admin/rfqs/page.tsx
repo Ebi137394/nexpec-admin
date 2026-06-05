@@ -29,11 +29,11 @@ export default function AdminRfqsPage() {
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Operations · Brokerage</p>
+        <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Operations Brokerage</p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Quote Review &amp; Markup</h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Suppliers&rsquo; raw quotes land here for review. Set your client-facing markup and present a curated offer —
-          the client never sees the supplier&rsquo;s raw price. They can only accept what you present.
+          Suppliers&rsquo; raw quotes land here for review. Set your client-facing markup and present a curated offer.
+          The client never sees the supplier&rsquo;s raw price. They can only accept what you present.
         </p>
       </header>
 
@@ -78,8 +78,8 @@ function RfqRow({ r }: { r: AdminRfqRow }) {
           <p className="truncate text-sm font-semibold text-white">{r.title}</p>
           <p className="mt-0.5 text-xs text-zinc-500">
             {r.quote_count} quote{r.quote_count === 1 ? '' : 's'}
-            {r.presented_count > 0 ? ` · ${r.presented_count} presented` : ''}
-            {' · '}{new Date(r.created_at).toLocaleDateString()}
+            {r.presented_count > 0 ? <span className="ml-2">{r.presented_count} presented</span> : null}
+            <span className="ml-2">{new Date(r.created_at).toLocaleDateString()}</span>
           </p>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${cls}`}>{r.status}</span>

@@ -28,7 +28,7 @@ export default function NewRfqScreen() {
 
   const submit = async () => {
     if (title.trim() === '') { Alert.alert('Title required'); return; }
-    if (requiresInspection && !scope) { Alert.alert('Pick an inspection discipline', 'Source/FAT inspection is on — choose the discipline NEXPEC should inspect, or turn it off for procurement-only.'); return; }
+    if (requiresInspection && !scope) { Alert.alert('Pick an inspection discipline', 'Source/FAT inspection is on. Choose the discipline NEXPEC should inspect, or turn it off for procurement-only.'); return; }
     setBusy(true);
     try {
       const spec: any = {};
@@ -69,7 +69,7 @@ export default function NewRfqScreen() {
               <View style={{ flex: 1 }}>
                 {scope ? <>
                   <Text style={s.pickerVal} numberOfLines={1}>{scope.name}</Text>
-                  <Text style={s.pickerDomain}>{scope.domain} · {scope.category}</Text>
+                  <Text style={s.pickerDomain}>{scope.domain} ({scope.category})</Text>
                 </> : <Text style={s.pickerPlaceholder}>Choose discipline / scope…</Text>}
               </View>
               <Ionicons name="chevron-forward" size={18} color={T.colors.textMuted} />

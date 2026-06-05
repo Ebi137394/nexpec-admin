@@ -56,7 +56,7 @@ export default function RfqDetailScreen() {
           const { error } = await awardQuote(offer.id);
           if (error) { Alert.alert('Could not proceed', error.message); return; }
           await refetch();
-          Alert.alert(rfq?.requires_source_inspection ? 'Accepted · Inspection dispatched' : 'Accepted',
+          Alert.alert(rfq?.requires_source_inspection ? 'Accepted, inspection dispatched' : 'Accepted',
             rfq?.requires_source_inspection ? 'A source/FAT inspection job was created and is now in admin dispatch.' : 'NEXPEC is proceeding with your order.');
         } finally { setAwarding(null); }
       } }]);
@@ -121,7 +121,7 @@ export default function RfqDetailScreen() {
                     <Text style={[s.qBadgeTxt, { color: T.colors.textSecondary }]}>{BID_STATUS[myQuote.status] ?? myQuote.status}</Text>
                   </View>
                 </View>
-                {!!myQuote.quote?.lead_time && <Text style={s.quoteMeta}>Lead time · {myQuote.quote.lead_time}</Text>}
+                {!!myQuote.quote?.lead_time && <Text style={s.quoteMeta}>Lead time {myQuote.quote.lead_time}</Text>}
                 {!!myQuote.quote?.note && <Text style={s.quoteNote}>{myQuote.quote.note}</Text>}
               </View>
             )}
@@ -154,7 +154,7 @@ export default function RfqDetailScreen() {
                   </View>
                   <View style={s.offerMetaRow}>
                     {!!o.supplier_handle && <Text style={s.offerHandle}>{o.supplier_handle}</Text>}
-                    {!!o.lead_time && <Text style={s.quoteMeta}>Lead time · {o.lead_time}</Text>}
+                    {!!o.lead_time && <Text style={s.quoteMeta}>Lead time {o.lead_time}</Text>}
                   </View>
                   {o.status === 'presented' && awardable && (
                     <TouchableOpacity style={[s.awardBtn, awarding === o.id && { opacity: 0.6 }]} onPress={() => doAccept(o)} disabled={!!awarding} activeOpacity={0.85}>

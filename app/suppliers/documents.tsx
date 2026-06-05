@@ -82,12 +82,10 @@ export default function SupplierDocuments() {
               <View style={s.docMeta}>
                 <Ionicons name="shield-checkmark" size={12} color={T.colors.success} />
                 <Text style={[s.metaTxt, { color: T.colors.success }]}>Sealed</Text>
-                <Text style={s.dot}>·</Text>
                 {d.ots_status === 'bitcoin_confirmed'
                   ? <><Ionicons name="logo-bitcoin" size={12} color="#F59E0B" /><Text style={[s.metaTxt, { color: '#F59E0B' }]}>Anchored</Text></>
                   : <><Ionicons name="time-outline" size={12} color="#38BDF8" /><Text style={[s.metaTxt, { color: '#38BDF8' }]}>Pending</Text></>}
-                <Text style={s.dot}>·</Text>
-                <Text style={s.metaMuted}>{DOC_LABEL[d.doc_type] ?? d.doc_type}{d.byte_size ? ` · ${bytes(d.byte_size)}` : ''}</Text>
+                <Text style={s.metaMuted}>{DOC_LABEL[d.doc_type] ?? d.doc_type}</Text>{d.byte_size ? <Text style={s.metaMuted}>{bytes(d.byte_size)}</Text> : null}
               </View>
             </View>
             <TouchableOpacity style={s.viewBtn} onPress={() => open(d.storage_path, d.id)} disabled={opening === d.id}>
@@ -132,7 +130,7 @@ const s = StyleSheet.create({
   docCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: T.spacing.md, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, marginBottom: 8 },
   iconTile: { width: 44, height: 44, borderRadius: T.borderRadius.md, alignItems: 'center', justifyContent: 'center' },
   docTitle: { color: T.colors.text, fontSize: T.fontSize.sm, fontWeight: '600' },
-  docMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: 5 },
+  docMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 5 },
   metaTxt: { fontSize: 11, fontWeight: '700' },
   metaMuted: { color: T.colors.textMuted, fontSize: 11 },
   dot: { color: T.colors.textMuted, fontSize: 11 },

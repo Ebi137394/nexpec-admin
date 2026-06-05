@@ -49,7 +49,7 @@ export function FieldResilience() {
             </h2>
             <p className="mt-5 text-pretty text-lg leading-relaxed text-zinc-300">
               Inspectors capture photos, findings and signatures with zero signal.
-              Everything is sealed on-device and syncs the moment a connection returns —
+              Everything is sealed on-device and syncs the moment a connection returns,
               nothing lost, nothing duplicated, even days off-grid.
             </p>
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-400">

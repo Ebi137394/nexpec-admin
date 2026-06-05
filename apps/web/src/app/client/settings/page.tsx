@@ -44,7 +44,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Settings
+          Client Portal, Settings
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Your profile
@@ -66,7 +66,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
         </Banner>
       )}
 
-      {/* Avatar upload — separate <form> from the profile form so the
+      {/* Avatar upload, separate <form> from the profile form so the
           multipart file submit doesn't collide with text-field submission. */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
         <header className="mb-6">
@@ -122,7 +122,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
               className="sr-only"
             />
             <p className="text-[11px] text-zinc-500">
-              JPEG, PNG, WebP, or GIF · max 5 MB · square crops look best.
+              JPEG, PNG, WebP, or GIF, max 5 MB, square crops look best.
             </p>
             <button
               type="submit"
@@ -171,7 +171,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
             type="tel"
             defaultValue={profile.phone ?? ''}
             placeholder="+1 555 0100"
-            hint="Used for urgent dispatch alerts only — never shown to inspectors."
+            hint="Used for urgent dispatch alerts only, never shown to inspectors."
           />
           <Field
             label="Email"
@@ -179,7 +179,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
             type="email"
             defaultValue={profile.email}
             disabled
-            hint="Email rotation goes through support — drop a note in /contact."
+            hint="Email rotation goes through support, drop a note in /contact."
           />
         </div>
 
@@ -228,7 +228,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
         </dl>
       </section>
 
-      {/* Sprint 13.3 — Two-factor authentication. Strictly additive at
+      {/* Sprint 13.3, Two-factor authentication. Strictly additive at
           the tail of the existing layout. */}
       <MfaSection initial={mfaStatus} />
     </div>

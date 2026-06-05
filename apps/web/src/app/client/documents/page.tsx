@@ -51,7 +51,7 @@ export default async function ClientDocumentsPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Documents
+          Client Portal, Documents
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Operational documents
@@ -96,7 +96,7 @@ export default async function ClientDocumentsPage({ searchParams }: PageProps) {
             <FileText className="mx-auto h-8 w-8 text-zinc-600" strokeWidth={1.5} />
             <p className="mt-3 text-sm text-zinc-300">No documents yet.</p>
             <p className="mt-1 text-xs text-zinc-500">
-              Upload one below — attach to a specific job, or leave the job
+              Upload one below, attach to a specific job, or leave the job
               field empty for an org-wide reference.
             </p>
           </div>
@@ -117,7 +117,7 @@ export default async function ClientDocumentsPage({ searchParams }: PageProps) {
                     </span>
                     {doc.jobId ? (
                       <span className="rounded-full border border-violet/30 bg-violet/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
-                        Job · {(doc.jobTitle ?? doc.jobId.slice(0, 8)).slice(0, 40)}
+                        Job, {(doc.jobTitle ?? doc.jobId.slice(0, 8)).slice(0, 40)}
                       </span>
                     ) : (
                       <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
@@ -208,11 +208,11 @@ export default async function ClientDocumentsPage({ searchParams }: PageProps) {
               name="label"
               required
               maxLength={160}
-              placeholder="P&ID — Crude pipeline segment 4A"
+              placeholder="P&ID, Crude pipeline segment 4A"
               className={inputCls}
             />
           </Field>
-          <Field label="Tag to job (optional — UUID)" className="sm:col-span-2">
+          <Field label="Tag to job (optional, UUID)" className="sm:col-span-2">
             <input
               name="jobId"
               maxLength={36}

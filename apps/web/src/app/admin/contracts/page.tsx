@@ -19,7 +19,7 @@ import { createContract, assignContract } from '@/lib/actions/contracts';
 import { CONTRACT_KINDS, CONTRACT_KIND_LABELS } from '@/lib/data/contracts.types';
 import { DocSourceToggle } from '@/components/forms/DocSourceToggle';
 
-export const metadata: Metadata = { title: 'Admin · Contracts' };
+export const metadata: Metadata = { title: 'Admin, Contracts' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -44,7 +44,7 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Admin · Contracts
+          Admin, Contracts
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Contracts library
@@ -96,7 +96,7 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white">{c.title}</p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {CONTRACT_KIND_LABELS[c.kind]} · v{c.version} · effective{' '}
+                      {CONTRACT_KIND_LABELS[c.kind]}, v{c.version}, effective{' '}
                       {new Date(c.effectiveFrom).toLocaleDateString()}
                     </p>
                   </div>
@@ -257,14 +257,14 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
             <DocSourceToggle
               fileAccept="application/pdf"
               defaultSource="upload"
-              fileHelper="PDF only · max 25 MB. Leave the inline body empty if uploading."
+              fileHelper="PDF only, max 25 MB. Leave the inline body empty if uploading."
               urlHelper="DocuSign envelope, Adobe Sign, or any HTTPS link to the canonical document."
             />
             {/* If neither file nor URL is desired, set source=inline via this radio: */}
             <p className="mt-2 text-[11px] text-zinc-500">
               Tip: if you want a pure-inline contract (markdown only, no
               attachment), choose &quot;Attach external link&quot; and leave the URL
-              empty — the action will fall through to inline mode.
+              empty, the action will fall through to inline mode.
             </p>
           </div>
 

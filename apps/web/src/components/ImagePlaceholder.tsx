@@ -86,13 +86,13 @@ export function ImagePlaceholder({
 
         <div className="relative z-10 max-w-md px-6 text-center">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Asset slot · {slot.id}
+            Asset slot, {slot.id}
           </p>
           <p className="mt-2 font-display text-base font-semibold tracking-tight text-zinc-100 sm:text-lg">
             {slot.slot}
           </p>
           <p className="mt-2 font-mono text-[11px] tracking-wider text-zinc-400">
-            {slot.width}×{slot.height} · {slot.aspectRatio.replace(' / ', ':')}
+            {slot.width}×{slot.height}, {slot.aspectRatio.replace(' / ', ':')}
           </p>
           {showPrompt && (
             <p className="mx-auto mt-4 hidden max-w-sm text-pretty text-[11px] leading-relaxed text-zinc-500 md:block">

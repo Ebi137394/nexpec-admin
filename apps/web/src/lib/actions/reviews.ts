@@ -86,7 +86,7 @@ export async function submitReview(formData: FormData): Promise<void> {
       error.code === '23505'
         ? 'You already reviewed this job.'
         : error.message?.includes('row-level security')
-          ? "You can't review this job — it may not be completed yet, or you're not a party to it."
+          ? "You can't review this job, it may not be completed yet, or you're not a party to it."
           : 'Could not save your review. Try again or contact support.';
     redirect(withQuery(returnTo, { error: friendly }));
   }

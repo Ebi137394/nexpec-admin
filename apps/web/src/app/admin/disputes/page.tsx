@@ -18,7 +18,7 @@ import { DisputesDrawer } from '@/components/admin/disputes/DisputesDrawer';
 
 export const metadata: Metadata = {
   title: 'Disputes',
-  description: 'Disputes Board — admin mediation surface backed by admin_resolve_dispute.',
+  description: 'Disputes Board, admin mediation surface backed by admin_resolve_dispute.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,7 @@ export default async function DisputesPage({ searchParams }: PageProps) {
       {/* Header */}
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-accent-amber/90">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Disputes Board
@@ -65,7 +65,7 @@ export default async function DisputesPage({ searchParams }: PageProps) {
         <Stat
           label="Resolution paths"
           value="3"
-          sub="pay inspector · refund client · return to active"
+          sub="pay inspector, refund client, return to active"
         />
       </section>
 

@@ -270,7 +270,7 @@ export async function createScopeTemplateAction(
       (error as { code?: string }).code === '23505'
         ? `A template with slug "${slug}" already exists. Pick a different slug.`
         : error.message?.includes('scope_template_slug_format')
-          ? 'Slug format invalid — lowercase letters, numbers, and underscores only.'
+          ? 'Slug format invalid, lowercase letters, numbers, and underscores only.'
           : error.message?.includes('scope_template_validity_positive')
             ? 'Validity months must be positive.'
             : error.message?.includes('row-level security')

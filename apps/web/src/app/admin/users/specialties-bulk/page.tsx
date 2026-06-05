@@ -27,7 +27,7 @@ import {
 import { BulkClient } from './BulkClient';
 
 export const metadata: Metadata = {
-  title: 'Bulk specialty assigner · NEXPEC Admin',
+  title: 'Bulk specialty assigner, NEXPEC Admin',
   description:
     'Add or remove canonical kebab discipline slugs across multiple inspectors.',
 };
@@ -101,7 +101,7 @@ function Header() {
       <p className="max-w-3xl text-sm leading-relaxed text-zinc-400">
         Add or remove a single canonical kebab discipline slug across
         many inspector profiles in one transaction. Built to multiply the
-        throughput of inspector-pool seeding during a domain launch — see{' '}
+        throughput of inspector-pool seeding during a domain launch, see{' '}
         <code className="font-mono text-zinc-300">
           DOMAIN_LAUNCH_PLAYBOOK.md
         </code>
@@ -135,7 +135,7 @@ function FilterCard({
       </div>
 
       <p className="mb-5 text-sm leading-relaxed text-zinc-400">
-        URL-driven — filters persist on refresh and can be shared with a
+        URL-driven, filters persist on refresh and can be shared with a
         teammate by copy-pasting the URL. Slug inputs accept
         comma-separated lists and autocomplete from the canonical
         taxonomy.
@@ -245,7 +245,7 @@ function Footnote() {
           <code className="font-mono text-zinc-400">
             bulk_update_inspector_specialties
           </code>
-          {' '}— set semantics, duplicates collapsed,{' '}
+          ,{' '}set semantics, duplicates collapsed,{' '}
           <code className="font-mono text-zinc-400">remove</code> beats{' '}
           <code className="font-mono text-zinc-400">add</code>. The RPC
           itself re-checks <code className="font-mono text-zinc-400">nx_is_admin()</code>{' '}

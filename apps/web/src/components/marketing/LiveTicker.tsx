@@ -24,7 +24,7 @@ export function LiveTicker({ stats }: LiveTickerProps) {
           className="grid grid-cols-1 divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-800/60 to-ink-900/30 backdrop-blur-xl sm:grid-cols-3 sm:divide-y-0 sm:divide-x"
         >
           <Stat
-            label="Jobs dispatched · last 30d"
+            label="Jobs dispatched, last 30d"
             value={formatCount(stats.jobs30d)}
           />
           <Stat
@@ -40,7 +40,7 @@ export function LiveTicker({ stats }: LiveTickerProps) {
         </motion.div>
         {stats.asOf && (
           <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-            snapshot · {new Date(stats.asOf).toUTCString()}
+            snapshot, {new Date(stats.asOf).toUTCString()}
           </p>
         )}
       </div>

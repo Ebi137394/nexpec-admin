@@ -20,9 +20,9 @@ import type { Metadata } from 'next';
 import { BudgetOverviewView } from '@/app/client/budget/page';
 
 export const metadata: Metadata = {
-  title: 'Budget Overview · Platform-wide',
+  title: 'Budget Overview, Platform-wide',
   description:
-    'Live platform-wide spend tracker — committed budget, escrow holds, paid-out amounts, 12-month trend, top inspectors by spend, and per-department cost-center roll-up.',
+    'Live platform-wide spend tracker, committed budget, escrow holds, paid-out amounts, 12-month trend, top inspectors by spend, and per-department cost-center roll-up.',
 };
 
 export const dynamic = 'force-dynamic';

@@ -111,7 +111,7 @@ export function Hero() {
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-cyan-glow">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-glow opacity-75" />
           </span>
-          Now live · The engineering inspection standard
+          Now live, The engineering inspection standard
         </motion.p>
 
         {/* ── Headline (word-by-word reveal) ────────────────────────── */}
@@ -131,7 +131,7 @@ export function Hero() {
           className="mx-auto mt-6 max-w-2xl text-balance text-center text-lg leading-relaxed text-zinc-400 sm:text-xl"
         >
           From pipelines and pressure vessels to bridges, switchgear, rotating
-          equipment, and process plants — five engineering disciplines,
+          equipment, and process plants, five engineering disciplines,
           dispatched in minutes, audited to the byte, and paid only on a signed,
           tamper-proof report.
         </motion.p>
@@ -185,7 +185,7 @@ export function Hero() {
           <div className="relative aspect-[1200/630] overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_50px_120px_-30px_rgba(124,58,237,0.5)] ring-1 ring-white/[0.08]">
             <Image
               src="/hero/hero-wide.jpg"
-              alt="Industrial inspection at dusk — refinery silhouette under deep indigo sky with violet rim-lighting."
+              alt="Industrial inspection at dusk, refinery silhouette under deep indigo sky with violet rim-lighting."
               fill
               priority
               sizes="(min-width: 1280px) 1200px, (min-width: 768px) 90vw, 100vw"

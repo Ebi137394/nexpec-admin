@@ -90,7 +90,7 @@ export function InvoiceDepartmentBlock({
           Cost-center attribution drives the by-department budget roll-up.
           {attributed
             ? ' Snapshots freeze the cost-center text at attribution time, so renames don’t rewrite history.'
-            : ' This invoice is currently unattributed — it rolls up under the synthetic Unattributed bucket.'}
+            : ' This invoice is currently unattributed, it rolls up under the synthetic Unattributed bucket.'}
         </p>
 
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">

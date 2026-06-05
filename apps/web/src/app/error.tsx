@@ -108,7 +108,7 @@ export default function GlobalErrorBoundary({ error, reset }: ErrorProps) {
               margin: 0,
             }}
           >
-            500 · Unexpected error
+            500, Unexpected error
           </p>
           <h1
             style={{
@@ -130,7 +130,7 @@ export default function GlobalErrorBoundary({ error, reset }: ErrorProps) {
               color: '#9CA3AF',
             }}
           >
-            The platform hit an unexpected condition. Try again — most
+            The platform hit an unexpected condition. Try again, most
             transient failures clear on the second attempt.
           </p>
           {error.digest ? (
@@ -145,7 +145,7 @@ export default function GlobalErrorBoundary({ error, reset }: ErrorProps) {
                 color: '#71717a',
               }}
             >
-              digest ·{' '}
+              digest,{' '}
               <span style={{ color: '#d4d4d8' }}>{error.digest}</span>
             </p>
           ) : null}
@@ -204,7 +204,7 @@ export default function GlobalErrorBoundary({ error, reset }: ErrorProps) {
           color: '#71717a',
         }}
       >
-        © {year} NEXPEC · Audited by default.
+        © {year} NEXPEC, Audited by default.
       </footer>
     </div>
   );

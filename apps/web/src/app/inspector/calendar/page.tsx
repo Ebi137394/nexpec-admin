@@ -25,7 +25,7 @@ import {
   type CalendarEvent,
 } from '@/lib/data/inspectorCalendar';
 
-export const metadata: Metadata = { title: 'Calendar · Inspector · NEXPEC' };
+export const metadata: Metadata = { title: 'Calendar, Inspector, NEXPEC' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -97,7 +97,7 @@ function Header({ month }: { month: Date }) {
       <div className="space-y-1.5">
         <p className="inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
           <CalendarIcon className="h-3 w-3" strokeWidth={2} />
-          Inspector · Schedule
+          Inspector, Schedule
         </p>
         <h1 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           {formatMonthLabel(month)}
@@ -220,13 +220,13 @@ function EventChip({ event }: { event: CalendarEvent }) {
       href={event.href}
       title={
         hasConflict
-          ? `${event.title} — conflicts with ${event.conflicts.length} other job(s)`
+          ? `${event.title}, conflicts with ${event.conflicts.length} other job(s)`
           : event.title
       }
       className={`block truncate rounded border px-1.5 py-0.5 text-[10px] transition-colors ${tint}`}
     >
       {hasConflict && '⚠ '}
-      {formatTime(event.scheduledStart)} · {event.title}
+      {formatTime(event.scheduledStart)}, {event.title}
     </Link>
   );
 }

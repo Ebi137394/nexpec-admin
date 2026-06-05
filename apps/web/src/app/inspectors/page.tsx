@@ -36,12 +36,12 @@ import { TrustSigil } from '@/components/trust/TrustSigil';
 import { inspectorHandle } from '@/lib/identity/inspectorHandle';
 
 export const metadata: Metadata = {
-  title: 'Find an inspector · NEXPEC',
+  title: 'Find an inspector, NEXPEC',
   description:
     'Browse NEXPEC-verified industrial, civil, electrical, mechanical, and chemical inspectors. Filter by region, specialty, and rating. Identity protected; verified by the platform.',
   alternates: { canonical: '/inspectors' },
   openGraph: {
-    title: 'Find an inspector · NEXPEC',
+    title: 'Find an inspector, NEXPEC',
     description:
       'Browse NEXPEC-verified inspectors by region, specialty, and rating. Identity protected; verified by the platform.',
     type: 'website',
@@ -150,7 +150,7 @@ function DirectoryHeader({ total }: { total: number }) {
       </h1>
       <p className="max-w-2xl text-pretty text-sm leading-relaxed text-zinc-400">
         Browse NEXPEC-verified industrial, civil, electrical, mechanical, and
-        chemical inspectors. Identity is protected — you compare verified
+        chemical inspectors. Identity is protected, you compare verified
         competencies and performance, then engage through NEXPEC with escrow.{' '}
         <strong className="text-zinc-200">{total.toLocaleString()}</strong>{' '}
         active inspector{total === 1 ? '' : 's'} indexed.
@@ -562,7 +562,7 @@ function Footnote() {
     <p className="mt-10 text-[11px] leading-relaxed text-zinc-500">
       Inspector cards are sourced from the{' '}
       <code className="font-mono text-zinc-400">public.inspectors_directory</code>{' '}
-      view — an anonymized, column-projected public surface that emits no name,
+      view, an anonymized, column-projected public surface that emits no name,
       photo, or contact. Identity is protected by NEXPEC; engagement happens
       through the platform with escrow and dispute protection.
     </p>

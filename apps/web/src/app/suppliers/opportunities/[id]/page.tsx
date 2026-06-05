@@ -50,7 +50,7 @@ export default function SupplierOpportunityPage() {
       if (note.trim()) quote.note = note.trim();
       const { error } = await submitQuote(id, quote);
       if (error) { setMsg(error.message); return; }
-      setAmount(''); setLead(''); setNote(''); await load(); setMsg('Quote submitted — admin will review and broker the award.');
+      setAmount(''); setLead(''); setNote(''); await load(); setMsg('Quote submitted, admin will review and broker the award.');
     } finally { setBusy(false); }
   };
 
@@ -90,7 +90,7 @@ export default function SupplierOpportunityPage() {
         </div>
       )}
 
-      {/* Project chat — awarded supplier ↔ NEXPEC admin (job_supplier_admin).
+      {/* Project chat, awarded supplier ↔ NEXPEC admin (job_supplier_admin).
           Mirrors the inspector job room; client/inspector can't see it. */}
       {rfq.spawned_job_id && myQuote?.status === 'accepted' && (
         <form action={openJobChat} className="rounded-2xl border border-violet/30 bg-violet/[0.07] p-4">
@@ -120,7 +120,7 @@ export default function SupplierOpportunityPage() {
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${st.cls}`}>{st.label}</span>
           </div>
           <p className="mt-3 font-display text-2xl font-semibold text-white">{myCents != null ? formatUsd(myCents) : '—'}</p>
-          {myQuote.quote?.lead_time && <p className="mt-1 text-xs text-zinc-500">Lead time · {myQuote.quote.lead_time}</p>}
+          {myQuote.quote?.lead_time && <p className="mt-1 text-xs text-zinc-500">Lead time, {myQuote.quote.lead_time}</p>}
           {myQuote.quote?.note && <p className="mt-2 text-sm text-zinc-300">{myQuote.quote.note}</p>}
         </div>
       )}
@@ -129,11 +129,11 @@ export default function SupplierOpportunityPage() {
       {biddable ? (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
           <h2 className="font-semibold text-white">{myQuote ? 'Update your quote' : 'Submit a quote'}</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">Your price is private — NEXPEC brokers the award. Buyers never see competing bids.</p>
+          <p className="mt-0.5 text-xs text-zinc-500">Your price is private, NEXPEC brokers the award. Buyers never see competing bids.</p>
           <div className="mt-4 space-y-3">
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount (USD) — e.g. 4200" className={inp} />
-            <input value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Lead time — e.g. 3 weeks" className={inp} />
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Note — compliance, incoterms, scope clarifications…" className={inp} />
+            <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount (USD), e.g. 4200" className={inp} />
+            <input value={lead} onChange={(e) => setLead(e.target.value)} placeholder="Lead time, e.g. 3 weeks" className={inp} />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Note, compliance, incoterms, scope clarifications…" className={inp} />
             <button onClick={doSubmit} disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-violet px-4 py-2.5 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
               <Send size={15} /> {busy ? 'Submitting…' : myQuote ? 'Resubmit quote' : 'Submit quote'}
             </button>

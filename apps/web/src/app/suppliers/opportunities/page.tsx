@@ -53,7 +53,7 @@ export default function OpportunitiesPage() {
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Marketplace</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">Opportunities</h1>
-        <p className="mt-1 text-sm text-zinc-400">Brokered RFQs open for bidding. Pricing is blind — buyers never see competing quotes.</p>
+        <p className="mt-1 text-sm text-zinc-400">Brokered RFQs open for bidding. Pricing is blind, buyers never see competing quotes.</p>
       </header>
 
       {loading ? (
@@ -68,7 +68,7 @@ export default function OpportunitiesPage() {
             <p className="mt-2 text-sm text-zinc-400">
               {profile && !profile.is_active
                 ? 'Your vendor profile is currently paused, so open RFQs are hidden. Reactivate it to start bidding again.'
-                : 'Open RFQs are visible to active vendors only. Create your vendor profile — name your company and pick at least one capability — and live opportunities appear here instantly.'}
+                : 'Open RFQs are visible to active vendors only. Create your vendor profile, name your company and pick at least one capability, and live opportunities appear here instantly.'}
             </p>
             <Link href="/suppliers/profile" className="mt-5 inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet/20 transition hover:bg-violet-deep">
               <Store size={16} /> {profile && !profile.is_active ? 'Reactivate my profile' : 'Create vendor profile'}
@@ -104,7 +104,7 @@ export default function OpportunitiesPage() {
               </p>
               <p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">
                 {items.length === 0
-                  ? 'New brokered RFQs appear here the moment buyers post them — we surface the ones matching your capabilities first.'
+                  ? 'New brokered RFQs appear here the moment buyers post them, we surface the ones matching your capabilities first.'
                   : 'Try clearing your search or switching filters.'}
               </p>
               {items.length === 0 && (
@@ -126,7 +126,7 @@ export default function OpportunitiesPage() {
                         {o.alreadyQuoted && <span className="rounded-full border border-cyan/50 px-2 py-0.5 text-[9px] font-bold text-cyan-glow">You bid</span>}
                       </div>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'} · posted {new Date(o.created_at).toLocaleDateString()}
+                        {o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'}, posted {new Date(o.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <ArrowRight size={16} className="mt-1 shrink-0 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-violet-glow" />

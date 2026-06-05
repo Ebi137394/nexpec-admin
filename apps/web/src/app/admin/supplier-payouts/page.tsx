@@ -11,7 +11,7 @@ import { fetchAwardedSupplierContracts } from '@/lib/data/supplierReleases';
 import { fetchAdminSupplierContractsByQuote } from '@/lib/data/supplierContracts';
 import { SupplierReleaseRow } from '@/components/admin/SupplierReleaseRow';
 
-export const metadata: Metadata = { title: 'Admin · Supplier Releases' };
+export const metadata: Metadata = { title: 'Admin, Supplier Releases' };
 export const dynamic = 'force-dynamic';
 
 const usd = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
@@ -33,11 +33,11 @@ export default async function SupplierReleasesPage({ searchParams }: PageProps) 
   return (
     <div className="space-y-8">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">Operations · Brokerage</p>
+        <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">Operations, Brokerage</p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Supplier Releases</h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
           Release brokered funds to suppliers for awarded contracts. Each release credits the supplier&rsquo;s wallet and is
-          recorded in an audit ledger — over-release is impossible. Suppliers withdraw released funds via Stripe Connect.
+          recorded in an audit ledger, over-release is impossible. Suppliers withdraw released funds via Stripe Connect.
         </p>
       </header>
 
@@ -48,17 +48,17 @@ export default async function SupplierReleasesPage({ searchParams }: PageProps) 
       )}
       {sp.released && (
         <div className="flex items-center gap-2 rounded-xl border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /> Funds released — the supplier&rsquo;s wallet has been credited.
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Funds released, the supplier&rsquo;s wallet has been credited.
         </div>
       )}
       {sp.generated && (
         <div className="flex items-center gap-2 rounded-xl border border-violet/30 bg-violet/10 px-4 py-3 text-sm text-violet-glow">
-          <FileSignature className="h-4 w-4 shrink-0" /> Agreement issued — the supplier has been notified to sign.
+          <FileSignature className="h-4 w-4 shrink-0" /> Agreement issued, the supplier has been notified to sign.
         </div>
       )}
       {sp.executed && (
         <div className="flex items-center gap-2 rounded-xl border border-accent-green/30 bg-accent-green/10 px-4 py-3 text-sm text-accent-green">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /> Agreement executed &amp; sealed — releases are now unlocked.
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Agreement executed &amp; sealed, releases are now unlocked.
         </div>
       )}
 

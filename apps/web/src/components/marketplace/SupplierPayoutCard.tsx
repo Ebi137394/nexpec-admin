@@ -43,7 +43,7 @@ export function SupplierPayoutCard() {
     try {
       const res = await supplierWithdraw(cents);
       if (!res.ok) { setMsg({ kind: 'err', text: res.error ?? 'Payout failed.' }); return; }
-      setAmount(''); setMsg({ kind: 'ok', text: 'Payout initiated — funds typically arrive in 1–2 business days.' });
+      setAmount(''); setMsg({ kind: 'ok', text: 'Payout initiated, funds typically arrive in 1–2 business days.' });
       load();
     } finally { setBusy(false); }
   };
@@ -66,7 +66,7 @@ export function SupplierPayoutCard() {
 
       {!verified ? (
         <div className="mt-4">
-          <p className="text-sm text-zinc-400">Connect a payout account to withdraw. NEXPEC uses Stripe Connect — the same secure flow inspectors use; we never see your bank details.</p>
+          <p className="text-sm text-zinc-400">Connect a payout account to withdraw. NEXPEC uses Stripe Connect, the same secure flow inspectors use; we never see your bank details.</p>
           <button onClick={onboard} disabled={busy} className="mt-3 inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
             {busy ? <Loader2 size={15} className="animate-spin" /> : <Wallet size={15} />} Set up payouts
           </button>

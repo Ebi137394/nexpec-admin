@@ -53,7 +53,7 @@ export default async function NewScopeTemplatePage() {
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Command Console · Compliance · Authoring
+              Command Console, Compliance, Authoring
             </p>
             <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-violet/15 ring-1 ring-inset ring-violet/30">
@@ -87,7 +87,7 @@ export default async function NewScopeTemplatePage() {
           <div className="space-y-2 text-xs leading-relaxed text-zinc-300">
             <p>
               <span className="font-semibold text-white">Naming.</span> The
-              display name should read like a deliverable — what the inspector
+              display name should read like a deliverable, what the inspector
               will actually do. Slugs are immutable, so pick one you can live
               with: lowercase, underscores, no spaces.
             </p>

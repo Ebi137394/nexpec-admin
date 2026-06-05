@@ -175,11 +175,11 @@ export function CurrencySelector({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-white leading-tight">
-            Display · {activeCurrency}
+            Display, {activeCurrency}
           </p>
           {!isDefault && (
             <p className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-industrial text-amber-200/70 leading-tight">
-              Override · default {defaultCurrency}
+              Override, default {defaultCurrency}
             </p>
           )}
         </div>
@@ -285,7 +285,7 @@ export function CurrencySelector({
 
           <footer className="border-t border-white/[0.06] bg-white/[0.01] px-4 py-2.5">
             <p className="font-mono text-[9px] uppercase tracking-industrial text-zinc-600">
-              Native invoice amounts never change · this is a display projection
+              Native invoice amounts never change, this is a display projection
             </p>
           </footer>
         </div>

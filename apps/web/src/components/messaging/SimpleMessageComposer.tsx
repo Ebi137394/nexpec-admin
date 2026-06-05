@@ -51,7 +51,7 @@ export function SimpleMessageComposer({
             <label
               htmlFor={`attach-${conversationId}`}
               className="inline-flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors hover:border-violet/40 hover:text-white"
-              title="Attach file (image, PDF, doc, audio, video, zip — max 50 MB)"
+              title="Attach file (image, PDF, doc, audio, video, zip, max 50 MB)"
             >
               <Paperclip className="h-4 w-4" strokeWidth={1.75} />
             </label>
@@ -86,7 +86,7 @@ export function SimpleMessageComposer({
       )}
       {textOnly && (
         <p className="mt-2 text-[10px] text-zinc-600">
-          Click Send · the page reloads with your message.
+          Click Send, the page reloads with your message.
         </p>
       )}
     </div>

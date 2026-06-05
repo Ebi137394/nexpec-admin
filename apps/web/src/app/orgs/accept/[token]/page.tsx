@@ -22,7 +22,7 @@ import { fetchInvitationByToken } from '@/lib/data/clientTeam';
 import { acceptOrgInvitation } from '@/lib/actions/clientTeam';
 import { ORG_MEMBER_ROLE_LABELS } from '@/lib/data/clientTeam.types';
 
-export const metadata: Metadata = { title: 'Accept invitation · NEXPEC' };
+export const metadata: Metadata = { title: 'Accept invitation, NEXPEC' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -122,7 +122,7 @@ export default async function AcceptInvitePage({ params, searchParams }: PagePro
               </p>
               <p className="mt-1 text-xs text-zinc-400">
                 Role: <span className="text-violet-glow">{ORG_MEMBER_ROLE_LABELS[invitation.invitedRole]}</span>
-                {' · '}invited as{' '}
+                {', '}invited as{' '}
                 <span className="font-mono text-violet-glow">{invitation.invitedEmail}</span>
               </p>
               <p className="mt-3 text-xs">
@@ -151,7 +151,7 @@ export default async function AcceptInvitePage({ params, searchParams }: PagePro
               <p className="font-semibold">Confirm to join {orgName ?? 'this organization'}</p>
               <p className="mt-1 text-xs text-zinc-400">
                 Role: <span className="text-violet-glow">{ORG_MEMBER_ROLE_LABELS[invitation.invitedRole]}</span>
-                {' · '}invited as{' '}
+                {', '}invited as{' '}
                 <span className="font-mono text-violet-glow">{invitation.invitedEmail}</span>
               </p>
               {user.email?.toLowerCase() !== invitation.invitedEmail.toLowerCase() && (

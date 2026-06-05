@@ -106,7 +106,7 @@ export function PayoutsDrawer({ job }: PayoutsDrawerProps) {
                   {job.title ?? 'Untitled job'}
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
-                  Inspector owed ·{' '}
+                  Inspector owed,{' '}
                   <span className="font-mono font-semibold text-cyan-glow">
                     {formatCents(job.payout_amount_cents)}
                   </span>
@@ -142,8 +142,8 @@ export function PayoutsDrawer({ job }: PayoutsDrawerProps) {
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_mark_payout_processed · FOR UPDATE lock ·
-                audit-stamped · ref captured verbatim
+                rpc, admin_mark_payout_processed, FOR UPDATE lock,
+                audit-stamped, ref captured verbatim
               </p>
             </footer>
           </motion.aside>
@@ -249,7 +249,7 @@ function PayoutBody({
             onChange={(e) => setReference(e.target.value)}
             required
             maxLength={200}
-            placeholder="tr_3RkjzN2X5LpqrAB123 — or — manual:cash-paid-on-site-2026-05-20"
+            placeholder="tr_3RkjzN2X5LpqrAB123, or, manual:cash-paid-on-site-2026-05-20"
             autoComplete="off"
             spellCheck={false}
             className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white placeholder:text-zinc-700 transition-all focus:border-cyan-glow/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-cyan-glow/30"
@@ -267,7 +267,7 @@ function PayoutBody({
       <section>
         <label htmlFor="payout-notes" className="block">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-            Notes (optional · audit-captured)
+            Notes (optional, audit-captured)
           </span>
           <textarea
             id="payout-notes"

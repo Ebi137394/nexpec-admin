@@ -169,13 +169,13 @@ export function EvidencePackReceiptDialog({
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
                 <Shield className="h-3 w-3" strokeWidth={2} />
-                COMPLIANCE EVIDENCE LOCKER · CEL/1.0
+                COMPLIANCE EVIDENCE LOCKER, CEL/1.0
               </p>
               <h3 className="mt-1.5 font-display text-base font-semibold text-white">
                 Audit pack for {jobTitle}
               </h3>
               <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
-                JOB · {jobId.slice(0, 8).toUpperCase()}…
+                JOB, {jobId.slice(0, 8).toUpperCase()}…
                 {jobId.slice(-4).toUpperCase()}
               </p>
             </div>
@@ -209,7 +209,7 @@ export function EvidencePackReceiptDialog({
           <div className="flex items-center justify-between gap-3">
             <p className="font-mono text-[9px] uppercase tracking-industrial text-zinc-600">
               {state.kind === 'ready'
-                ? 'SHA-256 · CHAIN-OF-CUSTODY VERIFIED · RE-EXPORT TO RE-VERIFY'
+                ? 'SHA-256, CHAIN-OF-CUSTODY VERIFIED, RE-EXPORT TO RE-VERIFY'
                 : 'ASSEMBLING…'}
             </p>
             <div className="flex items-center gap-2">
@@ -285,7 +285,7 @@ function ErrorState({ message }: { message: string }) {
         {message}
       </p>
       <p className="mt-4 font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-        No partial export written · no audit row created
+        No partial export written, no audit row created
       </p>
     </div>
   );
@@ -309,7 +309,7 @@ function ReadyState({
         <div className="flex items-center justify-between gap-3">
           <p className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
             <Fingerprint className="h-3 w-3" strokeWidth={2} />
-            ROOT HASH · SHA-256
+            ROOT HASH, SHA-256
           </p>
           <button
             type="button"
@@ -381,12 +381,12 @@ function ReadyState({
           <EnvelopeRow
             icon={<Users className="h-3 w-3" strokeWidth={2} />}
             label="Exported by"
-            value={`${pack.envelope.exported_by_label} · ${pack.envelope.exported_by_role}`}
+            value={`${pack.envelope.exported_by_label}, ${pack.envelope.exported_by_role}`}
           />
           <EnvelopeRow
             icon={<Building2 className="h-3 w-3" strokeWidth={2} />}
             label="Platform"
-            value={`${pack.envelope.platform} · v${pack.envelope.generator_version}`}
+            value={`${pack.envelope.platform}, v${pack.envelope.generator_version}`}
             mono
           />
           <EnvelopeRow
@@ -411,7 +411,7 @@ function ReadyState({
         via canonical-JSON serialisation, and verifies each hash matches
         the manifest entry. They then recompute the root hash over the
         manifest's artifacts array and compare to the value above. Any
-        modification of any artifact breaks at least one hash — and
+        modification of any artifact breaks at least one hash, and
         therefore the root hash.
       </p>
     </div>

@@ -53,7 +53,7 @@ export default async function InspectorExperiencePage({
           Couldn&rsquo;t load your profile
         </h1>
         <p className="mt-2 max-w-md mx-auto text-sm text-zinc-400">
-          The profile fetch failed — usually a missing column. Run{' '}
+          The profile fetch failed, usually a missing column. Run{' '}
           <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px]">
             20260518290000_inspector_profile_safety_net.sql
           </code>{' '}
@@ -84,7 +84,7 @@ export default async function InspectorExperiencePage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Inspector Portal · Work experience
+            Inspector Portal, Work experience
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Your professional history
@@ -129,7 +129,7 @@ export default async function InspectorExperiencePage({
               No work history listed yet.
             </p>
             <p className="mt-1 text-xs text-zinc-500">
-              Add your first role below — clients value detail.
+              Add your first role below, clients value detail.
             </p>
           </div>
         ) : (
@@ -173,7 +173,7 @@ function ExperienceCard({ row }: { row: InspectorWorkExperience }) {
           <p className="mt-1 inline-flex flex-wrap items-center gap-2 text-xs text-zinc-500">
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-3 w-3" strokeWidth={1.75} />
-              {startLabel} — {endLabel}
+              {startLabel}, {endLabel}
             </span>
             {row.location && (
               <span className="inline-flex items-center gap-1">
@@ -286,7 +286,7 @@ function ExperienceForm({
             defaultChecked={row?.isCurrent ?? false}
             className="h-4 w-4 accent-violet"
           />
-          Yes — this is my current role
+          Yes, this is my current role
         </label>
       </Field>
       <Field label="Start date" required>

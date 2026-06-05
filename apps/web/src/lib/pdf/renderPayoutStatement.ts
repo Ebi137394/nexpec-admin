@@ -49,12 +49,12 @@ export async function renderPayoutStatementPdf(
 
   let y = 740;
 
-  page.drawText('NEXPEC · Inspector Payout Statement', {
+  page.drawText('NEXPEC, Inspector Payout Statement', {
     x: 48, y, size: 9, font: fontRegular, color: subText,
   });
   y -= 28;
 
-  page.drawText(`Payout statement · ${header.period}`, {
+  page.drawText(`Payout statement, ${header.period}`, {
     x: 48, y, size: 22, font: fontBold, color: inkText,
   });
   y -= 36;
@@ -63,7 +63,7 @@ export async function renderPayoutStatementPdf(
   page.drawText('STRIPE CONNECT', { x: 360, y, size: 8, font: fontBold, color: subText });
   y -= 14;
   page.drawText(header.inspectorName, { x: 48, y, size: 11, font: fontBold, color: inkText });
-  page.drawText(header.stripeConnectId ?? '— not connected —', {
+  page.drawText(header.stripeConnectId ?? 'Not connected', {
     x: 360, y, size: 9, font: fontMono, color: subText,
   });
   y -= 14;

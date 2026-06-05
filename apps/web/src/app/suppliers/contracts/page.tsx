@@ -21,7 +21,7 @@ import {
   type SupplierContractStatus,
 } from '@/lib/data/supplierContracts';
 
-export const metadata: Metadata = { title: 'Supplier · Agreements' };
+export const metadata: Metadata = { title: 'Supplier, Agreements' };
 export const dynamic = 'force-dynamic';
 
 function fmtCents(v: number | null | undefined): string {
@@ -39,7 +39,7 @@ const STATUS_META: Record<
 > = {
   draft: { label: 'Draft', cls: 'bg-white/10 text-zinc-300' },
   pending_supplier_signature: {
-    label: 'Action needed · Sign',
+    label: 'Action needed, Sign',
     cls: 'bg-violet/20 text-violet-glow ring-1 ring-inset ring-violet/40',
   },
   pending_admin_countersignature: {
@@ -65,14 +65,14 @@ export default async function SupplierContractsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Supplier Portal · Legal
+          Supplier Portal, Legal
         </p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Agreements
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
           Your NEXPEC supplier agreements. When you win a bid, NEXPEC issues a
-          formal agreement here — e-sign it and we counter-sign to execute. A
+          formal agreement here, e-sign it and we counter-sign to execute. A
           signed, executed agreement is required before any funds are released.
         </p>
       </header>
@@ -165,7 +165,7 @@ function ContractCard({ c }: { c: SupplierContractRow }) {
           <p className="mt-0.5 truncate text-xs text-zinc-500">
             Issued {new Date(c.createdAt).toLocaleDateString()}
             {c.executedAt
-              ? ` · executed ${new Date(c.executedAt).toLocaleDateString()}`
+              ? `, executed ${new Date(c.executedAt).toLocaleDateString()}`
               : ''}
           </p>
         </div>

@@ -132,10 +132,10 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Select label="Urgency" name="urgency" defaultValue="normal">
-              <option value="low">Low — flexible scheduling</option>
-              <option value="normal">Normal — standard turnaround</option>
-              <option value="high">High — same-week response</option>
-              <option value="critical">Critical — 24h dispatch</option>
+              <option value="low">Low, flexible scheduling</option>
+              <option value="normal">Normal, standard turnaround</option>
+              <option value="high">High, same-week response</option>
+              <option value="critical">Critical, 24h dispatch</option>
             </Select>
             <Field
               label="Budget (USD)"
@@ -172,7 +172,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
                   departments={orgPicker.departments}
                   defaultDepartmentId={orgPicker.defaultDepartmentId}
                   unattributedMode="allow"
-                  unattributedLabel="— Leave unattributed —"
+                  unattributedLabel="Leave unattributed"
                   hint={
                     orgPicker.hasNoDepartments
                       ? undefined
@@ -184,7 +184,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* Sprint 8 — live approval-gate preview. The component
+            {/* Sprint 8, live approval-gate preview. The component
                 subscribes to the form's input events, debounces, and
                 renders the result of evaluate_job_for_approval. Hidden
                 until both a budget amount and a department are set. */}
@@ -198,7 +198,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
         {/* Section: specialties — full 200+ taxonomy + custom add */}
         <Section
           title="Specialties"
-          subtitle="Pick everything relevant. Inspectors filter their feed by these tags — the more accurate, the better your matches."
+          subtitle="Pick everything relevant. Inspectors filter their feed by these tags, the more accurate, the better your matches."
         >
           {SPECIALTY_GROUPS.map((group) => (
             <fieldset
@@ -286,7 +286,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
             partial index, triple-submission is impossible. */}
         <div className="flex flex-col items-stretch gap-3 border-t border-white/[0.06] pt-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-zinc-500">
-            <span className="font-mono">GR1</span> · Posting goes into{' '}
+            <span className="font-mono">GR1</span>, Posting goes into{' '}
             <span className="text-zinc-300">moderation</span> before reaching
             inspectors.
           </p>

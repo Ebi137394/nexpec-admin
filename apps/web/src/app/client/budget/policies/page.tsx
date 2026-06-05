@@ -90,8 +90,8 @@ export default async function ApprovalPoliciesPage() {
         departments={pickerCtx.departments}
       />
       <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-        Source · approval_policies · band overlap is constraint-trigger
-        enforced · SoD opt-out is audit-flagged
+        Source, approval_policies, band overlap is constraint-trigger
+        enforced, SoD opt-out is audit-flagged
       </p>
     </div>
   );
@@ -108,7 +108,7 @@ function Header({ orgName }: { orgName: string }) {
         Back to budget
       </Link>
       <p className="mt-4 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-        Procurement · Approval bands
+        Procurement, Approval bands
       </p>
       <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
@@ -119,7 +119,7 @@ function Header({ orgName }: { orgName: string }) {
       <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
         Configure the tiered ladder of approval bands that gate job
         postings by amount. Each band&apos;s range must not overlap any
-        other active band for the same currency / scope — enforced at the
+        other active band for the same currency / scope, enforced at the
         schema layer.
       </p>
     </header>

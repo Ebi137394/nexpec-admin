@@ -62,7 +62,7 @@ export function CompliancePostureHero({ posture, score, orgName }: Props) {
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
               <Shield className="h-3 w-3" strokeWidth={2} />
-              COMPLIANCE COMMAND CENTER · {orgName.toUpperCase()}
+              COMPLIANCE COMMAND CENTER, {orgName.toUpperCase()}
             </p>
             <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {bandMeta.headline}
@@ -71,7 +71,7 @@ export function CompliancePostureHero({ posture, score, orgName }: Props) {
               {bandMeta.subline}
             </p>
             <p className="mt-3 font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-              GENERATED · {formatTimestamp(posture.generated_at)} ·
+              GENERATED, {formatTimestamp(posture.generated_at)},
               WINDOW {posture.window_days}D
             </p>
           </div>
@@ -123,7 +123,7 @@ export function CompliancePostureHero({ posture, score, orgName }: Props) {
           tone={posture.sod_violations_90d === 0 ? 'positive' : 'critical'}
           subtitle={
             posture.sod_violations_90d === 0
-              ? 'Schema-enforced · cannot be bypassed'
+              ? 'Schema-enforced, cannot be bypassed'
               : 'Investigate immediately'
           }
         />
@@ -156,7 +156,7 @@ export function CompliancePostureHero({ posture, score, orgName }: Props) {
           tone={latencyTone(posture.approval_latency.p95_seconds)}
           subtitle={
             posture.approval_latency.pending_count > 0
-              ? `${posture.approval_latency.pending_count} pending · oldest ${formatDuration(posture.approval_latency.oldest_pending_seconds)}`
+              ? `${posture.approval_latency.pending_count} pending, oldest ${formatDuration(posture.approval_latency.oldest_pending_seconds)}`
               : 'No approvals pending'
           }
         />
@@ -344,7 +344,7 @@ const BAND_META: Record<
   strong: {
     headline: 'Compliance posture is strong.',
     subline:
-      'Primary controls are engaged. A handful of low-severity findings are below — review at your convenience.',
+      'Primary controls are engaged. A handful of low-severity findings are below, review at your convenience.',
     gradient: 'from-violet/[0.10] via-cyan-glow/[0.04] to-ink-900/0',
     border: 'border-violet/30',
     ringStroke: '#A78BFA',

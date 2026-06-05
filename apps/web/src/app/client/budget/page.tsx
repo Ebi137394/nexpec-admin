@@ -65,7 +65,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 export const metadata: Metadata = {
   title: 'Budget Overview',
   description:
-    'Live spend tracker — committed budget, escrow holds, paid-out amounts, and a 12-month trend.',
+    'Live spend tracker, committed budget, escrow holds, paid-out amounts, and a 12-month trend.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -209,13 +209,13 @@ export async function BudgetOverviewView(
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              {(scopeMeta.roleLabel || 'Client')} Portal · Finance
+              {(scopeMeta.roleLabel || 'Client')} Portal, Finance
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Budget Overview
             </h1>
             <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
-              Live spend tracker — what&rsquo;s committed, what&rsquo;s
+              Live spend tracker, what&rsquo;s committed, what&rsquo;s
               waiting in escrow, what&rsquo;s already paid out. Reads run
               under your account&rsquo;s visibility rules: clients see
               their own jobs, agencies and enterprises see their
@@ -239,21 +239,21 @@ export async function BudgetOverviewView(
           icon={<Wallet className="h-4 w-4" strokeWidth={1.75} />}
           label="In escrow"
           value={formatBudgetCents(summary.inEscrowCents)}
-          sub="Funded · awaiting completion"
+          sub="Funded, awaiting completion"
           tone="cyan"
         />
         <HeroTile
           icon={<CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}
           label="Paid out"
           value={formatBudgetCents(summary.paidOutCents)}
-          sub="Released · settled with inspector"
+          sub="Released, settled with inspector"
           tone="green"
         />
         <HeroTile
           icon={<Hourglass className="h-4 w-4" strokeWidth={1.75} />}
           label="Awaiting payout"
           value={formatBudgetCents(summary.awaitingPayoutCents)}
-          sub="Completed · pending release"
+          sub="Completed, pending release"
           tone="amber"
         />
       </section>
@@ -381,12 +381,12 @@ export async function BudgetOverviewView(
 
       {/* ── Audit footnote ─────────────────────────────────────────── */}
       <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-        Source ·{' '}
+        Source,{' '}
         <span className="text-zinc-400">get_budget_summary</span>,{' '}
         <span className="text-zinc-400">get_budget_monthly</span>,{' '}
         <span className="text-zinc-400">get_budget_by_inspector</span>,{' '}
         <span className="text-zinc-400">get_budget_recent_activity</span>
-        {' '}· RLS-gated under{' '}
+        ,{' '}RLS-gated under{' '}
         <span className="text-zinc-400">fin_visible_client_ids()</span>.
       </p>
     </div>
@@ -423,7 +423,7 @@ function ScopeChip({ meta }: { meta: BudgetScopeMeta }) {
       ) : (
         <Building2 className="h-3.5 w-3.5" strokeWidth={2} />
       )}
-      Scope · {meta.scopeLabel}
+      Scope, {meta.scopeLabel}
     </span>
   );
 }
@@ -656,7 +656,7 @@ function ActivityStream({
           )}
           {r.inspectorName && (
             <span className="hidden truncate text-xs text-zinc-500 lg:inline">
-              · {r.inspectorName}
+              {r.inspectorName}
             </span>
           )}
           <span className="font-mono text-xs font-semibold text-violet-glow">

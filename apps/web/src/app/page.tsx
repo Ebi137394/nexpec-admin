@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   description:
     'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
   openGraph: {
-    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description:
       'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
     url: SITE_URL,
@@ -60,13 +60,13 @@ export const metadata: Metadata = {
         url: '/og/landing.png',
         width: 1200,
         height: 630,
-        alt: 'NEXPEC — the industrial black box. Automated inspection, vetted inspectors, audited trust.',
+        alt: 'NEXPEC, the industrial black box. Automated inspection, vetted inspectors, audited trust.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description: 'Hire vetted industrial inspectors. Escrow holds every dollar.',
     images: ['/og/landing.png'],
   },
@@ -92,7 +92,7 @@ export default async function LandingPage() {
         <HowItWorks />
         <TrustPillars />
 
-        {/* ── NEW · Cinematic deep-tech showcase (ADDITIVE) ─────────────────
+        {/* ── NEW, Cinematic deep-tech showcase (ADDITIVE) ─────────────────
             Sticky-reveal sections for the crown-jewel capabilities, glued into
             the existing scroll flow with <SectionTransition/>. Nothing above or
             below is altered; the Hero video, layout and existing components are
@@ -103,7 +103,7 @@ export default async function LandingPage() {
         <FieldResilience />
         <SectionTransition />
 
-        {/* Sprint 13 — platform scale showcase. Premium dark/violet
+        {/* Sprint 13, platform scale showcase. Premium dark/violet
             section surfacing the 5-domain + 57-scope catalogue breadth
             we shipped this sprint. Strictly additive between existing
             TrustPillars and Industries sections. */}

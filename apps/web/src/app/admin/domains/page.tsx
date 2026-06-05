@@ -27,7 +27,7 @@ import { InspectionDomainBadge } from '@/components/inspection-domain/Inspection
 import { DomainToggles } from './DomainToggles';
 
 export const metadata: Metadata = {
-  title: 'Inspection Domains · NEXPEC Admin',
+  title: 'Inspection Domains, NEXPEC Admin',
   description: 'Configure inspection-domain launch state and visibility.',
 };
 
@@ -53,7 +53,7 @@ export default async function AdminDomainsPage() {
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-zinc-400">
           One row per inspection vertical NEXPEC supports. <strong className="text-zinc-200">is_launched</strong> controls
-          whether a domain is publicly surfaced. <strong className="text-zinc-200">is_active</strong> is the kill-switch —
+          whether a domain is publicly surfaced. <strong className="text-zinc-200">is_active</strong> is the kill-switch,
           flip it off to immediately hide a domain from every surface,
           including for users mid-flow. Both toggles are super_admin
           only, defended at the RLS layer.
@@ -175,7 +175,7 @@ function DomainCard({
             </div>
           </dl>
 
-          {/* Launch readiness drill-in — live dashboard for content +
+          {/* Launch readiness drill-in, live dashboard for content +
               inspector-pool checks. The actual is_launched toggle stays
               above so there's one canonical flip surface. */}
           <Link

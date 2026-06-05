@@ -221,7 +221,7 @@ export function TagInput({
 
       <p className="flex items-center justify-between text-[10px] text-zinc-500">
         <span>
-          {tags.length} of {maxItems} · Enter or comma to add
+          {tags.length} of {maxItems}, Enter or comma to add
         </span>
         {tags.length > 0 && (
           <button

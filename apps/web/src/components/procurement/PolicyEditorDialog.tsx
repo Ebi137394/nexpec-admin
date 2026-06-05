@@ -203,7 +203,7 @@ export function PolicyEditorDialog({
         <header className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Procurement · Approval band
+              Procurement, Approval band
             </p>
             <h3 className="mt-1 font-display text-base font-semibold text-white">
               {editing ? `Edit "${policy?.name}"` : 'New approval band'}
@@ -228,7 +228,7 @@ export function PolicyEditorDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={120}
-                placeholder="e.g. Dept Head Tier · $10K–$50K"
+                placeholder="e.g. Dept Head Tier, $10K–$50K"
                 className={inputCls}
               />
             </Field>
@@ -333,7 +333,7 @@ export function PolicyEditorDialog({
                   onChange={(e) => setScopeDeptId(e.target.value)}
                   className={`${inputCls} appearance-none`}
                 >
-                  <option value="">— Org-wide —</option>
+                  <option value="">Org-wide</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
                       {'  '.repeat(Math.max(0, d.depth)) +
@@ -369,7 +369,7 @@ export function PolicyEditorDialog({
                 {!requiresSod && (
                   <p className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-400/30 bg-amber-400/[0.06] px-2 py-1 text-[10px] text-amber-200">
                     <AlertTriangle className="h-3 w-3 shrink-0" strokeWidth={1.75} />
-                    SoD off — auditors will flag this. Justify in policy notes.
+                    SoD off, auditors will flag this. Justify in policy notes.
                   </p>
                 )}
               </div>
@@ -384,7 +384,7 @@ export function PolicyEditorDialog({
                 className="h-3.5 w-3.5 cursor-pointer accent-emerald-400"
               />
               <span className="text-sm text-white">
-                Active —{' '}
+                Active,{' '}
                 <span className="text-zinc-500">
                   inactive bands don&apos;t gate new jobs but stay in history
                 </span>

@@ -101,7 +101,7 @@ export default function SupplierDashboardPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={<Megaphone size={18} />} tone="violet" value={String(opps.length)} label="Open opportunities" sub={matched.length > 0 ? `${matched.length} match your capabilities` : 'Across all disciplines'} />
         <Kpi icon={<Send size={18} />} tone="cyan" value={String(activeBids)} label="Active bids" sub={quotes.length > 0 ? `${quotes.length} total submitted` : 'No bids yet'} />
-        <Kpi icon={<Trophy size={18} />} tone="green" value={winRate == null ? '—' : `${winRate}%`} label="Win rate" sub={won + lost > 0 ? `${won} won · ${lost} lost` : 'Awaiting outcomes'} />
+        <Kpi icon={<Trophy size={18} />} tone="green" value={winRate == null ? '—' : `${winRate}%`} label="Win rate" sub={won + lost > 0 ? `${won} won, ${lost} lost` : 'Awaiting outcomes'} />
         <Kpi icon={<Star size={18} />} tone="amber" value={profile ? Number(profile.rating_avg ?? 0).toFixed(1) : '—'} label="Buyer rating" sub={profile ? `${profile.rating_count ?? 0} reviews` : 'List to start earning reviews'} />
       </section>
 
@@ -114,7 +114,7 @@ export default function SupplierDashboardPage() {
               <h2 className="font-semibold text-white">Qualification readiness</h2>
               <p className="mt-0.5 text-sm text-zinc-400">
                 {profile?.verified
-                  ? 'You are a verified vendor — buyers see your trust badge across the marketplace.'
+                  ? 'You are a verified vendor, buyers see your trust badge across the marketplace.'
                   : 'Complete your profile to rank higher and unlock verification.'}
               </p>
             </div>
@@ -180,7 +180,7 @@ export default function SupplierDashboardPage() {
                       {o.alreadyQuoted && <span className="rounded-full border border-cyan/50 px-2 py-0.5 text-[9px] font-bold text-cyan-glow">You bid</span>}
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'} · {new Date(o.created_at).toLocaleDateString()}
+                      {o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'}, {new Date(o.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <ArrowRight size={16} className="shrink-0 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-violet-glow" />
@@ -198,7 +198,7 @@ export default function SupplierDashboardPage() {
           <EmptyState
             icon={<Send size={22} className="text-cyan-glow" />}
             title="You haven't bid yet"
-            body="Submit a quote on any open opportunity — when a buyer awards it, NEXPEC auto-dispatches source inspection and you're notified instantly."
+            body="Submit a quote on any open opportunity, when a buyer awards it, NEXPEC auto-dispatches source inspection and you're notified instantly."
           />
         ) : (
           <ul className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.05]">
@@ -215,7 +215,7 @@ export default function SupplierDashboardPage() {
                       <p className="truncate text-sm font-semibold text-white">{q.rfq_title || 'RFQ'}</p>
                       <p className="mt-0.5 text-xs text-zinc-500">
                         {cents != null ? formatUsd(cents) : 'Quote on file'}
-                        {q.status === 'accepted' && q.spawned_job_id ? ' · Inspection dispatched' : ''}
+                        {q.status === 'accepted' && q.spawned_job_id ? ', Inspection dispatched' : ''}
                       </p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${st.cls}`}>{st.label}</span>

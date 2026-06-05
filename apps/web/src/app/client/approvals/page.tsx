@@ -33,7 +33,7 @@ export default async function ApprovalsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Procurement · Approvals
+          Procurement, Approvals
         </p>
         <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
@@ -44,7 +44,7 @@ export default async function ApprovalsPage() {
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           Jobs that triggered an approval gate are routed here. Click any
           request to record your decision. Self-approval is{' '}
-          <span className="text-zinc-300">schema-blocked</span> — requests
+          <span className="text-zinc-300">schema-blocked</span>, requests
           you posted yourself will never appear in this queue.
         </p>
       </header>
@@ -72,7 +72,7 @@ export default async function ApprovalsPage() {
       <ApprovalsList requests={requests} />
 
       <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-        Source · fetch_my_pending_approvals() · SoD-filtered server-side.
+        Source, fetch_my_pending_approvals(), SoD-filtered server-side.
         Decisions are written through submit_job_approval with constraint-
         trigger enforcement at the schema layer.
       </p>

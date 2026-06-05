@@ -53,7 +53,7 @@ export function BlockchainSeals() {
               Sealed. Then <span className="headline-gradient">anchored to Bitcoin.</span>
             </h2>
             <p className="mt-5 text-pretty text-lg leading-relaxed text-zinc-300">
-              Every accepted finding folds into a tamper-evident seal — a five-part
+              Every accepted finding folds into a tamper-evident seal, a five-part
               cryptographic root signed by the inspector. We timestamp that seal into the
               Bitcoin blockchain, so a report&apos;s integrity is provable by anyone,
               forever. No trust required.

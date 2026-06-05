@@ -94,7 +94,7 @@ export default async function ClientJobApplicationsPage({
             <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
               {applications.length} application
               {applications.length === 1 ? '' : 's'}. Selecting an
-              inspector routes the application into admin dispatch — they
+              inspector routes the application into admin dispatch, they
               confirm credentials and finalise the hire.
             </p>
           </div>
@@ -137,7 +137,7 @@ export default async function ClientJobApplicationsPage({
       {/* Grouped lists */}
       {grouped.selected.length > 0 && (
         <Group
-          title="Your pick — pending admin dispatch"
+          title="Your pick, pending admin dispatch"
           subtitle="Already routed to admin. They confirm the inspector's credentials and finalise."
         >
           {grouped.selected.map((app) => (
@@ -147,7 +147,7 @@ export default async function ClientJobApplicationsPage({
       )}
       {grouped.pending.length > 0 && (
         <Group
-          title={`Pending review · ${grouped.pending.length}`}
+          title={`Pending review, ${grouped.pending.length}`}
           subtitle="Open applications awaiting your decision."
         >
           {grouped.pending.map((app) => (
@@ -157,7 +157,7 @@ export default async function ClientJobApplicationsPage({
       )}
       {grouped.closed.length > 0 && (
         <Group
-          title={`Closed · ${grouped.closed.length}`}
+          title={`Closed, ${grouped.closed.length}`}
           subtitle="Already rejected, withdrawn, or accepted."
           collapsible
         >
@@ -192,7 +192,7 @@ function Group({
         {subtitle && (
           <p className="mt-0.5 text-sm text-zinc-500">
             {subtitle}
-            {collapsible && ' (Always visible — collapse arrives later.)'}
+            {collapsible && ' (Always visible, collapse arrives later.)'}
           </p>
         )}
       </header>
@@ -278,7 +278,7 @@ function Card({
         <StatusChip status={app.status} />
       </header>
 
-      {/* GOLDEN_RULE_2 — bid_amount_cents intentionally hidden from
+      {/* GOLDEN_RULE_2, bid_amount_cents intentionally hidden from
           client view. The inspector's bid is admin-only data. The client
           evaluates the inspector on profile signal (rating, experience,
           completed jobs) not on price. */}
@@ -326,7 +326,7 @@ function Card({
         </p>
         <p className="mt-1 text-xs text-zinc-300">
           Open the admin chat for this job. Ask for additional docs, CV
-          details, or a reference check. Admin relays — all conversations
+          details, or a reference check. Admin relays, all conversations
           stay scoped to this project.
         </p>
         <button

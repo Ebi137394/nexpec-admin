@@ -60,7 +60,7 @@ export function DepartmentPickerField({
   departments,
   defaultDepartmentId,
   unattributedMode = 'allow',
-  unattributedLabel = '— Unattributed —',
+  unattributedLabel = 'Unattributed',
   orgName,
   onValueChange,
   disabled = false,
@@ -122,7 +122,7 @@ export function DepartmentPickerField({
             </option>
           ))}
         </select>
-        {/* Custom caret — keeps the visual consistent with the form's
+        {/* Custom caret, keeps the visual consistent with the form's
             other Select primitives, which also use the appearance-none
             approach. */}
         <svg
@@ -156,5 +156,5 @@ function renderOptionLabel(d: DepartmentPickerOption): string {
   const indent = '  '.repeat(Math.max(0, d.depth));
   const arrow = d.depth > 0 ? '↳ ' : '';
   const base = `${indent}${arrow}${d.name}`;
-  return d.cost_center ? `${base}  ·  ${d.cost_center}` : base;
+  return d.cost_center ? `${base}, ${d.cost_center}` : base;
 }

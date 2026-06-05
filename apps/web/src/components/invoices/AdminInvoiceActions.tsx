@@ -46,7 +46,7 @@ export function AdminInvoiceActions({ invoiceId, status }: Props) {
   if (status === 'paid' || status === 'voided') {
     return (
       <p className="rounded-xl border border-white/[0.06] bg-white/[0.01] p-3 text-xs text-zinc-500">
-        Terminal state — no admin actions available.
+        Terminal state, no admin actions available.
       </p>
     );
   }

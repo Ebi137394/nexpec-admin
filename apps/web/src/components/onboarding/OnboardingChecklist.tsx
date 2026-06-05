@@ -82,7 +82,7 @@ export async function OnboardingChecklist({
             <p className="text-sm leading-relaxed text-zinc-400">
               A short, role-specific checklist to make sure you get the
               most from the platform. Steps auto-tick as you complete
-              them — no need to come back here.
+              them. No need to come back here.
             </p>
           )}
           {allComplete && (
@@ -144,7 +144,6 @@ function ProgressPill({
       <span className="font-display text-[11px] font-semibold">
         {completed}/{total}
       </span>
-      <span className="text-zinc-500">·</span>
       <span>{percent}%</span>
     </span>
   );

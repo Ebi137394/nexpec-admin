@@ -31,7 +31,7 @@ const CreateJobSchema = z.object({
     .string()
     .trim()
     .min(20, { message: 'Add at least a couple sentences of scope.' })
-    .max(8000, { message: 'Description is too long — attach a file instead.' }),
+    .max(8000, { message: 'Description is too long, attach a file instead.' }),
   locationCity: z
     .string()
     .trim()
@@ -41,7 +41,7 @@ const CreateJobSchema = z.object({
     .coerce.number({ message: 'Budget must be a number.' })
     .int({ message: 'Whole dollars only.' })
     .min(100, { message: 'Minimum budget is $100.' })
-    .max(10_000_000, { message: 'Budget exceeds the cap — contact sales.' }),
+    .max(10_000_000, { message: 'Budget exceeds the cap, contact sales.' }),
   urgency: z.enum(URGENCY_VALUES).default('normal'),
   jobType: z.enum(JOB_TYPES).default('on_site'),
   // Specialties arrive as an array of slugs via repeated form fields.
@@ -120,7 +120,7 @@ export async function createJob(formData: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const msg = parsed.error.issues[0]?.message ?? 'Could not post — check the form.';
+    const msg = parsed.error.issues[0]?.message ?? 'Could not post, check the form.';
     redirect(buildErrorRedirect('/client/jobs/new', msg));
   }
   // TS doesn't model redirect()'s throw — re-bind so .input is non-optional below.

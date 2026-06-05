@@ -32,7 +32,7 @@ const ContactSchema = z.object({
     .string()
     .trim()
     .min(10, { message: 'Add at least a sentence so we can route this well.' })
-    .max(2000, { message: 'Message is too long — link instead of pasting.' }),
+    .max(2000, { message: 'Message is too long, link instead of pasting.' }),
 });
 
 function buildRedirect(

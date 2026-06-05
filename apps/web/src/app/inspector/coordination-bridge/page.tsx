@@ -18,7 +18,7 @@ import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { InspectorBridgeWorkspace } from '@/components/coordination/InspectorBridgeWorkspace';
 
-export const metadata: Metadata = { title: 'Coordination Bridge · NEXPEC' };
+export const metadata: Metadata = { title: 'Coordination Bridge, NEXPEC' };
 
 interface PageProps {
   searchParams?: Promise<{ bridge_id?: string; job_id?: string }>;
@@ -37,7 +37,7 @@ export default async function InspectorCoordinationBridgePage({ searchParams }: 
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
       <h1 className="mb-1 text-2xl font-semibold tracking-tight text-white">Coordination Bridge</h1>
       <p className="mb-6 text-sm text-zinc-400">
-        Coordinate the inspection date, site access and preliminary documents with the vendor — the
+        Coordinate the inspection date, site access and preliminary documents with the vendor, the
         client is notified automatically when the date locks.
       </p>
       <InspectorBridgeWorkspace bridgeId={bridgeId} jobId={jobId} />

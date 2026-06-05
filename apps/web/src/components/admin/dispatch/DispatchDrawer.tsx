@@ -92,7 +92,7 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
     <AnimatePresence>
       {open && job && application && (
         <>
-          {/* backdrop — clicking it does NOT close; financial action,
+          {/* backdrop, clicking it does NOT close; financial action,
               we want explicit dismissal */}
           <motion.div
             aria-hidden
@@ -126,7 +126,7 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
                   {job.title ?? 'Untitled job'}
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
-                  Inspector ·{' '}
+                  Inspector,{' '}
                   <span className="text-zinc-300">
                     {application.applicant_name ?? application.applicant_email ?? '—'}
                   </span>
@@ -167,8 +167,8 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
             {/* Footer microcopy */}
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_dispatch_job · atomic across job, application,
-                siblings · audit-stamped
+                rpc, admin_dispatch_job, atomic across job, application,
+                siblings, audit-stamped
               </p>
             </footer>
           </motion.aside>
@@ -285,7 +285,7 @@ function DispatchForm({
       <p className="text-center text-[11px] leading-relaxed text-zinc-500">
         Dispatch is atomic. The RPC flips the job to <code className="font-mono text-zinc-400">assigned</code>,
         promotes this application to <code className="font-mono text-zinc-400">hired</code>, and rejects every
-        sibling — in one transaction.
+        sibling, in one transaction.
       </p>
     </form>
   );

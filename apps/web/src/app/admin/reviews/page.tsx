@@ -56,7 +56,7 @@ import { moderateReviewAction } from '@/lib/actions/reviewsModeration';
 export const metadata: Metadata = {
   title: 'Reviews Moderation',
   description:
-    'Admin moderation surface for the reviews engine. Hide, dispute, flag, annotate — backed by moderate_review SECURITY DEFINER RPC.',
+    'Admin moderation surface for the reviews engine. Hide, dispute, flag, annotate, backed by moderate_review SECURITY DEFINER RPC.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -100,7 +100,7 @@ export default async function AdminReviewsPage({ searchParams }: PageProps) {
       {/* ── Header ───────────────────────────────────────────────────── */}
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Reputation Engine
+          Command Console, Reputation Engine
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Reviews Moderation
@@ -122,7 +122,7 @@ export default async function AdminReviewsPage({ searchParams }: PageProps) {
             strokeWidth={1.75}
           />
           <p className="text-sm text-accent-green">
-            Review moderated — action <span className="font-mono">{sp.moderated}</span>{' '}
+            Review moderated, action <span className="font-mono">{sp.moderated}</span>{' '}
             recorded.
             {sp.reviewId ? (
               <span className="ml-2 text-accent-green/70">
@@ -327,7 +327,7 @@ function ReviewCard({ row }: { row: ModerationReviewRow }) {
         </blockquote>
       ) : (
         <p className="mt-5 text-xs italic text-zinc-500">
-          No written feedback — rating-only submission.
+          No written feedback, rating-only submission.
         </p>
       )}
 

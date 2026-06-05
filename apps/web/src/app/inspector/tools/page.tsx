@@ -52,7 +52,7 @@ export default function ToolsListPage() {
             Engineering
           </p>
           <h1 className="mt-1 text-2xl font-extrabold">Engineering Tools</h1>
-          <p className="mt-1 text-sm text-white/60">Field-grade calculators · sealed results</p>
+          <p className="mt-1 text-sm text-white/60">Field-grade calculators, sealed results</p>
         </div>
         <span className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet/15 sm:flex">
           <Construction size={20} className="text-violet-glow" />

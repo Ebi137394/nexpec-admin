@@ -78,7 +78,7 @@ export default async function OrgStructurePage({ params }: PageProps) {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Command Console · Org Structure
+              Command Console, Org Structure
             </p>
             <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
@@ -105,7 +105,7 @@ export default async function OrgStructurePage({ params }: PageProps) {
         {org.kind === 'agency' && (
           <p className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] px-4 py-2 text-xs text-amber-200/90">
             This is an inspection agency. Department hierarchies are
-            primarily a buyer / enterprise concept — proceed only if the
+            primarily a buyer / enterprise concept, proceed only if the
             agency has formal internal divisions.
           </p>
         )}
@@ -134,7 +134,7 @@ export default async function OrgStructurePage({ params }: PageProps) {
             assignableMembers={assignable.members}
           />
 
-          {/* Super-admin oversight: every structural change — from this
+          {/* Super-admin oversight: every structural change, from this
               surface OR from /client/structure — is logged with the
               acting user's identity and shown here for review. */}
           <DepartmentAuditPanel events={auditEvents} />

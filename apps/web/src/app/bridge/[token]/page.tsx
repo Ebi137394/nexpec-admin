@@ -17,9 +17,9 @@ import type { Metadata } from 'next';
 import { VendorBridgeClient } from '@/components/coordination/VendorBridgeClient';
 
 export const metadata: Metadata = {
-  title: 'Coordination Bridge · NEXPEC',
+  title: 'Coordination Bridge, NEXPEC',
   description:
-    'Coordinate your upcoming inspection with the assigned inspector — confirm dates, upload preliminary documents, declare site access.',
+    'Coordinate your upcoming inspection with the assigned inspector, confirm dates, upload preliminary documents, declare site access.',
   robots: { index: false, follow: false },
 };
 
@@ -45,7 +45,7 @@ export default function VendorBridgePage({ params }: Props) {
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
           <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-violet-300">
             <span className="inline-block h-2 w-2 rounded-sm bg-violet-500" />
-            NEXPEC · COORDINATION BRIDGE
+            NEXPEC, COORDINATION BRIDGE
           </span>
           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-emerald-400">
             PRIVATE LINK
@@ -71,7 +71,7 @@ export default function VendorBridgePage({ params }: Props) {
 
       <footer className="border-t border-white/[0.06] py-6">
         <p className="mx-auto max-w-3xl px-5 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-          COORDINATION BRIDGE · PART OF THE NEXPEC PLATFORM
+          COORDINATION BRIDGE, PART OF THE NEXPEC PLATFORM
         </p>
       </footer>
     </div>

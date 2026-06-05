@@ -112,7 +112,7 @@ export default async function AdminDiagnosticsPage({ searchParams }: PageProps) 
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Diagnostics
+          Command Console, Diagnostics
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           System health
@@ -290,7 +290,7 @@ export default async function AdminDiagnosticsPage({ searchParams }: PageProps) 
               >
                 <span className="truncate text-zinc-200">{n.title}</span>
                 <span className="shrink-0 text-zinc-500">
-                  {n.kind} · {n.created_at}
+                  {n.kind}, {n.created_at}
                 </span>
               </li>
             ))}

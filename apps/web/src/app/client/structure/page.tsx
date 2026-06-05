@@ -116,7 +116,7 @@ export default async function ClientStructurePage() {
     <div className="space-y-8">
       <header className="space-y-3">
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Org Structure
+          Client Portal, Org Structure
         </p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -216,7 +216,7 @@ function NoMembershipState() {
     <div className="space-y-6">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Org Structure
+          Client Portal, Org Structure
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           No organization linked to your account
@@ -252,8 +252,8 @@ function NoMembershipState() {
               defaultValue="enterprise"
               className="rounded-lg border border-white/10 bg-ink-800/60 px-3 py-2 text-sm text-white focus:border-violet-glow/50 focus:outline-none"
             >
-              <option value="enterprise">Enterprise · buyer</option>
-              <option value="agency">Agency · inspection</option>
+              <option value="enterprise">Enterprise, buyer</option>
+              <option value="agency">Agency, inspection</option>
             </select>
           </label>
           <button
@@ -280,7 +280,7 @@ function SuperAdminLandingState() {
         </h1>
       </header>
       <p className="text-sm text-zinc-400">
-        This is the client surface — designed for org members managing their
+        This is the client surface, designed for org members managing their
         own structure. As the NEXPEC Platform Owner you have a richer view at:
       </p>
       <Link

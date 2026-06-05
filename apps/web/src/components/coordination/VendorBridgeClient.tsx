@@ -317,7 +317,7 @@ function StatusPill({ status, required }: { status: string; required: boolean })
     <span
       className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] ${tone}`}
     >
-      {label}{required ? '' : ' · OPT'}
+      {label}{required ? '' : ', OPT'}
     </span>
   );
 }

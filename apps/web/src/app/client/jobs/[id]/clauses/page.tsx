@@ -62,13 +62,13 @@ export default async function ClientJobClausesPage({ params, searchParams }: Pag
           Back to job
         </Link>
         <p className="mt-4 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Legal clauses
+          Client Portal, Legal clauses
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Job-specific clauses
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          {((job as { title?: string }).title) ?? 'This job'} · Inspectors must accept
+          {((job as { title?: string }).title) ?? 'This job'}, Inspectors must accept
           every <span className="text-violet-glow">required</span> clause before they
           can apply. Non-required clauses are advisory.
         </p>

@@ -23,7 +23,7 @@ export default async function SettingsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Settings
@@ -31,7 +31,7 @@ export default async function SettingsPage() {
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           Platform-wide configuration. Fee changes fire{' '}
           <span className="font-mono text-violet-glow">admin_set_fee_schedule</span>{' '}
-          (audit-critical). Integration credentials are read-only here —
+          (audit-critical). Integration credentials are read-only here,
           rotation happens in your host&apos;s env panel.
         </p>
       </header>
@@ -39,7 +39,7 @@ export default async function SettingsPage() {
       <FeeScheduleEditor initial={fees} />
       <IntegrationSecrets secrets={secrets} />
 
-      {/* Sprint 13.3 — Two-factor authentication. Self-suppresses if the
+      {/* Sprint 13.3, Two-factor authentication. Self-suppresses if the
           current session is unauthenticated. Strictly additive at the
           tail of the existing layout. */}
       <MfaSection initial={mfaStatus} />

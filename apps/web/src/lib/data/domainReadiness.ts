@@ -123,7 +123,7 @@ function computeVerdict(input: {
   if (!domain.is_active) {
     return {
       kind: 'blocked',
-      reason: `Domain is inactive (kill-switch off) — it is hidden from every surface, including admin lists. Re-enable from /admin/domains before launch.`,
+      reason: `Domain is inactive (kill-switch off), it is hidden from every surface, including admin lists. Re-enable from /admin/domains before launch.`,
     };
   }
   if (scopeTemplateCount === 0) {
@@ -141,7 +141,7 @@ function computeVerdict(input: {
   if (eligibleCount < MIN_INSPECTORS_FOR_LAUNCH) {
     return {
       kind: 'caution',
-      reason: `Only ${eligibleCount} eligible inspector${eligibleCount === 1 ? '' : 's'} — below the launch target of ${MIN_INSPECTORS_FOR_LAUNCH}. Launch is reversible, but the first job posted in this domain will see thin matches.`,
+      reason: `Only ${eligibleCount} eligible inspector${eligibleCount === 1 ? '' : 's'}, below the launch target of ${MIN_INSPECTORS_FOR_LAUNCH}. Launch is reversible, but the first job posted in this domain will see thin matches.`,
     };
   }
   return {

@@ -49,9 +49,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   return {
-    title: `Launch readiness · ${slug} · NEXPEC Admin`,
+    title: `Launch readiness, ${slug}, NEXPEC Admin`,
     description:
-      'Pre-launch readiness dashboard — content seeding + inspector pool.',
+      'Pre-launch readiness dashboard, content seeding + inspector pool.',
   };
 }
 
@@ -115,7 +115,7 @@ function Header({ report }: { report: DomainReadinessReport }) {
         <code className="font-mono text-zinc-300">
           DOMAIN_LAUNCH_PLAYBOOK.md
         </code>{' '}
-        — content seeding and inspector-pool count — and renders the
+        — content seeding and inspector-pool count, and renders the
         verdict below. The actual launch toggle stays on the{' '}
         <Link
           href="/admin/domains"
@@ -230,7 +230,7 @@ function ContentReadinessCard({ report }: { report: DomainReadinessReport }) {
 
       <p className="mb-5 text-sm leading-relaxed text-zinc-400">
         Confirms the database has the content the launch depends on. Any
-        zero is a blocker — the relevant Phase migration didn't apply or
+        zero is a blocker, the relevant Phase migration didn't apply or
         rolled back.
       </p>
 
@@ -376,7 +376,7 @@ function InspectorPoolCard({ report }: { report: DomainReadinessReport }) {
         <span className="font-semibold text-zinc-200">
           ≥ {READINESS_THRESHOLD}
         </span>{' '}
-        eligible inspectors — below that, the first job will see thin
+        eligible inspectors, below that, the first job will see thin
         matches.
       </p>
 
@@ -517,7 +517,7 @@ function PreLaunchChecklistCard({ slug }: { slug: string }) {
       </div>
 
       <p className="mb-4 text-sm leading-relaxed text-zinc-400">
-        Steps 3 and 4 of the playbook are operational — they don't have
+        Steps 3 and 4 of the playbook are operational, they don't have
         a dashboard surface. Run through them before flipping the launch
         switch from{' '}
         <Link

@@ -39,7 +39,7 @@ export function AnomalyFeed({ anomalies }: Props) {
       <header className="flex items-center justify-between">
         <div>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
-            ACTIVE ANOMALY FEED · 6 DETECTORS
+            ACTIVE ANOMALY FEED, 6 DETECTORS
           </p>
           <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-white">
             What auditors look for
@@ -131,7 +131,7 @@ function EmptyFeed() {
         No band-evasion, no rubber-stamping, no concentration risk, no
         quarter-end clustering, no off-hours patterns, no silent overrides
         observed across the trailing window. This is the signal auditors
-        most want to see — recorded continuously, not just at year-end.
+        most want to see, recorded continuously, not just at year-end.
       </p>
     </div>
   );

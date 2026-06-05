@@ -170,12 +170,12 @@ export const NDT_METHOD_CHOICES: ReadonlyArray<{
   slug: string;
   label: string;
 }> = [
-  { slug: 'ut', label: 'UT · Ultrasonic' },
-  { slug: 'rt', label: 'RT · Radiographic' },
-  { slug: 'mt', label: 'MT · Magnetic Particle' },
-  { slug: 'pt', label: 'PT · Liquid Penetrant' },
-  { slug: 'vt', label: 'VT · Visual' },
-  { slug: 'et', label: 'ET · Eddy Current' },
-  { slug: 'ae', label: 'AE · Acoustic Emission' },
-  { slug: 'lt', label: 'LT · Leak Testing' },
+  { slug: 'ut', label: 'UT, Ultrasonic' },
+  { slug: 'rt', label: 'RT, Radiographic' },
+  { slug: 'mt', label: 'MT, Magnetic Particle' },
+  { slug: 'pt', label: 'PT, Liquid Penetrant' },
+  { slug: 'vt', label: 'VT, Visual' },
+  { slug: 'et', label: 'ET, Eddy Current' },
+  { slug: 'ae', label: 'AE, Acoustic Emission' },
+  { slug: 'lt', label: 'LT, Leak Testing' },
 ];

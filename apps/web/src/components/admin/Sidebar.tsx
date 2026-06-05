@@ -157,7 +157,7 @@ export function Sidebar() {
         {/* Footer microcopy */}
         <div className="border-t border-white/[0.06] px-6 py-4">
           <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-            NEXPEC · v0.1 · build-{(process.env.VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7)}
+            NEXPEC, v0.1, build-{(process.env.VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7)}
           </p>
         </div>
       </div>

@@ -12,7 +12,7 @@ import { OnboardingWizard } from '@/components/auth/OnboardingWizard';
 export const metadata: Metadata = {
   title: 'Create your NEXPEC account',
   description:
-    'Join NEXPEC — vetted industrial inspections with audit-grade reports.',
+    'Join NEXPEC, vetted industrial inspections with audit-grade reports.',
 };
 
 export const dynamic = 'force-dynamic';

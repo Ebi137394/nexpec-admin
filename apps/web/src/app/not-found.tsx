@@ -124,7 +124,7 @@ export default function NotFound() {
               margin: 0,
             }}
           >
-            404 · Not Found
+            404, Not Found
           </p>
           <h1
             style={{
@@ -202,7 +202,7 @@ export default function NotFound() {
           color: '#71717a',
         }}
       >
-        © {year} NEXPEC · Audited by default.
+        © {year} NEXPEC, Audited by default.
       </footer>
     </div>
   );

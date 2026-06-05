@@ -119,7 +119,7 @@ export function InspectionModePicker({
                   </option>
                   {templates.map((t) => (
                     <option key={t.id} value={t.id} className="bg-ink-900">
-                      {t.name} · {CCI_TIER_LABELS[t.requiresCredentialTier]}
+                      {t.name}, {CCI_TIER_LABELS[t.requiresCredentialTier]}
                     </option>
                   ))}
                 </select>
@@ -128,7 +128,7 @@ export function InspectionModePicker({
                     <span className="font-semibold text-zinc-200">
                       {selectedTemplate.name}
                     </span>{' '}
-                    · validity {selectedTemplate.validityMonths} months ·
+                    validity {selectedTemplate.validityMonths} months,
                     requires{' '}
                     <span className="font-mono text-violet-glow">
                       {CCI_TIER_LABELS[selectedTemplate.requiresCredentialTier]}

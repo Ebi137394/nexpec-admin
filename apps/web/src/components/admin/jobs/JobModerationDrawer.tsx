@@ -68,7 +68,7 @@ const DECISIONS: DecisionOption[] = [
   {
     value: 'rejected',
     label: 'Reject',
-    copy: 'Cascade to admin_cancel_job — the job moves to cancelled with the moderation reason.',
+    copy: 'Cascade to admin_cancel_job, the job moves to cancelled with the moderation reason.',
     icon: Ban,
     tone: 'red',
   },
@@ -160,7 +160,7 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <JobStatusBadge status={job.status} />
                   <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-industrial text-zinc-300">
-                    moderation · {job.moderation_status ?? 'pending_review'}
+                    moderation, {job.moderation_status ?? 'pending_review'}
                   </span>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_review_job · audit-stamped · reject cascades through
+                rpc, admin_review_job, audit-stamped, reject cascades through
                 admin_cancel_job
               </p>
             </footer>
@@ -367,7 +367,7 @@ function Body({
               <Gavel className="h-3.5 w-3.5" strokeWidth={1.75} />
             </span>
             <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow">
-              Inspector payout · Golden Rule 1
+              Inspector payout, Golden Rule 1
             </p>
           </div>
           <p className="mt-2 text-xs text-zinc-400">
@@ -375,7 +375,7 @@ function Body({
             <span className="font-mono text-zinc-300">inspector_payout_cents</span>
             . <span className="text-zinc-300">Clients never see this value</span>
             ; inspectors never see the client&rsquo;s budget. Recommended but
-            optional — you can approve without a price and set it later.
+            optional, you can approve without a price and set it later.
           </p>
           {clientBudgetDollars !== null && (
             <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-zinc-400">
@@ -428,7 +428,7 @@ function Body({
       <section>
         <label htmlFor="job-mod-notes" className="block">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-            Notes {showNotesRequired ? '(required · audit-captured)' : '(optional)'}
+            Notes {showNotesRequired ? '(required, audit-captured)' : '(optional)'}
           </span>
           <textarea
             id="job-mod-notes"
@@ -440,7 +440,7 @@ function Body({
             rows={4}
             placeholder={
               decision === 'edits_requested'
-                ? 'What changes does the client need to make? Be specific — this text reaches the poster.'
+                ? 'What changes does the client need to make? Be specific, this text reaches the poster.'
                 : decision === 'rejected'
                   ? 'Why is the job being rejected? This becomes the cancellation reason.'
                   : 'Optional sign-off note (audit-captured).'
@@ -520,10 +520,10 @@ function ReviewSubmit({
   const { pending } = useFormStatus();
   const label =
     decision === 'approved'
-      ? 'Confirm — approve job'
+      ? 'Confirm, approve job'
       : decision === 'edits_requested'
-        ? 'Confirm — request edits'
-        : 'Confirm — reject (cancel)';
+        ? 'Confirm, request edits'
+        : 'Confirm, reject (cancel)';
   const disabled = pending || blocked;
   return (
     <div className="space-y-2">
@@ -563,7 +563,7 @@ function SuccessPanel({ state }: { state: ReviewJobActionState }) {
               <span className="font-mono text-accent-green">{moderation_status}</span>
               {job_status && (
                 <>
-                  {' · '}status ={' '}
+                  {', '}status ={' '}
                   <span className="font-mono text-zinc-200">{job_status}</span>
                 </>
               )}

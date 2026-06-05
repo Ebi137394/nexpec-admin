@@ -98,8 +98,8 @@ export default async function BudgetEnvelopesPage() {
         defaultCurrency={orgBaseCurrency}
       />
       <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-        Source · department_budgets · consumption computed live via
-        check_department_budget · currency conversion via convert_cents
+        Source, department_budgets, consumption computed live via
+        check_department_budget, currency conversion via convert_cents
       </p>
     </div>
   );
@@ -116,7 +116,7 @@ function Header({ orgName }: { orgName: string }) {
         Back to budget
       </Link>
       <p className="mt-4 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-        Procurement · Budget envelopes
+        Procurement, Budget envelopes
       </p>
       <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
@@ -126,7 +126,7 @@ function Header({ orgName }: { orgName: string }) {
       </h1>
       <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
         Set per-department, per-fiscal-period allocation caps. Consumption
-        (committed + paid) is computed live — no maintenance job, no stale
+        (committed + paid) is computed live, no maintenance job, no stale
         totals.
       </p>
     </header>

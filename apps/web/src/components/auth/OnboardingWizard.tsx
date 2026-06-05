@@ -70,7 +70,7 @@ const ROLE_CARDS: ReadonlyArray<{
     tone: 'violet',
     bullets: [
       'Vetted, certified inspectors on demand',
-      'Escrow until report is signed — no Net 60 risk',
+      'Escrow until report is signed, no Net 60 risk',
       'Audit-grade evidence packs by default',
     ],
   },
@@ -106,7 +106,7 @@ const ROLE_CARDS: ReadonlyArray<{
     tone: 'cyan',
     bullets: [
       'Win RFQs from qualified, vetted buyers',
-      'Seal ISO certs & accreditations once — Bitcoin-timestamped',
+      'Seal ISO certs & accreditations once, Bitcoin-timestamped',
       'Get discovered in the supplier directory',
     ],
   },

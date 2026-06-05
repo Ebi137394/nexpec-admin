@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import ClientVaultPage from '@/app/client/vault/page';
 
 export const metadata: Metadata = {
-  title: 'Compliance Vault · Platform-wide',
+  title: 'Compliance Vault, Platform-wide',
   description: 'Verify and audit every compliance document on the platform.',
 };
 

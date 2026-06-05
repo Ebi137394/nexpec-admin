@@ -15,14 +15,14 @@ const PILLARS = [
     icon: Fingerprint,
     title: 'Cryptographic affidavits',
     headline: 'Every report is Ed25519-signed.',
-    body: 'On submission, the report\'s hash is signed by the inspector\'s key and the platform\'s witness key — then anchored to Bitcoin through our Trust Spine. Vendor certificates are sealed the same way. Verifiable in court, immutable forever.',
+    body: 'On submission, the report\'s hash is signed by the inspector\'s key and the platform\'s witness key, then anchored to Bitcoin through our Trust Spine. Vendor certificates are sealed the same way. Verifiable in court, immutable forever.',
     accent: 'cyan',
   },
   {
     icon: Eye,
     title: 'Industrial Black Box',
     headline: 'Every mutation is audit-grade.',
-    body: 'A schema-level trigger captures who, when, why, and what — before-and-after diffs included. Discoverable, exportable, RLS-gated.',
+    body: 'A schema-level trigger captures who, when, why, and what, before-and-after diffs included. Discoverable, exportable, RLS-gated.',
     accent: 'violet',
   },
 ] as const;

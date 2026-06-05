@@ -54,7 +54,7 @@ export function ProvableAI() {
               An AI Co-Inspector that <span className="headline-gradient">can&apos;t lie.</span>
             </h2>
             <p className="mt-5 text-pretty text-lg leading-relaxed text-zinc-300">
-              A signed model runs on the inspector&apos;s own device — flagging corrosion,
+              A signed model runs on the inspector&apos;s own device, flagging corrosion,
               cracks and weld defects in real time. Every finding is cryptographically
               bound to the exact model that produced it. No cloud, no edits, no doubt.
             </p>

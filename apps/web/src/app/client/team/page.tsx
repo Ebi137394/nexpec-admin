@@ -60,7 +60,7 @@ export default async function ClientTeamPage({ searchParams }: PageProps) {
       <div className="space-y-6">
         <header>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Client Portal · Team
+            Client Portal, Team
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Team management
@@ -116,14 +116,14 @@ export default async function ClientTeamPage({ searchParams }: PageProps) {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Client Portal · Team
+            Client Portal, Team
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {org.name}
           </h1>
           <p className="mt-1 text-xs uppercase tracking-industrial text-zinc-500">
-            {org.kind === 'enterprise' ? 'Enterprise' : 'Agency'} · {members.length}{' '}
-            {members.length === 1 ? 'member' : 'members'} ·{' '}
+            {org.kind === 'enterprise' ? 'Enterprise' : 'Agency'}, {members.length}{' '}
+            {members.length === 1 ? 'member' : 'members'},{' '}
             {pendingInvites.length} pending
           </p>
         </div>
@@ -199,8 +199,8 @@ export default async function ClientTeamPage({ searchParams }: PageProps) {
                   {m.userLabel ?? m.userEmail ?? m.userId.slice(0, 8)}
                 </p>
                 <p className="truncate text-[11px] text-zinc-500">
-                  {m.userEmail ?? 'no email'} ·{' '}
-                  {ORG_MEMBER_ROLE_LABELS[m.role]} · joined{' '}
+                  {m.userEmail ?? 'no email'},{' '}
+                  {ORG_MEMBER_ROLE_LABELS[m.role]}, joined{' '}
                   {new Date(m.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -234,7 +234,7 @@ export default async function ClientTeamPage({ searchParams }: PageProps) {
                     {inv.invitedEmail}
                   </p>
                   <p className="truncate text-[11px] text-zinc-500">
-                    {ORG_MEMBER_ROLE_LABELS[inv.invitedRole]} · expires{' '}
+                    {ORG_MEMBER_ROLE_LABELS[inv.invitedRole]}, expires{' '}
                     {new Date(inv.expiresAt).toLocaleDateString()}
                   </p>
                 </div>

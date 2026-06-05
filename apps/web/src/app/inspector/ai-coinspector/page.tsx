@@ -107,7 +107,7 @@ export default function AiCoinspectorPage() {
         ...prev.filter((x) => x.stagedId !== s.id),
         ...cands.map((c) => ({ id: `${s.id}-${c.defectId}`, stagedId: s.id, thumbUrl: s.url, ...c })),
       ]);
-      setMsg({ kind: 'ok', text: `${cands.length} on-device suggestion${cands.length === 1 ? '' : 's'} · ${modelRef.slug} v${modelRef.version}.` });
+      setMsg({ kind: 'ok', text: `${cands.length} on-device suggestion${cands.length === 1 ? '' : 's'}, ${modelRef.slug} v${modelRef.version}.` });
     } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Inference failed.' }); }
     finally { setAnalyzingId(null); }
   };
@@ -118,7 +118,7 @@ export default function AiCoinspectorPage() {
       const res = await recordDetection(jobId, { defectId: sug.defectId, label: sug.label, confidence: sug.confidence }, modelRef);
       if (!res.ok) { setMsg({ kind: 'err', text: res.error ?? 'Could not record finding.' }); return; }
       setSuggestions((prev) => prev.filter((x) => x.id !== sug.id));
-      setMsg({ kind: 'ok', text: `Recorded "${sug.label}" — bound to ${modelRef.slug} v${modelRef.version}.` });
+      setMsg({ kind: 'ok', text: `Recorded "${sug.label}", bound to ${modelRef.slug} v${modelRef.version}.` });
       loadDets(jobId);
     } finally { setAcceptingId(null); }
   };
@@ -130,21 +130,21 @@ export default function AiCoinspectorPage() {
       <header className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet/15 text-violet-glow"><ScanEye size={22} /></span>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Inspector · Vision</p>
+          <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Inspector, Vision</p>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">AI Co-inspector</h1>
-          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Drop high-res or drone imagery and the model runs <span className="text-zinc-200">entirely in your browser</span> (TensorFlow.js, on your CPU/GPU). Accepted findings are sealed to the signed model — no data leaves for inference.</p>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Drop high-res or drone imagery and the model runs <span className="text-zinc-200">entirely in your browser</span> (TensorFlow.js, on your CPU/GPU). Accepted findings are sealed to the signed model, no data leaves for inference.</p>
         </div>
       </header>
 
       {/* Model status */}
       {modelStatus === 'ready' && modelRef ? (
         <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green">
-          <Cpu size={13} /> On-device model ready · {modelRef.slug} v{modelRef.version}
+          <Cpu size={13} /> On-device model ready, {modelRef.slug} v{modelRef.version}
         </div>
       ) : modelStatus === 'unconfigured' ? (
         <div className="flex items-start gap-2 rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>On-device inference isn&rsquo;t configured. Set <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_MODEL_URL</code> (a TFJS <code className="font-mono text-[12px]">model.json</code>) — plus optional <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_LABELS</code> — to enable browser analysis. You can still review recorded findings below.</span>
+          <span>On-device inference isn&rsquo;t configured. Set <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_MODEL_URL</code> (a TFJS <code className="font-mono text-[12px]">model.json</code>), plus optional <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_LABELS</code>, to enable browser analysis. You can still review recorded findings below.</span>
         </div>
       ) : modelStatus === 'error' ? (
         <div className="flex items-center gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red"><AlertCircle className="h-4 w-4" /> Could not load the on-device model.</div>
@@ -189,7 +189,7 @@ export default function AiCoinspectorPage() {
             >
               <UploadCloud size={30} className="text-violet-glow" />
               <p className="text-sm font-semibold text-white">Drag &amp; drop photos here</p>
-              <p className="text-xs text-zinc-500">High-res industrial or drone imagery · or click to browse</p>
+              <p className="text-xs text-zinc-500">High-res industrial or drone imagery, or click to browse</p>
               <button onClick={(e) => { e.stopPropagation(); startCam(); }} className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-violet/40 hover:text-white"><Camera size={13} /> Use webcam</button>
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
             </div>
@@ -209,7 +209,7 @@ export default function AiCoinspectorPage() {
               ))}
             </div>
           )}
-          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Inference runs locally in your browser — images are never uploaded for analysis.</p>
+          <p className="flex items-center gap-1.5 text-[11px] text-zinc-600"><Cpu size={12} /> Inference runs locally in your browser, images are never uploaded for analysis.</p>
         </section>
 
         {/* ── Suggestions + recorded findings ── */}
@@ -256,7 +256,7 @@ export default function AiCoinspectorPage() {
                           <p className="truncate text-sm font-semibold text-white">{d.label}</p>
                           {d.severity && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-industrial ${sevCls(d.severity)}`}>{d.severity}</span>}
                         </div>
-                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><ShieldCheck size={11} className="text-accent-green" /> {d.model_slug} v{d.model_version}{d.model_sha256 ? ` · ${d.model_sha256.slice(0, 8)}…` : ''}</p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><ShieldCheck size={11} className="text-accent-green" /> {d.model_slug} v{d.model_version}{d.model_sha256 ? `, ${d.model_sha256.slice(0, 8)}…` : ''}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-display text-lg font-semibold text-white">{Math.round(d.confidence * 100)}%</p>

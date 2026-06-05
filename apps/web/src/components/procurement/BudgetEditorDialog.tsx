@@ -173,7 +173,7 @@ export function BudgetEditorDialog({
               disabled={editing}
               className={`${inputCls} appearance-none ${editing ? 'opacity-60' : ''}`}
             >
-              <option value="">— Select a department —</option>
+              <option value="">Select a department</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {'  '.repeat(Math.max(0, d.depth)) +
@@ -250,7 +250,7 @@ export function BudgetEditorDialog({
             </div>
           </div>
 
-          <Field label="Notes (optional)" hint="Internal — visible in audit.">
+          <Field label="Notes (optional)" hint="Internal, visible in audit.">
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

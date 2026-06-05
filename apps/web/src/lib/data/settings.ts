@@ -91,7 +91,7 @@ export function readIntegrationSecrets(): IntegrationSecret[] {
       category: 'stripe',
       masked: mask(e.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY),
       present: !!e.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-      hint: 'Public — starts with pk_test_ or pk_live_.',
+      hint: 'Public, starts with pk_test_ or pk_live_.',
     },
     {
       key: 'STRIPE_SECRET_KEY',

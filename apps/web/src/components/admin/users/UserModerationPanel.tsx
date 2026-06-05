@@ -67,7 +67,7 @@ export function UserModerationPanel({
 
       {isSuperAdmin && (
         <div className="mb-5 rounded-2xl border border-accent-amber/30 bg-accent-amber/10 p-3 text-xs text-accent-amber">
-          This user is a <span className="font-semibold">super_admin</span> —
+          This user is a <span className="font-semibold">super_admin</span>,
           suspend / verify actions on this account are blocked at the DB
           layer for safety.
         </div>

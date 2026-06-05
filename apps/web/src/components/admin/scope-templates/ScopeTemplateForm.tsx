@@ -175,7 +175,7 @@ export function ScopeTemplateForm({
           />
           <div>
             <p className="font-semibold text-emerald-100">
-              Saved · now at v{state.updated.newVersion}.
+              Saved, now at v{state.updated.newVersion}.
             </p>
             <p className="mt-0.5 text-emerald-200/90">
               Earlier versions stay readable for any historical compliance jobs.
@@ -215,7 +215,7 @@ export function ScopeTemplateForm({
             label="Slug"
             required
             error={fe.slug}
-            hint="Lowercase letters, numbers, underscores — used in URLs and audit logs. Immutable after creation."
+            hint="Lowercase letters, numbers, underscores, used in URLs and audit logs. Immutable after creation."
           >
             <input
               id={slugId}
@@ -233,7 +233,7 @@ export function ScopeTemplateForm({
           <Field
             id={slugId}
             label="Slug"
-            hint="Slug is locked once a template exists — historical jobs reference it."
+            hint="Slug is locked once a template exists, historical jobs reference it."
           >
             <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5">
               <Hash className="h-3.5 w-3.5 text-zinc-500" strokeWidth={1.75} />

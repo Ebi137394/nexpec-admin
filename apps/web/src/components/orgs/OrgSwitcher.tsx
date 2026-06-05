@@ -62,7 +62,7 @@ interface Props {
 export function OrgSwitcher({ memberships, active, compact = false }: Props) {
   // ── Zero / single membership: static chip. ─────────────────────────
   if (memberships.length === 0) {
-    return <StaticChip label="NEXPEC · Platform" />;
+    return <StaticChip label="NEXPEC Platform" />;
   }
   if (memberships.length === 1) {
     return (
@@ -158,7 +158,7 @@ function InteractiveSwitcher({
     startTransition(async () => {
       const res = await setActiveOrgAction({ orgId: org.org_id });
       if (!res.ok) {
-        setError(res.error ?? 'Could not switch — try again.');
+        setError(res.error ?? 'Could not switch, try again.');
         setPendingId(null);
         return;
       }
@@ -269,7 +269,7 @@ function InteractiveSwitcher({
 
           <footer className="border-t border-white/[0.06] bg-white/[0.01] px-4 py-2.5">
             <p className="font-mono text-[9px] uppercase tracking-industrial text-zinc-600">
-              Pinned on profile · syncs across web + mobile
+              Pinned on profile, syncs across web + mobile
             </p>
           </footer>
         </div>

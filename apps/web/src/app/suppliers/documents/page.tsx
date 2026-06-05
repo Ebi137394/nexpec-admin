@@ -69,7 +69,7 @@ export default function DocumentsPage() {
       {/* Upload */}
       <section className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
         <h2 className="font-semibold text-white">Seal a new document</h2>
-        <p className="mt-0.5 mb-4 text-sm text-zinc-400">Choose a type, then upload — fingerprint, seal and timestamp happen automatically.</p>
+        <p className="mt-0.5 mb-4 text-sm text-zinc-400">Choose a type, then upload, fingerprint, seal and timestamp happen automatically.</p>
         <div className="grid gap-4 sm:grid-cols-[200px_1fr] sm:items-start">
           <div>
             <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-zinc-500">Document type</label>

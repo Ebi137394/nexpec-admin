@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Contact',
   description:
-    'Talk to NEXPEC — sales, support, and responsible disclosure. Three named inboxes plus a direct form.',
+    'Talk to NEXPEC, sales, support, and responsible disclosure. Three named inboxes plus a direct form.',
   openGraph: {
     title: 'Contact NEXPEC',
     description:
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
         url: '/og/contact.png',
         width: 1200,
         height: 630,
-        alt: 'NEXPEC support — vetted operators standing by, worldwide.',
+        alt: 'NEXPEC support, vetted operators standing by, worldwide.',
       },
     ],
   },
@@ -124,7 +124,7 @@ export default async function ContactPage({ searchParams }: PageProps) {
           </h1>
           <p className="mt-4 max-w-2xl text-pretty text-lg text-zinc-400">
             Three channels, three named addresses. Send a message below, or
-            email the right inbox directly — we&apos;ll route from there.
+            email the right inbox directly, we&apos;ll route from there.
           </p>
 
           {/* ── Banner image ─────────────────────────────────────────── */}
@@ -222,9 +222,9 @@ export default async function ContactPage({ searchParams }: PageProps) {
                     defaultValue={initialChannel}
                     className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
                   >
-                    <option value="sales">Sales — enterprise / agency / integrations</option>
-                    <option value="support">Support — active jobs, payments, access</option>
-                    <option value="security">Security — responsible disclosure</option>
+                    <option value="sales">Sales, enterprise / agency / integrations</option>
+                    <option value="support">Support, active jobs, payments, access</option>
+                    <option value="security">Security, responsible disclosure</option>
                   </select>
                 </div>
 

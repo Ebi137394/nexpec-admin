@@ -97,7 +97,7 @@ function Header({ orgName }: { orgName: string | null }) {
   return (
     <header>
       <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-        Procurement · Compliance
+        Procurement, Compliance
       </p>
       <h1 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
@@ -106,14 +106,14 @@ function Header({ orgName }: { orgName: string | null }) {
         Command Center
         {orgName && (
           <span className="font-mono text-base text-zinc-500 sm:text-lg">
-            · {orgName}
+            {orgName}
           </span>
         )}
       </h1>
       <p className="mt-2 max-w-3xl text-pretty text-sm text-zinc-400">
         A single page that projects every control NEXPEC enforces on your
         spend program. Posture score, coverage telemetry, schema-enforced
-        control health, and six SOX-grade anomaly detectors — recomputed
+        control health, and six SOX-grade anomaly detectors, recomputed
         live on every visit.
       </p>
     </header>
@@ -163,7 +163,7 @@ function QuickActions() {
       href: '/verify',
       icon: ExternalLink,
       title: 'Public verification',
-      subtitle: 'Share with auditors — no NEXPEC login required',
+      subtitle: 'Share with auditors, no NEXPEC login required',
     },
   ];
 
@@ -227,7 +227,7 @@ function MethodologyPanel() {
           <p>
             <span className="text-white">Posture score (0–100).</span>{' '}
             Mean of the three coverage percentages, less anomaly penalties
-            (−6 critical, −2 warning, −1 info). Transparent — auditors can
+            (−6 critical, −2 warning, −1 info). Transparent, auditors can
             recompute by hand from the figures shown above.
           </p>
         </li>
@@ -239,7 +239,7 @@ function MethodologyPanel() {
           <p>
             <span className="text-white">SoD violations = 0 is the goal.</span>{' '}
             Segregation of Duties is enforced at the schema layer via a
-            constraint trigger on <code className="font-mono text-zinc-200">approval_decisions</code> —
+            constraint trigger on <code className="font-mono text-zinc-200">approval_decisions</code>,
             self-approval cannot exist as a database state. Surfacing zero
             here is the proof the control held.
           </p>
@@ -252,7 +252,7 @@ function MethodologyPanel() {
           <p>
             <span className="text-white">Anomaly detectors.</span> Six
             pure-SQL projections over the audit trail. They run when you
-            load this page — no background daemon, no stored results, no
+            load this page, no background daemon, no stored results, no
             possibility of tampering with detector output.
           </p>
         </li>
@@ -269,7 +269,7 @@ function MethodologyPanel() {
               nexpecapp.com/verify
             </Link>{' '}
             accepts the JSON, recomputes the SHA-256 chain-of-custody
-            client-side, and proves no artifact was modified —{' '}
+            client-side, and proves no artifact was modified,{' '}
             <span className="text-white">without requiring NEXPEC access</span>.
           </p>
         </li>

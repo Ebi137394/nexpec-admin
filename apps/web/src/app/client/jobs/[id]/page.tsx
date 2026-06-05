@@ -65,7 +65,7 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Client Portal · Job
+              Client Portal, Job
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {job.title}
@@ -73,7 +73,7 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusBadge status={job.status} />
               <ModerationBadge status={job.moderationStatus} />
-              {/* Layer 1+4 — invisible while every job is industrial_ndt
+              {/* Layer 1+4, invisible while every job is industrial_ndt
                   AND launchedDomains is the platform default. Renders the
                   moment an admin launches civil / electrical / mechanical. */}
               <InspectionDomainBadge
@@ -106,7 +106,7 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Sprint 9 — Compliance Evidence Locker. The RPC enforces the
+        {/* Sprint 9, Compliance Evidence Locker. The RPC enforces the
             permission predicate (`can_assemble_evidence_for`); we can
             safely render the button to anyone, and the dialog will
             surface a clean error to non-eligible callers. */}
@@ -203,7 +203,7 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
           {timelineCopy(job.status, job.moderationStatus, job.applicationsCount)}
         </p>
         <p className="mt-3 font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-          Posted {formatRelative(job.createdAt)} · ID {job.id.slice(0, 8)}
+          Posted {formatRelative(job.createdAt)}, ID {job.id.slice(0, 8)}
         </p>
       </section>
     </div>
@@ -267,7 +267,7 @@ function ModerationBadge({ status }: { status: JobModerationStatus }) {
         : status === 'edits_requested'
           ? 'amber'
           : 'violet';
-  return <Pill tone={tone} label={'moderation · ' + status.replace('_', ' ')} />;
+  return <Pill tone={tone} label={'moderation, ' + status.replace('_', ' ')} />;
 }
 
 function UrgencyBadge({ urgency }: { urgency: JobUrgency }) {
@@ -279,7 +279,7 @@ function UrgencyBadge({ urgency }: { urgency: JobUrgency }) {
         : urgency === 'low'
           ? 'zinc'
           : 'violet';
-  return <Pill tone={tone} label={'urgency · ' + urgency} />;
+  return <Pill tone={tone} label={'urgency, ' + urgency} />;
 }
 
 function Pill({
@@ -323,8 +323,8 @@ function timelineCopy(
   // moderation = approved
   if (status === 'open') {
     return apps > 0
-      ? `Live. ${apps} application${apps === 1 ? '' : 's'} so far — review and pick a candidate when you're ready.`
-      : 'Live. No applications yet — vetted inspectors typically apply within hours.';
+      ? `Live. ${apps} application${apps === 1 ? '' : 's'} so far, review and pick a candidate when you're ready.`
+      : 'Live. No applications yet, vetted inspectors typically apply within hours.';
   }
   if (status === 'assigned') return 'Inspector assigned. Work is queued to begin.';
   if (status === 'in_progress') return 'Work in progress. Report is incoming.';

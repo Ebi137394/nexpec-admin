@@ -31,7 +31,7 @@ import { AuditDetailDrawer } from '@/components/admin/audit/AuditDetailDrawer';
 
 export const metadata: Metadata = {
   title: 'Audit Trail',
-  description: 'Industrial Black Box — every consequential mutation, audit-grade.',
+  description: 'Industrial Black Box, every consequential mutation, audit-grade.',
 };
 
 interface PageProps {
@@ -113,7 +113,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <AuditFilters eventTypes={eventTypes} />
         <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-          {filterActive ? 'filtered' : 'all events'} · {total.toLocaleString()} rows
+          {filterActive ? 'filtered' : 'all events'}, {total.toLocaleString()} rows
         </p>
       </div>
 

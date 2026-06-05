@@ -91,9 +91,9 @@ export function JobModerationPanel({
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <JobStatusBadge status={job.status} />
             <span className="rounded-full border border-white/15 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-industrial text-zinc-300">
-              moderation · {job.moderation_status ?? 'pending_review'}
+              moderation, {job.moderation_status ?? 'pending_review'}
             </span>
-            {/* Layer 1+3 expansion — passive domain badge.
+            {/* Layer 1+3 expansion, passive domain badge.
                 Renders NOTHING when domain='industrial_ndt' (current state
                 for every job), so this is a true no-op visually today. */}
             <InspectionDomainBadge domain={job.domain} />
@@ -167,7 +167,7 @@ export function JobModerationPanel({
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-cyan-glow" strokeWidth={1.75} />
             <p className="text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
-              Inspector applications · {applicants.length}
+              Inspector applications, {applicants.length}
             </p>
           </div>
           {applicants.length === 0 ? (
@@ -402,7 +402,7 @@ export function JobModerationPanel({
                         </div>
                         <label className="block">
                           <span className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-                            Custom contract URL (optional — overrides template)
+                            Custom contract URL (optional, overrides template)
                           </span>
                           <input
                             type="url"
@@ -508,7 +508,7 @@ export function JobModerationPanel({
                 {jobContract.clientSignedAt ? (
                   <>
                     <p className="mt-1 text-xs font-medium text-white">
-                      Signed · {jobContract.clientName ?? 'Client'}
+                      Signed, {jobContract.clientName ?? 'Client'}
                     </p>
                     <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
                       {new Date(jobContract.clientSignedAt).toLocaleString()}
@@ -516,7 +516,7 @@ export function JobModerationPanel({
                   </>
                 ) : (
                   <p className="mt-1 text-xs text-accent-amber">
-                    Pending — client has not signed
+                    Pending, client has not signed
                   </p>
                 )}
               </div>
@@ -534,7 +534,7 @@ export function JobModerationPanel({
                 {jobContract.inspectorSignedAt ? (
                   <>
                     <p className="mt-1 text-xs font-medium text-white">
-                      Signed · {jobContract.inspectorName ?? 'Inspector'}
+                      Signed, {jobContract.inspectorName ?? 'Inspector'}
                     </p>
                     <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
                       {new Date(jobContract.inspectorSignedAt).toLocaleString()}
@@ -542,7 +542,7 @@ export function JobModerationPanel({
                   </>
                 ) : (
                   <p className="mt-1 text-xs text-accent-amber">
-                    Pending — inspector has not signed
+                    Pending, inspector has not signed
                   </p>
                 )}
               </div>
@@ -565,7 +565,7 @@ export function JobModerationPanel({
                 href={`/admin/jobs?inspect=${job.id}#moderation`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet-glow hover:bg-violet/20"
               >
-                Contract id ·{' '}
+                Contract id,{' '}
                 <span className="font-mono">{jobContract.id.slice(0, 8)}</span>
               </Link>
             </div>
@@ -632,7 +632,7 @@ export function JobModerationPanel({
           </Link>
         </section>
 
-        {/* Three independent forms — one per decision. Server-action POST,
+        {/* Three independent forms, one per decision. Server-action POST,
             redirect back. No client component, no hydration risk. */}
         <section>
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
@@ -664,7 +664,7 @@ export function JobModerationPanel({
                     Inspector payout (USD)
                     {clientBudgetDollars !== null && (
                       <span className="ml-2 font-mono normal-case text-zinc-500">
-                        client budget · ${clientBudgetDollars.toLocaleString()}
+                        client budget, ${clientBudgetDollars.toLocaleString()}
                       </span>
                     )}
                   </span>
@@ -674,7 +674,7 @@ export function JobModerationPanel({
                     min={0}
                     step={1}
                     defaultValue={existingPayoutDollars}
-                    placeholder="e.g. 1500 — optional"
+                    placeholder="e.g. 1500, optional"
                     className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 font-mono text-sm text-white placeholder:text-zinc-600 focus:border-accent-green/60 focus:outline-none focus:ring-2 focus:ring-accent-green/30"
                   />
                 </label>
@@ -784,7 +784,7 @@ export function JobModerationPanel({
 
       <footer className="border-t border-white/[0.06] px-6 py-3">
         <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-          rpc · admin_review_job · audit-stamped · reject cascades through admin_cancel_job
+          rpc, admin_review_job, audit-stamped, reject cascades through admin_cancel_job
         </p>
       </footer>
     </aside>

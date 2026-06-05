@@ -17,7 +17,7 @@ import { PayoutsDrawer } from '@/components/admin/payouts/PayoutsDrawer';
 
 export const metadata: Metadata = {
   title: 'Payouts',
-  description: 'Inspector payout reconciliation — admin_mark_payout_processed.',
+  description: 'Inspector payout reconciliation, admin_mark_payout_processed.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,7 @@ export default async function PayoutsPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Payouts Reconciliation

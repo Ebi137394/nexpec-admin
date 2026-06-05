@@ -211,7 +211,7 @@ export function CountryMultiSelect({
                     })}
                     {filtered.length > 100 && (
                       <li className="px-3 py-2 text-center text-[10px] text-zinc-500">
-                        {filtered.length - 100} more — keep typing to narrow
+                        {filtered.length - 100} more, keep typing to narrow
                       </li>
                     )}
                   </ul>
@@ -227,7 +227,7 @@ export function CountryMultiSelect({
           {hint}
           {!single && atMax && (
             <span className="ml-1 text-accent-amber">
-              · Max {max} reached
+              Max {max} reached
             </span>
           )}
         </p>

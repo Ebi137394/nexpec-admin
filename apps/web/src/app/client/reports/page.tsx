@@ -25,7 +25,7 @@ export default async function ClientReportsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Deliverables
+          Client Portal, Deliverables
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Reports

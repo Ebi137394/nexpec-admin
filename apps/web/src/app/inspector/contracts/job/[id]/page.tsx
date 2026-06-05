@@ -98,7 +98,7 @@ export default async function InspectorJobContractPage({
 
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/80">
-          Inspector Portal · Job contract
+          Inspector Portal, Job contract
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           {contract.jobTitle ?? 'Inspection contract'}
@@ -111,7 +111,7 @@ export default async function InspectorJobContractPage({
 
       {sp.signed && (
         <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
-          ✅ Signed. The job is now in progress — open your assignments page.
+          ✅ Signed. The job is now in progress, open your assignments page.
         </div>
       )}
       {sp.error && (
@@ -157,7 +157,7 @@ export default async function InspectorJobContractPage({
       <section className="rounded-3xl border border-cyan-glow/30 bg-gradient-to-br from-cyan-glow/[0.10] to-transparent p-6">
         <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
           <Lock className="h-3 w-3" strokeWidth={2} />
-          Your payout · on signed report
+          Your payout, on signed report
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold text-cyan-glow">
           {fmtCents(contract.inspectorPayoutCents)}

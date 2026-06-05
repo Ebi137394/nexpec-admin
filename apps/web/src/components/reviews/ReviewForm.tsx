@@ -70,7 +70,7 @@ export function ReviewForm({
           className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
         />
         <p className="mt-1.5 text-[11px] text-zinc-500">
-          Max 2000 characters · Reviews are public on the recipient&apos;s
+          Max 2000 characters, Reviews are public on the recipient&apos;s
           profile.
         </p>
       </div>

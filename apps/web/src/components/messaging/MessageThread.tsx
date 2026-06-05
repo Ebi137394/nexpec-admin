@@ -142,7 +142,7 @@ export function MessageThread({
       {messages.length === 0 ? (
         <div className="mx-auto max-w-md py-16 text-center">
           <p className="text-sm text-zinc-500">
-            No messages yet — say hello to the admin team. Average response
+            No messages yet, say hello to the admin team. Average response
             time is under an hour during business hours.
           </p>
         </div>

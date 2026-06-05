@@ -92,7 +92,7 @@ export default async function ClientInvoicesPage({ searchParams }: PageProps) {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Client Portal · Finance
+              Client Portal, Finance
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Invoices
@@ -105,7 +105,7 @@ export default async function ClientInvoicesPage({ searchParams }: PageProps) {
           </div>
           <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold uppercase tracking-industrial text-amber-300 sm:self-end">
             <Hourglass className="h-3.5 w-3.5" strokeWidth={2} />
-            Outstanding · {formatInvoiceCents(counts.outstandingCents)}
+            Outstanding, {formatInvoiceCents(counts.outstandingCents)}
           </span>
         </div>
       </header>
@@ -159,7 +159,7 @@ export default async function ClientInvoicesPage({ searchParams }: PageProps) {
       </section>
 
       <p className="text-[10px] font-mono uppercase tracking-industrial text-zinc-600">
-        Source · public.invoices · RLS-gated to client_id and admin scope.
+        Source, public.invoices, RLS-gated to client_id and admin scope.
       </p>
     </div>
   );

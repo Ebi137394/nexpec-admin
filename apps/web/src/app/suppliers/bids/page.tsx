@@ -65,7 +65,7 @@ export default function BidsPage() {
         <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01] p-12 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.03]"><Send size={22} className="text-cyan-glow" /></div>
           <p className="mt-3 text-sm font-semibold text-white">{tab === 'won' ? 'No awards yet' : tab === 'active' ? 'No active bids' : 'No bids yet'}</p>
-          <p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">Browse open opportunities and submit a quote — awarded bids auto-dispatch source inspection.</p>
+          <p className="mx-auto mt-1 max-w-md text-xs text-zinc-500">Browse open opportunities and submit a quote, awarded bids auto-dispatch source inspection.</p>
           <Link href="/suppliers/opportunities" className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-violet px-4 py-2 text-xs font-bold text-white hover:bg-violet-deep">Browse opportunities <ArrowRight size={13} /></Link>
         </div>
       ) : (
@@ -83,8 +83,8 @@ export default function BidsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-white">{q.rfq_title || 'RFQ'}</p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {cents != null ? formatUsd(cents) : 'Quote on file'} · submitted {new Date(q.created_at).toLocaleDateString()}
-                      {q.status === 'accepted' && q.spawned_job_id ? ' · inspection dispatched' : ''}
+                      {cents != null ? formatUsd(cents) : 'Quote on file'}, submitted {new Date(q.created_at).toLocaleDateString()}
+                      {q.status === 'accepted' && q.spawned_job_id ? ', inspection dispatched' : ''}
                     </p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${st.cls}`}>{st.label}</span>

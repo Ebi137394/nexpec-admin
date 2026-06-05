@@ -54,7 +54,7 @@ export default async function MarketplaceLayout({ children }: { children: React.
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">
-        {/* Persistent return path into the user's own portal — the marketplace
+        {/* Persistent return path into the user's own portal, the marketplace
             shell is a separate layout, so without this the section is a dead-end. */}
         <Link
           href={dashboardHref}

@@ -42,10 +42,10 @@ export function IntegrationSecrets({ secrets }: { secrets: IntegrationSecret[] }
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">
             Masked previews of the env vars this deployment is reading.
-            Full values stay on the server — only the first 8 and last 4
+            Full values stay on the server, only the first 8 and last 4
             characters ever reach the browser. Rotation happens in your
             host&apos;s env panel (Vercel project, Supabase dashboard,
-            etc.) — there&apos;s no in-app rotation by design.
+            etc.), there&apos;s no in-app rotation by design.
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">

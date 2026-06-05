@@ -69,14 +69,14 @@ export function Header({
               <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-gradient-to-br from-violet to-cyan-glow text-[9px] font-bold text-white">
                 {(legacyActive?.name ?? 'NX').slice(0, 2).toUpperCase()}
               </span>
-              <span>{legacyActive?.name ?? 'NEXPEC · Platform'}</span>
+              <span>{legacyActive?.name ?? 'NEXPEC Platform'}</span>
               <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-emerald-400">
                 live
               </span>
             </button>
           )}
           <span className="hidden font-mono text-[10px] uppercase tracking-industrial text-zinc-600 md:inline">
-            live ·{' '}
+            live,{' '}
             <span className="text-cyan-glow">
               {process.env.NEXT_PUBLIC_ENV ?? 'development'}
             </span>
@@ -89,7 +89,7 @@ export function Header({
           <Suspense fallback={null}>
             <LocaleSwitcher />
           </Suspense>
-          {/* Notification bell — wraps in Suspense so a slow profiles read
+          {/* Notification bell, wraps in Suspense so a slow profiles read
               never blocks header render. Falls back to an inert bell shape. */}
           <Suspense
             fallback={

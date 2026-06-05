@@ -37,7 +37,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const inv = await fetchInvoiceById(id);
-  return { title: inv ? `Invoice · ${inv.invoiceNumber}` : 'Invoice' };
+  return { title: inv ? `Invoice, ${inv.invoiceNumber}` : 'Invoice' };
 }
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +70,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
         <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Client Portal · Invoice
+              Client Portal, Invoice
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {inv.invoiceNumber}
@@ -85,7 +85,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
               </span>
               {inv.dueDate && (
                 <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                  · Due {formatInvoiceDate(inv.dueDate)}
+                  Due {formatInvoiceDate(inv.dueDate)}
                 </span>
               )}
             </div>
@@ -111,7 +111,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
       )}
       {inv.status === 'approved' && inv.approvedAt && (
         <Banner tone="violet" icon={<CheckCircle2 className="h-5 w-5" />}>
-          Approved on {formatInvoiceDate(inv.approvedAt)} · awaiting payment processing.
+          Approved on {formatInvoiceDate(inv.approvedAt)}, awaiting payment processing.
         </Banner>
       )}
       {inv.status === 'paid' && inv.paidAt && (
@@ -157,7 +157,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
                   <p className="mt-1 text-sm text-zinc-300">{item.description}</p>
                   {item.contract_id && (
                     <p className="mt-1 font-mono text-[10px] text-zinc-600">
-                      Contract · {item.contract_id.slice(0, 8)}…
+                      Contract, {item.contract_id.slice(0, 8)}…
                     </p>
                   )}
                 </div>
@@ -194,7 +194,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
           Approve to release the invoice into the payment queue. Dispute if
-          anything looks wrong — admin will adjudicate.
+          anything looks wrong, admin will adjudicate.
         </p>
         <div className="mt-5">
           <InvoiceActionsPanel invoiceId={inv.id} status={inv.status} />
@@ -221,7 +221,7 @@ export default async function ClientInvoiceDetailPage({ params }: PageProps) {
       </Link>
 
       <p className="text-[10px] font-mono uppercase tracking-industrial text-zinc-600">
-        Source · public.invoices · auto-issued by tg_auto_issue_invoice_on_contract_executed
+        Source, public.invoices, auto-issued by tg_auto_issue_invoice_on_contract_executed
       </p>
     </div>
   );

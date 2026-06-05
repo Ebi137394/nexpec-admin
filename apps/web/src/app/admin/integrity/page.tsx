@@ -108,7 +108,7 @@ export default async function IntegrityDashboardPage({
           </h1>
           <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
             Every inspector scored against the cohort on the signals that precede
-            disputes — broken evidence chains, thin evidence, and rushed
+            disputes, broken evidence chains, thin evidence, and rushed
             (rubber-stamped) seals. Computed from the cryptographic seal history;
             no inspector self-reports.
           </p>
@@ -187,7 +187,7 @@ export default async function IntegrityDashboardPage({
                 Ranked by integrity risk
               </p>
               <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                {rows.length} inspectors · {windowDays}d
+                {rows.length} inspectors, {windowDays}d
               </p>
             </header>
             <ul className="space-y-2">

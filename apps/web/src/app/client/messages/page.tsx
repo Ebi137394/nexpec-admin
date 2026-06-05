@@ -25,7 +25,7 @@ export default async function ClientMessagesPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Client Portal · Messaging
+            Client Portal, Messaging
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Help & Support

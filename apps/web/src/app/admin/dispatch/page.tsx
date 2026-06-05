@@ -22,7 +22,7 @@ import { DispatchDrawer } from '@/components/admin/dispatch/DispatchDrawer';
 
 export const metadata: Metadata = {
   title: 'Spread Editor',
-  description: 'Confirm & Dispatch — admin sets the spread and fires admin_dispatch_job.',
+  description: 'Confirm & Dispatch, admin sets the spread and fires admin_dispatch_job.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -51,7 +51,7 @@ export default async function DispatchPage({ searchParams }: PageProps) {
       {/* Header */}
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Spread Editor

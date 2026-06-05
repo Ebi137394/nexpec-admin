@@ -39,7 +39,7 @@ export default async function ClientBrandingPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Branding
+          Client Portal, Branding
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Report branding
@@ -71,7 +71,7 @@ export default async function ClientBrandingPage({ searchParams }: PageProps) {
           </h2>
           <p className="mt-1 text-sm text-zinc-500">
             Appears in the top-left of every report PDF. Square crops or
-            wordmarks both work — max 2 MB.
+            wordmarks both work, max 2 MB.
           </p>
         </header>
         <form
@@ -115,7 +115,7 @@ export default async function ClientBrandingPage({ searchParams }: PageProps) {
               className="sr-only"
             />
             <p className="text-[11px] text-zinc-500">
-              JPEG, PNG, or WebP · max 2 MB · transparent PNGs look best
+              JPEG, PNG, or WebP, max 2 MB, transparent PNGs look best
               on the dark theme.
             </p>
             <button
@@ -158,7 +158,7 @@ export default async function ClientBrandingPage({ searchParams }: PageProps) {
               maxLength={500}
               rows={3}
               defaultValue={branding.reportHeaderText ?? ''}
-              placeholder={`${branding.companyName ?? 'Your company'} · Field Operations Division`}
+              placeholder={`${branding.companyName ?? 'Your company'}, Field Operations Division`}
               className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
             />
             <p className="mt-1.5 text-[11px] text-zinc-500">
@@ -178,7 +178,7 @@ export default async function ClientBrandingPage({ searchParams }: PageProps) {
               maxLength={500}
               rows={4}
               defaultValue={branding.reportFooterText ?? ''}
-              placeholder={`Confidential — for the internal use of ${branding.companyName ?? 'the client'} only. Distribution outside the requesting party requires written consent.`}
+              placeholder={`Confidential, for the internal use of ${branding.companyName ?? 'the client'} only. Distribution outside the requesting party requires written consent.`}
               className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
             />
             <p className="mt-1.5 text-[11px] text-zinc-500">

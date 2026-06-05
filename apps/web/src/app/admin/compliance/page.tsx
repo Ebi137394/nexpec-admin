@@ -35,14 +35,14 @@ export default async function CompliancePage({ searchParams }: PageProps) {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">
-            Command Console · Live
+            Command Console, Live
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Compliance
           </h1>
           <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
             CCI credential applications. Click any row to open the review
-            drawer — approve, suspend, or reject with audit-captured notes.
+            drawer, approve, suspend, or reject with audit-captured notes.
             Decisions fire{' '}
             <span className="font-mono text-cyan-glow">admin_review_credential</span>.
           </p>
@@ -82,7 +82,7 @@ export default async function CompliancePage({ searchParams }: PageProps) {
             value={String(totalPending)}
             tone={totalPending > 0 ? 'amber' : 'default'}
           />
-          <Stat label="Decision paths" value="3" sub="approve · suspend · reject" />
+          <Stat label="Decision paths" value="3" sub="approve, suspend, reject" />
         </section>
       )}
 

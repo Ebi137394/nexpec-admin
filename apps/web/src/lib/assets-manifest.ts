@@ -39,7 +39,7 @@ export interface ImageSlot {
 /* ── 1× Wide Hero Image ─────────────────────────────────────────────── */
 export const HERO_WIDE: ImageSlot = {
   id: 'hero.wide',
-  slot: 'Wide Hero · cinematic',
+  slot: 'Wide Hero, cinematic',
   // Dual-purpose asset: also referenced by the landing page's openGraph
   // metadata, so social-share previews use the same brand-aligned key art.
   path: '/og/landing.png',
@@ -48,13 +48,13 @@ export const HERO_WIDE: ImageSlot = {
   aspectRatio: '1200 / 630',
   prompt:
     'Cinematic ultra-wide industrial inspection scene. Pre-dawn or dusk, refinery / pipeline silhouette under deep indigo sky with violet rim-lighting and trace cyan accents on equipment. Foreground: a single inspector with hard hat and HUD-style overlay, mid-stride toward camera. Photoreal, 35mm, shallow DOF. Mood: precision, authority, calm control. No people facing camera, no logos visible.',
-  alt: 'NEXPEC — the industrial black box. Automated inspection, vetted inspectors, audited trust.',
+  alt: 'NEXPEC, the industrial black box. Automated inspection, vetted inspectors, audited trust.',
 };
 
 /* ── Contact page banner ────────────────────────────────────────────── */
 export const CONTACT_BANNER: ImageSlot = {
   id: 'contact.banner',
-  slot: 'Contact · Talk to a human banner',
+  slot: 'Contact, Talk to a human banner',
   // Same dual-purpose pattern: this file backs both the on-page banner
   // AND the contact route's openGraph image.
   path: '/og/contact.png',
@@ -62,14 +62,14 @@ export const CONTACT_BANNER: ImageSlot = {
   height: 630,
   aspectRatio: '1200 / 630',
   prompt:
-    'A futuristic command-desk close-up — a glowing teal world map embedded in a brushed-aluminium console, headset and X-mark insignia visible, deep indigo industrial environment behind. Headline overlay: TALK TO A HUMAN.',
-  alt: 'NEXPEC support — vetted operators standing by, worldwide.',
+    'A futuristic command-desk close-up, a glowing teal world map embedded in a brushed-aluminium console, headset and X-mark insignia visible, deep indigo industrial environment behind. Headline overlay: TALK TO A HUMAN.',
+  alt: 'NEXPEC support, vetted operators standing by, worldwide.',
 };
 
 /* ── 3× How It Works cards ──────────────────────────────────────────── */
 export const HOW_IT_WORKS_POST: ImageSlot = {
   id: 'how.post',
-  slot: 'How It Works · 01 Post the scope',
+  slot: 'How It Works, 01 Post the scope',
   path: '/how-it-works/01-post.jpg',
   width: 1600,
   height: 1200,
@@ -81,19 +81,19 @@ export const HOW_IT_WORKS_POST: ImageSlot = {
 
 export const HOW_IT_WORKS_MATCH: ImageSlot = {
   id: 'how.match',
-  slot: 'How It Works · 02 Match in minutes',
+  slot: 'How It Works, 02 Match in minutes',
   path: '/how-it-works/02-match.jpg',
   width: 1600,
   height: 1200,
   aspectRatio: '4 / 3',
   prompt:
-    'A glowing geo-pinned map of an industrial region (refinery / port / power plant) on a dark dashboard, with three inspector profile chips orbiting a central job pin in violet. Sleek, futuristic, but grounded — looks like a real ops dashboard. Photoreal mixed with subtle UI compositing. Same dusk-violet palette.',
+    'A glowing geo-pinned map of an industrial region (refinery / port / power plant) on a dark dashboard, with three inspector profile chips orbiting a central job pin in violet. Sleek, futuristic, but grounded, looks like a real ops dashboard. Photoreal mixed with subtle UI compositing. Same dusk-violet palette.',
   alt: 'Inspector matching dashboard with geo-pinned candidates',
 };
 
 export const HOW_IT_WORKS_AUDIT: ImageSlot = {
   id: 'how.audit',
-  slot: 'How It Works · 03 Audit-grade delivery',
+  slot: 'How It Works, 03 Audit-grade delivery',
   path: '/how-it-works/03-audit.jpg',
   width: 1600,
   height: 1200,
@@ -113,7 +113,7 @@ export const HOW_IT_WORKS_SLOTS: readonly ImageSlot[] = [
 export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   {
     id: 'industry.pipeline',
-    slot: 'Industry · Pipeline integrity',
+    slot: 'Industry, Pipeline integrity',
     path: '/industries/pipeline.jpg',
     width: 1200,
     height: 1200,
@@ -124,7 +124,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.pressure-vessels',
-    slot: 'Industry · Pressure vessels',
+    slot: 'Industry, Pressure vessels',
     path: '/industries/pressure-vessels.jpg',
     width: 1200,
     height: 1200,
@@ -135,7 +135,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.welding',
-    slot: 'Industry · Structural welding',
+    slot: 'Industry, Structural welding',
     path: '/industries/welding.jpg',
     width: 1200,
     height: 1200,
@@ -146,7 +146,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.ndt',
-    slot: 'Industry · NDT & inspection',
+    slot: 'Industry, NDT & inspection',
     path: '/industries/ndt.jpg',
     width: 1200,
     height: 1200,
@@ -157,7 +157,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.electrical',
-    slot: 'Industry · Electrical compliance',
+    slot: 'Industry, Electrical compliance',
     path: '/industries/electrical.jpg',
     width: 1200,
     height: 1200,
@@ -168,7 +168,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.cci',
-    slot: 'Industry · CCI / coatings',
+    slot: 'Industry, CCI / coatings',
     path: '/industries/cci.jpg',
     width: 1200,
     height: 1200,
@@ -179,7 +179,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.lifting',
-    slot: 'Industry · Lifting & rigging',
+    slot: 'Industry, Lifting & rigging',
     path: '/industries/lifting.jpg',
     width: 1200,
     height: 1200,
@@ -190,7 +190,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
   },
   {
     id: 'industry.refractory',
-    slot: 'Industry · Refractory',
+    slot: 'Industry, Refractory',
     path: '/industries/refractory.jpg',
     width: 1200,
     height: 1200,
@@ -214,7 +214,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
     aspectRatio: '1 / 1',
     prompt:
       'Monumental cable-stayed bridge and structural steel under construction at dusk, translucent electric-violet laser-scan survey grid with cyan measurement nodes, navy sky. Photoreal, square crop.',
-    alt: 'Civil & construction inspection — a bridge under a violet structural survey grid',
+    alt: 'Civil & construction inspection, a bridge under a violet structural survey grid',
   },
   {
     id: 'domain.electrical',
@@ -225,7 +225,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
     aspectRatio: '1 / 1',
     prompt:
       'Dark high-voltage switchgear hall, infrared thermography violet-to-cyan heat gradient across the busbars, controlled electric-violet arcs, deep navy. Photoreal, square crop.',
-    alt: 'Electrical inspection — a high-voltage switchgear hall with a thermography overlay',
+    alt: 'Electrical inspection, a high-voltage switchgear hall with a thermography overlay',
   },
   {
     id: 'domain.mechanical-field',
@@ -235,8 +235,8 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
     height: 1200,
     aspectRatio: '1 / 1',
     prompt:
-      'Massive rotating equipment — pump and turbine with piping manifold — mid-turnaround, glowing electric-violet vibration-analysis waveform and cyan shaft-alignment laser, navy shadow. Photoreal, square crop.',
-    alt: 'Mechanical-field inspection — rotating equipment with a violet vibration-analysis overlay',
+      'Massive rotating equipment, pump and turbine with piping manifold, mid-turnaround, glowing electric-violet vibration-analysis waveform and cyan shaft-alignment laser, navy shadow. Photoreal, square crop.',
+    alt: 'Mechanical-field inspection, rotating equipment with a violet vibration-analysis overlay',
   },
   {
     id: 'domain.chemical-process',
@@ -247,7 +247,7 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
     aspectRatio: '1 / 1',
     prompt:
       'Sprawling petrochemical process plant at night, distillation columns and insulated pipework glowing from within, violet process-safety overlay and cyan flow-lines, navy-to-violet fog. Photoreal, square crop.',
-    alt: 'Chemical & process inspection — a petrochemical plant at night with a violet schematic overlay',
+    alt: 'Chemical & process inspection, a petrochemical plant at night with a violet schematic overlay',
   },
 ];
 
@@ -255,18 +255,18 @@ export const INDUSTRY_SLOTS: readonly ImageSlot[] = [
 export const LOGO_ASSETS = {
   wordmark: {
     id: 'brand.logo-wordmark',
-    slot: 'Brand · Wordmark (icon + text)',
+    slot: 'Brand, Wordmark (icon + text)',
     path: '/brand/logo-wordmark.svg',
     width: 480,
     height: 96,
     aspectRatio: '5 / 1',
     prompt:
-      "SVG wordmark: a refined 'N' monogram inside a rounded square (gradient from #7C3AED violet to #00CFD5 cyan), followed by 'NEXPEC' in Geist Sans semibold, tracking -0.02em, kerned for a 24px nav. White text on transparent. Vector — no rasters.",
+      "SVG wordmark: a refined 'N' monogram inside a rounded square (gradient from #7C3AED violet to #00CFD5 cyan), followed by 'NEXPEC' in Geist Sans semibold, tracking -0.02em, kerned for a 24px nav. White text on transparent. Vector, no rasters.",
     alt: 'NEXPEC',
   } satisfies ImageSlot,
   mark: {
     id: 'brand.logo-mark',
-    slot: 'Brand · Mark only (3D production render)',
+    slot: 'Brand, Mark only (3D production render)',
     // Production: the 3D-rendered mark lives at /brand/logo-mark.png.
     // The .svg counterpart remains for favicon / OG / print contexts.
     path: '/brand/logo-mark.png',
@@ -274,18 +274,18 @@ export const LOGO_ASSETS = {
     height: 666,
     aspectRatio: '1 / 1',
     prompt:
-      "3D metallic monogram render — chamfered 'N' inside a rounded-square card, violet-to-cyan rim light, deep indigo backdrop. Square aspect, scales cleanly from favicon to splash.",
+      "3D metallic monogram render, chamfered 'N' inside a rounded-square card, violet-to-cyan rim light, deep indigo backdrop. Square aspect, scales cleanly from favicon to splash.",
     alt: 'NEXPEC mark',
   } satisfies ImageSlot,
   /** Vector mark fallback — still used by favicon + Apple touch icon. */
   markSvg: {
     id: 'brand.logo-mark-svg',
-    slot: 'Brand · Mark (vector fallback)',
+    slot: 'Brand, Mark (vector fallback)',
     path: '/brand/logo-mark.svg',
     width: 256,
     height: 256,
     aspectRatio: '1 / 1',
-    prompt: 'SVG mark — scales crisp at any size. Used for favicon + manifest icons.',
+    prompt: 'SVG mark, scales crisp at any size. Used for favicon + manifest icons.',
     alt: 'NEXPEC mark',
   } satisfies ImageSlot,
 } as const;

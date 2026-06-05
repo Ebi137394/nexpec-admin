@@ -109,10 +109,10 @@ export function VaultUploadDialog() {
             ))}
           </select>
         </Field>
-        <Field label="Valid from" hint="Optional · YYYY-MM-DD">
+        <Field label="Valid from" hint="Optional, YYYY-MM-DD">
           <input name="validFrom" type="date" className={inputCls()} />
         </Field>
-        <Field label="Valid until" hint="Optional · YYYY-MM-DD">
+        <Field label="Valid until" hint="Optional, YYYY-MM-DD">
           <input name="validUntil" type="date" className={inputCls()} />
         </Field>
       </div>
@@ -127,7 +127,7 @@ export function VaultUploadDialog() {
         />
       </Field>
 
-      <Field label="File" required hint="PDF, image, or Office doc · 25 MB max">
+      <Field label="File" required hint="PDF, image, or Office doc, 25 MB max">
         <label
           htmlFor="vault-file"
           className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-violet/30 bg-violet/[0.02] px-4 py-6 text-center transition hover:border-violet/60 hover:bg-violet/[0.06]"

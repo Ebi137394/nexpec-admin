@@ -107,7 +107,7 @@ export function OrgMembersDrawer({ org, members, invitations }: Props) {
                   {org.name}
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
-                  {org.kind} ·{' '}
+                  {org.kind},{' '}
                   <span className="font-mono">
                     {members.length} member{members.length === 1 ? '' : 's'}
                   </span>
@@ -143,7 +143,7 @@ export function OrgMembersDrawer({ org, members, invitations }: Props) {
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_invite_org_member · admin_update_org_member_role · admin_remove_org_member
+                rpc, admin_invite_org_member, admin_update_org_member_role, admin_remove_org_member
               </p>
             </footer>
           </motion.aside>
@@ -223,7 +223,7 @@ function MembersTab({
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-mono text-sm text-zinc-200">{inv.email}</p>
                   <p className="mt-0.5 flex items-center gap-2 text-[10px] uppercase tracking-industrial text-zinc-500">
-                    <span>role · {inv.role}</span>
+                    <span>role, {inv.role}</span>
                     <span>·</span>
                     <span
                       className={cn(
@@ -326,7 +326,7 @@ function EditMemberForm({
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="memberId" value={member.id} />
         <p className="text-sm font-medium text-white">
-          Change role · {member.user_name ?? member.user_email ?? '—'}
+          Change role, {member.user_name ?? member.user_email ?? '—'}
         </p>
         <select
           name="role"
@@ -379,7 +379,7 @@ function RemoveMemberForm({
       <form action={formAction} className="space-y-3">
         <input type="hidden" name="memberId" value={member.id} />
         <p className="text-sm font-medium text-white">
-          Remove · {member.user_name ?? member.user_email ?? '—'}
+          Remove, {member.user_name ?? member.user_email ?? '—'}
         </p>
         <textarea
           name="reason"

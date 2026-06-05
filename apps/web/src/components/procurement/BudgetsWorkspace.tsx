@@ -124,7 +124,7 @@ function BudgetCard({
             Department
           </p>
           <p className="mt-1 truncate font-display text-base font-semibold text-white">
-            {budget.department_name ?? '— unnamed —'}
+            {budget.department_name ?? 'Unnamed'}
           </p>
           <p className="mt-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
             <Calendar className="h-3 w-3" strokeWidth={1.75} />
@@ -197,7 +197,7 @@ function BudgetCard({
         </>
       ) : (
         <p className="mt-3 text-[11px] text-zinc-500">
-          Period is outside the current date range — consumption isn&apos;t
+          Period is outside the current date range, consumption isn&apos;t
           shown for non-active periods.
         </p>
       )}

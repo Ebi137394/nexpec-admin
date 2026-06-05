@@ -192,13 +192,13 @@ export default function ToolRunnerPage() {
               </div>
               {result.citations && result.citations.length > 0 && (
                 <p className="mt-3 text-xs leading-relaxed text-white/40">
-                  {result.citations.join('   ·   ')}
+                  {result.citations.join(', ')}
                 </p>
               )}
               {result.result_sha256 && (
                 <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-accent-green">
                   <ShieldCheck size={14} />
-                  Sealed · {result.result_sha256.slice(0, 12)}…
+                  Sealed, {result.result_sha256.slice(0, 12)}…
                 </div>
               )}
             </div>

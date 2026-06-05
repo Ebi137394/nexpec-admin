@@ -97,7 +97,7 @@ export default async function ScopeTemplatesPage({ searchParams }: PageProps) {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Command Console · Compliance
+              Command Console, Compliance
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Scope Templates
@@ -108,7 +108,7 @@ export default async function ScopeTemplatesPage({ searchParams }: PageProps) {
               <span className="font-mono text-violet-glow">category</span>,{' '}
               <span className="font-mono text-violet-glow">region</span>, base
               price, credential tier requirement, and evidence schema. Versioned
-              + audit-tracked — earlier versions stay readable for historical
+              + audit-tracked, earlier versions stay readable for historical
               jobs even after edits.
             </p>
           </div>
@@ -244,7 +244,7 @@ export default async function ScopeTemplatesPage({ searchParams }: PageProps) {
                 ? `No templates in the "${category}" category match this filter.`
                 : filter === 'inactive'
                   ? 'No inactive templates.'
-                  : 'No templates yet — create the first one.'}
+                  : 'No templates yet, create the first one.'}
             </p>
             <Link
               href="/admin/compliance/templates/new"
@@ -313,7 +313,7 @@ function TemplateCard({ template: t }: { template: AdminScopeTemplate }) {
         <p className="mt-4 line-clamp-2 text-sm text-zinc-400">{t.description}</p>
       ) : (
         <p className="mt-4 text-xs italic text-zinc-600">
-          No description — add one to help clients pick this template.
+          No description, add one to help clients pick this template.
         </p>
       )}
 

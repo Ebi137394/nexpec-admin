@@ -99,7 +99,7 @@ export default async function InspectorJobDetailPage({
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-accent-red" />
               <p className="text-sm font-medium text-accent-red">
-                Report overdue — this inspection is past its scheduled date. Submit your report to clear the flag.
+                Report overdue, this inspection is past its scheduled date. Submit your report to clear the flag.
               </p>
             </div>
             <span className="font-mono text-[10px] uppercase tracking-industrial text-accent-red/80 group-hover:text-accent-red">
@@ -120,7 +120,7 @@ export default async function InspectorJobDetailPage({
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Inspector Portal · Job
+              Inspector Portal, Job
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {job.title}
@@ -133,7 +133,7 @@ export default async function InspectorJobDetailPage({
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusPill status={job.status} />
-              {/* Layer 1+4 — invisible while every job is industrial_ndt
+              {/* Layer 1+4, invisible while every job is industrial_ndt
                   AND launchedDomains stays at ['industrial_ndt']. Renders
                   the moment an admin launches civil / electrical / mechanical. */}
               <InspectionDomainBadge
@@ -201,7 +201,7 @@ export default async function InspectorJobDetailPage({
       {qp.applied && (
         <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
           Application submitted. The client will review your profile and
-          mark a preferred candidate — admin finalises the hire.
+          mark a preferred candidate, admin finalises the hire.
         </Banner>
       )}
       {qp.already && (
@@ -306,7 +306,7 @@ export default async function InspectorJobDetailPage({
 
       {/* Footer microcopy + posted timestamp */}
       <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-        Posted {formatRelative(job.createdAt)} · ID {job.id.slice(0, 8)}
+        Posted {formatRelative(job.createdAt)}, ID {job.id.slice(0, 8)}
       </p>
     </div>
   );
@@ -357,7 +357,7 @@ function PrimaryAction({
     return (
       <div className="inline-flex items-center gap-2 self-start rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-industrial text-cyan-glow sm:self-auto">
         <Hourglass className="h-3.5 w-3.5" strokeWidth={2} />
-        Report submitted · awaiting admin review
+        Report submitted, awaiting admin review
       </div>
     );
   }
@@ -381,7 +381,7 @@ function PrimaryAction({
         className="inline-flex items-center gap-2 self-start rounded-xl border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red transition hover:bg-accent-red/15 sm:self-auto"
       >
         <ShieldAlert className="h-4 w-4" strokeWidth={2} />
-        Dispute open · view
+        Dispute open, view
       </Link>
     );
   }
@@ -447,14 +447,14 @@ function InspectorWorkflowPanel({
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
-                Your Action · Cleared to begin work
+                Your Action, Cleared to begin work
               </p>
               <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">
                 Complete the inspection, then submit your signed report.
               </h2>
               <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-zinc-300">
                 The contract is fully executed. There&apos;s no separate
-                &quot;start&quot; step — head to the site, complete the work
+                &quot;start&quot; step, head to the site, complete the work
                 described in the Scope below, and come back here to submit
                 your signed report. Admin reviews your report and routes it
                 to the client; your{' '}
@@ -512,10 +512,10 @@ function InspectorWorkflowPanel({
             </span>
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
-                Report submitted · awaiting admin review
+                Report submitted, awaiting admin review
               </p>
               <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">
-                Sit tight — admin is reviewing your submission.
+                Sit tight, admin is reviewing your submission.
               </h2>
               <p className="mt-2 max-w-2xl text-pretty text-sm leading-relaxed text-zinc-300">
                 Submitted{' '}
@@ -546,7 +546,7 @@ function InspectorWorkflowPanel({
           <StepTile
             n={3}
             title="Admin review"
-            body="In progress — typically within 48 hours."
+            body="In progress, typically within 48 hours."
             active
           />
         </ol>
@@ -644,7 +644,7 @@ function YourApplicationPanel({
             Your application
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Submitted {formatRelative(application.createdAt)} · ID{' '}
+            Submitted {formatRelative(application.createdAt)}, ID{' '}
             <span className="font-mono">{application.id.slice(0, 8)}</span>
           </p>
         </div>
@@ -735,7 +735,7 @@ function UrgencyPill({ urgency }: { urgency: JobUrgency }) {
         : urgency === 'low'
           ? 'zinc'
           : 'violet';
-  return <Pill tone={tone} label={'urgency · ' + urgency} />;
+  return <Pill tone={tone} label={'urgency, ' + urgency} />;
 }
 
 function Pill({

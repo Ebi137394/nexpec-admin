@@ -37,11 +37,11 @@ export default function AdminJobsError({
           </p>
           <p className="mt-1 text-sm text-zinc-400">
             This is usually a missing column or a stale RPC. The page itself is
-            fine — refresh, or open one of the actions below.
+            fine, refresh, or open one of the actions below.
           </p>
           {error.digest && (
             <p className="mt-3 inline-block rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-mono text-[10px] text-zinc-400">
-              digest · {error.digest}
+              digest, {error.digest}
             </p>
           )}
           {error.message && (

@@ -204,7 +204,7 @@ export async function fetchAdminUserDetail(
       if (error) {
         if (typeof console !== 'undefined') {
           console.warn(
-            '[fetchAdminUserDetail] wide projection failed (likely a missing column on this deployment) — falling back to a narrower set:',
+            '[fetchAdminUserDetail] wide projection failed (likely a missing column on this deployment), falling back to a narrower set:',
             error.message,
           );
         }

@@ -23,7 +23,7 @@ export function AuditTable({ events, selectedId, currentSearch }: AuditTableProp
           No events match the current filters.
         </p>
         <p className="mt-2 text-sm text-zinc-500">
-          Clear the filters above or wait for the next mutation — every
+          Clear the filters above or wait for the next mutation, every
           consequential change writes a row here.
         </p>
       </div>

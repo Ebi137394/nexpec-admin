@@ -31,9 +31,9 @@ import {
 } from '@/lib/data/invoices.types';
 
 export const metadata: Metadata = {
-  title: 'Invoices · Platform-wide',
+  title: 'Invoices, Platform-wide',
   description:
-    'Admin invoice queue — review disputes, mark paid, void erroneous issues. Platform-wide visibility.',
+    'Admin invoice queue, review disputes, mark paid, void erroneous issues. Platform-wide visibility.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -71,7 +71,7 @@ export default async function AdminInvoicesPage({ searchParams }: PageProps) {
       {/* Header */}
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Finance
+          Command Console, Finance
         </p>
         <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -87,7 +87,7 @@ export default async function AdminInvoicesPage({ searchParams }: PageProps) {
           </div>
           <span className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold uppercase tracking-industrial text-amber-300 sm:self-end">
             <Hourglass className="h-3.5 w-3.5" strokeWidth={2} />
-            Outstanding · {formatInvoiceCents(counts.outstandingCents)}
+            Outstanding, {formatInvoiceCents(counts.outstandingCents)}
           </span>
         </div>
       </header>
@@ -144,7 +144,7 @@ export default async function AdminInvoicesPage({ searchParams }: PageProps) {
       </section>
 
       <p className="text-[10px] font-mono uppercase tracking-industrial text-zinc-600">
-        Source · public.invoices · admin RLS · ADMIN_INVOICE_FIELDS projection
+        Source, public.invoices, admin RLS, ADMIN_INVOICE_FIELDS projection
       </p>
     </div>
   );

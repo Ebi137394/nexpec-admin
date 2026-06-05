@@ -110,7 +110,7 @@ export function ReassignInvoiceDepartmentDialog({
         orgId: orgPicker.orgId || null,
       });
       if (!res.ok) {
-        setError(res.error ?? 'Could not reassign — try again.');
+        setError(res.error ?? 'Could not reassign, try again.');
         return;
       }
       setDone(true);
@@ -142,7 +142,7 @@ export function ReassignInvoiceDepartmentDialog({
               Cost-center attribution
             </p>
             <h3 className="mt-1 truncate font-display text-base font-semibold text-white">
-              Reassign · {invoiceNumber}
+              Reassign, {invoiceNumber}
             </h3>
             <p className="mt-1 truncate text-xs text-zinc-400">
               {orgPicker.orgName}
@@ -175,7 +175,7 @@ export function ReassignInvoiceDepartmentDialog({
               </p>
               {currentCostCenter && (
                 <p className="mt-0.5 truncate font-mono text-[10px] text-zinc-500">
-                  CC · {currentCostCenter}
+                  CC, {currentCostCenter}
                 </p>
               )}
             </div>
@@ -189,7 +189,7 @@ export function ReassignInvoiceDepartmentDialog({
             defaultDepartmentId={currentDepartmentId}
             orgName={orgPicker.orgName}
             unattributedMode="allow"
-            unattributedLabel="— Clear attribution (Unattributed) —"
+            unattributedLabel="Clear attribution (Unattributed)"
             hint="The cost-center snapshot on the invoice will refresh to match the new department."
             onValueChange={setPickedId}
             disabled={isPending || done}
@@ -277,6 +277,6 @@ function departmentLabel(
   const dept = ctx.departments.find((d) => d.id === id);
   if (!dept) return null;
   return dept.cost_center
-    ? `${dept.name} · ${dept.cost_center}`
+    ? `${dept.name}, ${dept.cost_center}`
     : dept.name;
 }

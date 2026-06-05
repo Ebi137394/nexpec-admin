@@ -42,7 +42,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const inv = await fetchSingleAdminInvoice(id);
-  return { title: inv ? `Invoice · ${inv.invoiceNumber}` : 'Invoice' };
+  return { title: inv ? `Invoice, ${inv.invoiceNumber}` : 'Invoice' };
 }
 
 export const dynamic = 'force-dynamic';
@@ -81,7 +81,7 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
         <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Command Console · Invoice
+              Command Console, Invoice
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {inv.invoiceNumber}
@@ -96,7 +96,7 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
               </span>
               {inv.dueDate && (
                 <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                  · Due {formatInvoiceDate(inv.dueDate)}
+                  Due {formatInvoiceDate(inv.dueDate)}
                 </span>
               )}
             </div>
@@ -189,7 +189,7 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
                   <p className="mt-1 text-sm text-zinc-300">{item.description}</p>
                   {item.contract_id && (
                     <p className="mt-1 font-mono text-[10px] text-zinc-600">
-                      Contract · {item.contract_id.slice(0, 8)}…
+                      Contract, {item.contract_id.slice(0, 8)}…
                     </p>
                   )}
                 </div>
@@ -220,18 +220,18 @@ export default async function AdminInvoiceDetailPage({ params }: PageProps) {
         {(inv.approvedAt || inv.paidAt || inv.voidedAt) && (
           <div className="mt-6 space-y-1.5 border-t border-white/[0.06] pt-4 text-[11px] font-mono text-zinc-500">
             {inv.approvedAt && (
-              <p>Approved · {formatInvoiceDate(inv.approvedAt)}</p>
+              <p>Approved, {formatInvoiceDate(inv.approvedAt)}</p>
             )}
             {inv.paidAt && (
               <p>
-                Paid · {formatInvoiceDate(inv.paidAt)}
-                {inv.paidReference ? ` · ref ${inv.paidReference}` : ''}
+                Paid, {formatInvoiceDate(inv.paidAt)}
+                {inv.paidReference ? `, ref ${inv.paidReference}` : ''}
               </p>
             )}
             {inv.voidedAt && (
               <p>
-                Voided · {formatInvoiceDate(inv.voidedAt)}
-                {inv.voidedReason ? ` · "${inv.voidedReason}"` : ''}
+                Voided, {formatInvoiceDate(inv.voidedAt)}
+                {inv.voidedReason ? `, "${inv.voidedReason}"` : ''}
               </p>
             )}
           </div>

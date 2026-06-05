@@ -54,7 +54,7 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Contracts
+          Client Portal, Contracts
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Contracts &amp; agreements
@@ -123,7 +123,7 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
                         Inspector: {c.inspectorName ?? '—'}
                       </p>
                       <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[11px] font-semibold text-violet-glow">
-                        Your price · {fmtCents(c.clientPriceCents)}
+                        Your price, {fmtCents(c.clientPriceCents)}
                       </p>
                     </div>
                     <span

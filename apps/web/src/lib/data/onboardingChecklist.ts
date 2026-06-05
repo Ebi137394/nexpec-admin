@@ -181,7 +181,7 @@ async function buildInspectorSteps(
       key: 'profile_basics',
       title: 'Complete your inspector profile basics',
       description:
-        'Headline, location, and travel radius — required for clients to find you in the directory.',
+        'Headline, location, and travel radius, so clients can find you in the directory.',
       completed: basicsDone,
       actionHref: '/inspector/settings',
       actionLabel: basicsDone ? 'Review' : 'Add details',
@@ -208,7 +208,7 @@ async function buildInspectorSteps(
       key: 'work_eligibility',
       title: 'Set your work eligibility',
       description:
-        'Country of residence + the countries you are authorised to work in.',
+        'Your country of residence, and the countries you are authorised to work in.',
       completed:
         Boolean(p.country_of_residence?.trim()) && workAuth.length > 0,
       actionHref: '/inspector/settings',
@@ -271,7 +271,7 @@ async function buildClientSteps(
     {
       key: 'profile_basics',
       title: isOrgRole
-        ? 'Complete your contact + company details'
+        ? 'Complete your contact and company details'
         : 'Complete your contact profile',
       description: isOrgRole
         ? 'Contact name and company name appear on every job post.'
@@ -301,7 +301,7 @@ async function buildClientSteps(
       key: 'first_job',
       title: 'Post your first job',
       description:
-        'Pick a domain and a scope template — the catalogue covers 57 templates across all 5 domains.',
+        'Pick a domain and a scope template. The catalogue covers 57 templates across all 5 domains.',
       completed: jobCount > 0,
       actionHref: '/client/jobs/new',
       actionLabel: 'Post a job',
@@ -356,7 +356,7 @@ async function buildClientSteps(
       key: 'organization_setup',
       title: 'Set up your organisation',
       description:
-        'Required for agency / enterprise billing and team-member invites.',
+        'Required for organisation billing and team-member invites.',
       completed: orgCount > 0,
       actionHref: '/client/team',
       actionLabel: 'Create organisation',
@@ -365,7 +365,7 @@ async function buildClientSteps(
       key: 'invite_team_member',
       title: 'Invite at least one team member',
       description:
-        'Add a colleague so the inbox + job posts are not bottlenecked on one account.',
+        'Add a colleague so the inbox and job posts are not bottlenecked on one account.',
       completed: orgMemberCount >= 2,
       actionHref: '/client/team',
       actionLabel: 'Invite',

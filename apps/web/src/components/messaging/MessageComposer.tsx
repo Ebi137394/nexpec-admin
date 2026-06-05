@@ -51,7 +51,7 @@ export function MessageComposer({
         <SubmitButton disabled={disabled} />
       </div>
       <p className="mt-1.5 text-[10px] text-zinc-600">
-        Enter to send · Shift+Enter for a new line · max 8000 characters
+        Enter to send, Shift+Enter for a new line, max 8000 characters
       </p>
     </form>
   );

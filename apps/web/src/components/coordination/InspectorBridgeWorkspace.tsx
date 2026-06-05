@@ -151,7 +151,7 @@ function CreateForm({ jobId, onCreated }: { jobId: string; onCreated: (id: strin
   if (createdUrl) {
     return (
       <Panel tone="ok">
-        <p className="font-semibold text-emerald-300">Bridge created — invitation queued.</p>
+        <p className="font-semibold text-emerald-300">Bridge created, invitation queued.</p>
         <p className="mt-2 text-xs text-zinc-400">One-time link (we store only its hash):</p>
         <code className="mt-1 block break-all rounded bg-black/30 p-2 text-[11px] text-violet-200">{createdUrl}</code>
       </Panel>
@@ -161,7 +161,7 @@ function CreateForm({ jobId, onCreated }: { jobId: string; onCreated: (id: strin
   return (
     <Panel>
       <h2 className="text-base font-semibold text-white">Open a Coordination Bridge</h2>
-      <p className="mt-1 text-sm text-zinc-400">We email the vendor a private link — no NEXPEC account needed.</p>
+      <p className="mt-1 text-sm text-zinc-400">We email the vendor a private link, no NEXPEC account needed.</p>
       <div className="mt-4 space-y-3">
         <Input label="Company name" value={company} onChange={setCompany} placeholder="ACME Manufacturing GmbH" />
         <Input label="Contact name (optional)" value={contact} onChange={setContact} placeholder="Anna Schmidt" />
@@ -187,7 +187,7 @@ function HeaderCard({ view, onReload }: { view: BridgeView; onReload: () => void
         <div>
           <h2 className="text-base font-semibold text-white">{view.vendor.company_name}</h2>
           <p className="text-sm text-zinc-400">
-            {view.vendor.contact_name ? `${view.vendor.contact_name} · ` : ''}{view.vendor.contact_email}
+            {view.vendor.contact_name ? `${view.vendor.contact_name}, ` : ''}{view.vendor.contact_email}
           </p>
         </div>
         <button onClick={onReload} className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/5">
@@ -428,7 +428,7 @@ function StatusPill({ status, required }: { status: string; required: boolean })
     : status === 'awaiting_vendor' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
     : 'border-zinc-500/30 bg-zinc-500/10 text-zinc-300';
   const text = status === 'awaiting_inspector' ? 'YOUR TURN' : status === 'awaiting_vendor' ? 'AWAITING VENDOR' : status.toUpperCase().replace(/_/g, ' ');
-  return <span className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ${tone}`}>{text}{required ? '' : ' · OPT'}</span>;
+  return <span className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] ${tone}`}>{text}{required ? '' : ', OPT'}</span>;
 }
 function Tag({ children, tone }: { children: React.ReactNode; tone: 'ok' | 'bad' }) {
   const c = tone === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/30 bg-rose-500/10 text-rose-300';

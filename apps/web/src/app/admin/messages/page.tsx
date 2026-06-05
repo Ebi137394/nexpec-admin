@@ -7,7 +7,7 @@ import { fetchAdminConversations } from '@/lib/data/conversations';
 import { RoomList } from '@/components/messaging/RoomList';
 import { CONVERSATION_KINDS, type ConversationKind } from '@/lib/data/conversations.types';
 
-export const metadata: Metadata = { title: 'Admin · Messages' };
+export const metadata: Metadata = { title: 'Admin, Messages' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -33,14 +33,14 @@ export default async function AdminMessagesPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Admin · Messaging Queue
+          Admin, Messaging Queue
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Inbox
         </h1>
         <p className="mt-2 max-w-xl text-sm text-zinc-400">
           Every help-support and job-scoped room is visible here. Open one to
-          respond — clients and inspectors never share a room.
+          respond, clients and inspectors never share a room.
         </p>
       </header>
 
@@ -61,8 +61,8 @@ function FilterBar({
   const kindOptions: Array<{ value: ConversationKind | 'all'; label: string }> = [
     { value: 'all', label: 'All kinds' },
     { value: 'help_support', label: 'Help & Support' },
-    { value: 'job_client_admin', label: 'Job · client' },
-    { value: 'job_inspector_admin', label: 'Job · inspector' },
+    { value: 'job_client_admin', label: 'Job, client' },
+    { value: 'job_inspector_admin', label: 'Job, inspector' },
   ];
   const statusOptions = [
     { value: 'open', label: 'Open' },

@@ -65,7 +65,7 @@ export function EvidencePackButton({ jobId, jobTitle, compact = false }: Props) 
             compact ? 'text-[8px]' : 'text-[9px]',
           )}
         >
-          · SHA-256
+          SHA-256
         </span>
       </button>
 

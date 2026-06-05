@@ -59,7 +59,7 @@ export default function NotFoundPage() {
           color: '#A78BFA',
         }}
       >
-        404 · NEXPEC
+        404, NEXPEC
       </p>
       <h1
         style={{

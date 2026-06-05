@@ -78,7 +78,7 @@ export default async function ClientReleasePage({
         </h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           {adminHasForwarded
-            ? 'Our team has reviewed the inspection report and forwarded it for your final confirmation. Approving below signals our team to release payment to the inspector — we move the funds, you stay in control.'
+            ? 'Our team has reviewed the inspection report and forwarded it for your final confirmation. Approving below signals our team to release payment to the inspector, we move the funds, you stay in control.'
             : "Our team is still reviewing the inspector's report. You'll be notified the moment it's ready for your review."}
         </p>
       </header>
@@ -141,7 +141,7 @@ export default async function ClientReleasePage({
         <DecisionCard jobId={jobId} />
       )}
 
-      {/* Process explainer (always visible — re-assures the user that this
+      {/* Process explainer (always visible, re-assures the user that this
           is a signal, not a money-mover). */}
       <ProcessExplainer />
     </div>
@@ -195,7 +195,7 @@ function ResolvedCard({
             </h2>
             <p className="mt-1 text-sm text-zinc-400">
               Signal recorded {new Date(signal.at).toLocaleString()}. Our team
-              takes it from here — you&apos;ll see the
+              takes it from here, you&apos;ll see the
               completed report in <Link href="/client/reports" className="text-violet-glow hover:text-white">deliverables</Link>.
             </p>
           </div>
@@ -255,7 +255,7 @@ function DecisionCard({ jobId }: { jobId: string }) {
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
           You accept the inspector&apos;s report as delivered. This signals
           our team to release the funds from escrow. We
-          move the funds — you don&apos;t handle Stripe yourself.
+          move the funds, you don&apos;t handle Stripe yourself.
         </p>
         <button
           type="submit"
@@ -301,7 +301,7 @@ function RevisionForm({
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
             Report has gaps, needs clarification, or doesn&apos;t match
-            scope. Our team mediates — the inspector won&apos;t see your
+            scope. Our team mediates, the inspector won&apos;t see your
             note directly, only the admin response.
           </p>
         </>
@@ -320,7 +320,7 @@ function RevisionForm({
         minLength={10}
         maxLength={2000}
         rows={4}
-        placeholder="Be specific — admin will translate this into actions for the inspector."
+        placeholder="Be specific, admin will translate this into actions for the inspector."
         className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-accent-amber/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-accent-amber/30"
       />
       <button
@@ -343,7 +343,7 @@ function ProcessExplainer() {
       <ol className="mt-4 space-y-3 text-sm text-zinc-400">
         <Step
           n={1}
-          text="Inspector submits the final report. It lands on our admin team first — never directly with you or with the inspector's wallet."
+          text="Inspector submits the final report. It lands on our admin team first, never directly with you or with the inspector's wallet."
         />
         <Step
           n={2}

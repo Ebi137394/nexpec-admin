@@ -66,11 +66,11 @@ export function ComingSoon({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Command Console · Placeholder
+              Command Console, Placeholder
             </p>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-zinc-300">
               <Clock3 className="h-3 w-3 text-violet-glow" />
-              Shipping · {shippingIn}
+              Shipping, {shippingIn}
             </span>
           </div>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">

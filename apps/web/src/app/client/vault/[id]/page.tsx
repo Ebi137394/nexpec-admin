@@ -37,7 +37,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const doc = await fetchVaultDocumentById(id);
-  return { title: doc ? `${doc.label} · Vault` : 'Document · Vault' };
+  return { title: doc ? `${doc.label}, Vault` : 'Document, Vault' };
 }
 
 export const dynamic = 'force-dynamic';
@@ -78,7 +78,7 @@ export default async function VaultDocumentPage({ params }: PageProps) {
 
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Client Portal · Compliance
+            Client Portal, Compliance
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {doc.label}
@@ -91,7 +91,7 @@ export default async function VaultDocumentPage({ params }: PageProps) {
               <span className="inline-flex items-center gap-1 rounded-full border border-accent-green/30 bg-accent-green/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-industrial text-accent-green">
                 <ShieldCheck className="h-3 w-3" strokeWidth={2} />
                 Verified
-                {doc.verifiedAt ? ` · ${vaultRelativeTime(doc.verifiedAt)}` : ''}
+                {doc.verifiedAt ? `, ${vaultRelativeTime(doc.verifiedAt)}` : ''}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-industrial text-amber-300">
@@ -143,7 +143,7 @@ export default async function VaultDocumentPage({ params }: PageProps) {
               File
             </p>
             <p className="mt-1 truncate text-sm font-semibold text-white">{doc.label}</p>
-            <p className="font-mono text-[10px] text-zinc-500">Signed URL · expires in 5 minutes</p>
+            <p className="font-mono text-[10px] text-zinc-500">Signed URL, expires in 5 minutes</p>
           </div>
           <Download className="h-5 w-5 shrink-0 text-cyan-glow" strokeWidth={2} />
         </a>
@@ -211,7 +211,7 @@ export default async function VaultDocumentPage({ params }: PageProps) {
       </section>
 
       <p className="text-[10px] font-mono uppercase tracking-industrial text-zinc-600">
-        Source · public.client_documents · storage: client_documents bucket
+        Source, public.client_documents, storage: client_documents bucket
       </p>
     </div>
   );

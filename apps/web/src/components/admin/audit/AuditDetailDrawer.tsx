@@ -114,7 +114,7 @@ export function AuditDetailDrawer({ event }: AuditDetailDrawerProps) {
                   {event.actor_label ?? '—'}
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Role: {event.actor_role ?? 'unknown'} ·{' '}
+                  Role: {event.actor_role ?? 'unknown'},{' '}
                   {event.actor_id ? (
                     <span className="font-mono">{event.actor_id}</span>
                   ) : (
@@ -160,7 +160,7 @@ export function AuditDetailDrawer({ event }: AuditDetailDrawerProps) {
             <footer className="border-t border-white/[0.06] px-6 py-4">
               <div className="flex items-center justify-between gap-4">
                 <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                  id · {event.id}
+                  id, {event.id}
                 </p>
                 <CopyIdButton id={event.id} />
               </div>

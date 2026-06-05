@@ -96,7 +96,7 @@ export default async function SupplierContractPage({
 
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Supplier Portal · NEXPEC Agreement
+          Supplier Portal, NEXPEC Agreement
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           {contract.rfqTitle ?? 'Supplier agreement'}
@@ -152,7 +152,7 @@ export default async function SupplierContractPage({
       <section className="rounded-3xl border border-violet/25 bg-gradient-to-br from-violet/[0.10] to-transparent p-6">
         <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
           <Lock className="h-3 w-3" strokeWidth={2} />
-          Awarded value · your payout
+          Awarded value, your payout
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold text-violet-glow">
           {fmtCents(contract.amountCents)}

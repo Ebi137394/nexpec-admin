@@ -78,7 +78,7 @@ export async function submitApplication(formData: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const msg = parsed.error.issues[0]?.message ?? 'Could not submit — check the form.';
+    const msg = parsed.error.issues[0]?.message ?? 'Could not submit, check the form.';
     redirect(
       buildApplyUrl(String(formData.get('jobId') ?? ''), { error: msg }),
     );
@@ -206,7 +206,7 @@ export async function withdrawApplication(formData: FormData): Promise<void> {
     }
     const friendly =
       error.message?.toLowerCase().includes('transition')
-        ? 'This application can no longer be withdrawn — contact support if you need to make a change.'
+        ? 'This application can no longer be withdrawn, contact support if you need to make a change.'
         : 'Could not withdraw your application. Try again or contact support.';
     redirect(buildDetailUrl(jobId, { error: friendly }));
   }

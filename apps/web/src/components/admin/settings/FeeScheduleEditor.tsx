@@ -96,7 +96,7 @@ export function FeeScheduleEditor({ initial }: Props) {
 
         {live.updated_at && (
           <p className="mt-4 font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-            updated · {new Date(live.updated_at).toUTCString()}
+            updated, {new Date(live.updated_at).toUTCString()}
           </p>
         )}
       </section>
@@ -158,7 +158,7 @@ export function FeeScheduleEditor({ initial }: Props) {
             required
             rows={3}
             maxLength={1000}
-            placeholder="e.g. Q3 board approval — lowering platform take by 1pt to match competitor."
+            placeholder="e.g. Q3 board approval, lowering platform take by 1pt to match competitor."
             className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
           />
         </label>

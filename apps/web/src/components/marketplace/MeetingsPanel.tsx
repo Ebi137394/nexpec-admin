@@ -67,7 +67,7 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
               <li key={m.id} className={`flex items-center gap-3 rounded-lg border border-ink-600 bg-ink-950 p-3 ${m.status === 'cancelled' ? 'opacity-50' : ''}`}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{m.title}</p>
-                  <p className="text-xs text-white/50">{m.provider.toUpperCase()} · {new Date(m.scheduled_at).toLocaleString()}{m.status !== 'scheduled' ? ` · ${m.status}` : ''}</p>
+                  <p className="text-xs text-white/50">{m.provider.toUpperCase()}, {new Date(m.scheduled_at).toLocaleString()}{m.status !== 'scheduled' ? `, ${m.status}` : ''}</p>
                 </div>
                 {m.status !== 'cancelled' && (
                   <a href={m.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-violet px-3 py-1.5 text-xs font-bold text-violet-glow hover:bg-violet/10">
@@ -81,7 +81,7 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
 
       {open && (
         <div className="mt-4 space-y-3 rounded-lg border border-ink-600 bg-ink-950 p-3">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title — e.g. FAT pre-sync" className={inp} />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title, e.g. FAT pre-sync" className={inp} />
           <div className="flex gap-2">
             {PROVIDERS.map(([v, l]) => (
               <button key={v} onClick={() => setProvider(v)} className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-bold ${provider === v ? 'border-violet bg-violet text-white' : 'border-ink-600 bg-ink-800 text-white/70'}`}>{l}</button>

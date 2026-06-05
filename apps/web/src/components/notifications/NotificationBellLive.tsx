@@ -256,7 +256,7 @@ export function NotificationBellLive({
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn(
-              '[NotificationBellLive] realtime degraded — falling back to 25s polling',
+              '[NotificationBellLive] realtime degraded, falling back to 25s polling',
             );
           }
         });
@@ -279,7 +279,7 @@ export function NotificationBellLive({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={count > 0 ? `Notifications · ${count} unread` : 'Notifications'}
+        aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
         aria-expanded={open}
         className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.05] hover:text-white"
       >
@@ -299,7 +299,7 @@ export function NotificationBellLive({
         >
           <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-industrial text-zinc-300">
-              Notifications {count > 0 && <span className="ml-1 text-violet-glow">· {count}</span>}
+              Notifications {count > 0 && <span className="ml-1 text-violet-glow">{count}</span>}
             </p>
             <Link
               href="/notifications"
@@ -359,7 +359,7 @@ export function NotificationBellLive({
             </ul>
           )}
           <div className="border-t border-white/[0.06] px-4 py-2 text-[10px] text-zinc-600">
-            Live updates · powered by Supabase Realtime
+            Live updates, powered by Supabase Realtime
             <button
               type="button"
               onClick={() => {

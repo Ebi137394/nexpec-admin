@@ -24,7 +24,7 @@ export default async function InspectorMessagesPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Inspector Portal · Messaging
+            Inspector Portal, Messaging
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Help & Support
@@ -32,7 +32,7 @@ export default async function InspectorMessagesPage() {
           <p className="mt-2 max-w-xl text-sm text-zinc-400">
             Talk directly to a NEXPEC admin. For specific assignments, open
             the job page and use its dedicated chat. Clients cannot see this
-            room — admin handles all client-side coordination.
+            room, admin handles all client-side coordination.
           </p>
         </div>
         <form action={startHelpSupport}>

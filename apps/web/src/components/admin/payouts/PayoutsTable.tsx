@@ -79,7 +79,7 @@ function Row({ job, active }: { job: PayoutJob; active: boolean }) {
             </span>
             {job.payout_status && (
               <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                status · {job.payout_status}
+                status, {job.payout_status}
               </span>
             )}
           </div>

@@ -139,7 +139,7 @@ export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
                   {job.title ?? 'Untitled job'}
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
-                  Escrow at stake ·{' '}
+                  Escrow at stake,{' '}
                   <span className="font-mono font-semibold text-accent-amber">
                     {formatCents(job.client_price_cents)}
                   </span>
@@ -175,7 +175,7 @@ export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_resolve_dispute · FOR UPDATE lock · audit-stamped ·
+                rpc, admin_resolve_dispute, FOR UPDATE lock, audit-stamped,
                 guard_jobs_status_transition validated
               </p>
             </footer>
@@ -430,10 +430,10 @@ function ResolveSubmit({ selected }: { selected: DisputeResolution }) {
   const { pending } = useFormStatus();
   const label =
     selected === 'completed'
-      ? 'Confirm — pay inspector'
+      ? 'Confirm, pay inspector'
       : selected === 'cancelled'
-        ? 'Confirm — refund client'
-        : 'Confirm — return to active';
+        ? 'Confirm, refund client'
+        : 'Confirm, return to active';
   return (
     <button
       type="submit"
@@ -451,10 +451,10 @@ function SuccessPanel({ state }: { state: ResolveDisputeActionState }) {
   const { to_status, correlation_id } = state.resolved;
   const headline =
     to_status === 'completed'
-      ? 'Resolved — inspector will be paid'
+      ? 'Resolved, inspector will be paid'
       : to_status === 'cancelled'
-        ? 'Resolved — client will be refunded'
-        : 'Resolved — returned to active';
+        ? 'Resolved, client will be refunded'
+        : 'Resolved, returned to active';
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-accent-green/40 bg-accent-green/10 p-5">

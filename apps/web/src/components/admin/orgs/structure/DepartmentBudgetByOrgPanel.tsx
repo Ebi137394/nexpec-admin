@@ -116,10 +116,10 @@ export function DepartmentBudgetByOrgPanel({
       }
       subtitle={
         rollup.mixedCurrencies
-          ? `Displayed in ${rollup.displayCurrency} · totals consolidated from ${rollup.predominantCurrency} and other native currencies`
+          ? `Displayed in ${rollup.displayCurrency}, totals consolidated from ${rollup.predominantCurrency} and other native currencies`
           : `Displayed in ${rollup.displayCurrency}${
               rollup.displayCurrency !== rollup.predominantCurrency
-                ? ` · invoices natively in ${rollup.predominantCurrency}`
+                ? `, invoices natively in ${rollup.predominantCurrency}`
                 : ''
             }`
       }
@@ -130,7 +130,7 @@ export function DepartmentBudgetByOrgPanel({
           <span>
             Some rows could not be converted into {rollup.displayCurrency} because
             an FX rate path is missing. Those amounts fall back to their native
-            currency — flagged in the row.
+            currency, flagged in the row.
           </span>
         </div>
       )}
@@ -276,8 +276,8 @@ function Row({
     : null;
 
   const rollupTitle = showConverted
-    ? `Native: ${formatMoney(row.rollup_committed_cents, row.currency)} · Direct: ${formatMoney(row.direct_committed_cents, row.currency)} · ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`
-    : `Direct: ${formatMoney(row.direct_committed_cents, row.currency)} · ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`;
+    ? `Native: ${formatMoney(row.rollup_committed_cents, row.currency)}, Direct: ${formatMoney(row.direct_committed_cents, row.currency)}, ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`
+    : `Direct: ${formatMoney(row.direct_committed_cents, row.currency)}, ${row.direct_invoice_count} invoice${row.direct_invoice_count === 1 ? '' : 's'}`;
 
   const NameCell = (
     <span className="inline-flex min-w-0 items-center gap-2" style={{ paddingLeft: depthIndent }}>

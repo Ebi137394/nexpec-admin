@@ -62,7 +62,7 @@ export default async function InspectorNegotiationsPage({
           Back to dashboard
         </Link>
         <p className="mt-4 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · Negotiations
+          Inspector Portal, Negotiations
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Counter offers

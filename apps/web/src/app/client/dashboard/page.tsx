@@ -45,7 +45,7 @@ export default async function ClientDashboardPage() {
 
   return (
     <div className="space-y-10">
-      {/* Onboarding checklist — self-suppresses for completed +
+      {/* Onboarding checklist, self-suppresses for completed +
           dismissed users and rows with no derivable steps. Mounted
           ABOVE the existing heading without altering any other element. */}
       <OnboardingChecklist
@@ -79,7 +79,7 @@ export default async function ClientDashboardPage() {
         <MetricTile label="Active jobs" value={formatCount(metrics.activeJobs)} sub="open + assigned + in_progress" />
         <MetricTile label="Held in escrow" value={formatCurrency(metrics.escrowHeldCents)} sub="across your active jobs" tone="violet" />
         <MetricTile label="Pending review" value={formatCount(metrics.pendingApplications)} sub="applications awaiting your decision" tone="cyan" />
-        <MetricTile label="Reports · last 30d" value={formatCount(metrics.reportsLast30d)} sub="admin-approved + handed off" />
+        <MetricTile label="Reports, last 30d" value={formatCount(metrics.reportsLast30d)} sub="admin-approved + handed off" />
       </section>
 
       {/* Pending actions */}
@@ -115,7 +115,7 @@ export default async function ClientDashboardPage() {
                     <Briefcase className="h-4 w-4 shrink-0 text-violet-glow" strokeWidth={1.75} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-white group-hover:text-violet-glow">{j.title}</p>
-                      <p className="truncate text-[10px] text-zinc-500">{j.status} · {formatRelative(j.createdAt)}</p>
+                      <p className="truncate text-[10px] text-zinc-500">{j.status}, {formatRelative(j.createdAt)}</p>
                     </div>
                     {j.escrowPaused && (
                       <span className="rounded-full border border-accent-red/40 bg-accent-red/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-accent-red">escrow paused</span>
@@ -168,7 +168,7 @@ export default async function ClientDashboardPage() {
           </p>
         </div>
         {widgets.helpSupportConversationId ? (
-          <RichComposer conversationId={widgets.helpSupportConversationId} returnTo="/client/dashboard" placeholder="Ask anything — billing, dispatch, a specific job…" />
+          <RichComposer conversationId={widgets.helpSupportConversationId} returnTo="/client/dashboard" placeholder="Ask anything, billing, dispatch, a specific job…" />
         ) : (
           <form action={ensureHelpRoom} className="p-6 sm:p-8 sm:pt-0">
             <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet/90">

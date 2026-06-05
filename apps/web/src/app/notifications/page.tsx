@@ -249,7 +249,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
                 : `No ${FILTERS.find((f) => f.key === activeFilter)?.label.toLowerCase() ?? ''} notifications.`}
             </p>
             <p className="mt-1 text-[11px] text-zinc-600">
-              Activity will appear here in real time — no refresh needed.
+              Activity will appear here in real time, no refresh needed.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <Link

@@ -132,7 +132,7 @@ export default async function InspectorApplyPage({
 
         <Section
           title="Counter-bid (optional)"
-          subtitle="Leave blank to accept the admin-set payout shown above. Set a number only if you'd want to renegotiate — admin reviews every bid."
+          subtitle="Leave blank to accept the admin-set payout shown above. Set a number only if you'd want to renegotiate, admin reviews every bid."
         >
           <Field
             name="bidDollars"

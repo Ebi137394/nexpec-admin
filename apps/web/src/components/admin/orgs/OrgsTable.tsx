@@ -120,7 +120,7 @@ function Card({ org }: { org: AdminOrg }) {
         )}
       </dl>
 
-      {/* Quick-jump actions. "Structure" is enterprise-only — agencies
+      {/* Quick-jump actions. "Structure" is enterprise-only, agencies
           rarely model deep internal hierarchies and the surface adds
           confusion for them. */}
       {org.kind === 'enterprise' && (

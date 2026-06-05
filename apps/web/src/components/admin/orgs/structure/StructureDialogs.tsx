@@ -431,7 +431,7 @@ export function MoveDepartmentDialog({
     e.preventDefault();
     setError(null);
     if (newParentId === (node.parent_department_id ?? null)) {
-      setError('Pick a different parent — current location matches.');
+      setError('Pick a different parent, current location matches.');
       return;
     }
     startTransition(async () => {
@@ -448,14 +448,14 @@ export function MoveDepartmentDialog({
   return (
     <Modal
       title={`Move "${node.name}"`}
-      subtitle="Pick the new parent. Descendants of this department are hidden — they'd create a cycle."
+      subtitle="Pick the new parent. Descendants of this department are hidden, they'd create a cycle."
       onClose={onClose}
       size="md"
     >
       <form onSubmit={submit} className="space-y-3">
         <div className="max-h-[40vh] overflow-y-auto rounded-lg border border-white/[0.06] bg-white/[0.01] p-2">
           <ParentOption
-            label="(Root level — no parent)"
+            label="(Root level, no parent)"
             selected={newParentId === null}
             onSelect={() => setNewParentId(null)}
             isCurrent={node.parent_department_id === null}
@@ -614,7 +614,7 @@ export function DeleteDepartmentDialog({
     setError(null);
     if (requiresForce && !confirmed) {
       setError(
-        'Tick the confirmation box — this department has descendants or members.',
+        'Tick the confirmation box, this department has descendants or members.',
       );
       return;
     }
@@ -649,7 +649,7 @@ export function DeleteDepartmentDialog({
               {' will be deleted by cascade.'}
             </>
           ) : (
-            <>nothing else — it has no descendants or assigned members.</>
+            <>nothing else, it has no descendants or assigned members.</>
           )}
         </p>
 
@@ -783,11 +783,11 @@ export function AssignMemberDialog({
                       </p>
                       <p className="truncate text-[10px] text-zinc-500">
                         {m.email}
-                        {' · '}
+                        {', '}
                         <span className="font-mono">{m.role}</span>
                         {m.assigned_department_ids.length > 0 && (
                           <>
-                            {' · '}
+                            {', '}
                             <span>
                               {m.assigned_department_ids.length} other
                               {m.assigned_department_ids.length === 1 ? '' : 's'}

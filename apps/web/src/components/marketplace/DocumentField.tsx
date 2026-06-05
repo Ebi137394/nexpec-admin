@@ -75,7 +75,7 @@ export function DocumentField({ label, docType = 'other', helperText, required, 
           className="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink-600 bg-ink-800 px-4 py-6 text-center transition hover:border-violet/60 disabled:opacity-60">
           <UploadCloud size={24} className="text-violet-glow" />
           <span className="text-sm font-bold">{busy ? stage || 'Working…' : 'Upload document'}</span>
-          {!busy && <span className="text-xs text-white/50">PDF, image or Office file · sealed on upload</span>}
+          {!busy && <span className="text-xs text-white/50">PDF, image or Office file, sealed on upload</span>}
         </button>
       ) : (
         <div className="flex items-center gap-3 rounded-lg border border-ink-600 bg-ink-800 p-3">

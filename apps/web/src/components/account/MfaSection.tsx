@@ -201,7 +201,7 @@ export function MfaSection({ initial }: Props) {
         setBanner({
           kind: 'success',
           message:
-            'Two-factor authentication enabled. Save your recovery codes now — they will not be shown again.',
+            'Two-factor authentication enabled. Save your recovery codes now, they will not be shown again.',
         });
       } catch (err) {
         setBanner({
@@ -488,7 +488,7 @@ function EnrollingBlock({
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-            Step 1 · Scan the QR code
+            Step 1, Scan the QR code
           </p>
           <p className="mt-1 text-[12px] leading-relaxed text-zinc-400">
             Open your authenticator app and scan this code. It will appear
@@ -531,7 +531,7 @@ function EnrollingBlock({
         <form onSubmit={onVerify} className="space-y-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-              Step 2 · Enter the 6-digit code
+              Step 2, Enter the 6-digit code
             </p>
             <p className="mt-1 text-[12px] leading-relaxed text-zinc-400">
               Type the current code shown in your authenticator app.
@@ -603,7 +603,7 @@ function EnrolledBlock({
             </span>{' '}
             recovery code{codesRemaining === 1 ? '' : 's'} remaining.
             {codesRemaining < 3 &&
-              ' Consider regenerating — you should keep at least three on hand.'}
+              ' Consider regenerating, you should keep at least three on hand.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -674,7 +674,7 @@ function CodesBlock({
     <div className="space-y-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-5">
       <div>
         <p className="font-mono text-[10px] uppercase tracking-industrial text-amber-300">
-          Recovery codes · save now
+          Recovery codes, save now
         </p>
         <p className="mt-1 text-sm leading-relaxed text-zinc-300">
           These are your only way back in if you lose access to your

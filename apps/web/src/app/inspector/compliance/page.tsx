@@ -96,7 +96,7 @@ export default async function InspectorCompliancePage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Inspector Portal · Compliance
+            Inspector Portal, Compliance
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Credentials & verification
@@ -104,7 +104,7 @@ export default async function InspectorCompliancePage({
           <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
             Your verification status plus a live dossier of personal
             documents, owned equipment with calibration tracking, and
-            third-party certifications. Files are private — only you and
+            third-party certifications. Files are private, only you and
             our ops team can access them.
           </p>
         </div>
@@ -262,7 +262,7 @@ export default async function InspectorCompliancePage({
                     </span>
                     {e.manufacturer && (
                       <span className="text-xs text-zinc-500">
-                        · {e.manufacturer}
+                        {e.manufacturer}
                         {e.modelNumber ? ` ${e.modelNumber}` : ''}
                       </span>
                     )}
@@ -277,12 +277,12 @@ export default async function InspectorCompliancePage({
                     )}
                     {e.lastCalibrationAt && (
                       <span>
-                        {e.serialNumber ? ' · ' : ''}
+                        {e.serialNumber ? ', ' : ''}
                         Last calibrated{' '}
                         {new Date(e.lastCalibrationAt).toLocaleDateString()}
                       </span>
                     )}
-                    {e.notes && <span> · {e.notes}</span>}
+                    {e.notes && <span>, {e.notes}</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -410,7 +410,7 @@ export default async function InspectorCompliancePage({
                     </span>
                     {c.issuingBody && (
                       <span className="text-xs text-zinc-500">
-                        · {c.issuingBody}
+                        {c.issuingBody}
                       </span>
                     )}
                     <ExpiryBadge dateIso={c.expiresAt} />
@@ -421,11 +421,11 @@ export default async function InspectorCompliancePage({
                     )}
                     {c.issuedAt && (
                       <span>
-                        {c.certificateNumber ? ' · ' : ''}
+                        {c.certificateNumber ? ', ' : ''}
                         Issued {new Date(c.issuedAt).toLocaleDateString()}
                       </span>
                     )}
-                    {c.notes && <span> · {c.notes}</span>}
+                    {c.notes && <span>, {c.notes}</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -528,10 +528,10 @@ export default async function InspectorCompliancePage({
       <DossierSection
         title="Legacy certification tags"
         icon={<Award className="h-4 w-4" strokeWidth={1.75} />}
-        helper="Free-form chips from your existing profile. Edit in settings — comma-separated."
+        helper="Free-form chips from your existing profile. Edit in settings, comma-separated."
       >
         {profile.certifications.length === 0 ? (
-          <EmptyHint>No tags yet — add detailed certs above for verification.</EmptyHint>
+          <EmptyHint>No tags yet, add detailed certs above for verification.</EmptyHint>
         ) : (
           <ul className="mt-2 flex flex-wrap gap-2">
             {profile.certifications.map((label, i) => (
@@ -589,7 +589,7 @@ export default async function InspectorCompliancePage({
         {profile.openToSponsoredWork && (
           <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-accent-amber/30 bg-accent-amber/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-industrial text-accent-amber">
             <Globe2 className="h-3 w-3" strokeWidth={1.75} />
-            Open to sponsored work · {profile.sponsoredCountries.length}{' '}
+            Open to sponsored work, {profile.sponsoredCountries.length}{' '}
             sponsored countries
           </p>
         )}

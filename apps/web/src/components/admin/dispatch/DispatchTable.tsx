@@ -83,7 +83,7 @@ function JobBlock({
             )}
             {job.client_name && (
               <span className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-                client · {job.client_name}
+                client, {job.client_name}
               </span>
             )}
           </div>
@@ -151,7 +151,7 @@ function JobBlock({
                     <p className="font-mono text-sm font-semibold text-cyan-glow">
                       {app.bid_amount_cents != null
                         ? fmtCents(app.bid_amount_cents)
-                        : 'No counter — accepts admin price'}
+                        : 'No counter, accepts admin price'}
                     </p>
                   </div>
 

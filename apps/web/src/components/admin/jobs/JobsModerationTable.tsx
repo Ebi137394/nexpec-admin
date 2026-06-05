@@ -75,7 +75,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                     <JobStatusBadge status={job.status} />
                     {job.payout_status && job.payout_status !== 'unpaid' && (
                       <span className="ml-2 font-mono text-[9px] uppercase tracking-industrial text-zinc-500">
-                        payout · {job.payout_status}
+                        payout, {job.payout_status}
                       </span>
                     )}
                   </Link>

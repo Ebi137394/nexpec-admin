@@ -545,7 +545,7 @@ export async function PipelineSection({ tone }: Props) {
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-industrial text-accent-amber">
-            Awaiting Action · {items.length}
+            Awaiting Action, {items.length}
           </p>
           <h2 className="mt-0.5 font-display text-lg font-semibold tracking-tight text-white">
             Pipeline
@@ -590,7 +590,7 @@ const KIND_META: Record<
     Icon: ArrowLeftRight,
   },
   awarded_pending_contract: {
-    label: 'Awarded · Awaiting Contract',
+    label: 'Awarded, Awaiting Contract',
     tone: 'violet',
     Icon: Ribbon,
   },
@@ -606,13 +606,13 @@ const KIND_META: Record<
   },
   kickoff_pending: {
     // "Your contract is fully signed and the job is yours — kick it off."
-    label: 'Contract Signed · Begin Work',
+    label: 'Contract Signed, Begin Work',
     tone: 'cyan',
     Icon: CheckCheck,
   },
   // ── Admin gates ─────────────────────────────────────────────────────
   admin_open_dispute: {
-    label: 'Open Dispute · Mediate',
+    label: 'Open Dispute, Mediate',
     tone: 'red',
     Icon: Flame,
   },

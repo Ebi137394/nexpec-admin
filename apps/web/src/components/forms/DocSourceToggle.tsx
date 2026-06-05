@@ -34,7 +34,7 @@ export function DocSourceToggle({
   fileName = 'file',
   fileAccept = 'image/jpeg,image/png,image/webp,image/heic,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   defaultSource = 'upload',
-  fileHelper = 'JPG / PNG / HEIC / PDF / Word / Excel · max 25 MB.',
+  fileHelper = 'JPG / PNG / HEIC / PDF / Word / Excel, max 25 MB.',
   urlHelper = 'Paste a public or signed link from Google Drive, Dropbox, OneDrive, SharePoint, S3, DocuSign, etc.',
 }: Props) {
   const [source, setSource] = useState<'upload' | 'external_url'>(defaultSource);

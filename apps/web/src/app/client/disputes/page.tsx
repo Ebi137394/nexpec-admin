@@ -47,7 +47,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Disputes
+          Client Portal, Disputes
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Disputes
@@ -99,7 +99,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
                   <StatusChip status={d.status} />
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {DISPUTE_CATEGORY_LABELS[d.category]} · filed {new Date(d.createdAt).toLocaleDateString()}
+                  {DISPUTE_CATEGORY_LABELS[d.category]}, filed {new Date(d.createdAt).toLocaleDateString()}
                 </p>
                 <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-400">{d.body}</p>
                 {d.resolution && (
@@ -182,7 +182,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
               className="inline-flex items-center gap-2 rounded-full bg-accent-red px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm transition-colors hover:bg-accent-red/90"
             >
               <Send className="h-3 w-3" strokeWidth={1.75} />
-              File dispute · pauses escrow
+              File dispute, pauses escrow
             </button>
             <p className="mt-2 text-[11px] text-zinc-500">
               Filing immediately pauses escrow release on this job and pings

@@ -48,14 +48,14 @@ export const metadata: Metadata = {
   // absolute URLs without us repeating them on every page.
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'NEXPEC — Industrial Inspection, Engineered for Trust',
-    template: '%s · NEXPEC',
+    default: 'NEXPEC, Industrial Inspection, Engineered for Trust',
+    template: '%s, NEXPEC',
   },
   description:
     'Hire vetted industrial inspectors. Escrow protects every dollar. Every report is cryptographically signed and audit-grade.',
   // Default openGraph + twitter for any route that doesn't override.
   openGraph: {
-    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description:
       'Hire vetted industrial inspectors. Escrow protects every dollar. Every report is cryptographically signed and audit-grade.',
     url: SITE_URL,
@@ -66,13 +66,13 @@ export const metadata: Metadata = {
         url: '/og/landing.png',
         width: 1200,
         height: 630,
-        alt: 'NEXPEC — the industrial black box.',
+        alt: 'NEXPEC, the industrial black box.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NEXPEC — Industrial Inspection, Engineered for Trust',
+    title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description: 'Hire vetted industrial inspectors. Escrow protects every dollar.',
     images: ['/og/landing.png'],
   },
@@ -111,7 +111,7 @@ export default async function RootLayout({
       <body className="antialiased" suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
-          {/* Sprint 13.4 — global Cmd+K search overlay. Self-suppresses
+          {/* Sprint 13.4, global Cmd+K search overlay. Self-suppresses
               when closed; client-side keystroke listener handles open. */}
           <GlobalSearchMountPoint />
         </NextIntlClientProvider>

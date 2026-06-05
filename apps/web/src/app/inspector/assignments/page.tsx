@@ -45,7 +45,7 @@ export default async function InspectorAssignmentsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · My work
+          Inspector Portal, My work
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Active assignments
@@ -72,7 +72,7 @@ export default async function InspectorAssignmentsPage() {
         <>
           {assignments.workImminent.length > 0 && (
             <Group
-              title={`Work imminent · ${assignments.workImminent.length}`}
+              title={`Work imminent, ${assignments.workImminent.length}`}
               subtitle="Assigned and contract generated. Begin when scheduled."
               tone="violet"
               icon={<Clock className="h-4 w-4" />}
@@ -84,7 +84,7 @@ export default async function InspectorAssignmentsPage() {
           )}
           {assignments.inProgress.length > 0 && (
             <Group
-              title={`In progress · ${assignments.inProgress.length}`}
+              title={`In progress, ${assignments.inProgress.length}`}
               subtitle="Active work. Submit your signed report when complete."
               tone="cyan"
               icon={<PenLine className="h-4 w-4" />}
@@ -96,7 +96,7 @@ export default async function InspectorAssignmentsPage() {
           )}
           {assignments.completed.length > 0 && (
             <Group
-              title={`Completed · ${assignments.completed.length}`}
+              title={`Completed, ${assignments.completed.length}`}
               subtitle="Report submitted. Payout follows admin review + client confirmation."
               tone="green"
               icon={<CheckCircle2 className="h-4 w-4" />}
@@ -108,7 +108,7 @@ export default async function InspectorAssignmentsPage() {
           )}
           {assignments.disputed.length > 0 && (
             <Group
-              title={`Disputed · ${assignments.disputed.length}`}
+              title={`Disputed, ${assignments.disputed.length}`}
               subtitle="Admin is mediating. Payout is held until resolved."
               tone="red"
               icon={<AlertTriangle className="h-4 w-4" />}
@@ -306,7 +306,7 @@ function PayoutStatusPill({ status }: { status: string }) {
         : status === 'disputed'
           ? 'red'
           : 'zinc';
-  return <Pill tone={tone} label={`payout · ${status}`} />;
+  return <Pill tone={tone} label={`payout, ${status}`} />;
 }
 
 function UrgencyPill({ urgency }: { urgency: JobUrgency }) {
@@ -316,7 +316,7 @@ function UrgencyPill({ urgency }: { urgency: JobUrgency }) {
       : urgency === 'high'
         ? 'amber'
         : 'violet';
-  return <Pill tone={tone} label={`urgency · ${urgency}`} />;
+  return <Pill tone={tone} label={`urgency, ${urgency}`} />;
 }
 
 function Pill({

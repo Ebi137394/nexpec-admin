@@ -73,7 +73,7 @@ export default async function InspectorDashboardPage() {
 
   return (
     <div className="space-y-10">
-      {/* Onboarding checklist — self-suppresses for admins, completed +
+      {/* Onboarding checklist, self-suppresses for admins, completed +
           dismissed users, and rows with no derivable steps. Mounted
           ABOVE the existing heading without altering any other element. */}
       <OnboardingChecklist
@@ -91,7 +91,7 @@ export default async function InspectorDashboardPage() {
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           Browse open jobs, manage active assignments, submit signed
-          reports, and reconcile payouts — all from this console. The
+          reports, and reconcile payouts, all from this console. The
           mobile app mirrors the same flows for field operations.
         </p>
       </header>
@@ -116,7 +116,7 @@ export default async function InspectorDashboardPage() {
           sub="assigned + in_progress"
         />
         <MetricTile
-          label="Earnings · YTD"
+          label="Earnings, YTD"
           value={formatCurrency(metrics.earningsYtdCents)}
           sub="net of platform fees"
           tone="cyan"
@@ -128,7 +128,7 @@ export default async function InspectorDashboardPage() {
           tone="violet"
         />
         <MetricTile
-          label="Reports · last 30d"
+          label="Reports, last 30d"
           value={formatCount(metrics.reportsLast30d)}
           sub="signed + delivered"
         />

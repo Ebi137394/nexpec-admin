@@ -136,7 +136,7 @@ export function DepartmentDetailPanel({
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
-            {orgName} · Department
+            {orgName}, Department
           </p>
           <h2 className="mt-1 truncate font-display text-2xl font-semibold tracking-tight text-white">
             {node.name}
@@ -182,7 +182,7 @@ export function DepartmentDetailPanel({
         )}
       </header>
 
-      {/* Secondary actions — hidden entirely in read-only mode. The RPC
+      {/* Secondary actions, hidden entirely in read-only mode. The RPC
           would also reject these calls (can_manage_org_structure), but
           surfacing them and watching them fail would be a UX trap. */}
       {!readOnly ? (
@@ -335,7 +335,7 @@ function MemberRow({
           {member.email}
           {member.org_role && (
             <>
-              {' · '}
+              {', '}
               <span className="font-mono">{member.org_role}</span>
             </>
           )}

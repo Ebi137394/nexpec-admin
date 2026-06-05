@@ -62,7 +62,7 @@ export function DepartmentAuditPanel({ events }: Props) {
       </ol>
       {events.length >= 50 && (
         <p className="mt-3 text-center font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-          Showing the 50 most recent entries · older events live in /admin/audit
+          Showing the 50 most recent entries, older events live in /admin/audit
         </p>
       )}
     </section>

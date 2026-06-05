@@ -47,7 +47,7 @@ export async function updateClientSettings(formData: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const msg = parsed.error.issues[0]?.message ?? 'Could not save — check the form.';
+    const msg = parsed.error.issues[0]?.message ?? 'Could not save, check the form.';
     redirect(buildRedirect({ error: msg }));
   }
 

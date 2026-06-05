@@ -74,7 +74,7 @@ export default async function ClientJobsPage({ searchParams }: PageProps) {
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-cyan-glow" />
           <div>
             <p className="text-sm font-medium text-white">
-              Job posted — pending moderation.
+              Job posted, pending moderation.
             </p>
             <p className="mt-1 text-xs text-zinc-400">
               Our team reviews every new post within one business day.
@@ -126,7 +126,7 @@ function EmptyState() {
       </h2>
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
         Post your first inspection. Define the scope, pick a budget,
-        fund escrow — vetted inspectors apply within minutes.
+        fund escrow, vetted inspectors apply within minutes.
       </p>
       <Link
         href="/client/jobs/new"

@@ -92,7 +92,7 @@ export async function submitInspectionReport(formData: FormData): Promise<void> 
     signedDocsNotes: formData.get('signedDocsNotes') ?? '',
   });
   if (!parsed.success) {
-    const msg = parsed.error.issues[0]?.message ?? 'Could not submit — check the form.';
+    const msg = parsed.error.issues[0]?.message ?? 'Could not submit, check the form.';
     redirect(
       buildFormUrl(String(formData.get('jobId') ?? ''), { error: msg }),
     );

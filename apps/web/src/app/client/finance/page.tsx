@@ -45,7 +45,7 @@ export default async function ClientFinancePage() {
     <div className="space-y-10">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Finance
+          Client Portal, Finance
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Spend &amp; invoices
@@ -53,7 +53,7 @@ export default async function ClientFinancePage() {
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           What you&apos;ve funded, what&apos;s in escrow, and what&apos;s
           settled. NEXPEC processes payouts to inspectors directly via
-          Stripe — you fund escrow per job; we move the money.
+          Stripe, you fund escrow per job; we move the money.
         </p>
       </header>
 
@@ -64,7 +64,7 @@ export default async function ClientFinancePage() {
       >
         <MetricTile
           icon={<TrendingUp className="h-4 w-4" strokeWidth={1.75} />}
-          label="Total spend · YTD"
+          label="Total spend, YTD"
           value={formatCurrency(metrics.totalSpendYtdCents)}
           sub="across completed jobs this year"
           tone="violet"
@@ -78,13 +78,13 @@ export default async function ClientFinancePage() {
         />
         <MetricTile
           icon={<Receipt className="h-4 w-4" strokeWidth={1.75} />}
-          label="Paid out · YTD"
+          label="Paid out, YTD"
           value={formatCurrency(metrics.paidOutYtdCents)}
           sub="released to inspectors"
         />
         <MetricTile
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
-          label="Completed · YTD"
+          label="Completed, YTD"
           value={formatCount(metrics.completedJobsYtd)}
           sub={`${formatCount(metrics.activeJobsCount)} currently active`}
         />
@@ -137,13 +137,13 @@ export default async function ClientFinancePage() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-semibold uppercase tracking-industrial text-amber-300/80">
-              New · Financial Suite
+              New, Financial Suite
             </p>
             <h2 className="mt-0.5 font-display text-base font-semibold tracking-tight text-white">
               Compliance Vault
             </h2>
             <p className="mt-0.5 text-xs text-zinc-400">
-              Corporate docs + inspection certificates · admin-verified
+              Corporate docs + inspection certificates, admin-verified
             </p>
           </div>
           <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-300" strokeWidth={2} />
@@ -160,13 +160,13 @@ export default async function ClientFinancePage() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow/80">
-            New · Financial Suite
+            New, Financial Suite
           </p>
           <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-white">
             Budget Overview
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Live spend tracker — committed budget, escrow holds, paid-out
+            Live spend tracker, committed budget, escrow holds, paid-out
             amounts, 12-month trend, and top inspectors by spend.
           </p>
         </div>
@@ -238,7 +238,7 @@ export default async function ClientFinancePage() {
         <ol className="space-y-3 text-sm text-zinc-400">
           <Step
             n={1}
-            text="You fund a job's escrow when you post it. Funds sit with Stripe, not NEXPEC — we never touch your money directly."
+            text="You fund a job's escrow when you post it. Funds sit with Stripe, not NEXPEC, we never touch your money directly."
           />
           <Step
             n={2}
@@ -246,7 +246,7 @@ export default async function ClientFinancePage() {
           />
           <Step
             n={3}
-            text="You approve the report. That approval is a signal — admin executes the Stripe Connect payout to the inspector."
+            text="You approve the report. That approval is a signal, admin executes the Stripe Connect payout to the inspector."
           />
           <Step
             n={4}
@@ -296,7 +296,7 @@ function ActivityRow({ row }: { row: FinanceActivityRow }) {
           {row.jobTitle}
         </p>
         <p className="mt-0.5 text-[11px] text-zinc-500">
-          {labelForKind(row.kind)} · {formatRelative(row.occurredAt)}
+          {labelForKind(row.kind)}, {formatRelative(row.occurredAt)}
         </p>
       </div>
       <p className="text-right font-mono text-sm font-medium text-zinc-200">
@@ -392,9 +392,9 @@ function Step({ n, text }: { n: number; text: string }) {
 function labelForKind(kind: FinanceActivityKind): string {
   switch (kind) {
     case 'job_posted':
-      return 'Job posted · escrow funded';
+      return 'Job posted, escrow funded';
     case 'job_assigned':
-      return 'Inspector assigned · work in progress';
+      return 'Inspector assigned, work in progress';
     case 'report_received':
       return 'Report forwarded to you';
     case 'job_completed':

@@ -40,7 +40,7 @@ export default async function InspectorWalletPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · Wallet
+          Inspector Portal, Wallet
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Earnings & payouts
@@ -77,7 +77,7 @@ export default async function InspectorWalletPage() {
           />
           <Step
             n={2}
-            text="Client final-confirms the report. Their approval is a signal — they don't move money."
+            text="Client final-confirms the report. Their approval is a signal, they don't move money."
           />
           <Step
             n={3}
@@ -142,7 +142,7 @@ function ConnectCard({
           </span>
           <div className="flex-1">
             <h2 className="font-display text-xl font-semibold tracking-tight text-white">
-              Stripe Connect verified — payouts enabled
+              Stripe Connect verified, payouts enabled
             </h2>
             <p className="mt-1 text-sm text-zinc-400">
               {onboardedAt
@@ -152,7 +152,7 @@ function ConnectCard({
             </p>
             {stripeConnectId && (
               <p className="mt-3 font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-                Connect ID · <span className="text-zinc-400">{stripeConnectId.slice(0, 16)}…</span>
+                Connect ID, <span className="text-zinc-400">{stripeConnectId.slice(0, 16)}…</span>
               </p>
             )}
           </div>
@@ -224,7 +224,7 @@ function ConnectCard({
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
             One-time KYC, takes about 5 minutes. Without a connected
-            Stripe account, completed jobs can&apos;t pay out — earnings
+            Stripe account, completed jobs can&apos;t pay out, earnings
             queue in your balance instead.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">

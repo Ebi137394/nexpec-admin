@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { openHelpSupport } from '@/lib/actions/messages';
 
-export const metadata: Metadata = { title: 'Supplier · Help & Support' };
+export const metadata: Metadata = { title: 'Supplier, Help & Support' };
 export const dynamic = 'force-dynamic';
 
 async function contactAdmin() {
@@ -21,7 +21,7 @@ const FAQS: { icon: typeof Gavel; title: string; body: string }[] = [
   {
     icon: Gavel,
     title: 'How bidding & awards work',
-    body: 'Buyers post brokered RFQs. You submit a private quote — competitors never see it, and the buyer only ever sees the figure NEXPEC presents. When your bid wins, the award is confirmed by an admin.',
+    body: 'Buyers post brokered RFQs. You submit a private quote, competitors never see it, and the buyer only ever sees the figure NEXPEC presents. When your bid wins, the award is confirmed by an admin.',
   },
   {
     icon: ShieldCheck,
@@ -31,12 +31,12 @@ const FAQS: { icon: typeof Gavel; title: string; body: string }[] = [
   {
     icon: Wallet,
     title: 'Payments & settlement',
-    body: 'Supplier payouts are brokered: NEXPEC holds and releases funds against verified milestones. There is no self-service balance — arrange your payout method with the team via the Coordination Bridge.',
+    body: 'Supplier payouts are brokered: NEXPEC holds and releases funds against verified milestones. There is no self-service balance, arrange your payout method with the team via the Coordination Bridge.',
   },
   {
     icon: FileCheck2,
     title: 'Document sealing & provenance',
-    body: 'Every file you upload is hashed (SHA-256), sealed into the Trust Spine, and anchored to Bitcoin via OpenTimestamps — giving you tamper-evident, independently verifiable proof of authenticity.',
+    body: 'Every file you upload is hashed (SHA-256), sealed into the Trust Spine, and anchored to Bitcoin via OpenTimestamps, giving you tamper-evident, independently verifiable proof of authenticity.',
   },
 ];
 
@@ -45,10 +45,10 @@ export default function SupplierSupportPage() {
     <div className="space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Supplier Portal · Help</p>
+          <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">Supplier Portal, Help</p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">Help &amp; Support</h1>
           <p className="mt-2 max-w-xl text-sm text-zinc-400">
-            Everything you need to run your NEXPEC supplier account — and a direct line to a human when you need one.
+            Everything you need to run your NEXPEC supplier account, and a direct line to a human when you need one.
           </p>
         </div>
         <form action={contactAdmin}>
@@ -68,7 +68,7 @@ export default function SupplierSupportPage() {
             <h2 className="font-semibold text-white">The Coordination Bridge</h2>
             <p className="mt-1 max-w-2xl text-sm text-zinc-400">
               All supplier support runs through one secure, admin-brokered channel. No tickets lost in inboxes, no
-              direct exposure to buyers or inspectors — just a private thread with the NEXPEC team, on the record.
+              direct exposure to buyers or inspectors, just a private thread with the NEXPEC team, on the record.
             </p>
             <Link href="/suppliers/messages" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-glow hover:text-white">
               Open my messages <ArrowRight size={14} />

@@ -40,7 +40,7 @@ const SHIPPING_NEXT = [
   // M1 Financial Suite · platform-wide buyer spend tracker
   { label: 'Budget Overview', href: '/admin/budget', icon: BarChart3, live: true },
   // M1 Financial Suite · invoice queue + dispute adjudication
-  { label: 'Invoices · Mediation', href: '/admin/invoices', icon: Receipt, live: true },
+  { label: 'Invoices, Mediation', href: '/admin/invoices', icon: Receipt, live: true },
   // M1 Financial Suite · platform-wide compliance vault (verification)
   { label: 'Compliance Vault', href: '/admin/vault', icon: FolderLock, live: true },
 ];
@@ -68,7 +68,7 @@ export default async function AdminDashboardPage() {
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           Live platform snapshot. Reads run as super_admin against the
-          jobs and audit_events tables — RLS-gated, no service-role
+          jobs and audit_events tables, RLS-gated, no service-role
           credentials in the browser.
         </p>
       </header>
@@ -113,7 +113,7 @@ export default async function AdminDashboardPage() {
           <div className="flex items-center gap-3">
             <AlertTriangle className="h-5 w-5 text-accent-amber" />
             <p className="text-sm font-medium text-accent-amber">
-              {atRiskCount} at-risk report{atRiskCount === 1 ? '' : 's'} — inspection overdue without a sealed report · SLA Sentinel is chasing the inspector
+              {atRiskCount} at-risk report{atRiskCount === 1 ? '' : 's'}, inspection overdue without a sealed report, SLA Sentinel is chasing the inspector
             </p>
           </div>
           <span className="font-mono text-[10px] uppercase tracking-industrial text-accent-amber/80 group-hover:text-accent-amber">
@@ -147,7 +147,7 @@ export default async function AdminDashboardPage() {
         <MetricTile
           label="Inspectors working"
           value={formatCount(metrics.inspectorsActive)}
-          sub="distinct contractors · in_progress"
+          sub="distinct contractors, in_progress"
           tone="cyan"
         />
       </section>
@@ -155,13 +155,13 @@ export default async function AdminDashboardPage() {
       {/* Secondary metric row */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricTile
-          label="Completed · last 7d"
+          label="Completed, last 7d"
           value={formatCount(metrics.completedLast7d)}
           sub="jobs marked completed"
           variant="muted"
         />
         <MetricTile
-          label="Critical events · 24h"
+          label="Critical events, 24h"
           value={formatCount(metrics.criticalLast24h)}
           sub="severity = critical"
           variant="muted"
@@ -170,13 +170,13 @@ export default async function AdminDashboardPage() {
         <MetricTile
           label="—"
           value="—"
-          sub="reserved · payouts queue"
+          sub="reserved, payouts queue"
           variant="muted"
         />
         <MetricTile
           label="—"
           value="—"
-          sub="reserved · KYC pending"
+          sub="reserved, KYC pending"
           variant="muted"
         />
       </section>

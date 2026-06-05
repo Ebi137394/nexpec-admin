@@ -151,7 +151,7 @@ export async function sendMessage(formData: FormData): Promise<void> {
       withQuery(returnTo, {
         error:
           error.message?.includes('duplicate')
-            ? 'Already sent — try refreshing.'
+            ? 'Already sent, try refreshing.'
             : `Could not send: ${error.message ?? 'try again'}.`,
       }),
     );

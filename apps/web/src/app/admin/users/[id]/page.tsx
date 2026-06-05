@@ -39,7 +39,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  return { title: `User · ${id.slice(0, 8)} · Admin` };
+  return { title: `User, ${id.slice(0, 8)}, Admin` };
 }
 
 interface PageProps {
@@ -173,12 +173,12 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
       {/* Activity tiles */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Tile
-          label="Jobs · client"
+          label="Jobs, client"
           value={String(profile.counts.jobsAsClient)}
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
         />
         <Tile
-          label="Jobs · inspector"
+          label="Jobs, inspector"
           value={String(profile.counts.jobsAsInspector)}
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
         />
@@ -279,7 +279,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
       {/* Inspector-specific */}
       {isInspector && (
         <>
-          <Section title="Inspector · rates & rules">
+          <Section title="Inspector, rates & rules">
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KV
                 label="Hourly rate"
@@ -323,7 +323,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             </dl>
           </Section>
 
-          <Section title="Inspector · skills">
+          <Section title="Inspector, skills">
             <ChipGroup label="Specialties" items={profile.specialty_slugs} />
             <ChipGroup label="NDT methods" items={profile.ndt_methods} upper />
             <ChipGroup
@@ -332,7 +332,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             />
           </Section>
 
-          <Section title="Inspector · jurisdiction">
+          <Section title="Inspector, jurisdiction">
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <KV
                 label="Country of residence"
@@ -363,7 +363,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             </dl>
           </Section>
 
-          <Section title="Inspector · payouts (GR2 — admin view)">
+          <Section title="Inspector, payouts (GR2, admin view)">
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <KV
                 label="Balance"
@@ -391,7 +391,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
           </Section>
 
           {(profile.resume_url || profile.cv_url) && (
-            <Section title="Inspector · resume / CV">
+            <Section title="Inspector, resume / CV">
               <ul className="flex flex-wrap gap-2">
                 {profile.resume_url && (
                   <LinkChip href={profile.resume_url} label="Resume (legacy URL)" />
@@ -403,7 +403,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
               <p className="mt-2 text-[11px] text-zinc-500">
                 Newer uploads land in the private <code>resumes</code> bucket
                 via <code>resume_path</code>. This view shows the legacy public
-                URLs only — open the user&apos;s settings page on their portal
+                URLs only, open the user&apos;s settings page on their portal
                 to see the signed-URL version.
               </p>
             </Section>
@@ -413,7 +413,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
 
       {/* Client-specific */}
       {isClientSide && (
-        <Section title="Client · branding">
+        <Section title="Client, branding">
           <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <KV
               label="Custom branding"

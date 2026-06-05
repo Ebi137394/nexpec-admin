@@ -135,8 +135,8 @@ export function PlatformScale() {
             Audit-grade by design.
           </h2>
           <p className="text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">
-            NEXPEC indexes the entire industrial inspection surface —
-            from API 653 storage tank reads to PSM compliance audits —
+            NEXPEC indexes the entire industrial inspection surface,
+            from API 653 storage tank reads to PSM compliance audits,
             with structured scope templates, signed reports, and inspectors
             verified against named credentials.
           </p>
@@ -201,7 +201,7 @@ export function PlatformScale() {
             <CapabilityCell
               icon={CheckCircle2}
               title="Verified credentials"
-              body="Every inspector ships with a structured certification set. API 510, AWS CWI, NACE CIP — all canonical."
+              body="Every inspector ships with a structured certification set. API 510, AWS CWI, NACE CIP, all canonical."
             />
           </div>
         </div>

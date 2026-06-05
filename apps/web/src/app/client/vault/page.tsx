@@ -78,13 +78,13 @@ export default async function ClientVaultPage({ searchParams }: PageProps) {
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-              Client Portal · Compliance
+              Client Portal, Compliance
             </p>
             <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Compliance Vault
             </h1>
             <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
-              Your corporate compliance documents — insurance, licenses,
+              Your corporate compliance documents, insurance, licenses,
               NDAs, MSAs, regulatory filings. Admin verification stamps
               prove provenance. The Certificates tab aggregates trust
               certificates issued from your completed inspections.
@@ -108,7 +108,7 @@ export default async function ClientVaultPage({ searchParams }: PageProps) {
       {/* Tabs */}
       <nav className="flex flex-wrap gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.01] p-1.5">
         <TabLink active={tab === 'documents'} href="/client/vault">
-          My Documents · {counts.total}
+          My Documents, {counts.total}
         </TabLink>
         <TabLink active={tab === 'certificates'} href="/client/vault?tab=certificates">
           Inspection Certificates
@@ -157,7 +157,7 @@ export default async function ClientVaultPage({ searchParams }: PageProps) {
       )}
 
       <p className="text-[10px] font-mono uppercase tracking-industrial text-zinc-600">
-        Source · public.client_documents · public.trust_certificates · RLS owner+admin scope.
+        Source, public.client_documents, public.trust_certificates, RLS owner+admin scope.
       </p>
     </div>
   );
@@ -256,7 +256,7 @@ function DocumentRow({ doc }: { doc: VaultDocument }) {
         <p className="mt-2 truncate text-sm font-semibold text-white">{doc.label}</p>
         {doc.jobTitle && (
           <p className="mt-1 truncate text-[11px] text-zinc-500">
-            Linked to job · {doc.jobTitle}
+            Linked to job, {doc.jobTitle}
           </p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-500">
@@ -293,13 +293,13 @@ function CertificateRow({ cert }: { cert: TrustCertificate }) {
               {cert.scopeTemplateName ?? 'Trust certificate'}
             </p>
             <p className="mt-0.5 text-[11px] text-zinc-500">
-              Issued for {cert.supplierName ?? 'a supplier'} · valid through{' '}
+              Issued for {cert.supplierName ?? 'a supplier'}, valid through{' '}
               {formatVaultDate(cert.validUntil)}
             </p>
             {isRevoked && (
               <p className="mt-1 inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-red-300">
                 <AlertTriangle className="h-2.5 w-2.5" strokeWidth={2} />
-                Revoked · {cert.revokedReason ?? 'see audit log'}
+                Revoked, {cert.revokedReason ?? 'see audit log'}
               </p>
             )}
             {!isRevoked && isExpired && (

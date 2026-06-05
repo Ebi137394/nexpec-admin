@@ -69,7 +69,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
             color: '#A78BFA',
           }}
         >
-          500 · Platform error
+          500, Platform error
         </p>
 
         <h1
@@ -95,7 +95,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
           }}
         >
           Something failed before the page could render. The platform is
-          self-healing — most transient failures clear on the next
+          self-healing, most transient failures clear on the next
           attempt.
         </p>
 
@@ -111,7 +111,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
               color: '#71717a',
             }}
           >
-            digest ·{' '}
+            digest,{' '}
             <span style={{ color: '#d4d4d8' }}>{error.digest}</span>
           </p>
         )}
@@ -169,7 +169,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
             color: '#71717a',
           }}
         >
-          © {new Date().getFullYear()} NEXPEC · Audited by default.
+          © {new Date().getFullYear()} NEXPEC, Audited by default.
         </p>
       </body>
     </html>

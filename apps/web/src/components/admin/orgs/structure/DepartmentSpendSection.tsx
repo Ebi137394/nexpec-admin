@@ -132,13 +132,13 @@ function SpendBody({
       {/* Currency context line */}
       {useDisplay && (
         <p className="mt-2 font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-          Displayed in {displayCcy} · invoices natively in {summary.currency}
+          Displayed in {displayCcy}, invoices natively in {summary.currency}
           {summary.mixed_currencies && ' + others'}
         </p>
       )}
       {summary.display_rollup.rate_unavailable && (
         <p className="mt-2 rounded-md border border-amber-400/25 bg-amber-400/[0.05] px-2 py-1 text-[10px] text-amber-200">
-          FX rate path missing for {summary.currency} → {summary.display_currency} —
+          FX rate path missing for {summary.currency} → {summary.display_currency},
           showing native amounts.
         </p>
       )}
@@ -230,7 +230,7 @@ function Tile({
       <p className="mt-1.5 font-mono text-xs text-zinc-300">{secondaryValue}</p>
       <p className="text-[10px] text-zinc-600">
         {secondaryLabel}
-        {meta ? ` · ${meta}` : ''}
+        {meta ? `, ${meta}` : ''}
       </p>
     </div>
   );
@@ -367,7 +367,7 @@ function UnavailableState() {
 function NoSpendState() {
   return (
     <p className="mt-3 rounded-lg border border-dashed border-white/[0.08] bg-white/[0.01] px-3 py-3 text-center text-[11px] text-zinc-500">
-      No spend attributed yet — invoices tagged to this department will
+      No spend attributed yet, invoices tagged to this department will
       appear here.
     </p>
   );

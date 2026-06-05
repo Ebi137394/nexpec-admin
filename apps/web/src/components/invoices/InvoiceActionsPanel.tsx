@@ -131,7 +131,7 @@ function DisputeForm({
           </p>
           <p className="mt-0.5 text-[11px] text-red-200/80">
             Admin will mediate. Once filed, the invoice is frozen until
-            admin adjudicates. Be specific — what's wrong, what should
+            admin adjudicates. Be specific, what's wrong, what should
             it be?
           </p>
         </div>

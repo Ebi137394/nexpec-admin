@@ -11,7 +11,7 @@ import { openHelpSupport } from '@/lib/actions/messages';
 import { fetchMyConversations } from '@/lib/data/conversations';
 import { RoomList } from '@/components/messaging/RoomList';
 
-export const metadata: Metadata = { title: 'Supplier · Messages' };
+export const metadata: Metadata = { title: 'Supplier, Messages' };
 export const dynamic = 'force-dynamic';
 
 async function startCoordinationBridge() {
@@ -26,13 +26,13 @@ export default async function SupplierMessagesPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Supplier Portal · Coordination Bridge
+            Supplier Portal, Coordination Bridge
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Messages
           </h1>
           <p className="mt-2 max-w-xl text-sm text-zinc-400">
-            Your direct line to the NEXPEC brokerage team — quote clarifications,
+            Your direct line to the NEXPEC brokerage team, quote clarifications,
             award logistics, payouts and verification.
           </p>
         </div>

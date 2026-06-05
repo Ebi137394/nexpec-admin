@@ -120,7 +120,7 @@ function ToggleRow({
           onClick={() => onChange(!value)}
           disabled={status === 'pending'}
           aria-pressed={value}
-          aria-label={`${label} — ${value ? 'on' : 'off'}`}
+          aria-label={`${label}, ${value ? 'on' : 'off'}`}
           className={
             'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ' +
             (value

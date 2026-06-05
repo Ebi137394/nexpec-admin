@@ -43,7 +43,7 @@ export function SealClaimBanner() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-industrial text-violet-glow">
-            URL CLAIM · INSPECTION REPORT SEAL
+            URL CLAIM, INSPECTION REPORT SEAL
           </p>
           <p className="mt-2 text-sm text-zinc-200">
             This link asserts that NEXPEC seal{' '}
@@ -55,7 +55,7 @@ export function SealClaimBanner() {
           </p>
 
           <p className="mt-3 break-all rounded-lg border border-white/[0.06] bg-ink-900/60 p-3 font-mono text-[11px] leading-relaxed text-violet-glow">
-            {isHexish ? hash : '(malformed hash — expected lowercase hex)'}
+            {isHexish ? hash : '(malformed hash, expected lowercase hex)'}
           </p>
 
           <p className="mt-3 flex items-center gap-1.5 text-[11px] text-zinc-500">

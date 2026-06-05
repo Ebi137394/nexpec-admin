@@ -32,7 +32,7 @@ export default async function UsersPage({ searchParams }: PageProps) {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Command Console · Live
+            Command Console, Live
           </p>
           <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Users
@@ -46,7 +46,7 @@ export default async function UsersPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {/* Bulk specialty assigner CTA — discoverability link for the
+        {/* Bulk specialty assigner CTA, discoverability link for the
             domain-launch inspector seeding workflow. */}
         <Link
           href="/admin/users/specialties-bulk"

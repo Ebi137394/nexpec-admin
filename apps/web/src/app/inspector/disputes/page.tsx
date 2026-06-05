@@ -42,7 +42,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · Disputes
+          Inspector Portal, Disputes
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Disputes
@@ -103,7 +103,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  {DISPUTE_CATEGORY_LABELS[d.category]} · filed{' '}
+                  {DISPUTE_CATEGORY_LABELS[d.category]}, filed{' '}
                   {new Date(d.createdAt).toLocaleDateString()}
                 </p>
                 <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-400">{d.body}</p>
@@ -181,7 +181,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
               className="inline-flex items-center gap-2 rounded-full bg-accent-red px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm hover:bg-accent-red/90"
             >
               <Send className="h-3 w-3" strokeWidth={1.75} />
-              File dispute · pauses escrow
+              File dispute, pauses escrow
             </button>
           </div>
         </form>

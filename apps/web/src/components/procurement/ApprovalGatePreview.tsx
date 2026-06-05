@@ -171,7 +171,7 @@ function Banner({ verdict, orgName }: { verdict: Verdict; orgName: string }) {
         />
         <p className="text-xs text-rose-200">
           Couldn&apos;t evaluate this job against approval policies. The
-          post will still go through — gating decisions are re-evaluated
+          post will still go through, gating decisions are re-evaluated
           server-side at submit.
         </p>
       </div>
@@ -187,7 +187,7 @@ function Banner({ verdict, orgName }: { verdict: Verdict; orgName: string }) {
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-emerald-100">
-            Auto-post — no approval gate triggered
+            Auto-post, no approval gate triggered
           </p>
           <p className="mt-0.5 text-[11px] text-emerald-200/70">
             This amount falls below every active approval band for{' '}
@@ -209,7 +209,7 @@ function Banner({ verdict, orgName }: { verdict: Verdict; orgName: string }) {
         />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-amber-100">
-            Auto-post — but this exceeds the department budget envelope
+            Auto-post, but this exceeds the department budget envelope
           </p>
           <p className="mt-0.5 text-[11px] text-amber-200/80">
             No approval band intercepts this amount, but the department&apos;s
@@ -239,7 +239,7 @@ function Banner({ verdict, orgName }: { verdict: Verdict; orgName: string }) {
           </p>
           <p className="mt-0.5 text-[11px] text-zinc-400">
             Matched band:{' '}
-            <span className="text-zinc-200">{policyName}</span> · scope{' '}
+            <span className="text-zinc-200">{policyName}</span>, scope{' '}
             <span className="text-zinc-200">
               {ev.scope_department_id ? 'department' : 'org-wide'}
             </span>
@@ -265,8 +265,8 @@ function Banner({ verdict, orgName }: { verdict: Verdict; orgName: string }) {
           label="Segregation of Duties"
           value={
             ev.requires_sod === false
-              ? 'Opted out · audit-flagged'
-              : 'Enforced — you cannot approve your own request'
+              ? 'Opted out, audit-flagged'
+              : 'Enforced, you cannot approve your own request'
           }
           tone={ev.requires_sod === false ? 'amber' : 'violet'}
         />

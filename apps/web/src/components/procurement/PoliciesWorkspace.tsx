@@ -149,7 +149,7 @@ export function PoliciesWorkspace({
                     <p className="font-display text-sm text-white">
                       {group.scopeName ?? 'Org-wide'}{' '}
                       <span className="font-mono text-[11px] uppercase tracking-industrial text-zinc-500">
-                        · {group.currency}
+                        {group.currency}
                       </span>
                     </p>
                   </div>
@@ -185,7 +185,7 @@ export function PoliciesWorkspace({
                         {p.required_approver_roles
                           .map((r) => prettyRole(r))
                           .join(', ')}{' '}
-                        · {p.min_approvers_count} approval
+                        {p.min_approvers_count} approval
                         {p.min_approvers_count === 1 ? '' : 's'} required
                       </p>
                     </div>
@@ -285,7 +285,7 @@ function formatRange(
   };
   return maxCents === null
     ? `${fmt(minCents)}+`
-    : `${fmt(minCents)} – ${fmt(maxCents)}`;
+    : `${fmt(minCents)}, ${fmt(maxCents)}`;
 }
 
 function prettyRole(role: string): string {

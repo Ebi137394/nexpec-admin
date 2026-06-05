@@ -14,7 +14,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchAdminAllClientDocuments } from '@/lib/data/clientDocuments';
 import { CLIENT_DOC_KIND_LABELS } from '@/lib/data/clientDocuments.types';
 
-export const metadata: Metadata = { title: 'Admin · Documents' };
+export const metadata: Metadata = { title: 'Admin, Documents' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDocumentsPage() {
@@ -43,7 +43,7 @@ export default async function AdminDocumentsPage() {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Admin · Documents
+          Admin, Documents
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Client document oversight
@@ -72,7 +72,7 @@ export default async function AdminDocumentsPage() {
                   strokeWidth={1.75}
                 />
                 <p className="font-mono text-[11px] uppercase tracking-industrial text-zinc-500">
-                  Owner · {ownerId.slice(0, 8)}…
+                  Owner, {ownerId.slice(0, 8)}…
                 </p>
                 <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
                   {docs.length} doc{docs.length === 1 ? '' : 's'}
@@ -95,7 +95,7 @@ export default async function AdminDocumentsPage() {
                         </span>
                         {doc.jobId ? (
                           <span className="rounded-full border border-violet/30 bg-violet/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
-                            Job · {(doc.jobTitle ?? doc.jobId.slice(0, 8)).slice(0, 40)}
+                            Job, {(doc.jobTitle ?? doc.jobId.slice(0, 8)).slice(0, 40)}
                           </span>
                         ) : (
                           <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">

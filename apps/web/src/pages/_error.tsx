@@ -78,7 +78,7 @@ function ErrorPage({ statusCode }: ErrorPageProps) {
           color: '#A78BFA',
         }}
       >
-        {code} · NEXPEC
+        {code}, NEXPEC
       </p>
       <h1
         style={{

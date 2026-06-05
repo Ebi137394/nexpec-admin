@@ -64,7 +64,7 @@ export async function generateMetadata({
   const { id } = await params;
   const t = await fetchAdminScopeTemplateById(id);
   return {
-    title: t ? `Edit · ${t.name}` : 'Scope template',
+    title: t ? `Edit, ${t.name}` : 'Scope template',
   };
 }
 
@@ -114,7 +114,7 @@ export default async function ScopeTemplateDetailPage({
 
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-            Command Console · Compliance · Editing
+            Command Console, Compliance, Editing
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <h1 className="font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
@@ -208,7 +208,7 @@ export default async function ScopeTemplateDetailPage({
           <p className="mt-1 text-xs text-zinc-500">
             Every save bumps <span className="font-mono text-violet-glow">version</span>.
             Historical jobs continue referencing the version they were posted
-            under — they don't get retroactively re-scoped.
+            under, they don't get retroactively re-scoped.
           </p>
         </div>
         <ScopeTemplateForm
@@ -364,8 +364,8 @@ function ToggleActiveCard({
         <div>
           <p className="text-sm font-semibold text-white">
             {currentlyActive
-              ? 'Published — visible to clients.'
-              : 'Retired — hidden from the client picker.'}
+              ? 'Published, visible to clients.'
+              : 'Retired, hidden from the client picker.'}
           </p>
           <p className="mt-0.5 text-[11px] text-zinc-400">
             {currentlyActive
@@ -428,12 +428,12 @@ function RequirementsSection({
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
             What inspectors must capture in the field for this template. The
-            mobile capture flow enforces these — missing required items block
+            mobile capture flow enforces these, missing required items block
             submission.
           </p>
         </div>
         <span className="rounded-full border border-zinc-700/60 bg-zinc-800/30 px-3 py-1 text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-          Read-only · authoring ships next
+          Read-only, authoring ships next
         </span>
       </header>
 
@@ -448,7 +448,7 @@ function RequirementsSection({
           </p>
           <p className="mt-1 text-[11px] text-zinc-600">
             Until requirements are added, this template won't satisfy
-            compliance jobs — the mobile capture flow has nothing to enforce.
+            compliance jobs, the mobile capture flow has nothing to enforce.
           </p>
         </div>
       ) : (

@@ -26,21 +26,21 @@ export default async function OrgsPage({
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Organizations
         </h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           Enterprise buyers and inspection agencies. Each org carries a
-          member roster scoped by RLS — super_admin reads everything; org
+          member roster scoped by RLS, super_admin reads everything; org
           members see only their own.
         </p>
       </header>
 
       {sp.created ? (
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-          Organization created — you&apos;re the owner. Open its structure to add departments and invite your team.
+          Organization created, you&apos;re the owner. Open its structure to add departments and invite your team.
         </div>
       ) : null}
       {sp.error ? (
@@ -73,8 +73,8 @@ export default async function OrgsPage({
               defaultValue="enterprise"
               className="rounded-lg border border-white/10 bg-ink-800/60 px-3 py-2 text-sm text-white focus:border-violet-glow/50 focus:outline-none"
             >
-              <option value="enterprise">Enterprise · buyer</option>
-              <option value="agency">Agency · inspection</option>
+              <option value="enterprise">Enterprise, buyer</option>
+              <option value="agency">Agency, inspection</option>
             </select>
           </label>
           <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ export default async function OrgsPage({
 
       {!tableMissing && orgs.length > 0 && (
         <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-          {totalSeats} total member seat{totalSeats === 1 ? '' : 's'} ·
+          {totalSeats} total member seat{totalSeats === 1 ? '' : 's'},
           membership mutations land in Sprint 4
         </p>
       )}

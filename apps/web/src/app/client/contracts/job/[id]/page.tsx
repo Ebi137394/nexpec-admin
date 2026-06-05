@@ -97,7 +97,7 @@ export default async function ClientJobContractPage({
 
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Job contract
+          Client Portal, Job contract
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           {contract.jobTitle ?? 'Inspection contract'}
@@ -158,7 +158,7 @@ export default async function ClientJobContractPage({
       <section className="rounded-3xl border border-violet/25 bg-gradient-to-br from-violet/[0.10] to-transparent p-6">
         <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
           <Lock className="h-3 w-3" strokeWidth={2} />
-          Your price · held in escrow
+          Your price, held in escrow
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold text-violet-glow">
           {fmtCents(contract.clientPriceCents)}

@@ -29,7 +29,7 @@ import { SealClaimBanner } from '@/components/compliance/SealClaimBanner';
 export const metadata: Metadata = {
   title: 'Verify a NEXPEC Evidence Pack',
   description:
-    'Drag-drop a NEXPEC evidence pack to recompute its SHA-256 chain-of-custody in your browser. No NEXPEC account or server access required — pure client-side verification.',
+    'Drag-drop a NEXPEC evidence pack to recompute its SHA-256 chain-of-custody in your browser. No NEXPEC account or server access required, pure client-side verification.',
   robots: { index: true, follow: true },
 };
 
@@ -60,10 +60,10 @@ export default function VerifyPage() {
             className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-industrial text-zinc-300 transition-colors hover:text-violet-glow"
           >
             <Shield className="h-3.5 w-3.5 text-violet-glow" strokeWidth={2} />
-            NEXPEC · COMPLIANCE EVIDENCE LOCKER
+            NEXPEC, COMPLIANCE EVIDENCE LOCKER
           </Link>
           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-industrial text-emerald-400">
-            CLIENT-SIDE · NO UPLOAD
+            CLIENT-SIDE, NO UPLOAD
           </span>
         </div>
       </header>
@@ -73,7 +73,7 @@ export default function VerifyPage() {
         <section className="text-center">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[10px] uppercase tracking-industrial text-violet-glow">
             <Fingerprint className="h-3 w-3" strokeWidth={2} />
-            CEL/1.0 · PUBLIC VERIFICATION
+            CEL/1.0, PUBLIC VERIFICATION
           </p>
           <h1 className="mt-5 font-display text-4xl font-semibold tracking-tight text-white sm:text-5xl">
             Verify a NEXPEC evidence pack.
@@ -86,7 +86,7 @@ export default function VerifyPage() {
           </p>
         </section>
 
-        {/* Optional URL claim — surfaces seal_id+hash when the mobile
+        {/* Optional URL claim, surfaces seal_id+hash when the mobile
             "Copy verifier link" lands the auditor here. Wrapped in
             Suspense because useSearchParams requires it under static rendering. */}
         <Suspense fallback={null}>
@@ -122,7 +122,7 @@ export default function VerifyPage() {
             <ProtocolStep
               n={3}
               title="Root hash"
-              body="The manifest's artifacts array is itself canonicalised and hashed. The root hash is one number that summarises the entire pack — if any per-artifact hash changes, the root hash changes."
+              body="The manifest's artifacts array is itself canonicalised and hashed. The root hash is one number that summarises the entire pack, if any per-artifact hash changes, the root hash changes."
             />
             <ProtocolStep
               n={4}
@@ -156,7 +156,7 @@ export default function VerifyPage() {
             <PropertyTile
               icon={<Fingerprint className="h-4 w-4" strokeWidth={1.75} />}
               title="No trust assumption"
-              body="The algorithm is the proof — not our reputation."
+              body="The algorithm is the proof, not our reputation."
             />
           </ul>
         </section>
@@ -191,10 +191,10 @@ export default function VerifyPage() {
 }`}</pre>
           <p className="mt-3 text-[11px] text-zinc-500">
             Hash: <span className="font-mono text-zinc-300">SHA-256</span>
-            {' · '}
+            {', '}
             Encoding:{' '}
             <span className="font-mono text-zinc-300">UTF-8</span>
-            {' · '}
+            {', '}
             Output: lowercase hex.
           </p>
         </section>
@@ -202,7 +202,7 @@ export default function VerifyPage() {
         {/* Footer */}
         <footer className="mt-12 border-t border-white/[0.06] pt-6 text-center">
           <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-            COMPLIANCE EVIDENCE LOCKER · CEL/1.0 · PART OF THE NEXPEC PLATFORM
+            COMPLIANCE EVIDENCE LOCKER, CEL/1.0, PART OF THE NEXPEC PLATFORM
           </p>
           <p className="mt-2 text-[11px] text-zinc-500">
             Questions about a pack you received?{' '}

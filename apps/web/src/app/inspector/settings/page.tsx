@@ -94,7 +94,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
           Couldn&rsquo;t load your profile
         </h1>
         <p className="mt-2 max-w-md mx-auto text-sm text-zinc-400">
-          Your account exists but the profile query failed — usually because the
+          Your account exists but the profile query failed, usually because the
           inspector-profile safety-net migration hasn&rsquo;t been applied yet.
           Ask an admin to run{' '}
           <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[11px]">
@@ -131,7 +131,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         <div className="relative">
           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-glow shadow-[0_0_8px_rgba(124,58,237,0.7)]" />
-            Inspector Portal · Settings
+            Inspector Portal, Settings
           </p>
           <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             Your profile
@@ -155,7 +155,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         </Banner>
       )}
 
-      {/* Avatar upload — separate <form> because file uploads + standard
+      {/* Avatar upload, separate <form> because file uploads + standard
           form submits can't share the same multipart request without
           colliding on submit-button targets. */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
@@ -211,7 +211,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               className="sr-only"
             />
             <p className="text-[11px] text-zinc-500">
-              JPEG, PNG, WebP, or GIF · max 5 MB · square crops look best.
+              JPEG, PNG, WebP, or GIF, max 5 MB, square crops look best.
             </p>
             <button
               type="submit"
@@ -267,7 +267,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
                 </p>
               )}
               <p className="text-[11px] text-zinc-500">
-                PDF or Word doc · max 10 MB.
+                PDF or Word doc, max 10 MB.
               </p>
             </div>
           </div>
@@ -330,7 +330,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
             label="Headline"
             name="headline"
             defaultValue={profile.headline ?? ''}
-            placeholder="Senior NDT Inspector · API 510 / 570 / 653"
+            placeholder="Senior NDT Inspector, API 510 / 570 / 653"
             hint="One line. Shown above your bio when admin reviews an application."
           />
           <Field
@@ -354,7 +354,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               type="tel"
               defaultValue={profile.phone ?? ''}
               placeholder="+1 555 0100"
-              hint="Used for urgent dispatch alerts only — never shared with clients."
+              hint="Used for urgent dispatch alerts only, never shared with clients."
             />
             <Field
               label="Email"
@@ -362,7 +362,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               type="email"
               defaultValue={profile.email}
               disabled
-              hint="Email rotation goes through support — drop a note in /contact."
+              hint="Email rotation goes through support, drop a note in /contact."
             />
           </div>
         </Section>
@@ -527,7 +527,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         {/* Specialties — premium grouped taxonomy (200+) + tag input */}
         <Section
           title="Specialties"
-          subtitle="Drives which jobs surface in your feed. Pick everything you cover — admin uses these for matching."
+          subtitle="Drives which jobs surface in your feed. Pick everything you cover, admin uses these for matching."
         >
           {/* Selected-total chip — quick at-a-glance counter for the entire section */}
           {(() => {
@@ -546,7 +546,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
                       {totalSelected} {totalSelected === 1 ? 'specialty' : 'specialties'} selected
                     </p>
                     <p className="text-[11px] text-zinc-500">
-                      Across {SPECIALTY_GROUPS.length} disciplines · {SPECIALTY_GROUPS.reduce((a, g) => a + g.items.length, 0)}+ options
+                      Across {SPECIALTY_GROUPS.length} disciplines, {SPECIALTY_GROUPS.reduce((a, g) => a + g.items.length, 0)}+ options
                     </p>
                   </div>
                 </div>
@@ -773,9 +773,9 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
               name="availabilityStatus"
               defaultValue={profile.availabilityStatus}
             >
-              <option value="available">Available — open for new work</option>
-              <option value="busy">Busy — working but reachable</option>
-              <option value="offline">Offline — hidden from match queue</option>
+              <option value="available">Available, open for new work</option>
+              <option value="busy">Busy, working but reachable</option>
+              <option value="offline">Offline, hidden from match queue</option>
             </Select>
             <label className="group flex cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm font-medium text-zinc-300 transition-colors hover:border-violet/40 hover:bg-white/[0.04] has-[:checked]:border-violet/40 has-[:checked]:bg-violet/10 has-[:checked]:text-white">
               <input
@@ -854,8 +854,8 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {c.issuingBody ?? 'Unknown issuer'}
-                      {c.issueDate ? ` · issued ${c.issueDate}` : ''}
-                      {c.expiryDate ? ` · expires ${c.expiryDate}` : ''}
+                      {c.issueDate ? `, issued ${c.issueDate}` : ''}
+                      {c.expiryDate ? `, expires ${c.expiryDate}` : ''}
                     </p>
                     {c.notes && (
                       <p className="mt-1 line-clamp-2 text-[11px] text-zinc-500">
@@ -997,7 +997,7 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
         </dl>
       </section>
 
-      {/* Sprint 13.3 — Two-factor authentication. Strictly additive at
+      {/* Sprint 13.3, Two-factor authentication. Strictly additive at
           the tail of the existing layout. */}
       <MfaSection initial={mfaStatus} />
     </div>
@@ -1204,8 +1204,8 @@ function specialtyGroupIcon(title: string) {
     case 'Mechanical & rotating':                return Cog;
     case 'Electrical & instrumentation':         return Zap;
     case 'Civil & structural':                   return Building2;
-    case 'Oil & gas — upstream':                 return Fuel;
-    case 'Oil & gas — downstream / process':     return FlaskConical;
+    case 'Oil & gas, upstream':                 return Fuel;
+    case 'Oil & gas, downstream / process':     return FlaskConical;
     case 'Power & renewables':                   return Sun;
     case 'Marine & offshore':                    return Anchor;
     case 'Lifting & rigging':                    return ArrowUp;

@@ -72,7 +72,7 @@ export default async function SupplierConversationPage({ params, searchParams }:
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">{heading}</p>
-          <p className="truncate text-xs text-zinc-500">Direct chat with NEXPEC admin · brokered &amp; private</p>
+          <p className="truncate text-xs text-zinc-500">Direct chat with NEXPEC admin, brokered &amp; private</p>
         </div>
         {isClosed && (
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">

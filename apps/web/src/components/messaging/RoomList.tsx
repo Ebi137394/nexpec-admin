@@ -89,7 +89,7 @@ export function RoomList({
                     {formatRelative(r.lastMessageAt)}
                   </p>
                 </div>
-                {/* Admin view: show "Client · Help & Support" or
+                {/* Admin view: show "Client, Help & Support" or
                     "Inspector · Job: foo" so the operator can tell rooms apart
                     without opening them. */}
                 {viewerIsAdmin ? (
@@ -97,7 +97,7 @@ export function RoomList({
                     {partyChip ? partyChip.contextLabel : CONVERSATION_KIND_LABELS[r.kind]}
                     {r.jobTitle ? (
                       <>
-                        {' · '}
+                        {', '}
                         <span className="text-zinc-300">Job: {r.jobTitle}</span>
                       </>
                     ) : null}
@@ -146,7 +146,7 @@ function deriveAdminPartyChip(
   if (kind === 'job_client_admin') {
     return {
       label: 'Client',
-      contextLabel: 'Client side · job chat',
+      contextLabel: 'Client side, job chat',
       tone: 'violet',
       Icon: Building2,
     };
@@ -154,7 +154,7 @@ function deriveAdminPartyChip(
   if (kind === 'job_inspector_admin') {
     return {
       label: 'Inspector',
-      contextLabel: 'Inspector side · job chat',
+      contextLabel: 'Inspector side, job chat',
       tone: 'cyan',
       Icon: HardHat,
     };
@@ -162,7 +162,7 @@ function deriveAdminPartyChip(
   if (kind === 'job_supplier_admin') {
     return {
       label: 'Supplier',
-      contextLabel: 'Supplier side · job chat',
+      contextLabel: 'Supplier side, job chat',
       tone: 'amber',
       Icon: Store,
     };
@@ -174,7 +174,7 @@ function deriveAdminPartyChip(
   if (role === 'inspector') {
     return {
       label: 'Inspector',
-      contextLabel: 'Inspector · Help & Support',
+      contextLabel: 'Inspector, Help & Support',
       tone: 'cyan',
       Icon: HardHat,
     };
@@ -182,7 +182,7 @@ function deriveAdminPartyChip(
   if (role === 'client' || role === 'agency' || role === 'enterprise') {
     return {
       label: 'Client',
-      contextLabel: 'Client · Help & Support',
+      contextLabel: 'Client, Help & Support',
       tone: 'violet',
       Icon: Building2,
     };

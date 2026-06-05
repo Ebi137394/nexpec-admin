@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'NEXPEC Inspection Passport',
-  description: 'Independently verify a NEXPEC sealed inspection — integrity, inspector credentials at inspection time, and blockchain anchor.',
+  description: 'Independently verify a NEXPEC sealed inspection, integrity, inspector credentials at inspection time, and blockchain anchor.',
   robots: { index: false, follow: false },
 };
 
@@ -71,7 +71,7 @@ export default async function PassportPage({ params }: PageProps) {
               : <ShieldAlert className="h-9 w-9 shrink-0 text-amber-400" strokeWidth={1.75} />}
           <div>
             <h1 className="text-lg font-semibold">{ok ? 'Verified inspection seal' : 'Seal integrity flagged'}</h1>
-            <p className="text-sm text-zinc-400">NEXPEC Inspection Passport · independently verifiable</p>
+            <p className="text-sm text-zinc-400">NEXPEC Inspection Passport, independently verifiable</p>
           </div>
         </div>
 
@@ -93,7 +93,7 @@ export default async function PassportPage({ params }: PageProps) {
           <p className="break-all font-mono text-[13px] text-violet-200">{passport.seal.rootSha256}</p>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div><dt className="text-zinc-500">Algorithm</dt><dd className="font-mono text-zinc-200">{passport.seal.algorithm}</dd></div>
-            <div><dt className="text-zinc-500">Chain</dt><dd className={passport.seal.chainVerified ? 'text-emerald-400' : 'text-amber-400'}>{passport.seal.chainVerified ? 'verified — unaltered' : 'break detected'}</dd></div>
+            <div><dt className="text-zinc-500">Chain</dt><dd className={passport.seal.chainVerified ? 'text-emerald-400' : 'text-amber-400'}>{passport.seal.chainVerified ? 'verified, unaltered' : 'break detected'}</dd></div>
             <div><dt className="text-zinc-500">Photos sealed</dt><dd className="text-zinc-200">{passport.seal.capturesCount}</dd></div>
             <div><dt className="text-zinc-500">Findings sealed</dt><dd className="text-zinc-200">{passport.seal.itemsCount}</dd></div>
             <div className="col-span-2"><dt className="text-zinc-500">Sealed at</dt><dd className="text-zinc-200">{fmt(passport.seal.sealedAt)}</dd></div>
@@ -151,7 +151,7 @@ export default async function PassportPage({ params }: PageProps) {
         </section>
 
         <p className="mt-6 text-center text-xs text-zinc-500">
-          This passport is independently verifiable by anyone with this link — no NEXPEC account required.{' '}
+          This passport is independently verifiable by anyone with this link, no NEXPEC account required.{' '}
           <Link href="/verify" className="text-violet-300 hover:text-violet-200">Recompute the full evidence pack →</Link>
         </p>
       </div>

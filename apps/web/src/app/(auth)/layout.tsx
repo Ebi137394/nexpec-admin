@@ -43,7 +43,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       {/* footer microcopy */}
       <footer className="relative z-10 px-6 pb-8 text-center text-xs text-zinc-500">
-        © {new Date().getFullYear()} NEXPEC · Audited by default.
+        © {new Date().getFullYear()} NEXPEC, Audited by default.
       </footer>
     </div>
   );

@@ -172,7 +172,7 @@ function FilterEcho({
   if (!hasFilter) {
     return (
       <p className="text-[12px] leading-relaxed text-zinc-500">
-        No filter active — listing all inspectors (capped at 200).
+        No filter active, listing all inspectors (capped at 200).
       </p>
     );
   }
@@ -307,7 +307,7 @@ function ActionPanel({
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="kebab discipline slug — e.g. vibration-analysis"
+            placeholder="kebab discipline slug, e.g. vibration-analysis"
             list="bulk-action-slug-list"
             className="w-full rounded-lg border border-white/[0.08] bg-ink-900/60 px-3 py-2 font-mono text-[13px] text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500/40 focus:bg-ink-950 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
@@ -344,7 +344,7 @@ function ActionPanel({
       <p className="text-[11px] leading-relaxed text-zinc-500">
         One slug per submit. The same selection persists after a
         successful apply so you can chain multiple slug edits on the
-        same batch — handy when seeding several disciplines from one
+        same batch, handy when seeding several disciplines from one
         specialty group.
       </p>
     </form>

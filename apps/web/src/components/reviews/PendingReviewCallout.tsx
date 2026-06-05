@@ -103,7 +103,6 @@ export async function PendingReviewCallout({
               <p className="mt-1 text-sm text-zinc-200">
                 <span className="font-mono text-amber-300">{stars}</span>{' '}
                 <span className="text-zinc-500">
-                  ·{' '}
                   {new Date(existing.published_at).toLocaleDateString(
                     'en-US',
                     { month: 'short', day: 'numeric', year: 'numeric' },
@@ -147,14 +146,14 @@ export async function PendingReviewCallout({
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow">
-              Action available · Leave a review
+              Action available, Leave a review
             </p>
             <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-white sm:text-xl">
               How was your experience with {counterparty}?
             </h2>
             <p className="mt-1 max-w-xl text-sm text-zinc-400">
               {tone === 'client'
-                ? "Rating your inspector helps the next client choose well — and rewards top performers with higher placement."
+                ? "Rating your inspector helps the next client choose well, and rewards top performers with higher placement."
                 : 'Rating your client helps other inspectors decide whether to bid on their future jobs. Honest feedback raises the floor for everyone.'}
             </p>
           </div>

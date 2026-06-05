@@ -339,8 +339,8 @@ export async function adjudicateDisputeAction(
     error: null,
     message:
       parsed.data.decision === 'approve'
-        ? 'Dispute resolved · invoice approved.'
-        : 'Dispute resolved · invoice voided.',
+        ? 'Dispute resolved, invoice approved.'
+        : 'Dispute resolved, invoice voided.',
   };
 }
 

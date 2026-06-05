@@ -21,7 +21,7 @@ import { MessageThread } from '@/components/messaging/MessageThread';
 import { RichComposer } from '@/components/messaging/RichComposer';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
-export const metadata: Metadata = { title: 'Admin · Conversation' };
+export const metadata: Metadata = { title: 'Admin, Conversation' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
@@ -94,7 +94,7 @@ export default async function AdminConversationPage({ params, searchParams }: Pa
           <p className="truncate text-sm font-semibold text-white">{heading}</p>
           <p className="truncate text-xs text-zinc-500">
             {CONVERSATION_KIND_LABELS[conversation.kind]}
-            {conversation.jobTitle ? ` · ${conversation.jobTitle}` : ''}
+            {conversation.jobTitle ? `, ${conversation.jobTitle}` : ''}
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">

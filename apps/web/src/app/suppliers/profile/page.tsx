@@ -86,7 +86,7 @@ export default function SupplierProfilePage() {
           </h1>
           <p className="mt-1 text-sm text-zinc-400">
             {existing
-              ? 'Keep your listing sharp — capabilities power RFQ matching across every discipline.'
+              ? 'Keep your listing sharp, capabilities power RFQ matching across every discipline.'
               : 'List your company to appear in the directory and bid on brokered RFQs.'}
           </p>
         </div>
@@ -104,7 +104,7 @@ export default function SupplierProfilePage() {
             <input value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="ACME Manufacturing GmbH" className={inp} />
           </Field>
           <Field label="Headline" className="sm:col-span-2">
-            <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="ISO 17025 calibration lab · GCC" className={inp} />
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="ISO 17025 calibration lab, GCC" className={inp} />
           </Field>
           <Field label="Country code">
             <input value={country} onChange={(e) => setCountry(e.target.value.toUpperCase())} maxLength={2} placeholder="AE" className={inp} />
@@ -139,7 +139,7 @@ export default function SupplierProfilePage() {
       </Card>
 
       {/* Certifications */}
-      <Card title="Certifications & documents" subtitle="Optional — every file is cryptographically sealed and timestamped on upload, then reviewed for verification.">
+      <Card title="Certifications & documents" subtitle="Optional, every file is cryptographically sealed and timestamped on upload, then reviewed for verification.">
         <div className="space-y-4">
           <DocumentField label="ISO / Quality certificate" docType="iso_cert" helperText="e.g. ISO 9001 or ISO 17025" value={iso} onChange={setIso} />
           <DocumentField label="Accreditation certificate" docType="accreditation" helperText="Lab / inspection body accreditation" value={accr} onChange={setAccr} />

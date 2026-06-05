@@ -50,10 +50,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     'A NEXPEC-verified inspection professional. Capability and performance are ' +
     'verified by the platform; identity is protected. Engage securely through NEXPEC.';
   return {
-    title: `${title} · NEXPEC`,
+    title: `${title}, NEXPEC`,
     description,
     alternates: { canonical: `/p/${userId}` },
-    openGraph: { title: `${title} · NEXPEC`, description, type: 'profile' },
+    openGraph: { title: `${title}, NEXPEC`, description, type: 'profile' },
     robots: { index: true, follow: true },
   };
 }
@@ -132,13 +132,13 @@ export default async function PublicProfilePage({ params }: PageProps) {
             <p className="mt-1 font-mono text-sm text-violet-glow">{handle}</p>
             <p className="mt-1 text-[11px] uppercase tracking-industrial text-zinc-500">
               Inspector
-              {region ? ` · Region: ${region}` : ''}
+              {region ? `, Region: ${region}` : ''}
             </p>
             <p className="mt-4 inline-flex items-start gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-zinc-400">
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-glow" strokeWidth={1.75} />
               <span>
                 Identity is protected by NEXPEC. You&apos;re seeing platform-verified
-                capability and performance — no résumé, no bias. Engagement happens
+                capability and performance, no résumé, no bias. Engagement happens
                 securely through NEXPEC with escrow and dispute protection.
               </span>
             </p>
@@ -192,7 +192,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           NEXPEC-Verified Competencies
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Each capability below is verified by NEXPEC — not a self-reported CV.
+          Each capability below is verified by NEXPEC, not a self-reported CV.
         </p>
         {competencies.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-500">
@@ -247,7 +247,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             <span className="text-xs text-zinc-400">
               {ratingCount === 0
                 ? 'No reviews yet'
-                : `${ratingAvg.toFixed(2)} · ${ratingCount} review${ratingCount === 1 ? '' : 's'}`}
+                : `${ratingAvg.toFixed(2)}, ${ratingCount} review${ratingCount === 1 ? '' : 's'}`}
             </span>
           </div>
         </div>

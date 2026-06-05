@@ -66,7 +66,7 @@ export async function renderInvoicePdf(opts: InvoiceOptions): Promise<Uint8Array
   // Header band — branding line
   const headerCopy = client.useCustomBranding && client.reportHeaderText
     ? client.reportHeaderText
-    : 'NEXPEC · Industrial Inspection Marketplace';
+    : 'NEXPEC, Industrial Inspection Marketplace';
   page.drawText(headerCopy, { x: 48, y, size: 9, font: fontRegular, color: subText });
   y -= 24;
 
@@ -107,7 +107,7 @@ export async function renderInvoicePdf(opts: InvoiceOptions): Promise<Uint8Array
   const meta = [
     job.locationCity ? `Location: ${job.locationCity}` : null,
     job.completedAt ? `Completed: ${new Date(job.completedAt).toLocaleDateString()}` : null,
-  ].filter(Boolean).join(' · ');
+  ].filter(Boolean).join(', ');
   if (meta) {
     page.drawText(meta, { x: 48, y, size: 9, font: fontRegular, color: subText });
     y -= 16;

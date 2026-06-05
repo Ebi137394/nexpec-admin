@@ -96,7 +96,7 @@ export default async function InspectorOpenJobsPage({ searchParams }: PageProps)
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Inspector Portal · Find work
+          Inspector Portal, Find work
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Open jobs
@@ -104,7 +104,7 @@ export default async function InspectorOpenJobsPage({ searchParams }: PageProps)
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           Inspections cleared by our moderation team and ready for
           applications. Each listing shows the payout we&apos;ll release
-          on a signed report — your wallet picks up after the job
+          on a signed report, your wallet picks up after the job
           completes.
         </p>
       </header>
@@ -116,7 +116,7 @@ export default async function InspectorOpenJobsPage({ searchParams }: PageProps)
       ) : (
         <>
           {newOnes.length > 0 && (
-            <Group title={`Available · ${newOnes.length}`}>
+            <Group title={`Available, ${newOnes.length}`}>
               {newOnes.map((j) => (
                 <JobCard key={j.id} job={j} />
               ))}
@@ -124,7 +124,7 @@ export default async function InspectorOpenJobsPage({ searchParams }: PageProps)
           )}
           {applied.length > 0 && (
             <Group
-              title={`You've applied · ${applied.length}`}
+              title={`You've applied, ${applied.length}`}
               subtitle="Tracking these on your end. Status updates appear here."
             >
               {applied.map((j) => (
@@ -273,7 +273,7 @@ function FilterBar({
 
       <fieldset>
         <legend className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
-          Specialties — match any
+          Specialties, match any
         </legend>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {COMMON_SPECIALTY_OPTIONS.map((opt) => {
@@ -381,7 +381,7 @@ function EmptyState() {
         Nothing open right now.
       </h2>
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
-        New inspections post throughout the day. Check back shortly —
+        New inspections post throughout the day. Check back shortly,
         push notifications light up the moment a job in your specialty
         clears moderation.
       </p>
@@ -438,7 +438,7 @@ function JobCard({ job }: { job: OpenJobRow }) {
         )}
         {job.scheduledDate && (
           <span className="inline-flex items-center gap-1">
-            scheduled · {new Date(job.scheduledDate).toLocaleDateString()}
+            scheduled, {new Date(job.scheduledDate).toLocaleDateString()}
           </span>
         )}
         {job.acceptsRemoteInspectors && (
@@ -527,7 +527,7 @@ function UrgencyPill({ urgency }: { urgency: JobUrgency }) {
         : urgency === 'low'
           ? 'zinc'
           : 'violet';
-  return <Pill tone={tone} label={'urgency · ' + urgency} />;
+  return <Pill tone={tone} label={'urgency, ' + urgency} />;
 }
 
 function Pill({

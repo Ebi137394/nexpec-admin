@@ -50,8 +50,8 @@ export function SpreadVisualization({
       {clientPriceCents !== null && payoutCents !== null && !overcommitted && (
         <div>
           <div className="flex justify-between text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
-            <span>Inspector share · {sharePctSafe}%</span>
-            <span>Platform share · {Math.max(100 - sharePctSafe, 0)}%</span>
+            <span>Inspector share, {sharePctSafe}%</span>
+            <span>Platform share, {Math.max(100 - sharePctSafe, 0)}%</span>
           </div>
           <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/[0.04]">
             <div
@@ -64,7 +64,7 @@ export function SpreadVisualization({
 
       {overcommitted && (
         <p className="rounded-lg border border-accent-red/40 bg-accent-red/10 px-3 py-2 text-xs text-accent-red">
-          Payout exceeds client price — the dispatch RPC will refuse this
+          Payout exceeds client price, the dispatch RPC will refuse this
           combination. Adjust one of the values.
         </p>
       )}

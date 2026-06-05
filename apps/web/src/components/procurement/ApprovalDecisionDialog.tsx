@@ -178,7 +178,7 @@ export function ApprovalDecisionDialog({ request, open, onClose }: Props) {
                 {request.approved_count}
               </span>{' '}
               of {request.min_approvers_required} approval
-              {request.min_approvers_required === 1 ? '' : 's'} so far ·
+              {request.min_approvers_required === 1 ? '' : 's'} so far,
               valid approvers:{' '}
               {request.required_approver_roles
                 .map((r) => prettyRole(r as string))

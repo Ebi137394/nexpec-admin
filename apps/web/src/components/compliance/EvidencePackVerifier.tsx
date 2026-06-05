@@ -137,7 +137,7 @@ export function EvidencePackVerifier() {
       setState({
         kind: 'error',
         message:
-          'This does not look like a NEXPEC evidence pack — missing manifest or root hash.',
+          'This does not look like a NEXPEC evidence pack, missing manifest or root hash.',
       });
       return;
     }
@@ -265,10 +265,10 @@ export function EvidencePackVerifier() {
               </p>
               <p className="mt-2 max-w-sm text-pretty text-xs text-zinc-400">
                 or click to browse. The file is processed entirely in your
-                browser — nothing is uploaded.
+                browser, nothing is uploaded.
               </p>
               <p className="mt-3 font-mono text-[10px] uppercase tracking-industrial text-zinc-600">
-                EXPECTED · .JSON · NEXPEC EVIDENCE PACK v1.0
+                EXPECTED, .JSON, NEXPEC EVIDENCE PACK v1.0
               </p>
             </div>
           </>
@@ -376,7 +376,7 @@ function VerdictView({
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-              VERIFICATION RESULT · CEL/1.0 · {result.algorithm}
+              VERIFICATION RESULT, CEL/1.0, {result.algorithm}
             </p>
             <h2
               className={cn(
@@ -485,7 +485,7 @@ function VerdictView({
           <header className="mb-2 flex items-center justify-between">
             <p className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
               <Fingerprint className="h-3 w-3" strokeWidth={2} />
-              PROVABLE-AI · SEAL ROOT RE-DERIVATION
+              PROVABLE-AI, SEAL ROOT RE-DERIVATION
             </p>
             <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
               {result.seals.filter((s) => s.rootMatches).length}/
@@ -522,7 +522,7 @@ function VerdictView({
                     <p className="flex flex-wrap items-center gap-2 text-xs">
                       <span className="font-semibold text-white">
                         {seal.rootMatches
-                          ? 'Seal root re-derived independently — matches the sealed value'
+                          ? 'Seal root re-derived independently, matches the sealed value'
                           : 'Independent re-derivation inconclusive'}
                       </span>
                       <span className="rounded border border-white/[0.08] bg-white/[0.04] px-1.5 py-px font-mono text-[9px] uppercase tracking-industrial text-zinc-400">
@@ -537,11 +537,11 @@ function VerdictView({
                         into this seal&rsquo;s root
                         {seal.aiConsistent
                           ? ''
-                          : ` · pack lists ${seal.aiAcceptedInPack} accepted`}
+                          : `, pack lists ${seal.aiAcceptedInPack} accepted`}
                       </p>
                     ) : (
                       <p className="mt-1 font-mono text-[10px] text-zinc-500">
-                        Pre-AI seal — no AI findings bound to the root.
+                        Pre-AI seal, no AI findings bound to the root.
                       </p>
                     )}
                   </div>
@@ -564,7 +564,7 @@ function VerdictView({
           <p className="mt-2 text-pretty font-mono text-[9px] leading-relaxed text-zinc-600">
             Re-derivation recomputes{' '}
             <span className="text-zinc-400">
-              sha256( sort([captures · items · report · vendor · ai]) joined by
+              sha256( sort([captures, items, report, vendor, ai]) joined by
               &ldquo;|&rdquo; )
             </span>{' '}
             from the seal&rsquo;s own component hashes and the vendor documents in

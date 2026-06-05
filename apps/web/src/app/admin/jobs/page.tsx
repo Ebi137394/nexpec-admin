@@ -116,14 +116,14 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
     <div className="space-y-8">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Command Console · Live
+          Command Console, Live
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Jobs Moderation
         </h1>
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           Platform-wide job queue. Click any row to open the moderation
-          drawer — approve, request edits, or reject. Rejection cascades
+          drawer, approve, request edits, or reject. Rejection cascades
           through <span className="font-mono text-zinc-200">admin_cancel_job</span>
           ; every decision is correlation-stamped in the Audit Trail.
         </p>
@@ -163,7 +163,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <JobsStatusFilter />
         <p className="font-mono text-[10px] uppercase tracking-industrial text-zinc-500">
-          {status ?? 'all statuses'} · {total.toLocaleString()} rows
+          {status ?? 'all statuses'}, {total.toLocaleString()} rows
         </p>
       </div>
 

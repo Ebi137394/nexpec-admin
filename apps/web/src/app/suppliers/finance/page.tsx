@@ -43,7 +43,7 @@ export default function SupplierFinancePage() {
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">My Business</p>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">Finance</h1>
-        <p className="mt-1 text-sm text-zinc-400">Contracted earnings, settlement and pipeline — derived from your awards and brokered payouts.</p>
+        <p className="mt-1 text-sm text-zinc-400">Contracted earnings, settlement and pipeline, derived from your awards and brokered payouts.</p>
       </header>
 
       {/* Hero — contracted value + settlement split */}
@@ -66,7 +66,7 @@ export default function SupplierFinancePage() {
       <div className="flex items-start gap-3 rounded-2xl border border-violet/20 bg-violet/[0.06] p-4">
         <Landmark size={18} className="mt-0.5 shrink-0 text-violet-glow" />
         <p className="text-sm text-zinc-400">
-          <span className="font-semibold text-white">Admin-brokered settlement.</span> NEXPEC holds and releases supplier payments against verified milestones — there is no self-service balance. Outstanding amounts settle as milestones clear. Questions? Reach the team on the{' '}
+          <span className="font-semibold text-white">Admin-brokered settlement.</span> NEXPEC holds and releases supplier payments against verified milestones, there is no self-service balance. Outstanding amounts settle as milestones clear. Questions? Reach the team on the{' '}
           <Link href="/suppliers/messages" className="font-semibold text-violet-glow hover:text-white">Coordination Bridge</Link>.
         </p>
       </div>
@@ -76,7 +76,7 @@ export default function SupplierFinancePage() {
 
       {/* KPI rail */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon={<Trophy size={18} />} tone="green" value={f.winRate == null ? '—' : `${f.winRate}%`} label="Win rate" sub={`${f.wonCount} won · ${f.lostCount} lost`} />
+        <Kpi icon={<Trophy size={18} />} tone="green" value={f.winRate == null ? '—' : `${f.winRate}%`} label="Win rate" sub={`${f.wonCount} won, ${f.lostCount} lost`} />
         <Kpi icon={<BadgeDollarSign size={18} />} tone="violet" value={f.avgAwardCents == null ? '—' : formatUsd(f.avgAwardCents)} label="Avg. award value" sub={f.wonCount > 0 ? `across ${f.wonCount}` : 'no awards yet'} />
         <Kpi icon={<Send size={18} />} tone="cyan" value={String(f.activeCount)} label="Active bids" sub={`${f.bidCount} total`} />
         <Kpi icon={<Clock size={18} />} tone="amber" value={formatUsd(f.pendingCents)} label="Pending settlement" sub="processing" />
@@ -115,7 +115,7 @@ export default function SupplierFinancePage() {
           <section>
             <h2 className="mb-3 flex items-center gap-2 font-semibold text-white"><Rocket size={16} className="text-accent-green" /> Contracted work</h2>
             {f.awardedContracts.length === 0 ? (
-              <p className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 text-sm text-zinc-400">No awarded contracts yet — your wins will appear here with their dispatch status.</p>
+              <p className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 text-sm text-zinc-400">No awarded contracts yet, your wins will appear here with their dispatch status.</p>
             ) : (
               <ul className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.05]">
                 {f.awardedContracts.map((c) => (
@@ -124,7 +124,7 @@ export default function SupplierFinancePage() {
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-green/12 text-accent-green"><Trophy size={18} /></span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{c.title}</p>
-                        <p className="mt-0.5 text-xs text-zinc-500">Awarded {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? ' · inspection dispatched' : ''}</p>
+                        <p className="mt-0.5 text-xs text-zinc-500">Awarded {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? ', inspection dispatched' : ''}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-display text-base font-semibold text-white">{formatUsd(c.amountCents)}</p>
@@ -154,8 +154,8 @@ export default function SupplierFinancePage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-white">{t.description || t.type}</p>
                         <p className="mt-0.5 text-xs">
-                          <span className="capitalize text-zinc-500">{t.type}</span><span className="text-white/20"> · </span>
-                          <span className={`font-semibold capitalize ${STATUS_CLS[t.status] ?? 'text-zinc-400'}`}>{t.status}</span><span className="text-white/20"> · </span>
+                          <span className="capitalize text-zinc-500">{t.type}</span><span className="text-white/20">, </span>
+                          <span className={`font-semibold capitalize ${STATUS_CLS[t.status] ?? 'text-zinc-400'}`}>{t.status}</span><span className="text-white/20">, </span>
                           <span className="text-zinc-500">{new Date(t.created_at).toLocaleDateString()}</span>
                         </p>
                       </div>

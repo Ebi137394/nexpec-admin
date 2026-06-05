@@ -48,7 +48,7 @@ export function SupplierReleaseRow({
             <p className="truncate text-sm font-semibold text-white">{c.supplierName}</p>
             {c.dispatched && <span className="inline-flex items-center gap-1 rounded-full border border-accent-green/40 px-2 py-0.5 text-[10px] font-bold text-accent-green"><Rocket size={10} /> Dispatched</span>}
           </div>
-          <p className="mt-0.5 truncate text-xs text-zinc-500">{c.rfqTitle} · awarded {new Date(c.awardedAt).toLocaleDateString()}</p>
+          <p className="mt-0.5 truncate text-xs text-zinc-500">{c.rfqTitle}, awarded {new Date(c.awardedAt).toLocaleDateString()}</p>
         </div>
         <div className="text-right">
           <p className="font-display text-base font-semibold text-white">{usd(c.contractCents)}</p>
@@ -131,7 +131,7 @@ function AgreementBlock({
     return (
       <div className="mt-3 rounded-xl border border-accent-amber/25 bg-accent-amber/[0.06] p-3">
         <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-amber">
-          <PenLine size={14} /> Issued — awaiting supplier signature
+          <PenLine size={14} /> Issued, awaiting supplier signature
         </p>
       </div>
     );
@@ -143,7 +143,7 @@ function AgreementBlock({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-glow">
             <CheckCircle2 size={14} /> Supplier signed
-            {agreement.supplierSignedName ? ` · ${agreement.supplierSignedName}` : ''} — counter-sign to execute
+            {agreement.supplierSignedName ? `, ${agreement.supplierSignedName}` : ''}, counter-sign to execute
           </p>
           {!countersigning && (
             <button onClick={() => setCountersigning(true)} className="inline-flex items-center gap-1.5 rounded-full bg-violet px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-violet-deep">

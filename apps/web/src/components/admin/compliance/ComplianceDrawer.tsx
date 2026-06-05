@@ -46,14 +46,14 @@ const DECISIONS: DecisionOption[] = [
   {
     value: 'suspended',
     label: 'Suspend',
-    copy: 'Pause activity while investigating. Reversible — re-approve any time.',
+    copy: 'Pause activity while investigating. Reversible, re-approve any time.',
     icon: PauseCircle,
     tone: 'amber',
   },
   {
     value: 'rejected',
     label: 'Reject',
-    copy: 'Terminal — inspector must reapply with new evidence. Audit-stamped.',
+    copy: 'Terminal, inspector must reapply with new evidence. Audit-stamped.',
     icon: Ban,
     tone: 'red',
   },
@@ -132,7 +132,7 @@ export function ComplianceDrawer({ credential }: ComplianceDrawerProps) {
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
                   Tier <span className="font-mono text-cyan-glow">{credential.tier ?? '—'}</span>
-                  {' · '}current status{' '}
+                  {', '}current status{' '}
                   <span className="font-mono uppercase text-zinc-300">{credential.status}</span>
                 </p>
               </div>
@@ -165,7 +165,7 @@ export function ComplianceDrawer({ credential }: ComplianceDrawerProps) {
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc · admin_review_credential · FOR UPDATE lock · audit-stamped
+                rpc, admin_review_credential, FOR UPDATE lock, audit-stamped
               </p>
             </footer>
           </motion.aside>
@@ -263,7 +263,7 @@ function Body({
       <section>
         <label htmlFor="cred-notes" className="block">
           <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">
-            Notes (audit-captured · required)
+            Notes (audit-captured, required)
           </span>
           <textarea
             id="cred-notes"
@@ -343,10 +343,10 @@ function ReviewSubmit({ decision }: { decision: CredentialDecision }) {
   const { pending } = useFormStatus();
   const label =
     decision === 'approved'
-      ? 'Confirm — approve credential'
+      ? 'Confirm, approve credential'
       : decision === 'suspended'
-        ? 'Confirm — suspend credential'
-        : 'Confirm — reject credential';
+        ? 'Confirm, suspend credential'
+        : 'Confirm, reject credential';
   return (
     <button
       type="submit"

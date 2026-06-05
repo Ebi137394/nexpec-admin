@@ -63,13 +63,13 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
           Back to job
         </Link>
         <p className="mt-4 text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal · Review
+          Client Portal, Review
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Rate the inspector
         </h1>
         <p className="mt-2 max-w-xl text-sm text-zinc-400">
-          {(j.title as string | null) ?? 'This inspection'} · published on the
+          {(j.title as string | null) ?? 'This inspection'}, published on the
           inspector&apos;s public profile.
         </p>
       </header>
@@ -85,7 +85,7 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
         <div className="flex items-start gap-3 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent-green" />
           <p className="text-sm text-accent-green">
-            Thanks — your review is live on the inspector&apos;s profile.
+            Thanks, your review is live on the inspector&apos;s profile.
           </p>
         </div>
       )}

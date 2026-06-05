@@ -24,7 +24,7 @@ export interface ScopeTemplate {
 }
 
 export const CCI_TIER_LABELS: Record<CciCredentialTier, string> = {
-  cci_basic: 'CCI · Basic',
-  cci_advanced: 'CCI · Advanced',
-  cci_lead: 'CCI · Lead',
+  cci_basic: 'CCI, Basic',
+  cci_advanced: 'CCI, Advanced',
+  cci_lead: 'CCI, Lead',
 };

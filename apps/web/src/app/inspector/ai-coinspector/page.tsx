@@ -77,7 +77,7 @@ export default function AiCoinspectorPage() {
     setSuggestions((sg) => sg.filter((x) => x.stagedId !== id));
     return prev.filter((x) => x.id !== id);
   });
-  useEffect(() => () => { staged.forEach((s) => URL.revokeObjectURL(s.url)); streamRef.current?.getTracks().forEach((t) => t.stop()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { staged.forEach((s) => URL.revokeObjectURL(s.url)); streamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
 
   const startCam = async () => {
     try {
@@ -199,7 +199,6 @@ export default function AiCoinspectorPage() {
             <div className="grid grid-cols-3 gap-2">
               {staged.map((s) => (
                 <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
                   <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
                   <button onClick={() => analyzeOne(s)} disabled={modelStatus !== 'ready' || !jobId || analyzingId === s.id}
@@ -221,7 +220,6 @@ export default function AiCoinspectorPage() {
               <ul className="space-y-2">
                 {suggestions.map((sg) => (
                   <li key={sg.id} className="flex items-center gap-3 rounded-2xl border border-violet/25 bg-violet/[0.05] p-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={sg.thumbUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-white">{sg.label}</p>

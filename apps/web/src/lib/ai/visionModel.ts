@@ -16,7 +16,8 @@ const TFJS_SRC = '/tf/tf.min.js';
 const TFLITE_SRC = '/tf/tflite/tf-tflite.min.js';
 const TFLITE_WASM_DIR = '/tf/tflite/';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// The dynamically-injected global TF runtime ships no type definitions, so
+// `any` is intentional for these runtime handles.
 type Tf = any;
 type Tflite = any;
 

@@ -129,10 +129,22 @@ export async function fetchAdminRfqs(): Promise<AdminRfqRow[]> {
 
 export async function fetchAdminRfqQuotes(rfqId: string): Promise<{ rfq: Rfq | null; quotes: AdminQuote[] }> {
   const { data: r } = await sb().from('supplier_rfqs').select('*').eq('id', rfqId).maybeSingle();
-  const { data: q } = await sb().from('supplier_quotes')
+  // Wide select (post-markup-migration). If client_price_cents isn't present yet —
+  // migration not applied, or PostgREST schema cache stale — fall back to a narrow
+  // select so the admin can ALWAYS see the raw supplier quotes (never blank).
+  type AdminRow = Omit<AdminQuote, 'supplier_name'>;
+  let rows: AdminRow[] = [];
+  const wide = await sb().from('supplier_quotes')
     .select('id, rfq_id, supplier_id, quote, status, client_price_cents, created_at')
     .eq('rfq_id', rfqId).order('created_at', { ascending: true });
-  const rows = (q ?? []) as Array<Omit<AdminQuote, 'supplier_name'>>;
+  if (!wide.error && wide.data) {
+    rows = wide.data as AdminRow[];
+  } else {
+    const narrow = await sb().from('supplier_quotes')
+      .select('id, rfq_id, supplier_id, quote, status, created_at')
+      .eq('rfq_id', rfqId).order('created_at', { ascending: true });
+    rows = ((narrow.data ?? []) as Array<Omit<AdminRow, 'client_price_cents'>>).map((x) => ({ ...x, client_price_cents: null }));
+  }
   const ids = Array.from(new Set(rows.map((x) => x.supplier_id)));
   const nameMap = new Map<string, string>();
   if (ids.length) {

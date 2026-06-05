@@ -166,11 +166,8 @@ export default function CciApplicationsIndex() {
               <Text style={s.rowEmail} numberOfLines={1}>{item.inspector_email}</Text>
               <View style={s.rowMeta}>
                 <Text style={s.rowMetaText}>{tierLabel(item.tier)}</Text>
-                <Text style={s.rowMetaDot}>·</Text>
                 <Text style={s.rowMetaText}>{item.experience_years_documented ?? '?'} yrs</Text>
-                <Text style={s.rowMetaDot}>·</Text>
                 <Text style={s.rowMetaText}>{item.gov_id_issuing_country ?? 'no country'}</Text>
-                <Text style={s.rowMetaDot}>·</Text>
                 <Text style={s.rowMetaText}>{fmtAgo(item.applied_at)}</Text>
               </View>
             </View>

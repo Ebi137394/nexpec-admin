@@ -127,7 +127,6 @@ export const DocumentField: React.FC<FieldProps> = ({ field, value, onChange, on
             <View style={styles.statusRow}>
               <Ionicons name="shield-checkmark" size={12} color={colors.success} />
               <Text style={[styles.statusTxt, { color: colors.success }]}>Sealed</Text>
-              <Text style={[styles.dot, { color: colors.textMuted }]}>·</Text>
               {v.ots_status === 'bitcoin_confirmed' ? (
                 <>
                   <Ionicons name="logo-bitcoin" size={12} color="#F59E0B" />

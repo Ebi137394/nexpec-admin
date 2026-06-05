@@ -65,7 +65,6 @@ export const RealtimeIndicator: React.FC<RealtimeIndicatorProps> = ({
       <Text style={styles.label}>
         {isConnected ? "Live" : "Offline"}
       </Text>
-      <Text style={styles.separator}>·</Text>
       <Text style={styles.timestamp}>
         {formatLastSync(lastSyncedAt)}
       </Text>

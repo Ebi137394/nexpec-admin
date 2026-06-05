@@ -383,7 +383,6 @@ function DocCard({ doc }: { doc: VaultDoc }) {
             <>
               <Ionicons name="calendar-outline" size={10} color={C.textMute} />
               <Text style={s.docMetaText}>Valid through {formatDate(doc.validUntil)}</Text>
-              <Text style={s.docMetaText}>·</Text>
             </>
           ) : null}
           <Text style={s.docMetaText}>Updated {relativeTime(doc.updatedAt)}</Text>

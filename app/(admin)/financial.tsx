@@ -423,7 +423,6 @@ const TransactionRow: React.FC<{
           </Text>
           {txn.referenceId && (
             <>
-              <Text style={s.txnDateSep}>·</Text>
               <Text style={s.txnRef} numberOfLines={1}>
                 {txn.referenceId.slice(0, 14)}…
               </Text>
@@ -560,7 +559,6 @@ const ClientBalanceRow: React.FC<{
             <Text style={s.balanceStatValue}>
               {formatUSDCompact(item.billedCents)}
             </Text>
-            <Text style={s.balanceStatSep}>·</Text>
             <Text style={s.balanceStatLabel}>Paid</Text>
             <Text style={[s.balanceStatValue, { color: C.green }]}>
               {formatUSDCompact(item.paidCents)}

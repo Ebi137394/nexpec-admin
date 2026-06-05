@@ -1180,11 +1180,9 @@ const DocumentCard: React.FC<{ doc: DocumentFile; index: number }> = memo(
 
           <View style={styles.docMetaRow}>
             <Text style={styles.docMetaText}>{doc.size}</Text>
-            <Text style={styles.docMetaDot}>·</Text>
             <Text style={styles.docMetaText}>{doc.modified}</Text>
             {doc.pages && (
               <>
-                <Text style={styles.docMetaDot}>·</Text>
                 <Text style={styles.docMetaText}>{doc.pages} pp</Text>
               </>
             )}

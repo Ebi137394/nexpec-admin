@@ -217,7 +217,7 @@ function VaultCard({ d }: { d: DocRow }) {
         <Text style={s.docLabel} numberOfLines={1}>{d.label}</Text>
         <View style={s.docMeta}>
           <Text style={s.docKind}>{KIND_LABEL[d.kind].toUpperCase()}</Text>
-          {d.jobTitle ? (<><Text style={s.dot}>·</Text><Ionicons name="briefcase-outline" size={10} color={C.textMute} /><Text style={s.docMetaText} numberOfLines={1}>{d.jobTitle}</Text></>) : null}
+          {d.jobTitle ? (<><Ionicons name="briefcase-outline" size={10} color={C.textMute} /><Text style={s.docMetaText} numberOfLines={1}>{d.jobTitle}</Text></>) : null}
         </View>
       </View>
       <View style={s.docRight}>

@@ -231,13 +231,13 @@ function AssignmentCard({ r }: { r: Row }) {
         </View>
         <View style={s.metaRow}>
           {r.company && <><Ionicons name="business-outline" size={11} color={C.textMute} /><Text style={s.metaText} numberOfLines={1}>{r.company}</Text></>}
-          {r.locationCity && <><Text style={s.dot}>·</Text><Ionicons name="location-outline" size={11} color={C.textMute} /><Text style={s.metaText}>{r.locationCity}</Text></>}
+          {r.locationCity && <><Ionicons name="location-outline" size={11} color={C.textMute} /><Text style={s.metaText}>{r.locationCity}</Text></>}
         </View>
         <View style={s.metaRow}>
           <Ionicons name="calendar-outline" size={11} color={C.textMute} />
           <Text style={s.metaText}>{r.scheduledDate ? formatDate(r.scheduledDate) : 'Unscheduled'}</Text>
           {r.urgency && r.urgency !== 'normal' && (
-            <><Text style={s.dot}>·</Text><Text style={[s.urgency, { color: r.urgency === 'critical' ? C.red : r.urgency === 'high' ? C.orange : C.textMute }]}>{r.urgency.toUpperCase()}</Text></>
+            <Text style={[s.urgency, { color: r.urgency === 'critical' ? C.red : r.urgency === 'high' ? C.orange : C.textMute }]}>{r.urgency.toUpperCase()}</Text>
           )}
         </View>
       </TouchableOpacity>

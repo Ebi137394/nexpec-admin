@@ -82,7 +82,6 @@ export default function FlashReportsListScreen() {
 
         <View style={styles.cardMetaRow}>
           <Text style={styles.cardMeta}>{cat.label}</Text>
-          <Text style={styles.cardMetaSep}>·</Text>
           <Text style={styles.cardMeta}>{formatTimestamp(item.created_at)}</Text>
           <ChevronRight size={14} color={C.textMuted} strokeWidth={2}
             style={{ marginLeft: 'auto' }} />

@@ -195,7 +195,7 @@ function OrgCard({ o }: { o: OrgRow }) {
         </View>
         <View style={s.orgMeta}>
           <View style={[s.kindChip, { borderColor: kindTone + '44', backgroundColor: kindTone + '14' }]}><Text style={[s.kindChipText, { color: kindTone }]}>{o.kind === 'enterprise' ? 'ENTERPRISE' : 'AGENCY'}</Text></View>
-          {o.ownerName && <><Text style={s.dot}>·</Text><Text style={s.orgMetaText} numberOfLines={1}>{o.ownerName}</Text></>}
+          {o.ownerName && <Text style={s.orgMetaText} numberOfLines={1}>{o.ownerName}</Text>}
         </View>
       </View>
       <View style={s.orgRight}>

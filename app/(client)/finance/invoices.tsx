@@ -286,7 +286,6 @@ function InvoiceCard({ inv }: { inv: InvoiceRow }) {
           <Text style={s.invoiceMetaText}>Issued {formatDate(inv.issuedAt)}</Text>
           {inv.dueDate && (
             <>
-              <Text style={s.invoiceMetaText}>·</Text>
               <Text style={s.invoiceMetaText}>Due {formatDate(inv.dueDate)}</Text>
             </>
           )}

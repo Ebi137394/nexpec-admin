@@ -341,7 +341,6 @@ export default function InspectorDisputesScreen() {
                       <View style={s.catRow}>
                         <Ionicons name="pricetag" size={10} color={C.textMuted} />
                         <Text style={s.catText}>{cat}</Text>
-                        <Text style={s.dotSep}>·</Text>
                         <Text style={s.timeText}>
                           {new Date(item.created_at).toLocaleDateString()}
                         </Text>

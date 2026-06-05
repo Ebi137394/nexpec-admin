@@ -198,7 +198,6 @@ function ProgressPill({
       <Text style={[styles.pillCount, textStyle]}>
         {completed}/{total}
       </Text>
-      <Text style={[styles.pillDot, textStyle]}>·</Text>
       <Text style={[styles.pillPercent, textStyle]}>{percent}%</Text>
     </View>
   );
@@ -314,6 +313,7 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,

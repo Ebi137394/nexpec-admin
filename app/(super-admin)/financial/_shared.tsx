@@ -292,7 +292,6 @@ export const ClientBalanceRow: React.FC<{
             <Text style={ss.balanceStatValue}>
               {formatUSDCompact(item.billedCents)}
             </Text>
-            <Text style={ss.balanceStatSep}>·</Text>
             <Text style={ss.balanceStatLabel}>Paid</Text>
             <Text style={[ss.balanceStatValue, { color: C.green }]}>
               {formatUSDCompact(item.paidCents)}

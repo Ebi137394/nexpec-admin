@@ -18,7 +18,7 @@ import {
 } from '@/lib/data/conversations';
 import { markConversationRead } from '@/lib/actions/messages';
 import { MessageThread } from '@/components/messaging/MessageThread';
-import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
+import { RichComposer } from '@/components/messaging/RichComposer';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
 export const metadata: Metadata = { title: 'Admin · Conversation' };
@@ -117,7 +117,7 @@ export default async function AdminConversationPage({ params, searchParams }: Pa
       />
 
       {!isClosed && (
-        <SimpleMessageComposer
+        <RichComposer
           conversationId={id}
           returnTo={returnTo}
           placeholder="Reply as admin…"

@@ -13,7 +13,7 @@ import {
 } from '@/lib/data/conversations';
 import { markConversationRead } from '@/lib/actions/messages';
 import { MessageThread } from '@/components/messaging/MessageThread';
-import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
+import { RichComposer } from '@/components/messaging/RichComposer';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
 export const metadata: Metadata = { title: 'Conversation' };
@@ -90,7 +90,7 @@ export default async function InspectorConversationPage({ params, searchParams }
           <p className="truncate text-xs text-zinc-500">
             {conversation.jobTitle
               ? conversation.jobTitle
-              : 'Direct chat with admin · Client cannot see this room'}
+              : 'Direct chat with admin'}
           </p>
         </div>
         {isClosed && (
@@ -114,7 +114,7 @@ export default async function InspectorConversationPage({ params, searchParams }
       />
 
       {!isClosed && (
-        <SimpleMessageComposer conversationId={id} returnTo={returnTo} />
+        <RichComposer conversationId={id} returnTo={returnTo} />
       )}
       {isClosed && (
         <div className="border-t border-white/[0.06] bg-ink-950/80 p-4 text-center text-xs text-zinc-500">

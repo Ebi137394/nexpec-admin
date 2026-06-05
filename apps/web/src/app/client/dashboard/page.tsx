@@ -25,7 +25,7 @@ import {
 import { fetchClientDashboardMetrics } from '@/lib/data/clientDashboardMetrics';
 import { fetchClientDashboardWidgets } from '@/lib/data/clientDashboardWidgets';
 import { openHelpSupport } from '@/lib/actions/messages';
-import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
+import { RichComposer } from '@/components/messaging/RichComposer';
 import { PipelineSection } from '@/components/jobs/PipelineSection';
 import { OnboardingChecklist } from '@/components/onboarding/OnboardingChecklist';
 
@@ -164,11 +164,11 @@ export default async function ClientDashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow">Need a hand?</p>
           <h2 className="mt-2 font-display text-xl font-semibold tracking-tight text-white">Send NEXPEC admin a message</h2>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-            Type below and click Send. Inspectors never see this room — admin is the intermediary.
+            Type below and click Send.
           </p>
         </div>
         {widgets.helpSupportConversationId ? (
-          <SimpleMessageComposer conversationId={widgets.helpSupportConversationId} returnTo="/client/dashboard" placeholder="Ask anything — billing, dispatch, a specific job…" textOnly />
+          <RichComposer conversationId={widgets.helpSupportConversationId} returnTo="/client/dashboard" placeholder="Ask anything — billing, dispatch, a specific job…" />
         ) : (
           <form action={ensureHelpRoom} className="p-6 sm:p-8 sm:pt-0">
             <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-violet/90">

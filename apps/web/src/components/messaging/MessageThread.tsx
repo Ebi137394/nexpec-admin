@@ -66,8 +66,9 @@ export function MessageThread({
           (payload) => {
             try {
               const r = payload.new as Record<string, unknown>;
+              const id = String(r.id);
+              const rawAttachment = (r.attachment_url as string | null) ?? null;
               setMessages((prev) => {
-                const id = String(r.id);
                 if (prev.some((m) => m.id === id)) return prev;
                 const next: MessageRow = {
                   id,
@@ -75,7 +76,7 @@ export function MessageThread({
                   senderId: String(r.sender_id),
                   senderRole: ((r.sender_role as string | null) ?? null) as SenderRole | null,
                   content: (r.content as string | null) ?? null,
-                  attachmentUrl: (r.attachment_url as string | null) ?? null,
+                  attachmentUrl: rawAttachment,
                   attachmentType: (r.attachment_type as string | null) ?? null,
                   attachmentName: (r.attachment_name as string | null) ?? null,
                   isRead: Boolean(r.is_read),
@@ -83,6 +84,31 @@ export function MessageThread({
                 };
                 return [...prev, next];
               });
+              // Realtime payloads carry the storage PATH, not a usable URL.
+              // Resolve a short-lived signed URL so images/files/voice render
+              // live for the recipient without a manual refresh.
+              if (
+                rawAttachment &&
+                !/^https?:\/\//i.test(rawAttachment) &&
+                supabase
+              ) {
+                supabase.storage
+                  .from('chat_attachments')
+                  .createSignedUrl(rawAttachment, 60 * 60)
+                  .then(({ data }) => {
+                    const signed = data?.signedUrl;
+                    if (signed) {
+                      setMessages((prev) =>
+                        prev.map((m) =>
+                          m.id === id ? { ...m, attachmentUrl: signed } : m,
+                        ),
+                      );
+                    }
+                  })
+                  .catch(() => {
+                    /* keep the path; bubble still resolves on next reload */
+                  });
+              }
             } catch (e) {
               if (typeof console !== 'undefined') {
                 console.warn('[MessageThread] realtime handler failed:', e);

@@ -13,7 +13,7 @@ import {
 } from '@/lib/data/conversations';
 import { markConversationRead } from '@/lib/actions/messages';
 import { MessageThread } from '@/components/messaging/MessageThread';
-import { SimpleMessageComposer } from '@/components/messaging/SimpleMessageComposer';
+import { RichComposer } from '@/components/messaging/RichComposer';
 import { CONVERSATION_KIND_LABELS } from '@/lib/data/conversations.types';
 
 export const metadata: Metadata = { title: 'Conversation' };
@@ -91,7 +91,7 @@ export default async function SupplierConversationPage({ params, searchParams }:
       <MessageThread conversationId={id} currentUserId={user.id} initialMessages={messages} />
 
       {!isClosed ? (
-        <SimpleMessageComposer conversationId={id} returnTo={returnTo} />
+        <RichComposer conversationId={id} returnTo={returnTo} />
       ) : (
         <div className="border-t border-white/[0.06] bg-ink-950/80 p-4 text-center text-xs text-zinc-500">
           This conversation is {conversation.status}. Sending is disabled.

@@ -33,8 +33,7 @@ export default async function SupplierMessagesPage() {
           </h1>
           <p className="mt-2 max-w-xl text-sm text-zinc-400">
             Your direct line to the NEXPEC brokerage team — quote clarifications,
-            award logistics, payouts and verification. Buyers and inspectors
-            cannot see this room; admin coordinates every conversation.
+            award logistics, payouts and verification.
           </p>
         </div>
         <form action={startCoordinationBridge}>

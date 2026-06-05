@@ -288,8 +288,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
           <p className="text-xs text-zinc-500">
             <span className="font-mono">GR1</span> · Posting goes into{' '}
             <span className="text-zinc-300">moderation</span> before reaching
-            inspectors. Admin sets the inspector payout during review — you
-            never see that figure, the inspector never sees your budget.
+            inspectors.
           </p>
           <PostJobSubmit />
         </div>

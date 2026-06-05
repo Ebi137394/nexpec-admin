@@ -32,8 +32,7 @@ export default async function ClientMessagesPage() {
           </h1>
           <p className="mt-2 max-w-xl text-sm text-zinc-400">
             Talk directly to a NEXPEC admin. For job-specific questions, open
-            the job page and use its dedicated chat. Inspectors cannot see
-            this room — admin is the intermediary.
+            the job page and use its dedicated chat.
           </p>
         </div>
         <form action={startHelpSupport}>

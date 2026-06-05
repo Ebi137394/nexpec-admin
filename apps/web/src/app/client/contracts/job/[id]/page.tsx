@@ -165,9 +165,7 @@ export default async function ClientJobContractPage({
         </p>
         <p className="mt-1 text-xs text-zinc-400">
           Released to the inspector and platform only after both you and
-          admin sign off on the final report. The inspector&rsquo;s
-          compensation is set separately by NEXPEC and is not visible to
-          you.
+          admin sign off on the final report.
         </p>
       </section>
 

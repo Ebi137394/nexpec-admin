@@ -101,3 +101,47 @@ export async function fetchAllDealAgreements(): Promise<DealAgreementRow[]> {
     return [];
   }
 }
+
+// Admin-only: a single brokered agreement, read-only, for the viewer page.
+export interface DealAgreementDetail {
+  id: string;
+  kind: SpineContractKind;
+  status: string;
+  amountCents: number;
+  currency: string;
+  bodyMd: string | null;
+  contentSha256: string | null;
+  createdAt: string;
+  signedAt: string | null;
+  executedAt: string | null;
+  counterpartyId: string | null;
+  dealId: string | null;
+}
+export async function fetchDealAgreementById(id: string): Promise<DealAgreementDetail | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data } = await supabase
+      .from('agreements')
+      .select('id, kind, status, amount_cents, currency, body_md, content_sha256, created_at, signed_at, executed_at, counterparty_id, deal_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!data) return null;
+    const r = data as Record<string, unknown>;
+    return {
+      id: String(r.id),
+      kind: r.kind as SpineContractKind,
+      status: String(r.status ?? ''),
+      amountCents: Number(r.amount_cents ?? 0),
+      currency: String(r.currency ?? 'USD'),
+      bodyMd: (r.body_md as string | null) ?? null,
+      contentSha256: (r.content_sha256 as string | null) ?? null,
+      createdAt: String(r.created_at ?? ''),
+      signedAt: (r.signed_at as string | null) ?? null,
+      executedAt: (r.executed_at as string | null) ?? null,
+      counterpartyId: (r.counterparty_id as string | null) ?? null,
+      dealId: (r.deal_id as string | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
+}

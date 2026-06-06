@@ -102,27 +102,29 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
         ) : (
           <ul className="mt-4 space-y-2">
             {dealAgreements.map((a) => (
-              <li
-                key={a.contractId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">{DEAL_KIND_LABEL[a.kind] ?? a.kind}</p>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">
-                    {fmtDealCents(a.amountCents)}, {new Date(a.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
-                    a.status === 'executed'
-                      ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
-                      : a.status === 'presented'
-                        ? 'border-violet/30 bg-violet/10 text-violet-glow'
-                        : 'border-white/10 bg-white/[0.04] text-zinc-300'
-                  }`}
+              <li key={a.contractId}>
+                <Link
+                  href={`/admin/contracts/agreement/${a.contractId}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-violet/30 hover:bg-white/[0.04]"
                 >
-                  {a.status}
-                </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">{DEAL_KIND_LABEL[a.kind] ?? a.kind}</p>
+                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                      {fmtDealCents(a.amountCents)}, {new Date(a.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+                      a.status === 'executed'
+                        ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                        : a.status === 'presented'
+                          ? 'border-violet/30 bg-violet/10 text-violet-glow'
+                          : 'border-white/10 bg-white/[0.04] text-zinc-300'
+                    }`}
+                  >
+                    {a.status}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

@@ -10,7 +10,8 @@ import { NEXPEC_THEME as T } from '../../../src/components/DynamicForm/theme';
 import {
   fetchClientAgreement, signAgreement, fetchAssignedInspector, clientReviewEngagement,
   fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
-  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche,
+  fetchInspectorShortlist, selectInspector,
+  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
 
@@ -80,6 +81,7 @@ export default function DealSignScreen() {
             {!!agr.content_sha256 && <Text style={[s.footnote, { textAlign: 'left', marginTop: 8 }]}>Sealed sha256:{agr.content_sha256}</Text>}
           </View>
           <MilestoneFundingCard dealId={id!} />
+          <InspectorShortlistCard dealId={id!} />
           <AssignedInspectorCard dealId={id!} />
         </ScrollView>
       ) : (
@@ -349,8 +351,68 @@ function MilestoneFundingCard({ dealId }: { dealId: string }) {
   );
 }
 
+// ── Client selection: blinded A/B/C shortlist (client/agency picks the winner) ──
+function InspectorShortlistCard({ dealId }: { dealId: string }) {
+  const [cands, setCands] = useState<InspectorCandidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchInspectorShortlist(dealId).then(setCands).catch(() => setCands([])).finally(() => setLoading(false));
+  }, [dealId]);
+  useEffect(() => { load(); }, [load]);
+
+  const offered = cands.filter((x) => x.status === 'offered');
+  const hasSelection = cands.some((x) => x.status === 'selected');
+  if (loading || offered.length === 0 || hasSelection) return null;  // once selected, AssignedInspectorCard takes over
+
+  const pick = async (candidateId: string) => {
+    setBusy(candidateId); setErr(null);
+    const { error } = await selectInspector(dealId, candidateId);
+    setBusy(null);
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+
+  return (
+    <View style={c.wrap}>
+      <View style={c.head}>
+        <Ionicons name="people" size={16} color={T.colors.primaryLight} />
+        <Text style={c.title}>Choose your inspector</Text>
+      </View>
+      <Text style={c.body}>NEXPEC shortlisted credential-verified, independent inspectors for your scope. Pick one; their identity is revealed on the admin-confirmed final report.</Text>
+      {!!err && <Text style={c.err}>{err}</Text>}
+      {offered.map((cd) => (
+        <View key={cd.candidate_id} style={c.sect}>
+          <View style={c.candHead}>
+            <Text style={c.slotChip}>Option {cd.slot}</Text>
+            <Text style={c.handle}>{cd.handle}</Text>
+          </View>
+          {!!cd.dossier && (
+            <>
+              <Text style={c.kv}><Text style={c.k}>Competencies: </Text>{cd.dossier.competencies?.length ? cd.dossier.competencies.join(', ') : 'n/a'}</Text>
+              <Text style={c.kv}><Text style={c.k}>Certifications: </Text>{cd.dossier.certifications?.length ? cd.dossier.certifications.join(', ') : 'n/a'}</Text>
+              <Text style={c.kv}><Text style={c.k}>Region: </Text>{cd.dossier.region ?? 'n/a'}</Text>
+              {cd.transparency_tier === 'named' && !!cd.dossier.redacted_cv && <Text style={c.cv}>{cd.dossier.redacted_cv}</Text>}
+            </>
+          )}
+          {!!cd.independence && <Text style={c.seal}>{cd.independence.statement}</Text>}
+          <TouchableOpacity style={[c.fundBtn, { marginTop: 10 }, !!busy && { opacity: 0.6 }]} disabled={!!busy} onPress={() => pick(cd.candidate_id)} activeOpacity={0.85}>
+            <Ionicons name="checkmark-circle" size={15} color="#fff" />
+            <Text style={c.fundTxt}>{busy === cd.candidate_id ? 'Selecting…' : `Select Option ${cd.slot}`}</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const c = StyleSheet.create({
   card: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginTop: 16 },
+  candHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  slotChip: { color: T.colors.primaryLight, fontSize: 11, fontWeight: '800', backgroundColor: T.colors.inputBackground, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   schedRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   schedLabel: { color: T.colors.textSecondary, fontSize: 12, flex: 1 },
   schedAmt: { color: T.colors.text, fontSize: 12, fontWeight: '700' },

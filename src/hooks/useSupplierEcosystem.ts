@@ -193,6 +193,25 @@ export async function fetchAssignedInspector(dealId: string): Promise<AssignedIn
 export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'objected', reason?: string) =>
   supabase.rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
 
+// ── Client selection: blinded A/B/C shortlist (client/agency picks the winner) ──
+export interface InspectorCandidate {
+  candidate_id: string; deal_id: string; slot: string; handle: string;
+  dossier: TrustDossier | null; certificate: TrustCertificate | null; independence: TrustIndependence | null;
+  status: string; transparency_tier: string;
+}
+export async function fetchInspectorShortlist(dealId: string): Promise<InspectorCandidate[]> {
+  const { data } = await supabase.from('client_inspector_shortlist_view').select('*').eq('deal_id', dealId).order('slot');
+  return (data ?? []) as InspectorCandidate[];
+}
+export async function selectInspector(dealId: string, candidateId: string) {
+  const res = await supabase.rpc('client_select_inspector', { p_deal_id: dealId, p_candidate_id: candidateId });
+  const agreementId = (res.data as { agreement_id?: string } | null)?.agreement_id;
+  if (!res.error && agreementId) {
+    await supabase.functions.invoke('notify-agreement', { body: { agreement_id: agreementId } }).catch(() => undefined);
+  }
+  return res;
+}
+
 // Generic agreement (a counterparty's OWN leg) for /agreements + /agreements/[id]/sign.
 export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; body_md?: string | null; content_sha256?: string | null; created_at?: string | null; presented_at?: string | null; executed_at?: string | null; }
 export async function fetchMyAgreements(): Promise<MyAgreement[]> {

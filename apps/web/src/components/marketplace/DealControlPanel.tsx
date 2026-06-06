@@ -5,12 +5,14 @@
 //   each payout — every release gated server-side (contract-before-money +
 //   milestone). Shows "no deal yet" until the client signs the supply agreement.
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle, Wallet, Truck, FileWarning, Clock } from 'lucide-react';
+import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle, Wallet, Truck, FileWarning, Clock, Sparkles, Users } from 'lucide-react';
 import {
   fetchDealByRfq, fetchDealAgreements, fetchDealMoneyLegs, assignInspector, presentAgreement,
   acceptGoods, releaseSupplierPayout, releaseInspectorPayout, fetchInspectors, formatUsd,
   fetchPaymentSchedule, fetchNonconformances, fundDealBalance, markGoodsDelivered, markReportDelivered, raiseNonconformance,
+  matchPreview, autoMatchInspector, offerInspectorShortlist, fetchInspectorShortlist,
   type DealRow, type DealAgreement, type MoneyLeg, type InspectorOption, type PaymentTranche, type Nonconformance,
+  type ScoredInspector, type InspectorCandidate,
 } from '@/lib/data/marketplace';
 
 export function DealControlPanel({ rfqId }: { rfqId: string }) {
@@ -26,6 +28,9 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
   const [payout, setPayout] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [method, setMethod] = useState<'broker' | 'auto' | 'client'>('broker');
+  const [preview, setPreview] = useState<ScoredInspector[]>([]);
+  const [shortlist, setShortlist] = useState<InspectorCandidate[]>([]);
 
   const load = useCallback(async () => {
     const d = await fetchDealByRfq(rfqId);
@@ -36,10 +41,19 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
       setInspectors(await fetchInspectors());
       setSched(await fetchPaymentSchedule(d.id));
       setNcrs(await fetchNonconformances(d.id));
+      setShortlist(await fetchInspectorShortlist(d.id));
     }
     setLoading(false);
   }, [rfqId]);
   useEffect(() => { load(); }, [load]);
+
+  const cents = () => Math.round(parseFloat(payout || '0') * 100);
+  const doPreview = async () => {
+    if (!deal) return;
+    setBusy('preview'); setMsg(null);
+    try { setPreview(await matchPreview(deal.id)); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); }
+    setBusy(null);
+  };
 
   const run = async (key: string, fn: () => PromiseLike<{ error: { message: string } | null }>) => {
     setBusy(key); setMsg(null);
@@ -157,50 +171,96 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
       </div>
 
       <div id="assign-inspector" className="scroll-mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-        <p className="text-xs font-semibold text-white">Assign inspector</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-white">Inspector routing</p>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-400">{deal.inspector_routing.replace(/_/g, ' ')}</span>
+        </div>
+        <p className="mt-0.5 text-[11px] text-zinc-500">The method you use is recorded on the deal and is the one the contract legally references.</p>
 
-        {selected ? (
-          <div className="mt-2 rounded-lg border border-violet-glow/30 bg-violet-500/[0.06] p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{selected.full_name ?? 'Unnamed inspector'}</p>
-                <p className="truncate text-[11px] text-zinc-400">{(selected.specialty_slugs ?? []).slice(0, 4).join(', ') || 'No specialties listed'}</p>
-                {(selected.certifications ?? []).length > 0 && (
-                  <p className="truncate text-[11px] text-zinc-500">Certs: {(selected.certifications ?? []).slice(0, 4).join(', ')}</p>
-                )}
-              </div>
-              <button onClick={() => setInspId('')} className="shrink-0 text-[11px] font-semibold text-violet-200 hover:underline">Change</button>
-            </div>
-          </div>
-        ) : (
+        <div className="mt-2 flex gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-1">
+          {([['broker', 'Broker pick'], ['auto', 'Auto-match'], ['client', 'Client selection']] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setMethod(m)} className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition ${method === m ? 'bg-violet-500/20 text-violet-100' : 'text-zinc-400 hover:text-white'}`}>{label}</button>
+          ))}
+        </div>
+
+        <input value={payout} onChange={(e) => setPayout(e.target.value)} placeholder="Inspector payout (USD)" inputMode="decimal" className={`${inp} mt-2`} />
+
+        {method === 'broker' && (
           <>
-            <div className="relative mt-2">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
-              <input value={inspQuery} onChange={(e) => setInspQuery(e.target.value)} placeholder="Search by name, specialty, or certification" className={`${inp} pl-8`} />
-            </div>
-            {matches.length > 0 ? (
-              <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">
-                {matches.map((i) => (
-                  <button key={i.id} onClick={() => { setInspId(i.id); setInspQuery(''); }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition-colors hover:border-violet-glow/40 hover:bg-white/[0.04]">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{i.full_name ?? 'Unnamed inspector'}</p>
-                      <p className="truncate text-[11px] text-zinc-500">{(i.specialty_slugs ?? []).slice(0, 3).join(', ') || 'No specialties listed'}{i.country_of_residence ? ` (${i.country_of_residence})` : ''}</p>
-                    </div>
-                    <Check className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                  </button>
-                ))}
+            {selected ? (
+              <div className="mt-2 rounded-lg border border-violet-glow/30 bg-violet-500/[0.06] p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{selected.full_name ?? 'Unnamed inspector'}</p>
+                    <p className="truncate text-[11px] text-zinc-400">{(selected.specialty_slugs ?? []).slice(0, 4).join(', ') || 'No specialties listed'}</p>
+                    {(selected.certifications ?? []).length > 0 && (
+                      <p className="truncate text-[11px] text-zinc-500">Certs: {(selected.certifications ?? []).slice(0, 4).join(', ')}</p>
+                    )}
+                  </div>
+                  <button onClick={() => setInspId('')} className="shrink-0 text-[11px] font-semibold text-violet-200 hover:underline">Change</button>
+                </div>
               </div>
             ) : (
-              <p className="mt-2 text-[11px] text-zinc-500">{inspectors.length === 0 ? 'No inspectors found.' : 'No matches for that search.'}</p>
+              <>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+                  <input value={inspQuery} onChange={(e) => setInspQuery(e.target.value)} placeholder="Search by name, specialty, or certification" className={`${inp} pl-8`} />
+                </div>
+                {matches.length > 0 ? (
+                  <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">
+                    {matches.map((i) => (
+                      <button key={i.id} onClick={() => { setInspId(i.id); setInspQuery(''); }} className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-left transition-colors hover:border-violet-glow/40 hover:bg-white/[0.04]">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-white">{i.full_name ?? 'Unnamed inspector'}</p>
+                          <p className="truncate text-[11px] text-zinc-500">{(i.specialty_slugs ?? []).slice(0, 3).join(', ') || 'No specialties listed'}{i.country_of_residence ? ` (${i.country_of_residence})` : ''}</p>
+                        </div>
+                        <Check className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-zinc-500">{inspectors.length === 0 ? 'No inspectors found.' : 'No matches for that search.'}</p>
+                )}
+              </>
             )}
+            <button disabled={busy === 'assign' || !inspId || !payout.trim()} onClick={() => run('assign', () => assignInspector(deal.id, inspId, cents()))} className={`${btn} mt-2`}><UserPlus className="h-3 w-3" /> Assign and present</button>
+            <p className="mt-1 text-[11px] text-zinc-500">Seals the inspector&apos;s A/B/C dossier into the deal and opens the client review window.</p>
           </>
         )}
 
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input value={payout} onChange={(e) => setPayout(e.target.value)} placeholder="Payout (USD)" inputMode="decimal" className={`${inp} sm:w-44`} />
-          <button disabled={busy === 'assign' || !inspId || !payout.trim()} onClick={() => run('assign', () => assignInspector(deal.id, inspId, Math.round(parseFloat(payout || '0') * 100)))} className={`${btn} shrink-0`}><UserPlus className="h-3 w-3" /> Assign and present</button>
-        </div>
-        <p className="mt-1 text-[11px] text-zinc-500">Selecting an inspector seals their A/B/C dossier into the deal and opens the client review window.</p>
+        {method === 'auto' && (
+          <div className="mt-2 space-y-2">
+            <button disabled={busy === 'preview'} onClick={doPreview} className={btn}><Sparkles className="h-3 w-3" /> {busy === 'preview' ? 'Scoring…' : 'Preview ranking'}</button>
+            {preview.length > 0 && (
+              <ul className="space-y-1">
+                {preview.map((p, idx) => (
+                  <li key={p.inspector_id} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[11px] text-zinc-300">
+                    <span className="font-mono">{idx === 0 ? '★ ' : ''}{p.handle}</span>
+                    <span className="text-zinc-500">score {Number(p.score).toFixed(1)} · caps {p.cap_hits} · certs {p.cert_hits}{p.region_hit ? ' · region' : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button disabled={busy === 'auto' || !payout.trim()} onClick={() => run('auto', () => autoMatchInspector(deal.id, cents()))} className={btn}><Sparkles className="h-3 w-3" /> Auto-match best inspector</button>
+            <p className="text-[11px] text-zinc-500">Assigns the top-scored verified inspector against the RFQ scope; the client keeps the Approve/Object window.</p>
+          </div>
+        )}
+
+        {method === 'client' && (
+          <div className="mt-2 space-y-2">
+            <button disabled={busy === 'offer' || !payout.trim()} onClick={() => run('offer', () => offerInspectorShortlist(deal.id, cents()))} className={btn}><Users className="h-3 w-3" /> Offer top-3 blinded shortlist to client</button>
+            {shortlist.length > 0 ? (
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+                <p className="text-[11px] font-semibold text-zinc-300">Shortlist offered to the client</p>
+                <ul className="mt-1 space-y-0.5">
+                  {shortlist.map((csl) => (
+                    <li key={csl.candidate_id} className="flex items-center justify-between text-[11px] text-zinc-400"><span className="font-mono">{csl.slot} · {csl.handle}</span><Badge s={csl.status} /></li>
+                  ))}
+                </ul>
+              </div>
+            ) : <p className="text-[11px] text-zinc-500">The client picks the winner from anonymized A/B/C dossiers; their selection is the approval.</p>}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">

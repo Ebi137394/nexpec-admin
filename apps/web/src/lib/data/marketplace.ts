@@ -208,11 +208,12 @@ export interface DealRow {
   client_price_cents: number; currency: string; goods_accepted_at: string | null;
   deposit_funded_at: string | null; balance_funded_at: string | null;
   goods_delivered_at: string | null; report_delivered_at: string | null;
+  inspector_routing: string;
 }
 export interface DealAgreement { id: string; kind: string; status: string; counterparty_id: string; amount_cents: number; currency: string; }
 export interface MoneyLeg { id: string; kind: string; status: string; amount_cents: number; }
 
-const DEAL_COLS = 'id, rfq_id, job_id, status, client_price_cents, currency, goods_accepted_at, deposit_funded_at, balance_funded_at, goods_delivered_at, report_delivered_at';
+const DEAL_COLS = 'id, rfq_id, job_id, status, client_price_cents, currency, goods_accepted_at, deposit_funded_at, balance_funded_at, goods_delivered_at, report_delivered_at, inspector_routing';
 
 export async function fetchDealByRfq(rfqId: string): Promise<DealRow | null> {
   const { data } = await sb().from('deals')
@@ -252,6 +253,36 @@ export async function presentAgreement(agreementId: string) {
 export const acceptGoods = (dealId: string) => sb().rpc('admin_accept_goods', { p_deal_id: dealId });
 export const releaseSupplierPayout = (dealId: string) => sb().rpc('release_supplier_payout', { p_deal_id: dealId });
 export const releaseInspectorPayout = (dealId: string) => sb().rpc('release_inspector_payout', { p_deal_id: dealId });
+
+// ── Inspector routing engine: algorithmic auto-match + blinded client-selection ──
+export interface ScoredInspector { inspector_id: string; handle: string; score: number; cap_hits: number; cert_hits: number; region_hit: boolean; }
+export async function matchPreview(dealId: string, n = 5): Promise<ScoredInspector[]> {
+  const { data } = await sb().rpc('admin_match_preview', { p_deal_id: dealId, p_n: n });
+  return (data ?? []) as ScoredInspector[];
+}
+export const autoMatchInspector = (dealId: string, payoutCents: number) =>
+  sb().rpc('admin_auto_match_inspector', { p_deal_id: dealId, p_payout_cents: payoutCents });
+export const offerInspectorShortlist = (dealId: string, payoutCents: number, inspectorIds?: string[], n = 3) =>
+  sb().rpc('admin_offer_inspector_shortlist', { p_deal_id: dealId, p_payout_cents: payoutCents, p_inspector_ids: inspectorIds ?? null, p_n: n });
+
+export interface InspectorCandidate {
+  candidate_id: string; deal_id: string; slot: string; handle: string;
+  dossier: TrustDossier | null; certificate: TrustCertificate | null; independence: TrustIndependence | null;
+  status: string; transparency_tier: string;
+}
+export async function fetchInspectorShortlist(dealId: string): Promise<InspectorCandidate[]> {
+  const { data } = await sb().from('client_inspector_shortlist_view').select('*').eq('deal_id', dealId).order('slot');
+  return (data ?? []) as InspectorCandidate[];
+}
+// Client/agency selects from the blinded shortlist (selection == approval).
+export async function selectInspector(dealId: string, candidateId: string) {
+  const res = await sb().rpc('client_select_inspector', { p_deal_id: dealId, p_candidate_id: candidateId });
+  const agreementId = (res.data as { agreement_id?: string } | null)?.agreement_id;
+  if (!res.error && agreementId) {
+    await sb().functions.invoke('notify-agreement', { body: { agreement_id: agreementId } }).catch(() => undefined);
+  }
+  return res;
+}
 
 // ── MSA milestone-escrow: payment schedule, hybrid balance funding, delivery clocks, NCR ──
 export interface PaymentTranche {

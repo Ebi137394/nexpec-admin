@@ -7,11 +7,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Award, Scale, Eye, Flag, BadgeCheck, Wallet, FileWarning } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Award, Scale, Eye, Flag, BadgeCheck, Wallet, FileWarning, Users } from 'lucide-react';
 import {
   fetchClientAgreement, signAgreement, formatUsd, fetchAssignedInspector, clientReviewEngagement,
   fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
-  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche,
+  fetchInspectorShortlist, selectInspector,
+  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '@/lib/data/marketplace';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
@@ -95,6 +96,7 @@ export default function DealSignPage() {
             )}
           </div>
 
+          <InspectorShortlistCard dealId={dealId} />
           <AssignedInspectorCard dealId={dealId} />
         </>
       ) : (
@@ -352,6 +354,65 @@ function MilestoneFundingCard({ dealId }: { dealId: string }) {
       </div>
       {err && <p className="text-sm text-accent-red">{err}</p>}
       <p className="text-xs text-white/40">Silence for 10 business days after delivery is irrevocable acceptance and authorises release. A rejection must cite a specific Schedule A spec or ASME/API code deviation.</p>
+    </div>
+  );
+}
+
+// ── Client-selection: blinded A/B/C shortlist (client/agency picks the winner) ──
+function InspectorShortlistCard({ dealId }: { dealId: string }) {
+  const [cands, setCands] = useState<InspectorCandidate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchInspectorShortlist(dealId).then(setCands).catch(() => setCands([])).finally(() => setLoading(false));
+  }, [dealId]);
+  useEffect(() => { load(); }, [load]);
+
+  const offered = cands.filter((c) => c.status === 'offered');
+  const hasSelection = cands.some((c) => c.status === 'selected');
+  if (loading || offered.length === 0 || hasSelection) return null;  // once selected, AssignedInspectorCard takes over
+
+  const pick = async (candidateId: string) => {
+    setBusy(candidateId); setErr(null);
+    const { error } = await selectInspector(dealId, candidateId);
+    setBusy(null);
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+
+  return (
+    <div className="mt-5 space-y-4 rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-5">
+      <header className="flex items-center gap-2">
+        <Users size={18} className="text-violet-glow" />
+        <h2 className="text-base font-bold text-white">Choose your inspector</h2>
+      </header>
+      <p className="text-sm text-white/70">NEXPEC has shortlisted credential-verified, independent inspectors for your scope. Review the anonymized dossiers and select one; their identity is revealed to you on the admin-confirmed final report.</p>
+      {err && <p className="text-sm text-accent-red">{err}</p>}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {offered.map((c) => (
+          <div key={c.candidate_id} className="flex flex-col rounded-xl border border-ink-600 bg-ink-900/60 p-4">
+            <div className="flex items-center justify-between">
+              <span className="rounded-md bg-violet-500/20 px-2 py-0.5 text-xs font-bold text-violet-100">Option {c.slot}</span>
+              <span className="font-mono text-xs text-violet-200">{c.handle}</span>
+            </div>
+            {c.dossier && (
+              <dl className="mt-3 space-y-1.5 text-xs">
+                <div><dt className="text-white/40">Competencies</dt><dd className="text-white/85">{c.dossier.competencies?.length ? c.dossier.competencies.join(', ') : 'n/a'}</dd></div>
+                <div><dt className="text-white/40">Certifications</dt><dd className="text-white/85">{c.dossier.certifications?.length ? c.dossier.certifications.join(', ') : 'n/a'}</dd></div>
+                <div><dt className="text-white/40">Region</dt><dd className="text-white/85">{c.dossier.region ?? 'n/a'}</dd></div>
+                {c.transparency_tier === 'named' && c.dossier.redacted_cv && <p className="italic text-white/70">{c.dossier.redacted_cv}</p>}
+              </dl>
+            )}
+            {c.independence && <p className="mt-2 text-[11px] text-white/50">{c.independence.statement}</p>}
+            <button disabled={!!busy} onClick={() => pick(c.candidate_id)} className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-violet py-2 text-sm font-bold text-white hover:bg-violet-deep disabled:opacity-60">
+              {busy === c.candidate_id ? 'Selecting…' : 'Select'}
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

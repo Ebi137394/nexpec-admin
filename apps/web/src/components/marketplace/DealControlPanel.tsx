@@ -5,7 +5,7 @@
 //   each payout — every release gated server-side (contract-before-money +
 //   milestone). Shows "no deal yet" until the client signs the supply agreement.
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check } from 'lucide-react';
+import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle } from 'lucide-react';
 import {
   fetchDealByRfq, fetchDealAgreements, fetchDealMoneyLegs, assignInspector, presentAgreement,
   acceptGoods, releaseSupplierPayout, releaseInspectorPayout, fetchInspectors, formatUsd,
@@ -78,6 +78,21 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
         <Badge s={deal.status} />
       </div>
 
+      {supplier && !inspector && (
+        <a
+          href="#assign-inspector"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent-amber/40 bg-accent-amber/10 p-3 transition-colors hover:bg-accent-amber/[0.16]"
+        >
+          <span className="inline-flex items-center gap-2 text-xs font-semibold text-accent-amber">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Action needed: this awarded deal has no inspector yet. Assign one to generate and present their engagement contract.
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent-amber/20 px-3 py-1.5 text-xs font-bold text-accent-amber">
+            <UserPlus className="h-3 w-3" /> Assign inspector
+          </span>
+        </a>
+      )}
+
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
           <p className="text-xs font-semibold text-white">Supplier supply</p>
@@ -100,7 +115,7 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+      <div id="assign-inspector" className="scroll-mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
         <p className="text-xs font-semibold text-white">Assign inspector</p>
 
         {selected ? (

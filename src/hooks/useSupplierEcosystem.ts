@@ -182,7 +182,8 @@ export interface AssignedInspector {
   client_review: 'pending' | 'approved' | 'objected' | 'auto_approved';
   review_deadline: string | null; engagement_status: string; transparency_tier: string;
   report_confirmed_at: string | null;
-  inspector_legal_name: string | null; inspector_signature: string | null; // F: NULL until report admin-confirmed
+  identity_revealed_at: string | null; // E (VIP): set when a paid Named-Disclosure amendment lifts escrow early
+  inspector_legal_name: string | null; inspector_signature: string | null; // F: NULL until report admin-confirmed (or VIP unlock)
 }
 // Client reads the anonymized, identity-escrowed view (never the base meta row).
 export async function fetchAssignedInspector(dealId: string): Promise<AssignedInspector | null> {
@@ -192,6 +193,10 @@ export async function fetchAssignedInspector(dealId: string): Promise<AssignedIn
 // D: client approves or objects to the assigned inspector.
 export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'objected', reason?: string) =>
   supabase.rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
+
+// E (VIP): present the sealed Named-Disclosure amendment (idempotent); client then signs via signAgreement().
+export const requestNamedDisclosure = (dealId: string) =>
+  supabase.rpc('request_named_disclosure', { p_deal_id: dealId });
 
 // ── Client selection: blinded A/B/C shortlist (client/agency picks the winner) ──
 export interface InspectorCandidate {

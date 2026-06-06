@@ -10,7 +10,7 @@ import { NEXPEC_THEME as T } from '../../../src/components/DynamicForm/theme';
 import {
   fetchClientAgreement, signAgreement, fetchAssignedInspector, clientReviewEngagement,
   fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
-  fetchInspectorShortlist, selectInspector,
+  fetchInspectorShortlist, selectInspector, requestNamedDisclosure,
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
@@ -208,6 +208,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
         }}
         revealed={revealed}
         legalName={insp.inspector_legal_name}
+        vipUnlocked={!!insp.identity_revealed_at && !insp.report_confirmed_at}
         onReveal={revealed ? undefined : () => setVipOpen(true)}
       />
       <NeutralityBadge statement={indep?.statement} supplierHandle={indep?.supplier_handle} />
@@ -258,7 +259,21 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           </>
         )}
       </View>
-      <VipDisclosureGate open={vipOpen} onClose={() => setVipOpen(false)} tier={insp.transparency_tier} handle={insp.handle} />
+      <VipDisclosureGate
+        open={vipOpen}
+        onClose={() => setVipOpen(false)}
+        tier={insp.transparency_tier}
+        handle={insp.handle}
+        onRequest={async () => {
+          const { data, error } = await requestNamedDisclosure(dealId);
+          if (error) return { error: error.message };
+          const r = data as { agreement_id?: string; fee_cents?: number; currency?: string; body_md?: string | null; revealed?: boolean };
+          if (r?.revealed) { load(); return { error: 'Identity already disclosed for this deal.' }; }
+          return { agreementId: r.agreement_id ?? '', feeCents: r.fee_cents ?? 0, currency: r.currency ?? 'USD', bodyMd: r.body_md ?? null };
+        }}
+        onSign={async (id, nm) => { const { error } = await signAgreement(id, nm); return { error }; }}
+        onUnlocked={() => load()}
+      />
     </View>
   );
 }

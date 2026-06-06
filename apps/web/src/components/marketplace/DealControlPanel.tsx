@@ -5,11 +5,12 @@
 //   each payout — every release gated server-side (contract-before-money +
 //   milestone). Shows "no deal yet" until the client signs the supply agreement.
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle, Wallet, Truck, FileWarning, Clock } from 'lucide-react';
 import {
   fetchDealByRfq, fetchDealAgreements, fetchDealMoneyLegs, assignInspector, presentAgreement,
   acceptGoods, releaseSupplierPayout, releaseInspectorPayout, fetchInspectors, formatUsd,
-  type DealRow, type DealAgreement, type MoneyLeg, type InspectorOption,
+  fetchPaymentSchedule, fetchNonconformances, fundDealBalance, markGoodsDelivered, markReportDelivered, raiseNonconformance,
+  type DealRow, type DealAgreement, type MoneyLeg, type InspectorOption, type PaymentTranche, type Nonconformance,
 } from '@/lib/data/marketplace';
 
 export function DealControlPanel({ rfqId }: { rfqId: string }) {
@@ -17,6 +18,8 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
   const [agrs, setAgrs] = useState<DealAgreement[]>([]);
   const [legs, setLegs] = useState<MoneyLeg[]>([]);
   const [inspectors, setInspectors] = useState<InspectorOption[]>([]);
+  const [sched, setSched] = useState<PaymentTranche[]>([]);
+  const [ncrs, setNcrs] = useState<Nonconformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [inspId, setInspId] = useState('');
   const [inspQuery, setInspQuery] = useState('');
@@ -31,6 +34,8 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
       setAgrs(await fetchDealAgreements(d.id));
       setLegs(await fetchDealMoneyLegs(d.id));
       setInspectors(await fetchInspectors());
+      setSched(await fetchPaymentSchedule(d.id));
+      setNcrs(await fetchNonconformances(d.id));
     }
     setLoading(false);
   }, [rfqId]);
@@ -42,6 +47,12 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
     setBusy(null);
     if (error) { setMsg(error.message); return; }
     await load();
+  };
+
+  const fileNcr = (kind: 'goods' | 'report') => {
+    const citation = window.prompt(`Substantive Non-Conformance (${kind}) — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):`);
+    if (citation == null || !deal) return;
+    void run(`ncr-${kind}`, () => raiseNonconformance(deal.id, kind, citation));
   };
 
   if (loading) return <div className="h-24 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />;
@@ -92,6 +103,36 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
           </span>
         </a>
       )}
+
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="flex items-center justify-between">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-white"><Wallet className="h-3.5 w-3.5 text-violet-glow/80" /> Escrow &amp; milestone funding</p>
+          <span className="text-[11px] text-zinc-500">{formatUsd(deal.client_price_cents)} total</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+          <span className={`rounded-full border px-2 py-0.5 font-semibold ${deal.deposit_funded_at ? 'border-accent-green/30 bg-accent-green/10 text-accent-green' : 'border-white/10 bg-white/[0.04] text-zinc-400'}`}>Deposit 30% {deal.deposit_funded_at ? 'funded' : 'due on signature'}</span>
+          <span className={`rounded-full border px-2 py-0.5 font-semibold ${deal.balance_funded_at ? 'border-accent-green/30 bg-accent-green/10 text-accent-green' : 'border-white/10 bg-white/[0.04] text-zinc-400'}`}>Balance 70% {deal.balance_funded_at ? 'funded' : 'due at FAT-readiness'}</span>
+        </div>
+        {deal.deposit_funded_at && !deal.balance_funded_at && (
+          <button disabled={busy === 'balance'} onClick={() => run('balance', () => fundDealBalance(deal.id))} className={`${btn} mt-2`}><Wallet className="h-3 w-3" /> Fund balance (70%)</button>
+        )}
+        {sched.length > 0 && (
+          <div className="mt-2 overflow-hidden rounded-lg border border-white/[0.06]">
+            <table className="w-full text-left text-[11px]">
+              <thead className="bg-white/[0.03] text-zinc-500"><tr><th className="px-2 py-1 font-medium">Tranche</th><th className="px-2 py-1 font-medium">Trigger</th><th className="px-2 py-1 text-right font-medium">Amount</th></tr></thead>
+              <tbody>
+                {sched.map((t) => (
+                  <tr key={t.id} className="border-t border-white/[0.05] text-zinc-300">
+                    <td className="px-2 py-1">{t.label} ({Math.round(t.pct_bps / 100)}%)</td>
+                    <td className="px-2 py-1 text-zinc-500">{t.trigger_basis}</td>
+                    <td className="px-2 py-1 text-right font-mono">{formatUsd(t.amount_cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
@@ -165,18 +206,41 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
           <p className="text-xs font-semibold text-white">Supplier payout</p>
-          <p className="mt-1 text-[11px] text-zinc-500">Gate: supplier signed + goods accepted.</p>
-          <div className="mt-2 flex gap-2">
+          <p className="mt-1 text-[11px] text-zinc-500">Gate: supplier signed + goods accepted (or 10-business-day deemed acceptance).</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button disabled={busy === 'gdel' || !!deal.goods_delivered_at} onClick={() => run('gdel', () => markGoodsDelivered(deal.id))} className={btn}><Truck className="h-3 w-3" /> {deal.goods_delivered_at ? 'Delivered' : 'Mark delivered'}</button>
             <button disabled={busy === 'goods' || !!deal.goods_accepted_at} onClick={() => run('goods', () => acceptGoods(deal.id))} className={btn}><PackageCheck className="h-3 w-3" /> {deal.goods_accepted_at ? 'Goods accepted' : 'Accept goods'}</button>
             <button disabled={busy === 'relS' || leg('supplier_payout')?.status === 'released'} onClick={() => run('relS', () => releaseSupplierPayout(deal.id))} className={btn}><Banknote className="h-3 w-3" /> {leg('supplier_payout')?.status === 'released' ? 'Released' : 'Release'}</button>
+            <button disabled={busy === 'ncr-goods'} onClick={() => fileNcr('goods')} className={btn}><FileWarning className="h-3 w-3" /> Reject (NCR)</button>
           </div>
+          {deal.goods_delivered_at && !deal.goods_accepted_at && (
+            <p className="mt-1 inline-flex items-center gap-1 text-[10px] text-zinc-500"><Clock className="h-3 w-3" /> Deemed-acceptance clock running (10 business days) unless an NCR is open.</p>
+          )}
         </div>
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
           <p className="text-xs font-semibold text-white">Inspector payout</p>
-          <p className="mt-1 text-[11px] text-zinc-500">Gate: inspector signed + report admin-confirmed.</p>
-          <button disabled={busy === 'relI' || leg('inspector_payout')?.status === 'released'} onClick={() => run('relI', () => releaseInspectorPayout(deal.id))} className={`${btn} mt-2`}><Banknote className="h-3 w-3" /> {leg('inspector_payout')?.status === 'released' ? 'Released' : 'Release'}</button>
+          <p className="mt-1 text-[11px] text-zinc-500">Gate: inspector signed + report admin-confirmed (or 10-business-day deemed acceptance).</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button disabled={busy === 'rdel' || !!deal.report_delivered_at} onClick={() => run('rdel', () => markReportDelivered(deal.id))} className={btn}><Truck className="h-3 w-3" /> {deal.report_delivered_at ? 'Report delivered' : 'Mark report delivered'}</button>
+            <button disabled={busy === 'relI' || leg('inspector_payout')?.status === 'released'} onClick={() => run('relI', () => releaseInspectorPayout(deal.id))} className={btn}><Banknote className="h-3 w-3" /> {leg('inspector_payout')?.status === 'released' ? 'Released' : 'Release'}</button>
+            <button disabled={busy === 'ncr-report'} onClick={() => fileNcr('report')} className={btn}><FileWarning className="h-3 w-3" /> Reject (NCR)</button>
+          </div>
+          {deal.report_delivered_at && (
+            <p className="mt-1 inline-flex items-center gap-1 text-[10px] text-zinc-500"><Clock className="h-3 w-3" /> Deemed-acceptance clock running (10 business days) unless an NCR is open.</p>
+          )}
         </div>
       </div>
+
+      {ncrs.length > 0 && (
+        <div className="rounded-xl border border-accent-red/30 bg-accent-red/[0.06] p-3">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-red"><FileWarning className="h-3.5 w-3.5" /> Open non-conformances freeze escrow release</p>
+          <ul className="mt-1 space-y-1">
+            {ncrs.map((n) => (
+              <li key={n.id} className="text-[11px] text-zinc-300"><span className="font-semibold uppercase">{n.kind}</span> <span className="text-zinc-500">({n.status})</span> — {n.citation}{n.code_ref ? ` [${n.code_ref}]` : ''}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {msg && <p className="text-xs text-accent-red">{msg}</p>}
     </section>

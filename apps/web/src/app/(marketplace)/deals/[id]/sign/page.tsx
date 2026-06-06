@@ -7,10 +7,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Award, Scale, Eye, Flag, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Award, Scale, Eye, Flag, BadgeCheck, Wallet, FileWarning } from 'lucide-react';
 import {
   fetchClientAgreement, signAgreement, formatUsd, fetchAssignedInspector, clientReviewEngagement,
-  type ClientAgreement, type AssignedInspector,
+  fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
+  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche,
 } from '@/lib/data/marketplace';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
@@ -60,10 +61,12 @@ export default function DealSignPage() {
               <h1 className="text-lg font-bold">Signed and escrow funded</h1>
             </div>
             <p className="mt-2 text-sm text-white/70">
-              {formatUsd(agr.amount_cents)} is held in escrow. NEXPEC is dispatching your inspection and will assign a credential-verified inspector. Funds release only as contracted milestones clear.
+              Your 30% mobilization deposit is held in escrow against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection and will assign a credential-verified inspector. Funds release only as contracted milestones clear.
             </p>
             <Link href="/rfqs" className="mt-4 inline-flex rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-deep">Back to RFQs</Link>
           </div>
+
+          <MilestoneFundingCard dealId={dealId} />
 
           <div className="mt-4 rounded-2xl border border-ink-600 bg-ink-900/60 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -101,7 +104,7 @@ export default function DealSignPage() {
 
           <div className="mt-3 flex items-center gap-3 rounded-xl border border-ink-600 bg-ink-800 p-4">
             <Lock size={18} className="text-violet-glow" />
-            <p className="text-sm text-white/80">Total into escrow on signature: <span className="font-bold text-white">{formatUsd(agr.amount_cents)}</span>. Funds release only as contracted milestones clear.</p>
+            <p className="text-sm text-white/80">On signature you fund the <span className="font-bold text-white">30% mobilization deposit</span> of the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (Schedule B). Funds release only as contracted milestones clear.</p>
           </div>
 
           <div className="mt-4 max-h-[46vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-ink-600 bg-ink-950 p-5 text-sm leading-relaxed text-white/80">
@@ -113,11 +116,11 @@ export default function DealSignPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Jane A. Client" className={inp} />
             <label className="flex items-start gap-2 text-sm text-white/80">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-violet" />
-              I have read and agree to this Agreement, and authorise NEXPEC to hold the amount above in escrow.
+              I have read and agree to this Agreement, and authorise NEXPEC to hold the 30% mobilization deposit in escrow.
             </label>
             {err && <p className="text-sm text-accent-red">{err}</p>}
             <button onClick={sign} disabled={busy || !name.trim() || !agreed} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet py-3 font-bold hover:bg-violet-deep disabled:opacity-60">
-              <ShieldCheck size={16} /> {busy ? 'Signing…' : 'Sign and fund escrow'}
+              <ShieldCheck size={16} /> {busy ? 'Signing…' : 'Sign and fund deposit'}
             </button>
           </div>
 
@@ -266,6 +269,89 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           <p className="mt-2 text-sm text-white/70">Held in escrow. The real name and signature of the inspector are released to you when the final report is admin-confirmed, giving you an auditable deliverable.</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Milestone funding (Schedule B) — fund the 70% balance at FAT-readiness + raise an NCR ──
+function MilestoneFundingCard({ dealId }: { dealId: string }) {
+  const [deal, setDeal] = useState<DealRow | null>(null);
+  const [sched, setSched] = useState<PaymentTranche[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([fetchDealById(dealId), fetchPaymentSchedule(dealId)])
+      .then(([d, s]) => { setDeal(d); setSched(s); })
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, [dealId]);
+  useEffect(() => { load(); }, [load]);
+
+  const fundBalance = async () => {
+    setBusy(true); setErr(null);
+    const { error } = await fundDealBalance(dealId);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+
+  const reportNcr = async () => {
+    const citation = window.prompt('Report a non-conformance — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):');
+    if (citation == null) return;
+    setBusy(true); setErr(null);
+    const { error } = await raiseNonconformance(dealId, 'goods', citation);
+    setBusy(false);
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+
+  if (loading) return <div className="mt-4 h-28 animate-pulse rounded-2xl border border-ink-600 bg-ink-800" />;
+  if (!deal) return null;
+
+  const balanceDue = !!deal.deposit_funded_at && !deal.balance_funded_at;
+
+  return (
+    <div className="mt-4 space-y-3 rounded-2xl border border-ink-600 bg-ink-900/60 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="inline-flex items-center gap-2 text-base font-bold text-white"><Wallet size={16} className="text-violet-glow" /> Payment schedule</h2>
+        <div className="flex items-center gap-1.5">
+          <Pill tone={deal.deposit_funded_at ? 'green' : 'zinc'}>Deposit 30% {deal.deposit_funded_at ? 'funded' : 'due'}</Pill>
+          <Pill tone={deal.balance_funded_at ? 'green' : 'amber'}>Balance 70% {deal.balance_funded_at ? 'funded' : 'due at FAT'}</Pill>
+        </div>
+      </div>
+
+      {sched.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-ink-600">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-white/[0.03] text-white/50"><tr><th className="px-3 py-2 font-medium">Tranche</th><th className="px-3 py-2 font-medium">Release trigger</th><th className="px-3 py-2 text-right font-medium">Amount</th></tr></thead>
+            <tbody>
+              {sched.map((t) => (
+                <tr key={t.id} className="border-t border-ink-700 text-white/80">
+                  <td className="px-3 py-2">{t.label} ({Math.round(t.pct_bps / 100)}%)</td>
+                  <td className="px-3 py-2 text-white/50">{t.trigger_basis}</td>
+                  <td className="px-3 py-2 text-right font-mono">{formatUsd(t.amount_cents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {balanceDue && (
+          <button onClick={fundBalance} disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-violet px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-deep disabled:opacity-60">
+            <Wallet size={15} /> {busy ? 'Funding…' : `Fund 70% balance (${formatUsd(Math.round(deal.client_price_cents * 0.7))})`}
+          </button>
+        )}
+        <button onClick={reportNcr} disabled={busy} className="inline-flex items-center gap-1.5 rounded-xl border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-bold text-accent-red hover:bg-accent-red/20 disabled:opacity-60">
+          <FileWarning size={15} /> Report a non-conformance
+        </button>
+      </div>
+      {err && <p className="text-sm text-accent-red">{err}</p>}
+      <p className="text-xs text-white/40">Silence for 10 business days after delivery is irrevocable acceptance and authorises release. A rejection must cite a specific Schedule A spec or ASME/API code deviation.</p>
     </div>
   );
 }

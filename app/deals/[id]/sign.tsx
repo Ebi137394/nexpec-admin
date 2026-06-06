@@ -9,7 +9,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../../src/components/DynamicForm/theme';
 import {
   fetchClientAgreement, signAgreement, fetchAssignedInspector, clientReviewEngagement,
-  type ClientAgreement, type AssignedInspector,
+  fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
+  type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche,
 } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
 
@@ -59,8 +60,8 @@ export default function DealSignScreen() {
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <View style={s.okCard}>
             <Ionicons name="checkmark-circle" size={22} color={T.colors.success} />
-            <Text style={s.okTitle}>Signed and escrow funded</Text>
-            <Text style={s.okBody}>{formatUsd(agr.amount_cents)} is held in escrow. NEXPEC is dispatching your inspection and will assign a credential-verified inspector.</Text>
+            <Text style={s.okTitle}>Signed and mobilized</Text>
+            <Text style={s.okBody}>Your 30% mobilization deposit is held in escrow against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection.</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace('/rfqs' as any)} activeOpacity={0.85}>
               <Text style={s.primaryBtnTxt}>Back to RFQs</Text>
             </TouchableOpacity>
@@ -78,6 +79,7 @@ export default function DealSignScreen() {
             {!!agr.body_md && <Text style={[s.bodyTxt, { marginTop: 10 }]}>{agr.body_md}</Text>}
             {!!agr.content_sha256 && <Text style={[s.footnote, { textAlign: 'left', marginTop: 8 }]}>Sealed sha256:{agr.content_sha256}</Text>}
           </View>
+          <MilestoneFundingCard dealId={id!} />
           <AssignedInspectorCard dealId={id!} />
         </ScrollView>
       ) : (
@@ -85,19 +87,19 @@ export default function DealSignScreen() {
           <Text style={s.kicker}>SUPPLY AND INSPECTION AGREEMENT</Text>
           <View style={s.escrowCard}>
             <Ionicons name="lock-closed" size={16} color={T.colors.primaryLight} />
-            <Text style={s.escrowTxt}>Total into escrow on signature: <Text style={s.escrowAmt}>{formatUsd(agr.amount_cents)}</Text></Text>
+            <Text style={s.escrowTxt}>On signature you fund the <Text style={s.escrowAmt}>30% mobilization deposit</Text> of the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (Schedule B).</Text>
           </View>
           <View style={s.bodyCard}><Text style={s.bodyTxt}>{agr.body_md}</Text></View>
           <Text style={s.label}>Type your full legal name to sign</Text>
           <TextInput value={name} onChangeText={setName} placeholder="e.g. Jane A. Client" placeholderTextColor={T.colors.textMuted} style={s.input} />
           <TouchableOpacity style={s.checkRow} onPress={() => setAgreed((v) => !v)} activeOpacity={0.8}>
             <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={20} color={agreed ? T.colors.primary : T.colors.textMuted} />
-            <Text style={s.checkTxt}>I have read and agree, and authorise NEXPEC to hold the amount above in escrow.</Text>
+            <Text style={s.checkTxt}>I have read and agree, and authorise NEXPEC to hold the 30% mobilization deposit in escrow.</Text>
           </TouchableOpacity>
           {!!err && <Text style={s.err}>{err}</Text>}
           <TouchableOpacity style={[s.primaryBtn, (busy || !name.trim() || !agreed) && { opacity: 0.6 }]} disabled={busy || !name.trim() || !agreed} onPress={sign} activeOpacity={0.85}>
             {busy ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="shield-checkmark" size={16} color="#fff" />}
-            <Text style={s.primaryBtnTxt}>{busy ? 'Signing…' : 'Sign and fund escrow'}</Text>
+            <Text style={s.primaryBtnTxt}>{busy ? 'Signing…' : 'Sign and fund deposit'}</Text>
           </TouchableOpacity>
           <Text style={s.footnote}>Sealed on signature (SHA-256). You contract only with NEXPEC.</Text>
         </ScrollView>
@@ -255,8 +257,106 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
   );
 }
 
+// ── Milestone funding (Schedule B): fund the 70% balance at FAT-readiness + raise an NCR ──
+function MilestoneFundingCard({ dealId }: { dealId: string }) {
+  const [deal, setDeal] = useState<DealRow | null>(null);
+  const [sched, setSched] = useState<PaymentTranche[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [showNcr, setShowNcr] = useState(false);
+  const [citation, setCitation] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([fetchDealById(dealId), fetchPaymentSchedule(dealId)])
+      .then(([d, sc]) => { setDeal(d); setSched(sc); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [dealId]);
+  useEffect(() => { load(); }, [load]);
+
+  const fundBalance = async () => {
+    setBusy('fund'); setErr(null);
+    const { error } = await fundDealBalance(dealId);
+    setBusy(null);
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+  const submitNcr = async () => {
+    setBusy('ncr'); setErr(null);
+    const { error } = await raiseNonconformance(dealId, 'goods', citation.trim());
+    setBusy(null);
+    if (error) { setErr(error.message); return; }
+    setShowNcr(false); setCitation(''); load();
+  };
+
+  if (loading) return <View style={c.card}><ActivityIndicator color={T.colors.primary} /></View>;
+  if (!deal) return null;
+  const balanceDue = !!deal.deposit_funded_at && !deal.balance_funded_at;
+
+  return (
+    <View style={c.wrap}>
+      <View style={c.head}>
+        <Ionicons name="wallet" size={16} color={T.colors.primaryLight} />
+        <Text style={c.title}>Payment schedule</Text>
+      </View>
+      <View style={c.pillRow}>
+        <Text style={[c.pill, { color: deal.deposit_funded_at ? T.colors.success : T.colors.textMuted, borderColor: deal.deposit_funded_at ? T.colors.success : T.colors.inputBorder }]}>Deposit 30% {deal.deposit_funded_at ? 'funded' : 'due'}</Text>
+        <Text style={[c.pill, { color: deal.balance_funded_at ? T.colors.success : T.colors.primaryLight, borderColor: deal.balance_funded_at ? T.colors.success : T.colors.primaryLight }]}>Balance 70% {deal.balance_funded_at ? 'funded' : 'due at FAT'}</Text>
+      </View>
+
+      {sched.length > 0 && (
+        <View style={c.sect}>
+          {sched.map((t) => (
+            <View key={t.id} style={c.schedRow}>
+              <Text style={c.schedLabel}>{t.label} ({Math.round(t.pct_bps / 100)}%)</Text>
+              <Text style={c.schedAmt}>{formatUsd(t.amount_cents)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {balanceDue && (
+        <TouchableOpacity style={[c.fundBtn, busy === 'fund' && { opacity: 0.6 }]} disabled={busy === 'fund'} onPress={fundBalance} activeOpacity={0.85}>
+          <Ionicons name="wallet" size={15} color="#fff" />
+          <Text style={c.fundTxt}>{busy === 'fund' ? 'Funding…' : `Fund 70% balance (${formatUsd(Math.round(deal.client_price_cents * 0.7))})`}</Text>
+        </TouchableOpacity>
+      )}
+
+      {showNcr ? (
+        <View style={{ gap: 8 }}>
+          <TextInput value={citation} onChangeText={setCitation} placeholder="Cite the specific Schedule A spec or ASME/API code deviation (min 20 chars)" placeholderTextColor={T.colors.textMuted} multiline style={c.objInput} />
+          <View style={c.btnRow}>
+            <TouchableOpacity style={[c.objectBtn, busy === 'ncr' && { opacity: 0.6 }]} disabled={busy === 'ncr'} onPress={submitNcr} activeOpacity={0.85}>
+              <Ionicons name="warning" size={15} color={T.colors.error} />
+              <Text style={c.objectTxt}>{busy === 'ncr' ? 'Submitting…' : 'Submit NCR'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={c.objectBtn} onPress={() => { setShowNcr(false); setCitation(''); }} activeOpacity={0.85}>
+              <Text style={c.objectTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity style={c.ncrBtn} onPress={() => setShowNcr(true)} activeOpacity={0.85}>
+          <Ionicons name="warning-outline" size={15} color={T.colors.error} />
+          <Text style={c.objectTxt}>Report a non-conformance</Text>
+        </TouchableOpacity>
+      )}
+      {!!err && <Text style={c.err}>{err}</Text>}
+      <Text style={c.seal}>Silence for 10 business days after delivery is irrevocable acceptance and authorises release. A rejection must cite a specific Schedule A spec or ASME/API code deviation.</Text>
+    </View>
+  );
+}
+
 const c = StyleSheet.create({
   card: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginTop: 16 },
+  schedRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  schedLabel: { color: T.colors.textSecondary, fontSize: 12, flex: 1 },
+  schedAmt: { color: T.colors.text, fontSize: 12, fontWeight: '700' },
+  fundBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: T.colors.primary, borderRadius: T.borderRadius.md, paddingVertical: 12 },
+  fundTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  ncrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderColor: T.colors.error, borderWidth: 1, borderRadius: T.borderRadius.md, paddingVertical: 11 },
   wrap: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.primary, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginTop: 16, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { color: T.colors.text, fontSize: 15, fontWeight: '800', flex: 1 },

@@ -141,6 +141,36 @@ export async function fetchClientAgreement(dealId: string): Promise<ClientAgreem
 export const signAgreement = (agreementId: string, signedName: string) =>
   supabase.rpc('sign_agreement', { p_agreement_id: agreementId, p_signed_name: signedName });
 
+// ── MSA milestone-escrow: deal funding state + payment schedule + balance funding + NCR ──
+export interface DealRow {
+  id: string; client_price_cents: number; currency: string; status: string;
+  deposit_funded_at: string | null; balance_funded_at: string | null;
+  goods_delivered_at: string | null; report_delivered_at: string | null;
+}
+export async function fetchDealById(dealId: string): Promise<DealRow | null> {
+  const { data } = await supabase.from('deals')
+    .select('id, client_price_cents, currency, status, deposit_funded_at, balance_funded_at, goods_delivered_at, report_delivered_at')
+    .eq('id', dealId).maybeSingle();
+  return (data ?? null) as DealRow | null;
+}
+export interface PaymentTranche {
+  id: string; tranche_no: number; code: string; label: string;
+  pct_bps: number; amount_cents: number; trigger_basis: string; status: string;
+}
+export async function fetchPaymentSchedule(dealId: string): Promise<PaymentTranche[]> {
+  const { data } = await supabase.from('deal_payment_schedule')
+    .select('id, tranche_no, code, label, pct_bps, amount_cents, trigger_basis, status')
+    .eq('deal_id', dealId).order('tranche_no');
+  return (data ?? []) as PaymentTranche[];
+}
+// Client (or admin) funds the 70% balance at FAT/Inspection-Readiness.
+export const fundDealBalance = (dealId: string) => supabase.rpc('fund_deal_balance', { p_deal_id: dealId });
+// Substantive Non-Conformance Report — the only thing that freezes deemed-acceptance.
+export const raiseNonconformance = (
+  dealId: string, kind: 'goods' | 'report', citation: string,
+  basis: 'schedule_a_spec' | 'code' = 'schedule_a_spec', codeRef?: string,
+) => supabase.rpc('raise_nonconformance', { p_deal_id: dealId, p_kind: kind, p_citation: citation, p_basis: basis, p_code_ref: codeRef ?? null });
+
 // ── P3/P4: trust artifacts (A/B/C) + review gate (D) + tiered (E) + identity escrow (F) ──
 export interface TrustDossier { kind: string; handle: string; competencies: string[]; certifications: string[]; region: string | null; scope: string | null; redacted_cv: string | null; }
 export interface TrustCertificate { kind: string; statement: string; eo_policy_ref: string; verify_path: string; }

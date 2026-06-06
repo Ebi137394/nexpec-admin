@@ -206,14 +206,22 @@ export const signAgreement = (agreementId: string, signedName: string) =>
 export interface DealRow {
   id: string; rfq_id: string | null; job_id: string | null; status: string;
   client_price_cents: number; currency: string; goods_accepted_at: string | null;
+  deposit_funded_at: string | null; balance_funded_at: string | null;
+  goods_delivered_at: string | null; report_delivered_at: string | null;
 }
 export interface DealAgreement { id: string; kind: string; status: string; counterparty_id: string; amount_cents: number; currency: string; }
 export interface MoneyLeg { id: string; kind: string; status: string; amount_cents: number; }
 
+const DEAL_COLS = 'id, rfq_id, job_id, status, client_price_cents, currency, goods_accepted_at, deposit_funded_at, balance_funded_at, goods_delivered_at, report_delivered_at';
+
 export async function fetchDealByRfq(rfqId: string): Promise<DealRow | null> {
   const { data } = await sb().from('deals')
-    .select('id, rfq_id, job_id, status, client_price_cents, currency, goods_accepted_at')
+    .select(DEAL_COLS)
     .eq('rfq_id', rfqId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return (data ?? null) as DealRow | null;
+}
+export async function fetchDealById(dealId: string): Promise<DealRow | null> {
+  const { data } = await sb().from('deals').select(DEAL_COLS).eq('id', dealId).maybeSingle();
   return (data ?? null) as DealRow | null;
 }
 export async function fetchDealAgreements(dealId: string): Promise<DealAgreement[]> {
@@ -244,6 +252,37 @@ export async function presentAgreement(agreementId: string) {
 export const acceptGoods = (dealId: string) => sb().rpc('admin_accept_goods', { p_deal_id: dealId });
 export const releaseSupplierPayout = (dealId: string) => sb().rpc('release_supplier_payout', { p_deal_id: dealId });
 export const releaseInspectorPayout = (dealId: string) => sb().rpc('release_inspector_payout', { p_deal_id: dealId });
+
+// ── MSA milestone-escrow: payment schedule, hybrid balance funding, delivery clocks, NCR ──
+export interface PaymentTranche {
+  id: string; tranche_no: number; code: string; label: string;
+  pct_bps: number; amount_cents: number; trigger_basis: string; status: string;
+}
+export async function fetchPaymentSchedule(dealId: string): Promise<PaymentTranche[]> {
+  const { data } = await sb().from('deal_payment_schedule')
+    .select('id, tranche_no, code, label, pct_bps, amount_cents, trigger_basis, status')
+    .eq('deal_id', dealId).order('tranche_no');
+  return (data ?? []) as PaymentTranche[];
+}
+export interface Nonconformance {
+  id: string; kind: string; basis: string; code_ref: string | null; citation: string; status: string; created_at: string;
+}
+export async function fetchNonconformances(dealId: string): Promise<Nonconformance[]> {
+  const { data } = await sb().from('deal_nonconformances')
+    .select('id, kind, basis, code_ref, citation, status, created_at')
+    .eq('deal_id', dealId).order('created_at', { ascending: false });
+  return (data ?? []) as Nonconformance[];
+}
+// Client (or admin) funds the 70% balance once goods reach FAT/Inspection-Readiness.
+export const fundDealBalance = (dealId: string) => sb().rpc('fund_deal_balance', { p_deal_id: dealId });
+// Admin starts the 10-business-day deemed-acceptance clock on delivery.
+export const markGoodsDelivered = (dealId: string) => sb().rpc('admin_mark_goods_delivered', { p_deal_id: dealId });
+export const markReportDelivered = (dealId: string) => sb().rpc('admin_mark_report_delivered', { p_deal_id: dealId });
+// Substantive Non-Conformance Report — the only thing that freezes deemed-acceptance (server enforces a real citation).
+export const raiseNonconformance = (
+  dealId: string, kind: 'goods' | 'report', citation: string,
+  basis: 'schedule_a_spec' | 'code' = 'schedule_a_spec', codeRef?: string,
+) => sb().rpc('raise_nonconformance', { p_deal_id: dealId, p_kind: kind, p_citation: citation, p_basis: basis, p_code_ref: codeRef ?? null });
 // ADMIN: set the client-facing marked-up price and release the offer to the client.
 export const presentQuote = (quoteId: string, clientPriceCents: number, note?: string) =>
   sb().rpc('admin_present_quote', { p_quote_id: quoteId, p_client_price_cents: clientPriceCents, p_admin_note: note ?? null });

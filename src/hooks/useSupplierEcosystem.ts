@@ -173,6 +173,13 @@ export async function fetchAgreement(agreementId: string): Promise<MyAgreement |
     .select('id, deal_id, kind, status, amount_cents, currency, body_md').eq('id', agreementId).maybeSingle();
   return (data ?? null) as MyAgreement | null;
 }
+// Count of agreements presented to me and awaiting my signature (RLS-scoped) — drives
+// the unread badge on the Agreements entry points.
+export async function fetchPendingAgreementCount(): Promise<number> {
+  const { count } = await supabase.from('agreements')
+    .select('id', { count: 'exact', head: true }).eq('status', 'presented');
+  return count ?? 0;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Supplier Dashboard data

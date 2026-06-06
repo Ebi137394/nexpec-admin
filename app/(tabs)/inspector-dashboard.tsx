@@ -30,6 +30,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { fetchDashboardData, DashboardData } from '@/lib/supabase-queries';
+import { fetchPendingAgreementCount } from '@/src/hooks/useSupplierEcosystem';
 
 const { width } = Dimensions.get('window');
 
@@ -117,6 +118,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [pendingAgreements, setPendingAgreements] = useState(0);
 
   // ============================================
   // Data Fetching - Fixed logic with proper table separation
@@ -204,6 +206,11 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  // Pending-agreements badge count (brokered-deal spine).
+  useEffect(() => {
+    fetchPendingAgreementCount().then(setPendingAgreements).catch(() => {});
+  }, []);
 
   // Pull to refresh handler
   const onRefresh = useCallback(() => {
@@ -488,6 +495,11 @@ export default function DashboardScreen() {
                 <View style={styles.quickActionIconWrapper}>
                   <FileText size={24} color={COLORS.warning} />
                 </View>
+                {pendingAgreements > 0 && (
+                  <View style={styles.qaBadge}>
+                    <Text style={styles.qaBadgeTxt}>{pendingAgreements > 99 ? '99+' : pendingAgreements}</Text>
+                  </View>
+                )}
               </LinearGradient>
               <Text style={styles.quickActionText}>Agreements</Text>
             </TouchableOpacity>
@@ -865,6 +877,23 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  qaBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  qaBadgeTxt: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
 
   // Activity styles

@@ -3,7 +3,7 @@
 // Three pillars: Active Opportunities (matched open RFQs), My Bids (quote
 // tracker), Qualification Status (verification + completeness). Plus a KPI strip
 // and quick actions. Pure NEXPEC theme; reuses the Supplier Ecosystem hooks.
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { toCents, formatUsd } from '../../src/core/utils/money';
 import {
   useOpenOpportunities, useMyQuotes, useMyVendorProfile, useCapabilityCatalog,
+  fetchPendingAgreementCount,
 } from '../../src/hooks/useSupplierEcosystem';
 
 const QUOTE_STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -29,6 +30,8 @@ export default function SupplierDashboard() {
   const { profile, loading: profLoading, refetch: refetchProfile } = useMyVendorProfile();
   const { items: caps } = useCapabilityCatalog();
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingAgreements, setPendingAgreements] = useState(0);
+  useEffect(() => { fetchPendingAgreementCount().then(setPendingAgreements).catch(() => {}); }, []);
 
   const capLabel = useMemo(() => Object.fromEntries(caps.map((c) => [c.key, c.label])), [caps]);
 
@@ -189,7 +192,7 @@ export default function SupplierDashboard() {
             <Action icon="megaphone-outline" label="Opportunities" onPress={() => router.push('/suppliers/opportunities' as any)} />
             <Action icon="send-outline" label="My Bids" onPress={() => router.push('/suppliers/bids' as any)} />
             <Action icon="document-text-outline" label="Contracts" onPress={() => router.push('/suppliers/contracts' as any)} />
-            <Action icon="reader-outline" label="Agreements" onPress={() => router.push('/agreements' as any)} />
+            <Action icon="reader-outline" label="Agreements" badge={pendingAgreements} onPress={() => router.push('/agreements' as any)} />
             <Action icon="wallet-outline" label="Finance" onPress={() => router.push('/suppliers/finance' as any)} />
             <Action icon="shield-checkmark-outline" label="Documents" onPress={() => router.push('/suppliers/documents' as any)} />
             <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/inbox' as any)} />
@@ -213,11 +216,14 @@ function Kpi({ icon, color, value, label }: { icon: any; color: string; value: s
   );
 }
 
-function Action({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
+function Action({ icon, label, onPress, badge }: { icon: any; label: string; onPress: () => void; badge?: number }) {
   return (
     <TouchableOpacity style={s.action} activeOpacity={0.85} onPress={onPress}>
       <Ionicons name={icon} size={20} color={T.colors.primaryLight} />
       <Text style={s.actionTxt}>{label}</Text>
+      {!!badge && badge > 0 && (
+        <View style={s.actionBadge}><Text style={s.actionBadgeTxt}>{badge > 99 ? '99+' : badge}</Text></View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -290,8 +296,10 @@ const s = StyleSheet.create({
   statusChipTxt: { fontSize: 10, fontWeight: '800' },
 
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  action: { width: '31%', flexGrow: 1, alignItems: 'center', gap: 6, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, paddingVertical: T.spacing.md },
+  action: { width: '31%', flexGrow: 1, alignItems: 'center', gap: 6, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder, paddingVertical: T.spacing.md, position: 'relative' },
   actionTxt: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, fontWeight: '600' },
+  actionBadge: { position: 'absolute', top: 6, right: 10, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  actionBadgeTxt: { color: '#fff', fontSize: 10, fontWeight: '800' },
 
   empty: { alignItems: 'center', gap: 8, paddingVertical: 28, backgroundColor: T.colors.cardBackground, borderRadius: T.borderRadius.lg, borderWidth: 1, borderColor: T.colors.inputBorder },
   emptyTxt: { color: T.colors.textMuted, fontSize: T.fontSize.sm, textAlign: 'center', paddingHorizontal: 16 },

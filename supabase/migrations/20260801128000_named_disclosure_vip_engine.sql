@@ -36,7 +36,7 @@ ALTER TABLE public.deal_money_legs ADD CONSTRAINT deal_money_legs_kind_check
   CHECK (kind IN ('client_escrow_in','supplier_payout','inspector_payout','vip_disclosure_fee'));
 
 -- ── 1. The sealed MSA rider (Named Disclosure amendment) ──────────────────────
-CREATE OR REPLACE FUNCTION public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text)
+CREATE OR REPLACE FUNCTION public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text DEFAULT 'Standard')
 RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
   SELECT format($md$# NEXPEC Named-Disclosure Amendment (Rider to the Supply & Inspection Agreement)
 
@@ -50,7 +50,7 @@ RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
 
 **3. Liquidated Damages.** The parties agree that a breach of §2 would cause harm that is difficult to quantify and that liquidated damages equal to the greater of (a) twelve (12) months of the disclosed inspector's engaged fees or (b) the Premium Fee multiplied by ten (10) are a genuine pre-estimate of loss and not a penalty. NEXPEC may also retain escrowed funds to the extent of its loss and pursue injunctive relief.
 
-**4. Premium Fee.** The Client shall pay NEXPEC a non-refundable Premium Fee of **%2$s %3$s** for the rights granted herein. The fee is collected on execution and is in addition to the Contract Price.
+**4. Administrative Amendment Fee.** In consideration of the early disclosure and enhanced protections granted herein, the Client shall pay NEXPEC a non-refundable Administrative Amendment Fee of **%2$s %3$s**, assessed under NEXPEC's tiered schedule by project size (the **%4$s** tier). The fee covers the administrative cost of preparing, sealing, and enforcing this Amendment; it is collected on execution and is in addition to the Contract Price. NEXPEC's tiered Administrative Amendment Fee schedule, by Contract Price, is: Base (under $10,000) one hundred dollars; Standard ($10,000 to $100,000) one percent of the Contract Price; Enterprise ($100,000 to $1,000,000) three hundred and fifty dollars; Elite (over $1,000,000) five hundred dollars.
 
 **5. Confidentiality of Identity.** The disclosed identity is confidential to the Client and may be used solely for credential audit and the conduct of this engagement; it shall not be republished or shared outside the Client's organisation.
 
@@ -59,7 +59,8 @@ RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
 _Sealed on execution (SHA-256 + OpenTimestamps), verifiable at /passport._$md$,
     coalesce(p_title,'this engagement'),
     to_char(round(p_fee_cents/100.0, 2), 'FM999G999G990D00'),
-    coalesce(p_currency,'USD'));
+    coalesce(p_currency,'USD'),
+    coalesce(p_tier_label,'Standard'));
 $fn$;
 
 -- ── 2. request_named_disclosure — present the sealed amendment (idempotent) ────
@@ -68,13 +69,29 @@ RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = publi
 DECLARE
   v_uid uuid := auth.uid();
   v_d public.deals;
-  v_title text; v_fee bigint; v_body text; v_sha text; v_agr_id uuid; v_version int;
+  v_title text; v_fee bigint; v_body text; v_sha text; v_agr_id uuid; v_version int; v_tier_label text;
   v_existing public.agreements;
 BEGIN
   IF v_uid IS NULL THEN RAISE EXCEPTION 'not_authenticated'; END IF;
   SELECT * INTO v_d FROM public.deals WHERE id = p_deal_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'unknown_deal'; END IF;
   IF NOT (v_d.client_id = v_uid OR public.nx_is_admin()) THEN RAISE EXCEPTION 'not_authorized'; END IF;
+
+  -- Tiered Administrative Amendment Fee, assessed by project (Contract Price) size.
+  --   Base       < $10k            → flat $100
+  --   Standard   $10k to $100k     → 1% of the Contract Price
+  --   Enterprise $100k to $1M      → flat $350
+  --   Elite      > $1M             → flat $500
+  v_tier_label := CASE
+    WHEN COALESCE(v_d.client_price_cents,0) <  1000000   THEN 'Base'
+    WHEN v_d.client_price_cents             <  10000000  THEN 'Standard'
+    WHEN v_d.client_price_cents             <= 100000000 THEN 'Enterprise'
+    ELSE 'Elite' END;
+  v_fee := COALESCE(p_fee_cents, CASE
+    WHEN COALESCE(v_d.client_price_cents,0) <  1000000   THEN 10000
+    WHEN v_d.client_price_cents             <  10000000  THEN GREATEST(1, (round(v_d.client_price_cents * 0.01))::bigint)
+    WHEN v_d.client_price_cents             <= 100000000 THEN 35000
+    ELSE 50000 END);
 
   IF NOT EXISTS (SELECT 1 FROM public.inspector_engagement_meta WHERE deal_id = p_deal_id) THEN
     RAISE EXCEPTION 'NO_ASSIGNED_INSPECTOR: assign an inspector before purchasing named disclosure';
@@ -89,12 +106,12 @@ BEGIN
    ORDER BY version DESC LIMIT 1;
   IF FOUND THEN
     RETURN jsonb_build_object('agreement_id', v_existing.id, 'fee_cents', v_existing.amount_cents,
-                              'currency', v_existing.currency, 'body_md', v_existing.body_md, 'reused', true);
+                              'currency', v_existing.currency, 'body_md', v_existing.body_md,
+                              'tier_label', v_tier_label, 'reused', true);
   END IF;
 
-  v_fee := COALESCE(p_fee_cents, GREATEST(25000, (round(coalesce(v_d.client_price_cents,0) * 0.05))::bigint));
   SELECT r.title INTO v_title FROM public.supplier_rfqs r WHERE r.id = v_d.rfq_id;
-  v_body := public._brokered_disclosure_amendment_md(v_title, v_fee, v_d.currency);
+  v_body := public._brokered_disclosure_amendment_md(v_title, v_fee, v_d.currency, v_tier_label);
   v_sha  := encode(extensions.digest(v_body, 'sha256'), 'hex');
   SELECT COALESCE(MAX(version), 0) + 1 INTO v_version FROM public.agreements WHERE deal_id = p_deal_id AND kind = 'disclosure_amendment';
 
@@ -105,7 +122,7 @@ BEGIN
   RETURNING id INTO v_agr_id;
 
   RETURN jsonb_build_object('agreement_id', v_agr_id, 'fee_cents', v_fee, 'currency', v_d.currency,
-                            'body_md', v_body, 'reused', false);
+                            'body_md', v_body, 'tier_label', v_tier_label, 'reused', false);
 END $fn$;
 REVOKE ALL ON FUNCTION public.request_named_disclosure(uuid, bigint) FROM public;
 GRANT EXECUTE ON FUNCTION public.request_named_disclosure(uuid, bigint) TO authenticated, service_role;
@@ -239,6 +256,7 @@ BEGIN
   IF v_body NOT LIKE '%thirty-six (36) months%' THEN RAISE EXCEPTION 'SELFTEST: rider missing 36-month non-circumvention'; END IF;
   IF v_body NOT LIKE '%Liquidated Damages%' THEN RAISE EXCEPTION 'SELFTEST: rider missing liquidated damages'; END IF;
   IF v_body NOT LIKE '%Province of Quebec%' THEN RAISE EXCEPTION 'SELFTEST: rider missing governing law'; END IF;
+  IF v_body NOT LIKE '%Administrative Amendment Fee%' THEN RAISE EXCEPTION 'SELFTEST: rider missing Administrative Amendment Fee framing'; END IF;
 
   -- view: exposes the new reveal stamp, still hides inspector_id
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='client_assigned_inspector_view' AND column_name='identity_revealed_at') THEN

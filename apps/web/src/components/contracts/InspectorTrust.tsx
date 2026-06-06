@@ -116,7 +116,7 @@ export function NeutralityBadge({ statement, supplierHandle }: { statement?: str
 }
 
 // ── E — Named-Disclosure VIP gate: offer → sign sealed amendment → unlocked ─────
-type RequestResult = { agreementId: string; feeCents: number; currency: string; bodyMd: string | null } | { error: string };
+type RequestResult = { agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | { error: string };
 export function VipDisclosureGate({
   open, onClose, tier, handle, onRequest, onSign, onUnlocked,
 }: {
@@ -126,7 +126,7 @@ export function VipDisclosureGate({
   onUnlocked?: () => void;
 }) {
   const [phase, setPhase] = useState<'offer' | 'sign' | 'done'>('offer');
-  const [amend, setAmend] = useState<{ agreementId: string; feeCents: number; currency: string; bodyMd: string | null } | null>(null);
+  const [amend, setAmend] = useState<{ agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | null>(null);
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -178,7 +178,7 @@ export function VipDisclosureGate({
             <>
               <h2 className="mt-3 font-display text-xl font-bold text-white">Sign the disclosure amendment</h2>
               <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
-                <span className="text-sm text-zinc-300">Premium fee</span>
+                <span className="text-sm text-zinc-300">Administrative amendment fee{amend.tier ? ` (${amend.tier})` : ''}</span>
                 <span className="text-sm font-bold text-amber-200">{feeLabel}</span>
               </div>
               {amend.bodyMd && (
@@ -187,7 +187,7 @@ export function VipDisclosureGate({
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Type your full legal name to sign" className="mt-3 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400/50 focus:outline-none" />
               <label className="mt-2 flex items-start gap-2 text-xs text-zinc-300">
                 <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-amber-400" />
-                I agree to the premium fee and the extended 36-month non-circumvention + liquidated damages.
+                I agree to the administrative amendment fee and the extended 36-month non-circumvention + liquidated damages.
               </label>
               {err && <p className="mt-2 text-sm text-accent-red">{err}</p>}
               <button onClick={doSign} disabled={busy || !name.trim() || !agreed} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 py-3 font-bold text-ink-950 transition hover:from-amber-300 hover:to-amber-200 disabled:opacity-60">
@@ -208,7 +208,7 @@ export function VipDisclosureGate({
               <div className="mt-4 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
                 <div>
                   <p className="text-[11px] uppercase tracking-industrial text-zinc-500">Named Disclosure</p>
-                  <p className="text-sm font-bold text-white">Premium add-on</p>
+                  <p className="text-sm font-bold text-white">Administrative amendment fee</p>
                 </div>
                 <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[11px] font-bold text-amber-300">VIP tier</span>
               </div>

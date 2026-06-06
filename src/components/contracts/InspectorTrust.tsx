@@ -108,7 +108,7 @@ export function NeutralityBadge({ statement, supplierHandle }: { statement?: str
 }
 
 // ── E — Named-Disclosure VIP gate: offer → sign sealed amendment → unlocked ─────
-type RequestResult = { agreementId: string; feeCents: number; currency: string; bodyMd: string | null } | { error: string };
+type RequestResult = { agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | { error: string };
 export function VipDisclosureGate({
   open, onClose, tier, handle, onRequest, onSign, onUnlocked,
 }: {
@@ -118,7 +118,7 @@ export function VipDisclosureGate({
   onUnlocked?: () => void;
 }) {
   const [phase, setPhase] = useState<'offer' | 'sign' | 'done'>('offer');
-  const [amend, setAmend] = useState<{ agreementId: string; feeCents: number; currency: string; bodyMd: string | null } | null>(null);
+  const [amend, setAmend] = useState<{ agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | null>(null);
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -169,12 +169,12 @@ export function VipDisclosureGate({
             ) : phase === 'sign' && amend ? (
               <>
                 <Text style={vp.title}>Sign the disclosure amendment</Text>
-                <View style={vp.feeRow}><Text style={vp.feeLabel}>Premium fee</Text><Text style={vp.feeVal}>{feeLabel}</Text></View>
+                <View style={vp.feeRow}><Text style={vp.feeLabel}>Administrative amendment fee{amend.tier ? ` (${amend.tier})` : ''}</Text><Text style={vp.feeVal}>{feeLabel}</Text></View>
                 {!!amend.bodyMd && <ScrollView style={vp.bodyBox} nestedScrollEnabled showsVerticalScrollIndicator={false}><Text style={vp.bodyTxt}>{amend.bodyMd}</Text></ScrollView>}
                 <TextInput value={name} onChangeText={setName} placeholder="Type your full legal name to sign" placeholderTextColor={T.colors.textMuted} style={vp.input} />
                 <TouchableOpacity style={vp.checkRow} onPress={() => setAgreed((v) => !v)} activeOpacity={0.8}>
                   <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={20} color={agreed ? AMBER : T.colors.textMuted} />
-                  <Text style={vp.checkTxt}>I agree to the premium fee and the extended 36-month non-circumvention + liquidated damages.</Text>
+                  <Text style={vp.checkTxt}>I agree to the administrative amendment fee and the extended 36-month non-circumvention + liquidated damages.</Text>
                 </TouchableOpacity>
                 {!!err && <Text style={vp.errTxt}>{err}</Text>}
                 <TouchableOpacity style={[vp.cta, (busy || !name.trim() || !agreed) && { opacity: 0.6 }]} disabled={busy || !name.trim() || !agreed} onPress={doSign} activeOpacity={0.85}>
@@ -199,7 +199,7 @@ export function VipDisclosureGate({
                 <View style={vp.priceRow}>
                   <View>
                     <Text style={vp.priceKicker}>NAMED DISCLOSURE</Text>
-                    <Text style={vp.priceName}>Premium add-on</Text>
+                    <Text style={vp.priceName}>Administrative amendment fee</Text>
                   </View>
                   <Text style={vp.vipChip}>VIP tier</Text>
                 </View>

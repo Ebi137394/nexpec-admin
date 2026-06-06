@@ -276,9 +276,9 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
         onRequest={async () => {
           const { data, error } = await requestNamedDisclosure(dealId);
           if (error) return { error: error.message };
-          const r = data as { agreement_id?: string; fee_cents?: number; currency?: string; body_md?: string | null; revealed?: boolean };
+          const r = data as { agreement_id?: string; fee_cents?: number; currency?: string; body_md?: string | null; tier_label?: string; revealed?: boolean };
           if (r?.revealed) { load(); return { error: 'Identity already disclosed for this deal.' }; }
-          return { agreementId: r.agreement_id ?? '', feeCents: r.fee_cents ?? 0, currency: r.currency ?? 'USD', bodyMd: r.body_md ?? null };
+          return { agreementId: r.agreement_id ?? '', feeCents: r.fee_cents ?? 0, currency: r.currency ?? 'USD', bodyMd: r.body_md ?? null, tier: r.tier_label };
         }}
         onSign={async (id, nm) => { const { error } = await signAgreement(id, nm); return { error }; }}
         onUnlocked={() => load()}

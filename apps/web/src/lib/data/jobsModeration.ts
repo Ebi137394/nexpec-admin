@@ -188,10 +188,16 @@ export async function fetchModerationApplicants(
 
     // Cascading SELECT — try wide projection first, then narrower if any
     // of the negotiation columns don't exist yet.
+    //
+    // BUGFIX: `applications` has NO `payout_amount_cents` column (that lives on
+    // `jobs`). Selecting it here made BOTH WIDE and MID error, so the loop
+    // silently fell through to NARROW — which omits `bid_amount_cents`. That's
+    // why the admin moderation panel showed every inspector bid as
+    // "no counter" even when the inspector had proposed a figure.
     const WIDE =
-      'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, admin_counter_cents, admin_comment, negotiation_status, inspector_decision, inspector_decision_note, inspector_decision_at, created_at';
+      'id, applicant_id, status, bid_amount_cents, cover_note, admin_counter_cents, admin_comment, negotiation_status, inspector_decision, inspector_decision_note, inspector_decision_at, created_at';
     const MID =
-      'id, applicant_id, status, bid_amount_cents, payout_amount_cents, cover_note, created_at';
+      'id, applicant_id, status, bid_amount_cents, cover_note, created_at';
     const NARROW = 'id, applicant_id, status, created_at';
 
     let data: Array<Record<string, unknown>> | null = null;
@@ -253,7 +259,9 @@ export async function fetchModerationApplicants(
         applicant_email: prof?.email ?? null,
         status: String(r.status ?? 'pending'),
         bid_amount_cents: (r.bid_amount_cents as number | null) ?? null,
-        payout_amount_cents: (r.payout_amount_cents as number | null) ?? null,
+        // `applications` has no payout_amount_cents column — the admin-set
+        // payout lives on the job. Kept on the type for the panel; always null.
+        payout_amount_cents: null,
         cover_note: (r.cover_note as string | null) ?? null,
         admin_counter_cents: (r.admin_counter_cents as number | null) ?? null,
         admin_comment: (r.admin_comment as string | null) ?? null,

@@ -48,10 +48,13 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
   // 2. CLIENT_SELECTED applications across those jobs.
   //    Includes `bid_amount_cents` (inspector's counter-bid) + cover note so
   //    admin can see what the inspector proposed before locking the spread.
+  // BUGFIX: `applications` has NO `payout_amount_cents` column (it lives on
+  // `jobs`). Selecting it here errored the whole query — and with no projection
+  // fallback, the entire Dispatch queue silently returned empty.
   const { data: rawApps, error: appsErr } = await supabase
     .from('applications')
     .select(
-      'id, job_id, applicant_id, payout_amount_cents, bid_amount_cents, cover_note, created_at',
+      'id, job_id, applicant_id, bid_amount_cents, cover_note, created_at',
     )
     .eq('status', 'CLIENT_SELECTED')
     .in('job_id', jobIds);
@@ -103,7 +106,8 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
       applicant_id: (a.applicant_id as string | null) ?? null,
       applicant_name: profile?.full_name ?? null,
       applicant_email: profile?.email ?? null,
-      payout_amount_cents: (a.payout_amount_cents as number | null) ?? null,
+      // Not a real applications column — admin payout is job-level. Always null.
+      payout_amount_cents: null,
       bid_amount_cents: (a.bid_amount_cents as number | null) ?? null,
       cover_note: (a.cover_note as string | null) ?? null,
       created_at: (a.created_at as string | null) ?? null,

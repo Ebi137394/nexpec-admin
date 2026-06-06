@@ -191,8 +191,7 @@ export default function SupplierDashboard() {
           <View style={s.actionsRow}>
             <Action icon="megaphone-outline" label="Opportunities" onPress={() => router.push('/suppliers/opportunities' as any)} />
             <Action icon="send-outline" label="My Bids" onPress={() => router.push('/suppliers/bids' as any)} />
-            <Action icon="document-text-outline" label="Contracts" onPress={() => router.push('/suppliers/contracts' as any)} />
-            <Action icon="reader-outline" label="Agreements" badge={pendingAgreements} onPress={() => router.push('/agreements' as any)} />
+            <Action icon="document-text-outline" label="Contracts" badge={pendingAgreements} onPress={() => router.push('/suppliers/contracts' as any)} />
             <Action icon="wallet-outline" label="Finance" onPress={() => router.push('/suppliers/finance' as any)} />
             <Action icon="shield-checkmark-outline" label="Documents" onPress={() => router.push('/suppliers/documents' as any)} />
             <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/inbox' as any)} />

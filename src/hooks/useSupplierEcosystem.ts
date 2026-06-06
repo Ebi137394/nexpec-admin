@@ -181,6 +181,46 @@ export async function fetchPendingAgreementCount(): Promise<number> {
   return count ?? 0;
 }
 
+// Native (turnkey-born) brokered-spine legs of a given kind for the signed-in party.
+// Folds into the mobile Contracts screens (mirrors web fetchMyNativeSpineContracts):
+// reads the price-blind unified_contracts_view; legacy_ref IS NULL so adopted V3 — which
+// already shows through the legacy contract surfaces — is never duplicated.
+export interface NativeSpineContract {
+  contractId: string;
+  kind: 'client_supply' | 'supplier_supply' | 'inspector_engagement';
+  status: string;
+  signable: boolean;
+  amountCents: number;
+  currency: string;
+  dealId: string | null;
+  jobId: string | null;
+  createdAt: string;
+  executedAt: string | null;
+}
+export async function fetchMyNativeSpineContracts(
+  kind: NativeSpineContract['kind'],
+): Promise<NativeSpineContract[]> {
+  const { data } = await supabase
+    .from('unified_contracts_view')
+    .select('contract_id, kind, status, signable, amount_cents, currency, deal_id, job_id, created_at, executed_at')
+    .eq('source', 'spine')
+    .is('legacy_ref', null)
+    .eq('kind', kind)
+    .order('created_at', { ascending: false });
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    contractId: String(r.contract_id),
+    kind: r.kind as NativeSpineContract['kind'],
+    status: String(r.status ?? ''),
+    signable: Boolean(r.signable),
+    amountCents: Number(r.amount_cents ?? 0),
+    currency: String(r.currency ?? 'USD'),
+    dealId: (r.deal_id as string | null) ?? null,
+    jobId: (r.job_id as string | null) ?? null,
+    createdAt: String(r.created_at ?? ''),
+    executedAt: (r.executed_at as string | null) ?? null,
+  }));
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  Supplier Dashboard data
 // ════════════════════════════════════════════════════════════════════════════

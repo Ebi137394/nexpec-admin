@@ -6,7 +6,7 @@
 //  Agreements awaiting the supplier's signature float to the top.
 // ════════════════════════════════════════════════════════════════════════════
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import {
   type SupplierContract,
   type SupplierContractStatus,
 } from '@/src/hooks/useSupplierContracts';
+import { fetchMyNativeSpineContracts, type NativeSpineContract } from '@/src/hooks/useSupplierEcosystem';
 import { formatUsd } from '@/src/core/utils/money';
 
 const C = {
@@ -74,6 +75,12 @@ export default function SupplierContractsListScreen() {
   const router = useRouter();
   const { items, loading, refetch } = useMySupplierContracts();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [spine, setSpine] = useState<NativeSpineContract[]>([]);
+  useEffect(() => {
+    let on = true;
+    fetchMyNativeSpineContracts('supplier_supply').then((r) => { if (on) setSpine(r); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   const { actionNeeded, inFlight, executed } = useMemo(
     () => ({
@@ -133,7 +140,7 @@ export default function SupplierContractsListScreen() {
               before funds are released.
             </Text>
 
-            {items.length === 0 ? (
+            {items.length === 0 && spine.length === 0 ? (
               <View style={s.empty}>
                 <FileSignature size={26} color={C.primary} strokeWidth={1.5} />
                 <Text style={s.emptyTitle}>No agreements yet</Text>
@@ -144,6 +151,17 @@ export default function SupplierContractsListScreen() {
               </View>
             ) : (
               <>
+                {spine.length > 0 && (
+                  <Section
+                    icon={<FileSignature size={13} color={C.primary} />}
+                    label="Turnkey supply agreements"
+                    tint={C.primary}
+                  >
+                    {spine.map((sp) => (
+                      <SpineRow key={sp.contractId} sp={sp} router={router} />
+                    ))}
+                  </Section>
+                )}
                 {actionNeeded.length > 0 && (
                   <Section
                     icon={<PenLine size={13} color={C.primary} />}
@@ -235,6 +253,38 @@ function ContractRow({
       </View>
       <View style={[s.badge, { backgroundColor: meta.toneDim }]}>
         <Text style={[s.badgeText, { color: meta.tone }]}>{meta.label}</Text>
+      </View>
+      <ChevronRight size={16} color={C.textMuted} />
+    </Pressable>
+  );
+}
+
+function SpineRow({
+  sp,
+  router,
+}: {
+  sp: NativeSpineContract;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const tone = sp.signable ? C.primary : sp.status === 'executed' ? C.ok : C.warn;
+  const toneDim = sp.signable ? C.primaryGlow : sp.status === 'executed' ? C.okGlow : C.warnDim;
+  const label = sp.signable ? 'SIGN NOW' : sp.status === 'executed' ? 'EXECUTED' : sp.status.toUpperCase();
+  return (
+    <Pressable
+      onPress={() => router.push(`/contracts/agreement/${sp.contractId}` as any)}
+      style={({ pressed }) => [s.row, pressed && { opacity: 0.85 }]}
+    >
+      <View style={s.rowIcon}>
+        <FileSignature size={17} color={C.primary} strokeWidth={1.8} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={s.rowTitle} numberOfLines={1}>Supplier Supply Agreement</Text>
+        <Text style={s.rowMeta} numberOfLines={1}>
+          {formatUsd(sp.amountCents)}, issued {new Date(sp.createdAt).toLocaleDateString()}
+        </Text>
+      </View>
+      <View style={[s.badge, { backgroundColor: toneDim }]}>
+        <Text style={[s.badgeText, { color: tone }]}>{label}</Text>
       </View>
       <ChevronRight size={16} color={C.textMuted} />
     </Pressable>

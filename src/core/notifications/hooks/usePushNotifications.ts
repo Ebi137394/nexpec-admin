@@ -38,6 +38,8 @@ const ALLOWED_DEEP_LINK_PATTERNS: readonly RegExp[] = [
   /^\/payment-screen(?:\?.*)?$/,
   /^\/agreements$/,
   /^\/agreements\/[0-9a-f-]+\/sign$/i,
+  /^\/contracts$/,
+  /^\/contracts\/agreement\/[0-9a-f-]+$/i,
 ];
 
 function routeFromNotificationData(data: unknown): string | null {

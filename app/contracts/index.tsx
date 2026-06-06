@@ -36,6 +36,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { fetchMyNativeSpineContracts, type NativeSpineContract } from '@/src/hooks/useSupplierEcosystem';
+import { formatUsd as fmtUsdSpine } from '@/src/core/utils/money';
 import RNAnimated, {
   FadeInDown,
   useSharedValue,
@@ -406,12 +408,67 @@ const roleColor = (role?: string | null): string => {
 };
 
 // ─────────────────────────────────────────────────────────────
+//  Brokered-spine legs folded into the unified Contracts hub.
+// ─────────────────────────────────────────────────────────────
+function SpineHeader({
+  legs,
+  router,
+}: {
+  legs: NativeSpineContract[];
+  router: ReturnType<typeof useRouter>;
+}) {
+  if (!legs || legs.length === 0) return null;
+  const go = (sp: NativeSpineContract) => {
+    if (sp.kind === 'client_supply' && sp.dealId) router.push(`/deals/${sp.dealId}/sign` as any);
+    else router.push(`/contracts/agreement/${sp.contractId}` as any);
+  };
+  return (
+    <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 }}>
+      <Text style={{ color: '#A78BFA', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 }}>
+        TURNKEY (BROKERED) CONTRACTS
+      </Text>
+      <View style={{ gap: 10 }}>
+        {legs.map((sp) => {
+          const tone = sp.signable ? '#7C3AED' : sp.status === 'executed' ? '#10F995' : '#F59E0B';
+          const label = sp.signable ? 'SIGN NOW' : sp.status === 'executed' ? 'EXECUTED' : sp.status.toUpperCase();
+          const title =
+            sp.kind === 'inspector_engagement'
+              ? 'Inspector Engagement'
+              : sp.kind === 'client_supply'
+                ? 'Supply & Inspection Agreement'
+                : 'Supplier Supply Agreement';
+          return (
+            <Pressable
+              key={sp.contractId}
+              onPress={() => go(sp)}
+              style={({ pressed }) => [
+                { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#0B1138', borderColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderRadius: 16, padding: 14 },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>{title}</Text>
+                <Text numberOfLines={1} style={{ color: '#A8B2C7', fontSize: 12, marginTop: 2 }}>{fmtUsdSpine(sp.amountCents)}</Text>
+              </View>
+              <View style={{ backgroundColor: tone + '22', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ color: tone, fontSize: 10, fontWeight: '800' }}>{label}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 //  SCREEN
 // ─────────────────────────────────────────────────────────────
 export default function ContractsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, role } = useAuth() as any;
+  const [spineLegs, setSpineLegs] = useState<NativeSpineContract[]>([]);
 
   // ★ Historically the codebase had two parallel auth providers
   //   (`providers/AuthProvider` shim + `src/contexts/AuthContext` canonical).
@@ -439,6 +496,14 @@ export default function ContractsScreen() {
     [role, user],
   );
   const isClientRole = userRole === 'client';
+
+  // Fold the brokered-spine legs into this unified Contracts hub (mirrors web).
+  useEffect(() => {
+    let on = true;
+    const kind = userRole === 'inspector' ? 'inspector_engagement' : 'client_supply';
+    fetchMyNativeSpineContracts(kind).then((r) => { if (on) setSpineLegs(r); }).catch(() => {});
+    return () => { on = false; };
+  }, [userRole]);
 
   // ── Data state ──
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -1091,6 +1156,7 @@ export default function ContractsScreen() {
         <FlatList
           data={visible}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={<SpineHeader legs={spineLegs} router={router} />}
           renderItem={({ item, index }) => (
             <ContractCard
               contract={item}

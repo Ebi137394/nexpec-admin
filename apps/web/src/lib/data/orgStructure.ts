@@ -690,6 +690,7 @@ export async function resolveActiveOrgId(): Promise<string | null> {
  * Used by the client layout to populate the workspace switcher in one go.
  */
 export async function fetchActiveOrgInfo(): Promise<ActiveOrgInfo> {
+ try {
   const memberships = await fetchMyOrgMemberships();
   if (memberships.length === 0) {
     return { active: null, memberships: [] };
@@ -713,6 +714,12 @@ export async function fetchActiveOrgInfo(): Promise<ActiveOrgInfo> {
     active: { ...electedActive, is_active_org: true },
     memberships: adjusted,
   };
+ } catch (err) {
+   // A transient Supabase reject (network blip / cold pool) must never 500 the
+   // client layout — degrade to "no active org" so the page still renders.
+   if (typeof console !== 'undefined') console.warn('[fetchActiveOrgInfo] degraded to no-org:', err);
+   return { active: null, memberships: [] };
+ }
 }
 
 /**

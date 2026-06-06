@@ -1,5 +1,14 @@
 -- Create findings table for compliance tracking
-CREATE TABLE findings (
+-- Replay-safety: finding_severity was created out-of-band on the live DB and is in no
+-- migration, so a from-scratch replay (db reset / --include-all) died here. Create it
+-- guarded + make the table idempotent. No effect on prod (which already has the type).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'finding_severity') THEN
+    CREATE TYPE finding_severity AS ENUM ('low', 'medium', 'high', 'critical');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS findings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   inspector_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

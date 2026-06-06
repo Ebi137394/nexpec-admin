@@ -12,6 +12,7 @@
 
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { runWithRetry } from '@/lib/supabase/resilient';
 import { Sidebar } from '@/components/admin/Sidebar';
 import { Header } from '@/components/admin/Header';
 import { NotificationToasterGate } from '@/components/notifications/NotificationToasterGate';
@@ -31,10 +32,21 @@ export default async function AdminLayout({
   const supabase = await createSupabaseServerClient();
 
   // Defence-in-depth. Middleware should already have redirected, but if a
-  // request slips through (e.g. cache anomaly), bounce here too.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // request slips through (e.g. cache anomaly), bounce here too. The auth read
+  // is retried on transient rejection; a persistent failure degrades to the
+  // sign-in redirect rather than a 500 (a throw in a layout escapes to the
+  // global error page — no child error.tsx can catch it).
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >['data']['user'] = null;
+  try {
+    const res = await runWithRetry(() => supabase.auth.getUser(), {
+      label: 'admin-layout getUser',
+    });
+    user = res.data.user;
+  } catch {
+    /* persistent auth read failure — fall through to the sign-in redirect */
+  }
 
   if (!user) {
     redirect('/sign-in?next=' + encodeURIComponent('/admin/dashboard'));
@@ -44,11 +56,32 @@ export default async function AdminLayout({
   const isOwnerByEmail =
     userEmail.length > 0 && OWNER_EMAILS.includes(userEmail);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, email')
-    .eq('id', user.id)
-    .maybeSingle();
+  // Profile read, retried on transient rejection. A persistent failure leaves
+  // `profile` null; access then falls back to the owner-by-email allow-list.
+  let profile: {
+    role: string | null;
+    full_name: string | null;
+    email: string | null;
+  } | null = null;
+  try {
+    const res = await runWithRetry(
+      () =>
+        supabase
+          .from('profiles')
+          .select('role, full_name, email')
+          .eq('id', user!.id)
+          .maybeSingle(),
+      { label: 'admin-layout profile' },
+    );
+    profile =
+      (res.data as {
+        role: string | null;
+        full_name: string | null;
+        email: string | null;
+      } | null) ?? null;
+  } catch {
+    /* persistent profile read failure — rely on isOwnerByEmail */
+  }
 
   // Same defensive normalisation as the middleware — trim + lowercase so
   // whitespace or case drift in the DB doesn't lock the owner out.

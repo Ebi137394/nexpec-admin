@@ -12,6 +12,7 @@
 
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { runWithRetry } from '@/lib/supabase/resilient';
 import { Sidebar } from '@/components/client/Sidebar';
 import { Header } from '@/components/admin/Header';
 import { NotificationToasterGate } from '@/components/notifications/NotificationToasterGate';
@@ -39,9 +40,21 @@ export default async function ClientLayout({
 }) {
   const supabase = await createSupabaseServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Auth read, retried on transient rejection. A persistent failure degrades
+  // to "unauthenticated" (the sign-in redirect below) rather than a 500 — a
+  // throw here escapes to the global error page because no child error.tsx can
+  // catch a parent layout's render.
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >['data']['user'] = null;
+  try {
+    const res = await runWithRetry(() => supabase.auth.getUser(), {
+      label: 'client-layout getUser',
+    });
+    user = res.data.user;
+  } catch {
+    /* persistent auth read failure — fall through to the sign-in redirect */
+  }
 
   if (!user) {
     redirect('/sign-in?next=' + encodeURIComponent('/client/dashboard'));
@@ -51,11 +64,33 @@ export default async function ClientLayout({
   const isOwnerByEmail =
     userEmail.length > 0 && OWNER_EMAILS.includes(userEmail);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, email')
-    .eq('id', user.id)
-    .maybeSingle();
+  // Profile read, retried on transient rejection. A persistent failure leaves
+  // `profile` null; access then falls back to the owner-by-email allow-list
+  // below instead of 500-ing the shell.
+  let profile: {
+    role: string | null;
+    full_name: string | null;
+    email: string | null;
+  } | null = null;
+  try {
+    const res = await runWithRetry(
+      () =>
+        supabase
+          .from('profiles')
+          .select('role, full_name, email')
+          .eq('id', user!.id)
+          .maybeSingle(),
+      { label: 'client-layout profile' },
+    );
+    profile =
+      (res.data as {
+        role: string | null;
+        full_name: string | null;
+        email: string | null;
+      } | null) ?? null;
+  } catch {
+    /* persistent profile read failure — rely on isOwnerByEmail */
+  }
 
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
 

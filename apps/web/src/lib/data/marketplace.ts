@@ -240,6 +240,48 @@ export const onboardSupplier = (a: { legal_name: string; capabilities: string[];
     p_lat: a.lat ?? null, p_lng: a.lng ?? null, p_country: a.country ?? null, p_headline: a.headline ?? null,
   });
 
+// ── P3/P4: trust artifacts (A/B/C) + review gate (D) + tiered (E) + identity escrow (F) ──
+export interface TrustDossier { kind: string; handle: string; competencies: string[]; certifications: string[]; region: string | null; scope: string | null; redacted_cv: string | null; }
+export interface TrustCertificate { kind: string; statement: string; eo_policy_ref: string; verify_path: string; }
+export interface TrustIndependence { kind: string; supplier_handle: string | null; statement: string; }
+export interface AssignedInspector {
+  deal_id: string;
+  handle: string;
+  dossier: TrustDossier | null;
+  certificate: TrustCertificate | null;
+  independence: TrustIndependence | null;
+  artifacts_seal_id: string | null;
+  client_review: 'pending' | 'approved' | 'objected' | 'auto_approved';
+  review_deadline: string | null;
+  engagement_status: string;
+  transparency_tier: string;
+  report_confirmed_at: string | null;
+  inspector_legal_name: string | null;   // F: NULL until the final report is admin-confirmed
+  inspector_signature: string | null;
+}
+// Client reads the anonymized, identity-escrowed view (never the base meta row).
+export async function fetchAssignedInspector(dealId: string): Promise<AssignedInspector | null> {
+  const { data } = await sb().from('client_assigned_inspector_view').select('*').eq('deal_id', dealId).maybeSingle();
+  return (data ?? null) as AssignedInspector | null;
+}
+// D: client approves or objects to the assigned inspector.
+export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'objected', reason?: string) =>
+  sb().rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
+
+// Generic agreement (a counterparty's OWN leg) for /agreements + /agreements/[id]/sign.
+// RLS scopes rows to counterparty_id = auth.uid() (or admin), so each party sees only theirs.
+export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; }
+export async function fetchMyAgreements(): Promise<MyAgreement[]> {
+  const { data } = await sb().from('agreements')
+    .select('id, deal_id, kind, status, amount_cents, currency').order('kind');
+  return (data ?? []) as MyAgreement[];
+}
+export async function fetchAgreement(agreementId: string): Promise<(MyAgreement & { body_md: string | null }) | null> {
+  const { data } = await sb().from('agreements')
+    .select('id, deal_id, kind, status, amount_cents, currency, body_md').eq('id', agreementId).maybeSingle();
+  return (data ?? null) as (MyAgreement & { body_md: string | null }) | null;
+}
+
 // Seal an uploaded vendor document through the Trust Spine (Phase 1 Custody Core).
 export const sealVendorDocument = (a: {
   storage_path: string; content_sha256: string; doc_type?: string; title?: string | null;

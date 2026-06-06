@@ -140,6 +140,40 @@ export async function fetchClientAgreement(dealId: string): Promise<ClientAgreem
 export const signAgreement = (agreementId: string, signedName: string) =>
   supabase.rpc('sign_agreement', { p_agreement_id: agreementId, p_signed_name: signedName });
 
+// ── P3/P4: trust artifacts (A/B/C) + review gate (D) + tiered (E) + identity escrow (F) ──
+export interface TrustDossier { kind: string; handle: string; competencies: string[]; certifications: string[]; region: string | null; scope: string | null; redacted_cv: string | null; }
+export interface TrustCertificate { kind: string; statement: string; eo_policy_ref: string; verify_path: string; }
+export interface TrustIndependence { kind: string; supplier_handle: string | null; statement: string; }
+export interface AssignedInspector {
+  deal_id: string; handle: string;
+  dossier: TrustDossier | null; certificate: TrustCertificate | null; independence: TrustIndependence | null;
+  artifacts_seal_id: string | null;
+  client_review: 'pending' | 'approved' | 'objected' | 'auto_approved';
+  review_deadline: string | null; engagement_status: string; transparency_tier: string;
+  report_confirmed_at: string | null;
+  inspector_legal_name: string | null; inspector_signature: string | null; // F: NULL until report admin-confirmed
+}
+// Client reads the anonymized, identity-escrowed view (never the base meta row).
+export async function fetchAssignedInspector(dealId: string): Promise<AssignedInspector | null> {
+  const { data } = await supabase.from('client_assigned_inspector_view').select('*').eq('deal_id', dealId).maybeSingle();
+  return (data ?? null) as AssignedInspector | null;
+}
+// D: client approves or objects to the assigned inspector.
+export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'objected', reason?: string) =>
+  supabase.rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
+
+// Generic agreement (a counterparty's OWN leg) for /agreements + /agreements/[id]/sign.
+export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; body_md?: string | null; }
+export async function fetchMyAgreements(): Promise<MyAgreement[]> {
+  const { data } = await supabase.from('agreements').select('id, deal_id, kind, status, amount_cents, currency').order('kind');
+  return (data ?? []) as MyAgreement[];
+}
+export async function fetchAgreement(agreementId: string): Promise<MyAgreement | null> {
+  const { data } = await supabase.from('agreements')
+    .select('id, deal_id, kind, status, amount_cents, currency, body_md').eq('id', agreementId).maybeSingle();
+  return (data ?? null) as MyAgreement | null;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  Supplier Dashboard data
 // ════════════════════════════════════════════════════════════════════════════

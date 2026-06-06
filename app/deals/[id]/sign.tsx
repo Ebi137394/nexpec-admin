@@ -1,13 +1,16 @@
 // app/deals/[id]/sign.tsx — mobile Review & sign (parity with web /deals/[id]/sign)
 //   Signing executes the Client↔NEXPEC supply agreement and HOLDS the client
 //   price in escrow (contract-before-money), which dispatches the inspection.
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../../src/components/DynamicForm/theme';
-import { fetchClientAgreement, signAgreement, type ClientAgreement } from '../../../src/hooks/useSupplierEcosystem';
+import {
+  fetchClientAgreement, signAgreement, fetchAssignedInspector, clientReviewEngagement,
+  type ClientAgreement, type AssignedInspector,
+} from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
 
 export default function DealSignScreen() {
@@ -53,7 +56,7 @@ export default function DealSignScreen() {
       ) : !agr ? (
         <View style={s.center}><Text style={s.muted}>No supply agreement found for this deal.</Text></View>
       ) : executed ? (
-        <View style={s.content}>
+        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <View style={s.okCard}>
             <Ionicons name="checkmark-circle" size={22} color={T.colors.success} />
             <Text style={s.okTitle}>Signed and escrow funded</Text>
@@ -62,7 +65,8 @@ export default function DealSignScreen() {
               <Text style={s.primaryBtnTxt}>Back to RFQs</Text>
             </TouchableOpacity>
           </View>
-        </View>
+          <AssignedInspectorCard dealId={id!} />
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <Text style={s.kicker}>SUPPLY AND INSPECTION AGREEMENT</Text>
@@ -114,4 +118,152 @@ const s = StyleSheet.create({
   okCard: { alignSelf: 'stretch', gap: 8, backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.lg },
   okTitle: { color: T.colors.text, fontSize: 18, fontWeight: '800' },
   okBody: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 20 },
+});
+
+// ── Assigned-inspector trust panel: A/B/C dossier + D review gate + F identity escrow ──
+const REVIEW_LABEL: Record<string, string> = {
+  pending: 'Awaiting your review', approved: 'Approved by you',
+  objected: 'Objection raised', auto_approved: 'Auto-approved',
+};
+
+function AssignedInspectorCard({ dealId }: { dealId: string }) {
+  const [insp, setInsp] = useState<AssignedInspector | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showObject, setShowObject] = useState(false);
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetchAssignedInspector(dealId).then(setInsp).catch(() => setInsp(null)).finally(() => setLoading(false));
+  }, [dealId]);
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <View style={c.card}><ActivityIndicator color={T.colors.primary} /></View>;
+  if (!insp) return (
+    <View style={c.card}>
+      <Text style={c.h}>Inspector assignment pending</Text>
+      <Text style={c.body}>NEXPEC is blind-matching a credential-verified inspector. Their independent, anonymized dossier will appear here for your review before work begins.</Text>
+    </View>
+  );
+
+  const review = async (decision: 'approved' | 'objected') => {
+    if (decision === 'objected' && !reason.trim()) { setShowObject(true); return; }
+    setBusy(decision); setErr(null);
+    const { error } = await clientReviewEngagement(dealId, decision, decision === 'objected' ? reason.trim() : undefined);
+    setBusy(null);
+    if (error) { setErr(error.message); return; }
+    setShowObject(false); setReason(''); load();
+  };
+
+  const d = insp.dossier, cert = insp.certificate, indep = insp.independence;
+  const pending = insp.client_review === 'pending';
+  const revealed = !!insp.inspector_legal_name;
+  const reviewColor = insp.client_review === 'objected' ? T.colors.error : pending ? T.colors.primaryLight : T.colors.success;
+
+  return (
+    <View style={c.wrap}>
+      <View style={c.head}>
+        <Ionicons name="ribbon" size={16} color={T.colors.primaryLight} />
+        <Text style={c.title}>Your assigned inspector</Text>
+        <Text style={c.handle}>{insp.handle}</Text>
+      </View>
+      <View style={c.pillRow}>
+        <Text style={[c.pill, { color: T.colors.primaryLight, borderColor: T.colors.primaryLight }]}>{insp.transparency_tier} tier</Text>
+        <Text style={[c.pill, { color: reviewColor, borderColor: reviewColor }]}>{REVIEW_LABEL[insp.client_review] ?? insp.client_review}</Text>
+      </View>
+
+      {!!d && (
+        <View style={c.sect}>
+          <Text style={c.sectLabel}>CREDENTIAL DOSSIER</Text>
+          {insp.transparency_tier === 'named' && !!d.redacted_cv && <Text style={c.cv}>{d.redacted_cv}</Text>}
+          <Text style={c.kv}><Text style={c.k}>Competencies: </Text>{d.competencies?.length ? d.competencies.join(', ') : 'n/a'}</Text>
+          <Text style={c.kv}><Text style={c.k}>Certifications: </Text>{d.certifications?.length ? d.certifications.join(', ') : 'n/a'}</Text>
+          <Text style={c.kv}><Text style={c.k}>Region: </Text>{d.region ?? 'n/a'}</Text>
+          <Text style={c.kv}><Text style={c.k}>Scope: </Text>{d.scope ?? 'n/a'}</Text>
+        </View>
+      )}
+      {!!cert && (
+        <View style={c.sect}>
+          <Text style={c.sectLabel}>NEXPEC CERTIFICATE</Text>
+          <Text style={c.body}>{cert.statement}</Text>
+          {!!insp.artifacts_seal_id && <Text style={c.seal}>Seal {insp.artifacts_seal_id}</Text>}
+        </View>
+      )}
+      {!!indep && (
+        <View style={c.sect}>
+          <Text style={c.sectLabel}>INDEPENDENCE</Text>
+          <Text style={c.body}>{indep.statement}</Text>
+        </View>
+      )}
+
+      {pending ? (
+        <View style={[c.sect, { borderColor: T.colors.primaryLight }]}>
+          <Text style={c.body}>
+            Review the dossier above, then approve to let work begin{insp.review_deadline
+              ? `. It auto-approves ${new Date(insp.review_deadline).toLocaleString()} if you take no action.`
+              : ' (manual approval, no deadline).'}
+          </Text>
+          {showObject && (
+            <TextInput value={reason} onChangeText={setReason} placeholder="Tell NEXPEC why so we can re-match" placeholderTextColor={T.colors.textMuted} multiline style={c.objInput} />
+          )}
+          {!!err && <Text style={c.err}>{err}</Text>}
+          <View style={c.btnRow}>
+            <TouchableOpacity style={[c.approveBtn, busy === 'approved' && { opacity: 0.6 }]} disabled={busy === 'approved'} onPress={() => review('approved')} activeOpacity={0.85}>
+              <Ionicons name="checkmark-circle" size={15} color="#0b0b0f" />
+              <Text style={c.approveTxt}>{busy === 'approved' ? 'Approving…' : 'Approve'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[c.objectBtn, busy === 'objected' && { opacity: 0.6 }]} disabled={busy === 'objected'} onPress={() => review('objected')} activeOpacity={0.85}>
+              <Ionicons name="flag" size={15} color={T.colors.error} />
+              <Text style={c.objectTxt}>{showObject ? (busy === 'objected' ? 'Submitting…' : 'Submit objection') : 'Object'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : insp.client_review === 'objected' ? (
+        <Text style={c.note}>You objected to this inspector. NEXPEC will blind-match a replacement and present a new dossier here.</Text>
+      ) : (
+        <Text style={c.note}>Inspector {insp.client_review === 'auto_approved' ? 'auto-approved' : 'approved'}; work can proceed.</Text>
+      )}
+
+      <View style={c.sect}>
+        <Text style={c.sectLabel}>INSPECTOR IDENTITY</Text>
+        {revealed ? (
+          <>
+            <Text style={c.kv}><Text style={c.k}>Legal name: </Text>{insp.inspector_legal_name}</Text>
+            {!!insp.inspector_signature && <Text style={c.kv}><Text style={c.k}>Signature: </Text>{insp.inspector_signature}</Text>}
+            <Text style={c.seal}>Released with the admin-confirmed final report for your ASME/API audit file.</Text>
+          </>
+        ) : (
+          <Text style={c.body}>Held in escrow. The real name and signature of the inspector are released to you when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const c = StyleSheet.create({
+  card: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginTop: 16 },
+  wrap: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.primary, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginTop: 16, gap: 12 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { color: T.colors.text, fontSize: 15, fontWeight: '800', flex: 1 },
+  handle: { color: T.colors.primaryLight, fontSize: 13, fontWeight: '700' },
+  pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', overflow: 'hidden' },
+  sect: { backgroundColor: T.colors.inputBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.md, padding: 12, gap: 4 },
+  sectLabel: { color: T.colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 2 },
+  cv: { color: T.colors.text, fontSize: 13, fontStyle: 'italic', marginBottom: 4 },
+  kv: { color: T.colors.text, fontSize: 13, lineHeight: 19 },
+  k: { color: T.colors.textMuted },
+  body: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 19 },
+  seal: { color: T.colors.textMuted, fontSize: 11, marginTop: 4 },
+  h: { color: T.colors.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  objInput: { backgroundColor: T.colors.background, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.md, color: T.colors.text, padding: 10, fontSize: 13, marginTop: 8, minHeight: 64, textAlignVertical: 'top' },
+  err: { color: T.colors.error, fontSize: 13, marginTop: 8 },
+  btnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  approveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: T.colors.success, borderRadius: T.borderRadius.md, paddingHorizontal: 14, paddingVertical: 10 },
+  approveTxt: { color: '#0b0b0f', fontWeight: '800', fontSize: 13 },
+  objectBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderColor: T.colors.error, borderWidth: 1, borderRadius: T.borderRadius.md, paddingHorizontal: 14, paddingVertical: 10 },
+  objectTxt: { color: T.colors.error, fontWeight: '800', fontSize: 13 },
+  note: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 19, padding: 12, backgroundColor: T.colors.inputBackground, borderRadius: T.borderRadius.md },
 });

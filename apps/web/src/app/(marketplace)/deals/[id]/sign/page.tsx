@@ -7,13 +7,14 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Award, Scale, Eye, Flag, BadgeCheck, Wallet, FileWarning, Users } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Eye, Flag, BadgeCheck, Wallet, FileWarning, Users, Crown } from 'lucide-react';
 import {
   fetchClientAgreement, signAgreement, formatUsd, fetchAssignedInspector, clientReviewEngagement,
   fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
   fetchInspectorShortlist, selectInspector,
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '@/lib/data/marketplace';
+import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '@/components/contracts/InspectorTrust';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
 
@@ -159,6 +160,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
   const [showObject, setShowObject] = useState(false);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [vipOpen, setVipOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -204,38 +206,26 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
         </div>
       </header>
 
-      {d && (
-        <div className="rounded-xl border border-ink-600 bg-ink-900/60 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-industrial text-white/60"><Award size={13} /> Credential dossier</p>
-          {insp.transparency_tier === 'named' && d.redacted_cv && (
-            <p className="mt-2 text-sm font-medium italic text-white/90">{d.redacted_cv}</p>
-          )}
-          <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            <div><dt className="text-white/50">Competencies</dt><dd className="text-white/90">{d.competencies?.length ? d.competencies.join(', ') : 'n/a'}</dd></div>
-            <div><dt className="text-white/50">Certifications</dt><dd className="text-white/90">{d.certifications?.length ? d.certifications.join(', ') : 'n/a'}</dd></div>
-            <div><dt className="text-white/50">Region</dt><dd className="text-white/90">{d.region ?? 'n/a'}</dd></div>
-            <div><dt className="text-white/50">Scope</dt><dd className="text-white/90">{d.scope ?? 'n/a'}</dd></div>
-          </dl>
-        </div>
-      )}
+      <CredentialCertificate
+        data={{
+          handle: insp.handle,
+          competencies: d?.competencies ?? [],
+          certifications: d?.certifications ?? [],
+          region: d?.region ?? null,
+          scope: d?.scope ?? null,
+          tier: insp.transparency_tier,
+          sealId: insp.artifacts_seal_id,
+          verifyPath: cert?.verify_path ?? '/passport',
+          redactedCv: d?.redacted_cv ?? null,
+          statement: cert?.statement ?? null,
+          eoPolicyRef: cert?.eo_policy_ref ?? null,
+        }}
+        revealed={revealed}
+        legalName={insp.inspector_legal_name}
+        onReveal={revealed ? undefined : () => setVipOpen(true)}
+      />
 
-      {cert && (
-        <div className="rounded-xl border border-ink-600 bg-ink-900/60 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-industrial text-white/60"><ShieldCheck size={13} /> NEXPEC certificate</p>
-          <p className="mt-2 text-sm text-white/80">{cert.statement}</p>
-          <div className="mt-2 flex items-center gap-3 text-xs text-white/40">
-            {insp.artifacts_seal_id && <span>Seal {insp.artifacts_seal_id}</span>}
-            <Link href={cert.verify_path || '/passport'} className="text-violet-200 hover:underline">Verify →</Link>
-          </div>
-        </div>
-      )}
-
-      {indep && (
-        <div className="rounded-xl border border-ink-600 bg-ink-900/60 p-4">
-          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-industrial text-white/60"><Scale size={13} /> Independence</p>
-          <p className="mt-2 text-sm text-white/80">{indep.statement}</p>
-        </div>
-      )}
+      <NeutralityBadge statement={indep?.statement} supplierHandle={indep?.supplier_handle} />
 
       {pending ? (
         <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
@@ -268,9 +258,16 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
             <p className="mt-1 text-xs text-white/50">Released with the admin-confirmed final report for your ASME/API audit file.</p>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-white/70">Held in escrow. The real name and signature of the inspector are released to you when the final report is admin-confirmed, giving you an auditable deliverable.</p>
+          <div className="mt-2">
+            <p className="text-sm text-white/70">Held in escrow. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</p>
+            <button onClick={() => setVipOpen(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">
+              <Crown size={14} /> Unlock named disclosure (VIP)
+            </button>
+          </div>
         )}
       </div>
+
+      <VipDisclosureGate open={vipOpen} onClose={() => setVipOpen(false)} tier={insp.transparency_tier} handle={insp.handle} />
     </div>
   );
 }
@@ -364,6 +361,7 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [vip, setVip] = useState<{ handle: string; tier: string } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -389,30 +387,35 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
         <Users size={18} className="text-violet-glow" />
         <h2 className="text-base font-bold text-white">Choose your inspector</h2>
       </header>
-      <p className="text-sm text-white/70">NEXPEC has shortlisted credential-verified, independent inspectors for your scope. Review the anonymized dossiers and select one; their identity is revealed to you on the admin-confirmed final report.</p>
+      <p className="text-sm text-white/70">NEXPEC has shortlisted credential-verified, independent inspectors for your scope. Review the sealed digital certificates and select one; their identity is revealed to you on the admin-confirmed final report.</p>
       {err && <p className="text-sm text-accent-red">{err}</p>}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {offered.map((c) => (
-          <div key={c.candidate_id} className="flex flex-col rounded-xl border border-ink-600 bg-ink-900/60 p-4">
-            <div className="flex items-center justify-between">
-              <span className="rounded-md bg-violet-500/20 px-2 py-0.5 text-xs font-bold text-violet-100">Option {c.slot}</span>
-              <span className="font-mono text-xs text-violet-200">{c.handle}</span>
-            </div>
-            {c.dossier && (
-              <dl className="mt-3 space-y-1.5 text-xs">
-                <div><dt className="text-white/40">Competencies</dt><dd className="text-white/85">{c.dossier.competencies?.length ? c.dossier.competencies.join(', ') : 'n/a'}</dd></div>
-                <div><dt className="text-white/40">Certifications</dt><dd className="text-white/85">{c.dossier.certifications?.length ? c.dossier.certifications.join(', ') : 'n/a'}</dd></div>
-                <div><dt className="text-white/40">Region</dt><dd className="text-white/85">{c.dossier.region ?? 'n/a'}</dd></div>
-                {c.transparency_tier === 'named' && c.dossier.redacted_cv && <p className="italic text-white/70">{c.dossier.redacted_cv}</p>}
-              </dl>
-            )}
-            {c.independence && <p className="mt-2 text-[11px] text-white/50">{c.independence.statement}</p>}
-            <button disabled={!!busy} onClick={() => pick(c.candidate_id)} className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-violet py-2 text-sm font-bold text-white hover:bg-violet-deep disabled:opacity-60">
-              {busy === c.candidate_id ? 'Selecting…' : 'Select'}
+          <div key={c.candidate_id} className="flex flex-col gap-3">
+            <CredentialCertificate
+              slot={c.slot}
+              data={{
+                handle: c.handle,
+                competencies: c.dossier?.competencies ?? [],
+                certifications: c.dossier?.certifications ?? [],
+                region: c.dossier?.region ?? null,
+                scope: c.dossier?.scope ?? null,
+                tier: c.transparency_tier,
+                statement: c.certificate?.statement ?? null,
+                eoPolicyRef: c.certificate?.eo_policy_ref ?? null,
+                verifyPath: c.certificate?.verify_path ?? null,
+                redactedCv: c.dossier?.redacted_cv ?? null,
+              }}
+              onReveal={() => setVip({ handle: c.handle, tier: c.transparency_tier })}
+            />
+            <NeutralityBadge statement={c.independence?.statement} supplierHandle={c.independence?.supplier_handle} />
+            <button disabled={!!busy} onClick={() => pick(c.candidate_id)} className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet py-2.5 text-sm font-bold text-white hover:bg-violet-deep disabled:opacity-60">
+              {busy === c.candidate_id ? 'Selecting…' : `Select Option ${c.slot}`}
             </button>
           </div>
         ))}
       </div>
+      <VipDisclosureGate open={!!vip} onClose={() => setVip(null)} tier={vip?.tier ?? ''} handle={vip?.handle ?? ''} />
     </div>
   );
 }

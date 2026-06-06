@@ -14,6 +14,7 @@ import {
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
+import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '../../../src/components/contracts/InspectorTrust';
 
 export default function DealSignScreen() {
   const router = useRouter();
@@ -150,6 +151,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
   const [showObject, setShowObject] = useState(false);
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [vipOpen, setVipOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -191,29 +193,24 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
         <Text style={[c.pill, { color: reviewColor, borderColor: reviewColor }]}>{REVIEW_LABEL[insp.client_review] ?? insp.client_review}</Text>
       </View>
 
-      {!!d && (
-        <View style={c.sect}>
-          <Text style={c.sectLabel}>CREDENTIAL DOSSIER</Text>
-          {insp.transparency_tier === 'named' && !!d.redacted_cv && <Text style={c.cv}>{d.redacted_cv}</Text>}
-          <Text style={c.kv}><Text style={c.k}>Competencies: </Text>{d.competencies?.length ? d.competencies.join(', ') : 'n/a'}</Text>
-          <Text style={c.kv}><Text style={c.k}>Certifications: </Text>{d.certifications?.length ? d.certifications.join(', ') : 'n/a'}</Text>
-          <Text style={c.kv}><Text style={c.k}>Region: </Text>{d.region ?? 'n/a'}</Text>
-          <Text style={c.kv}><Text style={c.k}>Scope: </Text>{d.scope ?? 'n/a'}</Text>
-        </View>
-      )}
-      {!!cert && (
-        <View style={c.sect}>
-          <Text style={c.sectLabel}>NEXPEC CERTIFICATE</Text>
-          <Text style={c.body}>{cert.statement}</Text>
-          {!!insp.artifacts_seal_id && <Text style={c.seal}>Seal {insp.artifacts_seal_id}</Text>}
-        </View>
-      )}
-      {!!indep && (
-        <View style={c.sect}>
-          <Text style={c.sectLabel}>INDEPENDENCE</Text>
-          <Text style={c.body}>{indep.statement}</Text>
-        </View>
-      )}
+      <CredentialCertificate
+        data={{
+          handle: insp.handle,
+          competencies: d?.competencies ?? [],
+          certifications: d?.certifications ?? [],
+          region: d?.region ?? null,
+          scope: d?.scope ?? null,
+          tier: insp.transparency_tier,
+          sealId: insp.artifacts_seal_id,
+          statement: cert?.statement ?? null,
+          eoPolicyRef: cert?.eo_policy_ref ?? null,
+          redactedCv: d?.redacted_cv ?? null,
+        }}
+        revealed={revealed}
+        legalName={insp.inspector_legal_name}
+        onReveal={revealed ? undefined : () => setVipOpen(true)}
+      />
+      <NeutralityBadge statement={indep?.statement} supplierHandle={indep?.supplier_handle} />
 
       {pending ? (
         <View style={[c.sect, { borderColor: T.colors.primaryLight }]}>
@@ -252,9 +249,16 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
             <Text style={c.seal}>Released with the admin-confirmed final report for your ASME/API audit file.</Text>
           </>
         ) : (
-          <Text style={c.body}>Held in escrow. The real name and signature of the inspector are released to you when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
+          <>
+            <Text style={c.body}>Held in escrow. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
+            <TouchableOpacity style={c.vipBtn} onPress={() => setVipOpen(true)} activeOpacity={0.85}>
+              <Ionicons name="diamond" size={14} color="#fbbf24" />
+              <Text style={c.vipBtnTxt}>Unlock named disclosure (VIP)</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
+      <VipDisclosureGate open={vipOpen} onClose={() => setVipOpen(false)} tier={insp.transparency_tier} handle={insp.handle} />
     </View>
   );
 }
@@ -357,6 +361,7 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [vip, setVip] = useState<{ handle: string; tier: string } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -385,26 +390,30 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
       <Text style={c.body}>NEXPEC shortlisted credential-verified, independent inspectors for your scope. Pick one; their identity is revealed on the admin-confirmed final report.</Text>
       {!!err && <Text style={c.err}>{err}</Text>}
       {offered.map((cd) => (
-        <View key={cd.candidate_id} style={c.sect}>
-          <View style={c.candHead}>
-            <Text style={c.slotChip}>Option {cd.slot}</Text>
-            <Text style={c.handle}>{cd.handle}</Text>
-          </View>
-          {!!cd.dossier && (
-            <>
-              <Text style={c.kv}><Text style={c.k}>Competencies: </Text>{cd.dossier.competencies?.length ? cd.dossier.competencies.join(', ') : 'n/a'}</Text>
-              <Text style={c.kv}><Text style={c.k}>Certifications: </Text>{cd.dossier.certifications?.length ? cd.dossier.certifications.join(', ') : 'n/a'}</Text>
-              <Text style={c.kv}><Text style={c.k}>Region: </Text>{cd.dossier.region ?? 'n/a'}</Text>
-              {cd.transparency_tier === 'named' && !!cd.dossier.redacted_cv && <Text style={c.cv}>{cd.dossier.redacted_cv}</Text>}
-            </>
-          )}
-          {!!cd.independence && <Text style={c.seal}>{cd.independence.statement}</Text>}
-          <TouchableOpacity style={[c.fundBtn, { marginTop: 10 }, !!busy && { opacity: 0.6 }]} disabled={!!busy} onPress={() => pick(cd.candidate_id)} activeOpacity={0.85}>
+        <View key={cd.candidate_id} style={{ gap: 10 }}>
+          <CredentialCertificate
+            slot={cd.slot}
+            data={{
+              handle: cd.handle,
+              competencies: cd.dossier?.competencies ?? [],
+              certifications: cd.dossier?.certifications ?? [],
+              region: cd.dossier?.region ?? null,
+              scope: cd.dossier?.scope ?? null,
+              tier: cd.transparency_tier,
+              statement: cd.certificate?.statement ?? null,
+              eoPolicyRef: cd.certificate?.eo_policy_ref ?? null,
+              redactedCv: cd.dossier?.redacted_cv ?? null,
+            }}
+            onReveal={() => setVip({ handle: cd.handle, tier: cd.transparency_tier })}
+          />
+          <NeutralityBadge statement={cd.independence?.statement} supplierHandle={cd.independence?.supplier_handle} />
+          <TouchableOpacity style={[c.fundBtn, !!busy && { opacity: 0.6 }]} disabled={!!busy} onPress={() => pick(cd.candidate_id)} activeOpacity={0.85}>
             <Ionicons name="checkmark-circle" size={15} color="#fff" />
             <Text style={c.fundTxt}>{busy === cd.candidate_id ? 'Selecting…' : `Select Option ${cd.slot}`}</Text>
           </TouchableOpacity>
         </View>
       ))}
+      <VipDisclosureGate open={!!vip} onClose={() => setVip(null)} tier={vip?.tier ?? ''} handle={vip?.handle ?? ''} />
     </View>
   );
 }
@@ -441,4 +450,6 @@ const c = StyleSheet.create({
   objectBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderColor: T.colors.error, borderWidth: 1, borderRadius: T.borderRadius.md, paddingHorizontal: 14, paddingVertical: 10 },
   objectTxt: { color: T.colors.error, fontWeight: '800', fontSize: 13 },
   note: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 19, padding: 12, backgroundColor: T.colors.inputBackground, borderRadius: T.borderRadius.md },
+  vipBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10, borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)', backgroundColor: 'rgba(251,191,36,0.10)', borderRadius: T.borderRadius.md, paddingHorizontal: 12, paddingVertical: 9 },
+  vipBtnTxt: { color: '#fbbf24', fontSize: 12, fontWeight: '800' },
 });

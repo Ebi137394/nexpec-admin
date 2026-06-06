@@ -15,6 +15,7 @@ import {
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '@/lib/data/marketplace';
 import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '@/components/contracts/InspectorTrust';
+import { CommercialRevision } from '@/components/contracts/CommercialRevision';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
 
@@ -99,6 +100,7 @@ export default function DealSignPage() {
 
           <InspectorShortlistCard dealId={dealId} />
           <AssignedInspectorCard dealId={dealId} />
+          <CommercialRevision agreementId={agr.id} currency={agr.currency} />
         </>
       ) : (
         <>

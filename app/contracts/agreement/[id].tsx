@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../../src/components/DynamicForm/theme';
 import { fetchAgreement, signAgreement, type MyAgreement } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
+import { CommercialRevision } from '../../../src/components/contracts/CommercialRevision';
 
 const KIND_LABEL: Record<string, string> = {
   client_supply: 'Supply & Inspection Agreement',
@@ -88,6 +89,7 @@ export default function ContractAgreementSignScreen() {
             {!!agr.body_md && <Text style={[s.bodyTxt, { marginTop: 10 }]}>{agr.body_md}</Text>}
             {!!agr.content_sha256 && <Text style={[s.footnote, { textAlign: 'left', marginTop: 8 }]}>Sealed sha256:{agr.content_sha256}</Text>}
           </View>
+          <CommercialRevision agreementId={agr.id} currency={agr.currency} />
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -109,6 +111,7 @@ export default function ContractAgreementSignScreen() {
             <Text style={s.primaryBtnTxt}>{busy ? 'Signing…' : 'Sign agreement'}</Text>
           </TouchableOpacity>
           <Text style={s.footnote}>Sealed on signature (SHA-256). You contract only with NEXPEC.</Text>
+          <CommercialRevision agreementId={agr.id} currency={agr.currency} />
         </ScrollView>
       )}
     </SafeAreaView>

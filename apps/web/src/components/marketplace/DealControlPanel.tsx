@@ -14,6 +14,7 @@ import {
   type DealRow, type DealAgreement, type MoneyLeg, type InspectorOption, type PaymentTranche, type Nonconformance,
   type ScoredInspector, type InspectorCandidate,
 } from '@/lib/data/marketplace';
+import { AdminRevisionsPanel } from '@/components/contracts/CommercialRevision';
 
 export function DealControlPanel({ rfqId }: { rfqId: string }) {
   const [deal, setDeal] = useState<DealRow | null>(null);
@@ -301,6 +302,8 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
           </ul>
         </div>
       )}
+
+      <AdminRevisionsPanel dealId={deal.id} />
 
       {msg && <p className="text-xs text-accent-red">{msg}</p>}
     </section>

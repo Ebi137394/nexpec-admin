@@ -15,6 +15,7 @@ import {
 } from '../../../src/hooks/useSupplierEcosystem';
 import { formatUsd } from '../../../src/core/utils/money';
 import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '../../../src/components/contracts/InspectorTrust';
+import { CommercialRevision } from '../../../src/components/contracts/CommercialRevision';
 
 export default function DealSignScreen() {
   const router = useRouter();
@@ -84,6 +85,7 @@ export default function DealSignScreen() {
           <MilestoneFundingCard dealId={id!} />
           <InspectorShortlistCard dealId={id!} />
           <AssignedInspectorCard dealId={id!} />
+          <CommercialRevision agreementId={agr.id} currency={agr.currency} />
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>

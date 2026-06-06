@@ -198,6 +198,39 @@ export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'o
 export const requestNamedDisclosure = (dealId: string) =>
   supabase.rpc('request_named_disclosure', { p_deal_id: dealId });
 
+// ── Commercial Revision Ledger (party side; admin arbitration is web-only) ──
+export type RevisionStatus = 'requested' | 'countered' | 'applied' | 'rejected' | 'withdrawn';
+export const REVISION_REASONS: Record<string, string> = {
+  scope_change: 'Scope change', material_cost: 'Material cost', schedule_change: 'Schedule change',
+  market_adjustment: 'Market adjustment', regulatory: 'Regulatory', error_correction: 'Error correction', other: 'Other',
+};
+export interface Revision {
+  id: string; deal_id: string; agreement_id: string; kind: string; status: RevisionStatus;
+  reason_code: string; justification: string;
+  current_amount_cents: number; proposed_amount_cents: number;
+  counter_amount_cents: number | null; agreed_amount_cents: number | null;
+  rounds: number; created_at: string; updated_at: string;
+}
+export interface RevisionEvent {
+  id: string; revision_id: string; seq: number; actor_role: string; action: string;
+  amount_cents: number | null; reason_code: string | null; note: string | null; content_sha256: string | null; created_at: string;
+}
+export async function fetchRevisionForAgreement(agreementId: string): Promise<Revision | null> {
+  const { data } = await supabase.from('deal_revisions').select('*')
+    .eq('agreement_id', agreementId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return (data ?? null) as Revision | null;
+}
+export async function fetchRevisionEvents(revisionId: string): Promise<RevisionEvent[]> {
+  const { data } = await supabase.from('deal_revision_events').select('*').eq('revision_id', revisionId).order('seq');
+  return (data ?? []) as RevisionEvent[];
+}
+export const requestPriceRevision = (agreementId: string, amountCents: number, reasonCode: string, justification: string) =>
+  supabase.rpc('request_price_revision', { p_agreement_id: agreementId, p_proposed_amount_cents: amountCents, p_reason_code: reasonCode, p_justification: justification });
+export const respondToCounter = (revisionId: string, decision: 'accept' | 'reject' | 'counter', amountCents?: number, note?: string) =>
+  supabase.rpc('respond_to_counter', { p_revision_id: revisionId, p_decision: decision, p_amount_cents: amountCents ?? null, p_note: note ?? null });
+export const withdrawRevision = (revisionId: string, note?: string) =>
+  supabase.rpc('withdraw_revision', { p_revision_id: revisionId, p_note: note ?? null });
+
 // ── Client selection: blinded A/B/C shortlist (client/agency picks the winner) ──
 export interface InspectorCandidate {
   candidate_id: string; deal_id: string; slot: string; handle: string;

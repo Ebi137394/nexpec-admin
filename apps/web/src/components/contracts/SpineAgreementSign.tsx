@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { fetchAgreement, signAgreement, formatUsd, type MyAgreement } from '@/lib/data/marketplace';
+import { CommercialRevision } from '@/components/contracts/CommercialRevision';
 
 type FullAgreement = MyAgreement & { body_md: string | null };
 
@@ -122,6 +123,10 @@ export function SpineAgreementSign({
             <ShieldCheck size={13} /> Sealed on signature (SHA-256). You contract only with NEXPEC.
           </p>
         </>
+      )}
+
+      {agr && (agr.status === 'presented' || agr.status === 'executed') && (
+        <CommercialRevision agreementId={agr.id} currency={agr.currency} />
       )}
     </div>
   );

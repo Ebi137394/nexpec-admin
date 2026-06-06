@@ -37,10 +37,22 @@ ALTER TABLE public.deal_money_legs ADD CONSTRAINT deal_money_legs_kind_check
 
 -- ── 1. The sealed MSA rider (Named Disclosure amendment) ──────────────────────
 --   The signature widened 3→4 args (added p_tier_label). CREATE OR REPLACE with a
---   new arity creates a SECOND overload rather than replacing, which makes the
---   3-arg self-test call ambiguous. Drop the old 3-arg first so the 4-arg (with
---   its default) is the sole candidate. Safe + idempotent on fresh or patched DBs.
-DROP FUNCTION IF EXISTS public._brokered_disclosure_amendment_md(text, bigint, text);
+--   new arity creates a SECOND overload instead of replacing, so the DB can end up
+--   with multiple overloads and any 3-arg call fails ("is not unique"). Drop EVERY
+--   existing overload of this name (whatever its signature) so the 4-arg below is
+--   the sole candidate. Bulletproof + idempotent on any prior state.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure AS sig
+    FROM pg_proc p
+    WHERE p.proname = '_brokered_disclosure_amendment_md'
+      AND p.pronamespace = 'public'::regnamespace
+  LOOP
+    EXECUTE 'DROP FUNCTION ' || r.sig::text;
+  END LOOP;
+END $$;
 CREATE OR REPLACE FUNCTION public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text DEFAULT 'Standard')
 RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
   SELECT format($md$# NEXPEC Named-Disclosure Amendment (Rider to the Supply & Inspection Agreement)
@@ -257,7 +269,7 @@ BEGIN
   END IF;
 
   -- rider carries the enhanced protections
-  v_body := public._brokered_disclosure_amendment_md('X', 50000, 'USD');
+  v_body := public._brokered_disclosure_amendment_md('X', 50000::bigint, 'USD', 'Standard');
   IF v_body NOT LIKE '%thirty-six (36) months%' THEN RAISE EXCEPTION 'SELFTEST: rider missing 36-month non-circumvention'; END IF;
   IF v_body NOT LIKE '%Liquidated Damages%' THEN RAISE EXCEPTION 'SELFTEST: rider missing liquidated damages'; END IF;
   IF v_body NOT LIKE '%Province of Quebec%' THEN RAISE EXCEPTION 'SELFTEST: rider missing governing law'; END IF;

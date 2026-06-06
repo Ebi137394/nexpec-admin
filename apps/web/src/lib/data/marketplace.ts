@@ -282,6 +282,22 @@ export async function fetchAgreement(agreementId: string): Promise<(MyAgreement 
   return (data ?? null) as (MyAgreement & { body_md: string | null }) | null;
 }
 
+// Admin-only credential-aware inspector directory for the assignment picker.
+// (profiles_read_admin RLS lets admins read every profile; this panel is admin-gated.)
+export interface InspectorOption {
+  id: string;
+  full_name: string | null;
+  specialty_slugs: string[] | null;
+  certifications: string[] | null;
+  country_of_residence: string | null;
+}
+export async function fetchInspectors(): Promise<InspectorOption[]> {
+  const { data } = await sb().from('profiles')
+    .select('id, full_name, specialty_slugs, certifications, country_of_residence')
+    .eq('role', 'inspector').order('full_name').limit(200);
+  return (data ?? []) as InspectorOption[];
+}
+
 // Seal an uploaded vendor document through the Trust Spine (Phase 1 Custody Core).
 export const sealVendorDocument = (a: {
   storage_path: string; content_sha256: string; doc_type?: string; title?: string | null;

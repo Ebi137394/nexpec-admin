@@ -277,6 +277,7 @@ export default function DashboardScreen() {
   const handleFindJobs = () => router.push('/map');
   const handleMyContracts = () => router.push('/(tabs)/my-jobs' as any); // ✅ Updated to correct route
   const handleMessages = () => router.push('/inbox' as any); // unified conversations inbox
+  const handleAgreements = () => router.push('/agreements' as any); // brokered-deal agreements inbox
   const handleNotifications = () => router.push('/notifications' as any);
   // ★ NX-DEEPLINK-003 — `/applications` and `/applications/<id>` have no
   //   on-disk backing in `app/`. Inspector-side "View applications"
@@ -472,6 +473,23 @@ export default function DashboardScreen() {
                 </View>
               </LinearGradient>
               <Text style={styles.quickActionText}>Messages</Text>
+            </TouchableOpacity>
+
+            {/* Agreements (brokered-deal spine) */}
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={handleAgreements}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['rgba(245, 158, 11, 0.15)', 'rgba(245, 158, 11, 0.05)']}
+                style={styles.quickActionGradient}
+              >
+                <View style={styles.quickActionIconWrapper}>
+                  <FileText size={24} color={COLORS.warning} />
+                </View>
+              </LinearGradient>
+              <Text style={styles.quickActionText}>Agreements</Text>
             </TouchableOpacity>
           </View>
         </View>

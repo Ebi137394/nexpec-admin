@@ -224,9 +224,22 @@ export async function fetchDealMoneyLegs(dealId: string): Promise<MoneyLeg[]> {
   const { data } = await sb().from('deal_money_legs').select('id, kind, status, amount_cents').eq('deal_id', dealId).order('kind');
   return (data ?? []) as MoneyLeg[];
 }
-export const assignInspector = (dealId: string, inspectorId: string, payoutCents: number) =>
-  sb().rpc('admin_assign_inspector', { p_deal_id: dealId, p_inspector_id: inspectorId, p_payout_cents: payoutCents });
-export const presentAgreement = (agreementId: string) => sb().rpc('admin_present_agreement', { p_agreement_id: agreementId });
+export async function assignInspector(dealId: string, inspectorId: string, payoutCents: number) {
+  const res = await sb().rpc('admin_assign_inspector', { p_deal_id: dealId, p_inspector_id: inspectorId, p_payout_cents: payoutCents });
+  const agreementId = (res.data as { agreement_id?: string } | null)?.agreement_id;
+  if (!res.error && agreementId) {
+    // Best-effort Expo device push; the in-app row + email are emitted by the DB trigger.
+    await sb().functions.invoke('notify-agreement', { body: { agreement_id: agreementId } }).catch(() => undefined);
+  }
+  return res;
+}
+export async function presentAgreement(agreementId: string) {
+  const res = await sb().rpc('admin_present_agreement', { p_agreement_id: agreementId });
+  if (!res.error) {
+    await sb().functions.invoke('notify-agreement', { body: { agreement_id: agreementId } }).catch(() => undefined);
+  }
+  return res;
+}
 export const acceptGoods = (dealId: string) => sb().rpc('admin_accept_goods', { p_deal_id: dealId });
 export const releaseSupplierPayout = (dealId: string) => sb().rpc('release_supplier_payout', { p_deal_id: dealId });
 export const releaseInspectorPayout = (dealId: string) => sb().rpc('release_inspector_payout', { p_deal_id: dealId });

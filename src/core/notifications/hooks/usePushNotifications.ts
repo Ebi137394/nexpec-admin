@@ -36,6 +36,8 @@ const ALLOWED_DEEP_LINK_PATTERNS: readonly RegExp[] = [
   /^\/messages\/[0-9a-f-]+$/i,
   /^\/reviews\/submit\/[0-9a-f-]+$/i,
   /^\/payment-screen(?:\?.*)?$/,
+  /^\/agreements$/,
+  /^\/agreements\/[0-9a-f-]+\/sign$/i,
 ];
 
 function routeFromNotificationData(data: unknown): string | null {

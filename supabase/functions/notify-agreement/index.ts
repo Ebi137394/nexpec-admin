@@ -47,8 +47,21 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
-    const { data: isAdmin, error: adminErr } = await userClient.rpc('nx_is_admin');
-    if (adminErr || isAdmin !== true) return jsonResp({ error: 'Forbidden' }, 403);
+    // Unambiguous admin check (nx_is_admin has two overloads → PostgREST can't
+    // disambiguate a no-arg rpc call). Resolve the caller from the JWT, then read
+    // their role with the service-role client.
+    const { data: userData } = await userClient.auth.getUser();
+    const callerId = userData?.user?.id;
+    if (!callerId) return jsonResp({ error: 'Unauthorized' }, 401);
+    const { data: caller } = await supa
+      .from('profiles')
+      .select('role')
+      .eq('id', callerId)
+      .maybeSingle();
+    const callerRole = (caller as { role?: string } | null)?.role;
+    if (callerRole !== 'admin' && callerRole !== 'super_admin') {
+      return jsonResp({ error: 'Forbidden' }, 403);
+    }
 
     const { agreement_id } = await req.json();
     if (!agreement_id) return jsonResp({ error: 'Missing agreement_id' }, 400);

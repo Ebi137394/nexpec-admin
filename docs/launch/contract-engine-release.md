@@ -87,9 +87,15 @@ git push origin HEAD
 
 # 2.5 — WEB: confirm the Vercel production deployment succeeded (or `vercel --prod`)
 
-# 2.6 — MOBILE: ship the JS-only changes over the air (no native modules changed)
-eas update --branch production --message "Contract engine: MSA + routing + VIP"
-#   (use `eas build` only if native deps changed — they did not in this batch)
+# 2.6 — MOBILE
+#   OTA (`eas update`) only reaches an installed build that already bundles
+#   expo-updates. It is not installed yet and no production build is live, so this
+#   release ships as a full build (which also bakes in the EAS project link):
+npx expo install expo-updates            # one-time: enables OTA for FUTURE JS releases
+eas build --profile production           # cloud build = expo-updates + current JS + projectId
+eas submit --profile production          # to the stores (or distribute the artifact for internal)
+#   AFTER that build is installed, future JS-only changes ship over the air:
+#   eas update --branch production --message "..."
 ```
 
 ---

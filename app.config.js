@@ -60,9 +60,7 @@ module.exports = {
     //  inert (url undefined) — store builds still work, they just won't pull OTA.
     runtimeVersion: { policy: 'appVersion' },
     updates: {
-      url: process.env.EAS_PROJECT_ID
-        ? `https://u.expo.dev/${process.env.EAS_PROJECT_ID}`
-        : undefined,
+      url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID || 'a8faa2b1-c912-4c5e-9ef3-620425d67272'}`,
       // Don't block first paint on a network update check; apply on next launch.
       fallbackToCacheTimeout: 0,
     },
@@ -289,12 +287,9 @@ module.exports = {
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       stripePublishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
       eas: {
-        // ★ NX-PROJ-001 — fill in before `eas build --profile production`.
-        //   Find this value at https://expo.dev/accounts/<org>/projects/nexpec
-        //   or run `eas init` to bind a new project. The placeholder below
-        //   intentionally breaks any production build that hasn't been
-        //   linked yet.
-        projectId: process.env.EAS_PROJECT_ID,
+        // NX-PROJ-001 — bound to the EAS project created for @nexpec/nexpec.
+        //   Overridable via EAS_PROJECT_ID env for staging/forks.
+        projectId: process.env.EAS_PROJECT_ID || 'a8faa2b1-c912-4c5e-9ef3-620425d67272',
       },
     },
   },

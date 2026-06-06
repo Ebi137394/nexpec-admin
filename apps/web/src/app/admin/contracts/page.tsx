@@ -17,10 +17,20 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchAdminContracts } from '@/lib/data/contracts';
 import { createContract, assignContract } from '@/lib/actions/contracts';
 import { CONTRACT_KINDS, CONTRACT_KIND_LABELS } from '@/lib/data/contracts.types';
+import { fetchAllDealAgreements } from '@/lib/data/unifiedContracts';
 import { DocSourceToggle } from '@/components/forms/DocSourceToggle';
 
 export const metadata: Metadata = { title: 'Admin, Contracts' };
 export const dynamic = 'force-dynamic';
+
+const DEAL_KIND_LABEL: Record<string, string> = {
+  client_supply: 'Client Supply & Inspection',
+  supplier_supply: 'Supplier Supply',
+  inspector_engagement: 'Inspector Engagement',
+};
+function fmtDealCents(v: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((v || 0) / 100);
+}
 
 interface PageProps {
   searchParams?: Promise<{ error?: string; created?: string; assigned?: string }>;
@@ -37,6 +47,7 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
   if (!isAdmin) redirect('/');
 
   const contracts = await fetchAdminContracts();
+  const dealAgreements = await fetchAllDealAgreements();
   const today = new Date().toISOString().slice(0, 10);
   const returnTo = '/admin/contracts';
 
@@ -74,6 +85,44 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
           <CheckCircle2 className="h-5 w-5 shrink-0" />
           Assignment created. Recipient was notified.
         </Banner>
+      )}
+
+      {/* Brokered deal agreements — supplier / client / inspector legs across all deals */}
+      {dealAgreements.length > 0 && (
+        <section>
+          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+            Brokered deal agreements ({dealAgreements.length})
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Every supplier, client, and inspector leg across all deals. Manage each from the matching Quote Review panel.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {dealAgreements.map((a) => (
+              <li
+                key={a.contractId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">{DEAL_KIND_LABEL[a.kind] ?? a.kind}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    {fmtDealCents(a.amountCents)}, {new Date(a.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+                    a.status === 'executed'
+                      ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                      : a.status === 'presented'
+                        ? 'border-violet/30 bg-violet/10 text-violet-glow'
+                        : 'border-white/10 bg-white/[0.04] text-zinc-300'
+                  }`}
+                >
+                  {a.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       <section>

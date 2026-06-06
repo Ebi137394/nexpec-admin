@@ -62,3 +62,40 @@ export async function fetchMyNativeSpineContracts(
     return [];
   }
 }
+
+// Admin-only: every brokered deal agreement (all kinds, all deals). The unified
+// view returns all rows to an admin (counterparty = auth.uid() OR nx_is_admin).
+export interface DealAgreementRow {
+  contractId: string;
+  kind: SpineContractKind;
+  status: string;
+  amountCents: number;
+  currency: string;
+  counterpartyId: string | null;
+  dealId: string | null;
+  jobId: string | null;
+  createdAt: string;
+}
+export async function fetchAllDealAgreements(): Promise<DealAgreementRow[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('unified_contracts_view')
+      .select('contract_id, kind, status, amount_cents, currency, counterparty_id, deal_id, job_id, created_at')
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return (data as Array<Record<string, unknown>>).map((r) => ({
+      contractId: String(r.contract_id),
+      kind: r.kind as SpineContractKind,
+      status: String(r.status ?? ''),
+      amountCents: Number(r.amount_cents ?? 0),
+      currency: String(r.currency ?? 'USD'),
+      counterpartyId: (r.counterparty_id as string | null) ?? null,
+      dealId: (r.deal_id as string | null) ?? null,
+      jobId: (r.job_id as string | null) ?? null,
+      createdAt: String(r.created_at ?? ''),
+    }));
+  } catch {
+    return [];
+  }
+}

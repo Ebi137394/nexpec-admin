@@ -22,6 +22,7 @@ import { fetchMyAssignments, fetchContractById } from '@/lib/data/contracts';
 import { signContractAssignment } from '@/lib/actions/contracts';
 import { CONTRACT_KIND_LABELS, type ContractKind } from '@/lib/data/contracts.types';
 import { fetchMyInspectorJobContracts } from '@/lib/data/jobContracts';
+import { fetchMyNativeSpineContracts } from '@/lib/data/unifiedContracts';
 
 export const metadata: Metadata = { title: 'Contracts' };
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,7 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
 
   const assignments = await fetchMyAssignments();
   const jobContracts = await fetchMyInspectorJobContracts();
+  const spine = await fetchMyNativeSpineContracts('inspector_engagement');
   const unsignedRequired = assignments.filter((a) => a.required && !a.signedAt);
   const returnTo = '/inspector/contracts';
   const fmtCents = (v: number) =>
@@ -146,6 +148,59 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
                     className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-glow px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-ink-950 shadow-sm hover:bg-cyan-glow/90"
                   >
                     {needsYou ? 'Review & sign' : 'Open contract'}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* TURNKEY ENGAGEMENTS — brokered spine, blind to client price */}
+      {spine.length > 0 && (
+        <section>
+          <h2 className="mb-4 font-display text-xl font-semibold tracking-tight text-white">
+            Turnkey engagements ({spine.length})
+          </h2>
+          <ul className="space-y-3">
+            {spine.map((s) => {
+              const needsYou = s.signable;
+              const done = s.status === 'executed';
+              return (
+                <li
+                  key={s.contractId}
+                  className={`rounded-3xl border p-5 ${
+                    needsYou
+                      ? 'border-cyan-glow/40 bg-cyan-glow/[0.06]'
+                      : done
+                        ? 'border-accent-green/30 bg-accent-green/[0.04]'
+                        : 'border-white/[0.06] bg-white/[0.01]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white">Inspector Engagement</p>
+                      <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 font-mono text-[11px] font-semibold text-cyan-glow">
+                        Your payout, {fmtCents(s.amountCents)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+                        needsYou
+                          ? 'border-cyan-glow/40 bg-cyan-glow/15 text-cyan-glow'
+                          : done
+                            ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                            : 'border-white/10 bg-white/[0.04] text-zinc-400'
+                      }`}
+                    >
+                      {s.status.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/inspector/contracts/agreement/${s.contractId}`}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cyan-glow px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-ink-950 shadow-sm hover:bg-cyan-glow/90"
+                  >
+                    {needsYou ? 'Review & sign' : 'Open agreement'}
                   </Link>
                 </li>
               );

@@ -20,8 +20,9 @@ import {
   type SupplierContractRow,
   type SupplierContractStatus,
 } from '@/lib/data/supplierContracts';
+import { fetchMyNativeSpineContracts, type NativeSpineContract } from '@/lib/data/unifiedContracts';
 
-export const metadata: Metadata = { title: 'Supplier, Agreements' };
+export const metadata: Metadata = { title: 'Supplier, Contracts' };
 export const dynamic = 'force-dynamic';
 
 function fmtCents(v: number | null | undefined): string {
@@ -51,7 +52,10 @@ const STATUS_META: Record<
 };
 
 export default async function SupplierContractsPage() {
-  const contracts = await fetchMySupplierContracts();
+  const [contracts, spine] = await Promise.all([
+    fetchMySupplierContracts(),
+    fetchMyNativeSpineContracts('supplier_supply'),
+  ]);
   const actionNeeded = contracts.filter(
     (c) => c.status === 'pending_supplier_signature',
   );
@@ -60,6 +64,8 @@ export default async function SupplierContractsPage() {
       c.status === 'pending_admin_countersignature' || c.status === 'draft',
   );
   const executed = contracts.filter((c) => c.status === 'executed');
+  const spineAwaiting = spine.filter((s) => s.signable);
+  const spineSettled = spine.filter((s) => !s.signable);
 
   return (
     <div className="space-y-8">
@@ -77,7 +83,7 @@ export default async function SupplierContractsPage() {
         </p>
       </header>
 
-      {contracts.length === 0 ? (
+      {contracts.length === 0 && spine.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01] p-12 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.03]">
             <FileSignature size={22} className="text-violet-glow" />
@@ -98,6 +104,18 @@ export default async function SupplierContractsPage() {
         </div>
       ) : (
         <>
+          {spine.length > 0 && (
+            <section>
+              <h2 className="mb-3 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-industrial text-violet-glow">
+                <FileSignature className="h-4 w-4" /> Turnkey supply agreements
+              </h2>
+              <ul className="space-y-3">
+                {[...spineAwaiting, ...spineSettled].map((s) => (
+                  <SpineCard key={s.contractId} s={s} />
+                ))}
+              </ul>
+            </section>
+          )}
           {actionNeeded.length > 0 && (
             <section>
               <h2 className="mb-3 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-industrial text-violet-glow">
@@ -176,6 +194,42 @@ function ContractCard({ c }: { c: SupplierContractRow }) {
           <p className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
             <Clock className="h-3 w-3" /> awarded value
           </p>
+        </div>
+        <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-violet-glow" />
+      </Link>
+    </li>
+  );
+}
+
+function SpineCard({ s }: { s: NativeSpineContract }) {
+  const badge = s.signable
+    ? 'bg-violet/20 text-violet-glow ring-1 ring-inset ring-violet/40'
+    : s.status === 'executed'
+      ? 'bg-accent-green/15 text-accent-green'
+      : 'bg-white/10 text-zinc-300';
+  const badgeLabel = s.signable ? 'Action needed, Sign' : s.status === 'executed' ? 'Executed' : s.status;
+  return (
+    <li>
+      <Link
+        href={`/suppliers/contracts/agreement/${s.contractId}`}
+        className="group flex items-start gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-violet/30 hover:bg-white/[0.04] sm:p-5"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet/12 text-violet-glow">
+          <FileSignature size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-semibold text-white">Supplier Supply Agreement</p>
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${badge}`}>{badgeLabel}</span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-zinc-500">
+            Issued {new Date(s.createdAt).toLocaleDateString()}
+            {s.executedAt ? `, executed ${new Date(s.executedAt).toLocaleDateString()}` : ''}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="font-display text-base font-semibold text-white">{fmtCents(s.amountCents)}</p>
+          <p className="inline-flex items-center gap-1 text-[11px] text-zinc-500"><Clock className="h-3 w-3" /> your payout</p>
         </div>
         <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-violet-glow" />
       </Link>

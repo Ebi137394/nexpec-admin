@@ -18,6 +18,7 @@ import { fetchMyAssignments, fetchContractById } from '@/lib/data/contracts';
 import { signContractAssignment } from '@/lib/actions/contracts';
 import { CONTRACT_KIND_LABELS, type ContractKind } from '@/lib/data/contracts.types';
 import { fetchMyClientJobContracts } from '@/lib/data/jobContracts';
+import { fetchMyNativeSpineContracts } from '@/lib/data/unifiedContracts';
 
 export const metadata: Metadata = { title: 'Contracts' };
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
 
   const assignments = await fetchMyAssignments();
   const jobContracts = await fetchMyClientJobContracts();
+  const spine = await fetchMyNativeSpineContracts('client_supply');
   const unsignedRequired = assignments.filter((a) => a.required && !a.signedAt);
   const returnTo = '/client/contracts';
   const fmtCents = (v: number) =>
@@ -144,6 +146,61 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
                   >
                     {needsYou ? 'Review & sign' : 'Open contract'}
                   </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* TURNKEY SUPPLY & INSPECTION — brokered spine */}
+      {spine.length > 0 && (
+        <section>
+          <h2 className="mb-4 font-display text-xl font-semibold tracking-tight text-white">
+            Turnkey supply &amp; inspection ({spine.length})
+          </h2>
+          <ul className="space-y-3">
+            {spine.map((s) => {
+              const needsYou = s.signable;
+              const done = s.status === 'executed';
+              return (
+                <li
+                  key={s.contractId}
+                  className={`rounded-3xl border p-5 ${
+                    needsYou
+                      ? 'border-violet/40 bg-violet/[0.06]'
+                      : done
+                        ? 'border-accent-green/30 bg-accent-green/[0.04]'
+                        : 'border-white/[0.06] bg-white/[0.01]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white">Supply &amp; Inspection Agreement</p>
+                      <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[11px] font-semibold text-violet-glow">
+                        Your price, {fmtCents(s.amountCents)}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+                        needsYou
+                          ? 'border-violet/40 bg-violet/15 text-violet-glow'
+                          : done
+                            ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                            : 'border-white/10 bg-white/[0.04] text-zinc-400'
+                      }`}
+                    >
+                      {s.status.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                  {s.dealId && (
+                    <Link
+                      href={`/deals/${s.dealId}/sign`}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-violet px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm hover:bg-violet/90"
+                    >
+                      {needsYou ? 'Review & sign' : 'Open agreement'}
+                    </Link>
+                  )}
                 </li>
               );
             })}

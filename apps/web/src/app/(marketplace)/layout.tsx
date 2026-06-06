@@ -10,6 +10,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Store, FileText, LayoutDashboard, ArrowLeft } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { runWithRetry } from '@/lib/supabase/resilient';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,11 +18,41 @@ const ALLOWED = new Set(['client', 'agency', 'enterprise', 'supplier', 'admin', 
 
 export default async function MarketplaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  // Auth + role reads retried on transient rejection — a throw in a layout
+  // bypasses every child error.tsx and 500s the whole shell. Persistent
+  // failures degrade to a redirect rather than a crash.
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >['data']['user'] = null;
+  try {
+    const res = await runWithRetry(() => supabase.auth.getUser(), {
+      label: 'marketplace-layout getUser',
+    });
+    user = res.data.user;
+  } catch {
+    /* persistent auth read failure — fall through to the sign-in redirect */
+  }
   if (!user) redirect('/sign-in?next=' + encodeURIComponent('/rfqs'));
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const role = (profile?.role ?? '').toString().trim().toLowerCase();
+  let role = '';
+  try {
+    const res = await runWithRetry(
+      () =>
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user!.id)
+          .maybeSingle(),
+      { label: 'marketplace-layout profile' },
+    );
+    role = ((res.data?.role as string | null) ?? '')
+      .toString()
+      .trim()
+      .toLowerCase();
+  } catch {
+    /* persistent profile read failure — treated as no-role below */
+  }
   if (!ALLOWED.has(role)) redirect('/');
 
   // Role-aware route back into the user's own portal — so the marketplace shell

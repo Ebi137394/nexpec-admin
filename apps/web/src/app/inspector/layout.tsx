@@ -8,6 +8,7 @@
 
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { runWithRetry } from '@/lib/supabase/resilient';
 import { Sidebar } from '@/components/inspector/Sidebar';
 import { Header } from '@/components/admin/Header';
 import { NotificationToasterGate } from '@/components/notifications/NotificationToasterGate';
@@ -28,9 +29,21 @@ export default async function InspectorLayout({
 }) {
   const supabase = await createSupabaseServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Auth + profile reads retried on transient rejection. A throw in a layout
+  // escapes every child error.tsx and lands on the global 500 page, so degrade
+  // gracefully instead: persistent auth failure -> sign-in; persistent profile
+  // failure -> owner-by-email allow-list.
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >['data']['user'] = null;
+  try {
+    const res = await runWithRetry(() => supabase.auth.getUser(), {
+      label: 'inspector-layout getUser',
+    });
+    user = res.data.user;
+  } catch {
+    /* persistent auth read failure — fall through to the sign-in redirect */
+  }
 
   if (!user) {
     redirect('/sign-in?next=' + encodeURIComponent('/inspector/dashboard'));
@@ -40,11 +53,30 @@ export default async function InspectorLayout({
   const isOwnerByEmail =
     userEmail.length > 0 && OWNER_EMAILS.includes(userEmail);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, email')
-    .eq('id', user.id)
-    .maybeSingle();
+  let profile: {
+    role: string | null;
+    full_name: string | null;
+    email: string | null;
+  } | null = null;
+  try {
+    const res = await runWithRetry(
+      () =>
+        supabase
+          .from('profiles')
+          .select('role, full_name, email')
+          .eq('id', user!.id)
+          .maybeSingle(),
+      { label: 'inspector-layout profile' },
+    );
+    profile =
+      (res.data as {
+        role: string | null;
+        full_name: string | null;
+        email: string | null;
+      } | null) ?? null;
+  } catch {
+    /* persistent profile read failure — rely on isOwnerByEmail */
+  }
 
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
 

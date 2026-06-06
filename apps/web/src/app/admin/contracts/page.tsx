@@ -88,14 +88,18 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
       )}
 
       {/* Brokered deal agreements — supplier / client / inspector legs across all deals */}
-      {dealAgreements.length > 0 && (
-        <section>
-          <h2 className="font-display text-lg font-semibold tracking-tight text-white">
-            Brokered deal agreements ({dealAgreements.length})
-          </h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            Every supplier, client, and inspector leg across all deals. Manage each from the matching Quote Review panel.
-          </p>
+      <section>
+        <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+          Brokered deal agreements ({dealAgreements.length})
+        </h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Every supplier, client, and inspector leg across all deals. Manage each from the matching Quote Review panel.
+        </p>
+        {dealAgreements.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.01] p-6 text-center text-sm text-zinc-400">
+            No deal agreements yet. Supplier and client legs appear here automatically the moment an RFQ quote is awarded.
+          </div>
+        ) : (
           <ul className="mt-4 space-y-2">
             {dealAgreements.map((a) => (
               <li
@@ -122,8 +126,8 @@ export default async function AdminContractsPage({ searchParams }: PageProps) {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       <section>
         <h2 className="font-display text-lg font-semibold tracking-tight text-white">

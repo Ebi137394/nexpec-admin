@@ -79,20 +79,22 @@ export interface DealAgreementRow {
 export async function fetchAllDealAgreements(): Promise<DealAgreementRow[]> {
   try {
     const supabase = await createSupabaseServerClient();
+    // Read the spine table directly: admin RLS on public.agreements is
+    // (counterparty_id = auth.uid() OR nx_is_admin()), so an admin gets every leg.
     const { data, error } = await supabase
-      .from('unified_contracts_view')
-      .select('contract_id, kind, status, amount_cents, currency, counterparty_id, deal_id, job_id, created_at')
+      .from('agreements')
+      .select('id, deal_id, kind, status, amount_cents, currency, counterparty_id, created_at')
       .order('created_at', { ascending: false });
     if (error || !data) return [];
     return (data as Array<Record<string, unknown>>).map((r) => ({
-      contractId: String(r.contract_id),
+      contractId: String(r.id),
       kind: r.kind as SpineContractKind,
       status: String(r.status ?? ''),
       amountCents: Number(r.amount_cents ?? 0),
       currency: String(r.currency ?? 'USD'),
       counterpartyId: (r.counterparty_id as string | null) ?? null,
       dealId: (r.deal_id as string | null) ?? null,
-      jobId: (r.job_id as string | null) ?? null,
+      jobId: null,
       createdAt: String(r.created_at ?? ''),
     }));
   } catch {

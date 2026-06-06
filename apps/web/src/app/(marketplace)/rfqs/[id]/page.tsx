@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Ribbon, Send, Rocket, ShieldCheck, Sparkles, Hourglass } from 'lucide-react';
 import {
-  fetchRfq, fetchClientOffers, fetchMyQuote, getUserId, submitQuote, awardQuote,
+  fetchRfq, fetchClientOffers, fetchMyQuote, getUserId, submitQuote, awardAndDispatch,
   formatUsd, toCents, type Rfq, type Quote, type ClientOffer,
 } from '@/lib/data/marketplace';
 import { MeetingsPanel } from '@/components/marketplace/MeetingsPanel';
@@ -76,13 +76,13 @@ export default function RfqDetailPage() {
   };
 
   const doAccept = async (offer: ClientOffer) => {
-    if (!window.confirm(rfq?.requires_source_inspection
-      ? 'Accept this offer? NEXPEC will proceed and auto-create a source/FAT inspection job, dispatching a discipline-matched inspector.'
-      : 'Accept this offer and proceed?')) return;
+    if (!window.confirm('Accept this offer? You will review and sign the NEXPEC supply agreement, then we hold your payment in escrow and dispatch the inspection.')) return;
     setMsg(null); setAwarding(offer.id);
     try {
-      const { error } = await awardQuote(offer.id);
+      const { data, error } = await awardAndDispatch(offer.id);
       if (error) { setMsg(error.message); return; }
+      const dealId = (data as { deal_id?: string } | null)?.deal_id;
+      if (dealId) { window.location.assign(`/deals/${dealId}/sign`); return; }
       await load();
     } finally { setAwarding(null); }
   };

@@ -112,8 +112,8 @@ BEGIN
   INSERT INTO public.deal_revision_events (revision_id, seq, actor_id, actor_role, action, amount_cents, reason_code, note, content_sha256)
   VALUES (p_revision_id, v_seq, p_actor_id, p_actor_role, p_action, p_amount, p_reason, p_note, v_sha);
 END $fn$;
-REVOKE ALL ON FUNCTION public._revision_log(uuid,uuid,text,bigint,text,text) FROM public;
-GRANT EXECUTE ON FUNCTION public._revision_log(uuid,uuid,text,bigint,text,text) TO service_role;
+REVOKE ALL ON FUNCTION public._revision_log(uuid,uuid,text,text,bigint,text,text) FROM public;
+GRANT EXECUTE ON FUNCTION public._revision_log(uuid,uuid,text,text,bigint,text,text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public._revision_notify(p_recipient uuid, p_title text, p_body text, p_deal uuid)
 RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $fn$

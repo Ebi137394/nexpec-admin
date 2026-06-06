@@ -182,6 +182,7 @@ export const awardQuote = (quoteId: string) => sb().rpc('award_quote', { p_quote
 export interface ClientAgreement {
   id: string; deal_id: string; body_md: string | null; amount_cents: number;
   currency: string; status: string; content_sha256: string | null;
+  created_at?: string | null; presented_at?: string | null; executed_at?: string | null;
 }
 // Creates the deal + a presented client_supply agreement; returns { deal_id, client_agreement_id }.
 export const awardAndDispatch = (quoteId: string) =>
@@ -191,7 +192,7 @@ export const awardAndDispatch = (quoteId: string) =>
 export async function fetchClientAgreement(dealId: string): Promise<ClientAgreement | null> {
   const { data } = await sb()
     .from('agreements')
-    .select('id, deal_id, body_md, amount_cents, currency, status, content_sha256')
+    .select('id, deal_id, body_md, amount_cents, currency, status, content_sha256, created_at, presented_at, executed_at')
     .eq('deal_id', dealId).eq('kind', 'client_supply')
     .order('version', { ascending: false }).limit(1).maybeSingle();
   return (data ?? null) as ClientAgreement | null;
@@ -283,7 +284,7 @@ export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'o
 
 // Generic agreement (a counterparty's OWN leg) for /agreements + /agreements/[id]/sign.
 // RLS scopes rows to counterparty_id = auth.uid() (or admin), so each party sees only theirs.
-export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; }
+export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; content_sha256?: string | null; created_at?: string | null; presented_at?: string | null; executed_at?: string | null; }
 export async function fetchMyAgreements(): Promise<MyAgreement[]> {
   const { data } = await sb().from('agreements')
     .select('id, deal_id, kind, status, amount_cents, currency').order('kind');
@@ -291,7 +292,7 @@ export async function fetchMyAgreements(): Promise<MyAgreement[]> {
 }
 export async function fetchAgreement(agreementId: string): Promise<(MyAgreement & { body_md: string | null }) | null> {
   const { data } = await sb().from('agreements')
-    .select('id, deal_id, kind, status, amount_cents, currency, body_md').eq('id', agreementId).maybeSingle();
+    .select('id, deal_id, kind, status, amount_cents, currency, body_md, content_sha256, created_at, presented_at, executed_at').eq('id', agreementId).maybeSingle();
   return (data ?? null) as (MyAgreement & { body_md: string | null }) | null;
 }
 

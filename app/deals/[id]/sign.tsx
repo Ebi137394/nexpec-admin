@@ -65,6 +65,19 @@ export default function DealSignScreen() {
               <Text style={s.primaryBtnTxt}>Back to RFQs</Text>
             </TouchableOpacity>
           </View>
+          <View style={[s.bodyCard, { marginTop: 12 }]}>
+            <Text style={s.kicker}>YOUR EXECUTED AGREEMENT</Text>
+            <Text style={{ color: T.colors.textSecondary, fontSize: 13, marginTop: 8 }}>
+              <Text style={{ color: T.colors.textMuted }}>Date issued: </Text>
+              {(agr.presented_at || agr.created_at) ? new Date((agr.presented_at || agr.created_at) as string).toLocaleString() : 'n/a'}
+            </Text>
+            <Text style={{ color: T.colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+              <Text style={{ color: T.colors.textMuted }}>Date executed: </Text>
+              {agr.executed_at ? new Date(agr.executed_at).toLocaleString() : 'Just now'}
+            </Text>
+            {!!agr.body_md && <Text style={[s.bodyTxt, { marginTop: 10 }]}>{agr.body_md}</Text>}
+            {!!agr.content_sha256 && <Text style={[s.footnote, { textAlign: 'left', marginTop: 8 }]}>Sealed sha256:{agr.content_sha256}</Text>}
+          </View>
           <AssignedInspectorCard dealId={id!} />
         </ScrollView>
       ) : (

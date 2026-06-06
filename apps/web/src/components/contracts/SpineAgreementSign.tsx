@@ -73,11 +73,29 @@ export function SpineAgreementSign({
       ) : !agr ? (
         <p className="mt-2 text-zinc-400">This agreement was not found, or it is not addressed to you.</p>
       ) : executed ? (
-        <div className="rounded-2xl border border-accent-green/30 bg-accent-green/[0.06] p-6">
-          <div className="flex items-center gap-2 text-accent-green"><CheckCircle2 size={20} /><h1 className="text-lg font-bold">Signed and executed</h1></div>
-          <p className="mt-2 text-sm text-zinc-300">Your signature is sealed. NEXPEC will proceed; funds move only as the contracted milestones clear.</p>
-          <Link href={backHref} className="mt-4 inline-flex rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white hover:bg-violet/90">Back to Contracts</Link>
-        </div>
+        <>
+          <div className="rounded-2xl border border-accent-green/30 bg-accent-green/[0.06] p-6">
+            <div className="flex items-center gap-2 text-accent-green"><CheckCircle2 size={20} /><h1 className="text-lg font-bold">Signed and executed</h1></div>
+            <p className="mt-2 text-sm text-zinc-300">Your signature is sealed. NEXPEC will proceed; funds move only as the contracted milestones clear.</p>
+            <Link href={backHref} className="mt-4 inline-flex rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white hover:bg-violet/90">Back to Contracts</Link>
+          </div>
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-bold text-white">{KIND_LABEL[agr.kind] ?? 'Agreement'}</h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-green/30 bg-accent-green/10 px-2.5 py-0.5 text-[11px] font-bold text-accent-green"><CheckCircle2 size={12} /> Executed</span>
+            </div>
+            <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <div><dt className="text-zinc-500">Date issued</dt><dd className="font-mono text-zinc-200">{(agr.presented_at || agr.created_at) ? new Date((agr.presented_at || agr.created_at) as string).toLocaleString() : 'n/a'}</dd></div>
+              <div><dt className="text-zinc-500">Date executed</dt><dd className="font-mono text-zinc-200">{agr.executed_at ? new Date(agr.executed_at).toLocaleString() : 'Just now'}</dd></div>
+            </dl>
+            {agr.body_md && (
+              <div className="mt-4 max-h-[52vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-ink-950 p-5 text-sm leading-relaxed text-zinc-300">{agr.body_md}</div>
+            )}
+            {agr.content_sha256 && (
+              <p className="mt-3 flex items-center gap-1.5 break-all text-xs text-zinc-500"><ShieldCheck size={13} className="shrink-0" /> Sealed sha256:{agr.content_sha256}</p>
+            )}
+          </div>
+        </>
       ) : (
         <>
           <header>

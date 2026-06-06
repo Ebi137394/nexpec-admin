@@ -127,12 +127,13 @@ export const awardQuote = (quoteId: string) => supabase.rpc('award_quote', { p_q
 export interface ClientAgreement {
   id: string; deal_id: string; body_md: string | null; amount_cents: number;
   currency: string; status: string; content_sha256: string | null;
+  created_at?: string | null; presented_at?: string | null; executed_at?: string | null;
 }
 export const awardAndDispatch = (quoteId: string) => supabase.rpc('award_and_dispatch', { p_quote_id: quoteId });
 export async function fetchClientAgreement(dealId: string): Promise<ClientAgreement | null> {
   const { data } = await supabase
     .from('agreements')
-    .select('id, deal_id, body_md, amount_cents, currency, status, content_sha256')
+    .select('id, deal_id, body_md, amount_cents, currency, status, content_sha256, created_at, presented_at, executed_at')
     .eq('deal_id', dealId).eq('kind', 'client_supply')
     .order('version', { ascending: false }).limit(1).maybeSingle();
   return (data ?? null) as ClientAgreement | null;
@@ -163,14 +164,14 @@ export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'o
   supabase.rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
 
 // Generic agreement (a counterparty's OWN leg) for /agreements + /agreements/[id]/sign.
-export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; body_md?: string | null; }
+export interface MyAgreement { id: string; deal_id: string; kind: string; status: string; amount_cents: number; currency: string; body_md?: string | null; content_sha256?: string | null; created_at?: string | null; presented_at?: string | null; executed_at?: string | null; }
 export async function fetchMyAgreements(): Promise<MyAgreement[]> {
   const { data } = await supabase.from('agreements').select('id, deal_id, kind, status, amount_cents, currency').order('kind');
   return (data ?? []) as MyAgreement[];
 }
 export async function fetchAgreement(agreementId: string): Promise<MyAgreement | null> {
   const { data } = await supabase.from('agreements')
-    .select('id, deal_id, kind, status, amount_cents, currency, body_md').eq('id', agreementId).maybeSingle();
+    .select('id, deal_id, kind, status, amount_cents, currency, body_md, content_sha256, created_at, presented_at, executed_at').eq('id', agreementId).maybeSingle();
   return (data ?? null) as MyAgreement | null;
 }
 // Count of agreements presented to me and awaiting my signature (RLS-scoped) — drives

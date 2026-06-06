@@ -66,7 +66,7 @@ export default function ContractAgreementSignScreen() {
       ) : !agr ? (
         <View style={s.center}><Text style={s.muted}>This agreement was not found, or it is not addressed to you.</Text></View>
       ) : executed ? (
-        <View style={s.content}>
+        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <View style={s.okCard}>
             <Ionicons name="checkmark-circle" size={22} color={T.colors.success} />
             <Text style={s.okTitle}>Signed and executed</Text>
@@ -75,7 +75,20 @@ export default function ContractAgreementSignScreen() {
               <Text style={s.primaryBtnTxt}>Back to Contracts</Text>
             </TouchableOpacity>
           </View>
-        </View>
+          <View style={[s.bodyCard, { marginTop: 12 }]}>
+            <Text style={s.kicker}>{(KIND_LABEL[agr.kind] ?? 'AGREEMENT').toUpperCase()}</Text>
+            <Text style={{ color: T.colors.textSecondary, fontSize: 13, marginTop: 8 }}>
+              <Text style={{ color: T.colors.textMuted }}>Date issued: </Text>
+              {(agr.presented_at || agr.created_at) ? new Date((agr.presented_at || agr.created_at) as string).toLocaleString() : 'n/a'}
+            </Text>
+            <Text style={{ color: T.colors.textSecondary, fontSize: 13, marginTop: 2 }}>
+              <Text style={{ color: T.colors.textMuted }}>Date executed: </Text>
+              {agr.executed_at ? new Date(agr.executed_at).toLocaleString() : 'Just now'}
+            </Text>
+            {!!agr.body_md && <Text style={[s.bodyTxt, { marginTop: 10 }]}>{agr.body_md}</Text>}
+            {!!agr.content_sha256 && <Text style={[s.footnote, { textAlign: 'left', marginTop: 8 }]}>Sealed sha256:{agr.content_sha256}</Text>}
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <Text style={s.kicker}>{(KIND_LABEL[agr.kind] ?? 'AGREEMENT').toUpperCase()}</Text>

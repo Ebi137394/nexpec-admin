@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
-import { useRfqDetail, submitQuote, awardQuote, type ClientOffer } from '../../src/hooks/useSupplierEcosystem';
+import { useRfqDetail, submitQuote, awardAndDispatch, type ClientOffer } from '../../src/hooks/useSupplierEcosystem';
 import { toCents, formatUsd } from '../../src/core/utils/money';
 
 const BID_STATUS: Record<string, string> = {
@@ -47,17 +47,15 @@ export default function RfqDetailScreen() {
   };
 
   const doAccept = (offer: ClientOffer) => {
-    Alert.alert('Accept this offer?', rfq?.requires_source_inspection
-      ? 'NEXPEC will proceed and auto-create a source/FAT inspection job, dispatching a discipline-matched inspector.'
-      : 'Accepting authorizes NEXPEC to proceed with this engagement.',
-      [{ text: 'Cancel', style: 'cancel' }, { text: 'Accept', style: 'default', onPress: async () => {
+    Alert.alert('Accept this offer?', 'You will review and sign the NEXPEC supply agreement, then we hold your payment in escrow and dispatch the inspection.',
+      [{ text: 'Cancel', style: 'cancel' }, { text: 'Review & sign', style: 'default', onPress: async () => {
         setAwarding(offer.id);
         try {
-          const { error } = await awardQuote(offer.id);
+          const { data, error } = await awardAndDispatch(offer.id);
           if (error) { Alert.alert('Could not proceed', error.message); return; }
+          const dealId = (data as { deal_id?: string } | null)?.deal_id;
+          if (dealId) { router.push(`/deals/${dealId}/sign` as any); return; }
           await refetch();
-          Alert.alert(rfq?.requires_source_inspection ? 'Accepted, inspection dispatched' : 'Accepted',
-            rfq?.requires_source_inspection ? 'A source/FAT inspection job was created and is now in admin dispatch.' : 'NEXPEC is proceeding with your order.');
         } finally { setAwarding(null); }
       } }]);
   };

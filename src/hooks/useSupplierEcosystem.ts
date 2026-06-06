@@ -123,6 +123,23 @@ export const createRfq = (a: { title: string; spec?: any; scope_template_id?: st
 export const submitQuote = (rfqId: string, quote: any) => supabase.rpc('submit_quote', { p_rfq_id: rfqId, p_quote: quote });
 export const awardQuote = (quoteId: string) => supabase.rpc('award_quote', { p_quote_id: quoteId });
 
+// ── Brokered Deal (P1/P2): Award & dispatch → Review & sign client_supply → escrow ──
+export interface ClientAgreement {
+  id: string; deal_id: string; body_md: string | null; amount_cents: number;
+  currency: string; status: string; content_sha256: string | null;
+}
+export const awardAndDispatch = (quoteId: string) => supabase.rpc('award_and_dispatch', { p_quote_id: quoteId });
+export async function fetchClientAgreement(dealId: string): Promise<ClientAgreement | null> {
+  const { data } = await supabase
+    .from('agreements')
+    .select('id, deal_id, body_md, amount_cents, currency, status, content_sha256')
+    .eq('deal_id', dealId).eq('kind', 'client_supply')
+    .order('version', { ascending: false }).limit(1).maybeSingle();
+  return (data ?? null) as ClientAgreement | null;
+}
+export const signAgreement = (agreementId: string, signedName: string) =>
+  supabase.rpc('sign_agreement', { p_agreement_id: agreementId, p_signed_name: signedName });
+
 // ════════════════════════════════════════════════════════════════════════════
 //  Supplier Dashboard data
 // ════════════════════════════════════════════════════════════════════════════

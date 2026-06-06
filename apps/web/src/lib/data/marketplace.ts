@@ -200,6 +200,36 @@ export async function fetchClientAgreement(dealId: string): Promise<ClientAgreem
 // Signs the agreement → on client_supply this executes it + HOLDS escrow + dispatches.
 export const signAgreement = (agreementId: string, signedName: string) =>
   sb().rpc('sign_agreement', { p_agreement_id: agreementId, p_signed_name: signedName });
+
+// ── Admin: Brokered Deal control (P2) — wire legs + per-leg release gates ──
+export interface DealRow {
+  id: string; rfq_id: string | null; job_id: string | null; status: string;
+  client_price_cents: number; currency: string; goods_accepted_at: string | null;
+}
+export interface DealAgreement { id: string; kind: string; status: string; counterparty_id: string; amount_cents: number; currency: string; }
+export interface MoneyLeg { id: string; kind: string; status: string; amount_cents: number; }
+
+export async function fetchDealByRfq(rfqId: string): Promise<DealRow | null> {
+  const { data } = await sb().from('deals')
+    .select('id, rfq_id, job_id, status, client_price_cents, currency, goods_accepted_at')
+    .eq('rfq_id', rfqId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return (data ?? null) as DealRow | null;
+}
+export async function fetchDealAgreements(dealId: string): Promise<DealAgreement[]> {
+  const { data } = await sb().from('agreements')
+    .select('id, kind, status, counterparty_id, amount_cents, currency').eq('deal_id', dealId).order('kind');
+  return (data ?? []) as DealAgreement[];
+}
+export async function fetchDealMoneyLegs(dealId: string): Promise<MoneyLeg[]> {
+  const { data } = await sb().from('deal_money_legs').select('id, kind, status, amount_cents').eq('deal_id', dealId).order('kind');
+  return (data ?? []) as MoneyLeg[];
+}
+export const assignInspector = (dealId: string, inspectorId: string, payoutCents: number) =>
+  sb().rpc('admin_assign_inspector', { p_deal_id: dealId, p_inspector_id: inspectorId, p_payout_cents: payoutCents });
+export const presentAgreement = (agreementId: string) => sb().rpc('admin_present_agreement', { p_agreement_id: agreementId });
+export const acceptGoods = (dealId: string) => sb().rpc('admin_accept_goods', { p_deal_id: dealId });
+export const releaseSupplierPayout = (dealId: string) => sb().rpc('release_supplier_payout', { p_deal_id: dealId });
+export const releaseInspectorPayout = (dealId: string) => sb().rpc('release_inspector_payout', { p_deal_id: dealId });
 // ADMIN: set the client-facing marked-up price and release the offer to the client.
 export const presentQuote = (quoteId: string, clientPriceCents: number, note?: string) =>
   sb().rpc('admin_present_quote', { p_quote_id: quoteId, p_client_price_cents: clientPriceCents, p_admin_note: note ?? null });

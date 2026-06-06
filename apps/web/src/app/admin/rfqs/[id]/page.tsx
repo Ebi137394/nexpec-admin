@@ -10,6 +10,7 @@ import {
   type Rfq, type AdminQuote,
 } from '@/lib/data/marketplace';
 import { useParams } from 'next/navigation';
+import { DealControlPanel } from '@/components/marketplace/DealControlPanel';
 
 export default function AdminRfqDetailPage() {
   const params = useParams<{ id: string }>();
@@ -46,6 +47,8 @@ export default function AdminRfqDetailPage() {
           {rfq.requires_source_inspection && <span className="ml-2 inline-flex items-center gap-1 text-violet-glow"><ShieldCheck className="h-3.5 w-3.5" /> Source / FAT</span>}
         </p>
       </header>
+
+      <DealControlPanel rfqId={id} />
 
       {rfq.spawned_job_id && (
         <div className="flex items-center gap-3 rounded-2xl border border-accent-green/40 bg-accent-green/10 p-4">

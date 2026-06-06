@@ -36,6 +36,11 @@ ALTER TABLE public.deal_money_legs ADD CONSTRAINT deal_money_legs_kind_check
   CHECK (kind IN ('client_escrow_in','supplier_payout','inspector_payout','vip_disclosure_fee'));
 
 -- ── 1. The sealed MSA rider (Named Disclosure amendment) ──────────────────────
+--   The signature widened 3→4 args (added p_tier_label). CREATE OR REPLACE with a
+--   new arity creates a SECOND overload rather than replacing, which makes the
+--   3-arg self-test call ambiguous. Drop the old 3-arg first so the 4-arg (with
+--   its default) is the sole candidate. Safe + idempotent on fresh or patched DBs.
+DROP FUNCTION IF EXISTS public._brokered_disclosure_amendment_md(text, bigint, text);
 CREATE OR REPLACE FUNCTION public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text DEFAULT 'Standard')
 RETURNS text LANGUAGE sql IMMUTABLE AS $fn$
   SELECT format($md$# NEXPEC Named-Disclosure Amendment (Rider to the Supply & Inspection Agreement)
@@ -241,7 +246,7 @@ DO $$
 DECLARE v_body text;
 BEGIN
   IF to_regprocedure('public.request_named_disclosure(uuid,bigint)') IS NULL THEN RAISE EXCEPTION 'SELFTEST: request_named_disclosure missing'; END IF;
-  IF to_regprocedure('public._brokered_disclosure_amendment_md(text,bigint,text)') IS NULL THEN RAISE EXCEPTION 'SELFTEST: amendment template missing'; END IF;
+  IF to_regprocedure('public._brokered_disclosure_amendment_md(text,bigint,text,text)') IS NULL THEN RAISE EXCEPTION 'SELFTEST: amendment template missing'; END IF;
 
   -- enums widened
   IF pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conname='agreements_kind_check')) NOT LIKE '%disclosure_amendment%' THEN

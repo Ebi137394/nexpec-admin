@@ -16,7 +16,6 @@ import {
   Platform,
   Animated,
   Dimensions,
-  Image,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -55,6 +54,7 @@ import {
   TrendingDown,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { nxHandle } from '../../../../src/core/utils/handle';
 import {
   ApplicationStatus,
   APPLICATION_STATUS_CONFIG,
@@ -207,24 +207,17 @@ const forceClientSelection = async (
   }
 };
 
+// ANTI-POACHING: the client never sees an inspector's real name pre-hire.
+// They see the pseudonymous NX- handle (identical to /p/[userId] on web and the
+// public directory). Real identity is released through NEXPEC only after
+// report-confirm / VIP disclosure. Derived from the opaque id, never PII.
 const getApplicantName = (applicant: ApplicantProfile): string => {
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  return fullName || 'Anonymous Inspector';
+  return nxHandle(applicant.id);
 };
 
-const getApplicantInitials = (applicant: ApplicantProfile): string => {
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  if (firstName) {
-    return firstName.charAt(0).toUpperCase();
-  }
-  return '?';
+const getApplicantInitials = (_applicant: ApplicantProfile): string => {
+  // Neutral, identity-free glyph for the pseudonymous avatar sigil.
+  return 'NX';
 };
 
 const formatTimeAgo = (dateString: string): string => {
@@ -601,15 +594,13 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
         )}
 
         <View style={styles.applicantHeader}>
-          {applicant.avatar_url ? (
-            <Image source={{ uri: applicant.avatar_url }} style={styles.applicantAvatar} />
-          ) : (
-            <View style={styles.applicantAvatarPlaceholder}>
-              <Text style={styles.applicantAvatarText}>
-                {getApplicantInitials(applicant)}
-              </Text>
-            </View>
-          )}
+          {/* ANTI-POACHING: never render the inspector's real photo to the
+              client — always the pseudonymous NX sigil. */}
+          <View style={styles.applicantAvatarPlaceholder}>
+            <Text style={styles.applicantAvatarText}>
+              {getApplicantInitials(applicant)}
+            </Text>
+          </View>
 
           <View style={styles.applicantInfo}>
             <View style={styles.applicantNameRow}>
@@ -841,15 +832,12 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.reviewHeader}>
-            {applicant.avatar_url ? (
-              <Image source={{ uri: applicant.avatar_url }} style={styles.reviewAvatar} />
-            ) : (
-              <View style={styles.reviewAvatarPlaceholder}>
-                <Text style={styles.reviewAvatarText}>
-                  {getApplicantInitials(applicant)}
-                </Text>
-              </View>
-            )}
+            {/* ANTI-POACHING: pseudonymous sigil only — no real photo. */}
+            <View style={styles.reviewAvatarPlaceholder}>
+              <Text style={styles.reviewAvatarText}>
+                {getApplicantInitials(applicant)}
+              </Text>
+            </View>
             <View style={styles.reviewInfo}>
               <Text style={styles.reviewName}>{getApplicantName(applicant)}</Text>
               <Text style={styles.reviewTitle}>{applicant.title || 'Inspector'}</Text>

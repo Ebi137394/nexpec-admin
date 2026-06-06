@@ -22,16 +22,17 @@ import {
   XCircle,
   Star,
   Briefcase,
-  MapPin,
   CalendarClock,
   Users,
   ExternalLink,
   MessageSquareQuote,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   fetchClientJob,
   fetchJobApplications,
 } from '@/lib/data/jobApplications';
+import { inspectorHandle } from '@/lib/identity/inspectorHandle';
 import type {
   ApplicationStatus,
   JobApplicationRow,
@@ -209,9 +210,10 @@ function Card({
   jobId: string;
 }) {
   const insp = app.inspector;
-  const initials = makeInitials(
-    insp?.fullName ?? insp?.email ?? 'Inspector',
-  );
+  // ANTI-POACHING: clients see the pseudonymous NX- handle pre-hire, never the
+  // inspector's real name/photo — identical to /p/[userId]. The real identity
+  // is released through NEXPEC only after report-confirm / VIP disclosure.
+  const handle = inspectorHandle(app.applicantId);
   const isClosed =
     app.status === 'rejected' ||
     app.status === 'withdrawn' ||
@@ -226,24 +228,25 @@ function Card({
             /p/[userId] page strictly filters sensitive fields. */}
         <Link
           href={`/p/${app.applicantId}`}
-          aria-label={`View ${insp?.fullName ?? 'inspector'}'s public profile`}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-[12px] font-semibold text-white transition-transform hover:scale-105"
+          aria-label={`View ${handle}'s verified profile`}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-white transition-transform hover:scale-105"
         >
-          {initials}
+          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
         </Link>
         <div className="min-w-0 flex-1">
           <Link
             href={`/p/${app.applicantId}`}
-            className="group/name inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-violet-glow"
+            className="group/name inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-white hover:text-violet-glow"
           >
-            <span className="truncate">
-              {insp?.fullName || insp?.email?.split('@')[0] || 'Inspector'}
-            </span>
+            <span className="truncate">{handle}</span>
             <ExternalLink
               className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100"
               strokeWidth={2}
             />
           </Link>
+          <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow/70">
+            NEXPEC-Verified inspector
+          </p>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
             {insp?.ratingAverage !== null && insp?.ratingAverage !== undefined && (
               <span className="inline-flex items-center gap-1">
@@ -259,12 +262,6 @@ function Card({
               <span className="inline-flex items-center gap-1">
                 <Briefcase className="h-3 w-3" strokeWidth={1.75} />
                 {insp?.completedJobsCount} completed
-              </span>
-            )}
-            {insp?.locationCity && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" strokeWidth={1.75} />
-                {insp.locationCity}
               </span>
             )}
             {insp?.yearsOfExperience && (
@@ -451,14 +448,6 @@ function ProfileSignal({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
-}
-
-function makeInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return (parts[0] ?? '?').slice(0, 2).toUpperCase();
-  return (
-    (parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')
-  ).toUpperCase();
 }
 
 function formatRelative(iso: string): string {

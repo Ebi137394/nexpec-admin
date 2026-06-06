@@ -162,9 +162,9 @@ export async function fetchJobApplications(
         id, job_id, applicant_id, status, cover_note,
         bid_amount_cents, created_at,
         inspector:profiles!applicant_id(
-          id, full_name, email, avatar_url,
+          id,
           rating_average, completed_jobs_count,
-          location_city, years_of_experience
+          years_of_experience
         )
         `,
       )
@@ -201,9 +201,14 @@ export async function fetchJobApplications(
         inspector: insp
           ? {
               id: String(insp.id),
-              fullName: (insp.full_name as string | null) ?? null,
-              email: (insp.email as string | null) ?? null,
-              avatarUrl: (insp.avatar_url as string | null) ?? null,
+              // ANTI-POACHING: the client never receives inspector PII during
+              // the application/dispatch phase. Identity escrow reveals the
+              // real name only after report-confirm or a VIP early-disclosure.
+              // The card renders the pseudonymous NX- handle from `id`, exactly
+              // like /p/[userId] and /inspectors. (Admin keeps god-mode views.)
+              fullName: null,
+              email: null,
+              avatarUrl: null,
               ratingAverage:
                 typeof insp.rating_average === 'number'
                   ? (insp.rating_average as number)
@@ -214,7 +219,7 @@ export async function fetchJobApplications(
                 typeof insp.completed_jobs_count === 'number'
                   ? (insp.completed_jobs_count as number)
                   : null,
-              locationCity: (insp.location_city as string | null) ?? null,
+              locationCity: null,
               yearsOfExperience:
                 (insp.years_of_experience as string | null) ?? null,
             }

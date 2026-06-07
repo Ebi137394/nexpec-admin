@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Image,
   ActivityIndicator,
   RefreshControl,
   Animated,
@@ -39,6 +38,7 @@ import {
   Circle,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { nxHandle } from '../../../src/core/utils/handle';
 import { showAlert } from '@/lib/alert';
 
 // ============================================================================
@@ -410,13 +410,12 @@ const InspectorCard: React.FC<InspectorCardProps> = ({ inspector, onPress }) => 
         <View style={styles.cardHeader}>
           {/* Avatar */}
           <View style={styles.avatarContainer}>
-            {inspector.avatar_url ? (
-              <Image source={{ uri: inspector.avatar_url }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <User size={28} color="#64748B" />
-              </View>
-            )}
+            {/* ANTI-POACHING: never render the inspector's real photo — the
+                client directory is pseudonymous (NX handle + sigil), matching
+                the web /inspectors directory and /p profile. */}
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <User size={28} color="#64748B" />
+            </View>
             
             {/* Online Indicator */}
             <View style={[styles.onlineIndicator, { backgroundColor: availabilityColor }]} />
@@ -433,7 +432,7 @@ const InspectorCard: React.FC<InspectorCardProps> = ({ inspector, onPress }) => 
           <View style={styles.cardInfo}>
             <View style={styles.nameRow}>
               <Text style={styles.inspectorName} numberOfLines={1}>
-                {inspector.full_name}
+                {nxHandle(inspector.id)}
               </Text>
               {inspector.is_verified && (
                 <Shield size={14} color="#3B82F6" style={{ marginLeft: 4 }} />
@@ -942,8 +941,10 @@ export default function ExploreScreen() {
 
         const results = (data || []).map((profile: any) => ({
           id: profile.id,
-          full_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-          avatar_url: profile.avatar_url,
+          // ANTI-POACHING: never hold the real name/photo client-side — the
+          // directory is pseudonymous. Card renders nxHandle(id) + a sigil.
+          full_name: nxHandle(profile.id),
+          avatar_url: null,
           bio: profile.bio,
           is_verified: profile.is_verified || false,
           is_available: profile.is_available || false,

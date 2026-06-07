@@ -44,15 +44,21 @@ export function DispatchDrawer({ job, applicationId }: DispatchDrawerProps) {
   const [clientPriceInput, setClientPriceInput] = useState('');
   const [payoutInput, setPayoutInput] = useState('');
 
-  // When the application changes, reseed payout from the inspector's bid.
+  // When the application changes, reseed payout from the inspector's AGREED bid
+  // (applications.bid_amount_cents — the post-negotiation canonical price; an
+  // accepted admin counter is already folded into it). Using payout_amount_cents
+  // here was the bug: that is not a real applications column, so the field never
+  // got the bid and the admin could dispatch at the stale posting amount. The DB
+  // trigger (20260801131000) now also enforces payout = bid on assignment, so
+  // this prefill is purely so the admin SEES the correct number.
   useEffect(() => {
-    if (application?.payout_amount_cents != null) {
-      setPayoutInput((application.payout_amount_cents / 100).toFixed(2));
+    if (application?.bid_amount_cents != null) {
+      setPayoutInput((application.bid_amount_cents / 100).toFixed(2));
     } else {
       setPayoutInput('');
     }
     setClientPriceInput('');
-  }, [application?.id, application?.payout_amount_cents]);
+  }, [application?.id, application?.bid_amount_cents]);
 
   /* ── Server action wiring ─────────────────────────────────────────── */
   const [state, formAction] = useActionState<DispatchActionState, FormData>(

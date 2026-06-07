@@ -852,9 +852,6 @@ export default function ExploreScreen() {
           .from('profiles')
           .select(`
             id,
-            first_name,
-            last_name,
-            avatar_url,
             bio,
             is_verified,
             is_available,
@@ -894,9 +891,12 @@ export default function ExploreScreen() {
           query = query.contains('ndt_methods', Array.from(filters.ndtMethods));
         }
 
-        // Apply search
+        // Apply search — ANTI-POACHING: search capability/expertise only, NOT
+        // the inspector's real name. Matching first_name/last_name here would
+        // let a client type a name and correlate it to the NX- handle shown in
+        // results (a de-anonymization oracle). Capability discovery only.
         if (searchQuery) {
-          query = query.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%,bio.ilike.%${searchQuery}%,skills.cs.{${searchQuery}}`);
+          query = query.or(`bio.ilike.%${searchQuery}%,skills.cs.{${searchQuery}}`);
         }
 
         // Apply sorting

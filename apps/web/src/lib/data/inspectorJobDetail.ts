@@ -148,7 +148,12 @@ export async function fetchInspectorJob(
         ? (j.specialty_slugs as string[])
         : [],
       scheduledDate: (j.scheduled_date as string | null) ?? null,
-      inspectorPayoutCents: parsePayoutCents(j),
+      // The inspector's payout IS their agreed bid (post-negotiation;
+      // applications.bid_amount_cents already folds in any accepted admin
+      // counter). Prefer it over the job's payout column, which can lag behind
+      // the hire on legacy/RFQ-spawned jobs. Falls back to the job payout when
+      // the inspector applied without proposing a figure.
+      inspectorPayoutCents: myApplication?.bidCents ?? parsePayoutCents(j),
       clientCompanyName,
       sponsorshipOffered:
         ((j.sponsorship_offered as OpenJobSponsorship | null) ?? 'none') as

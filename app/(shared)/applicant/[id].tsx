@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ShieldCheck, Briefcase, Award, CheckCircle, MapPin, Calendar, AlertCircle, Layers, Building2, BadgeCheck, Info } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { nxHandle } from '@/src/core/utils/handle';
 
 interface InspectorProfile {
   id: string;
@@ -134,7 +135,9 @@ export default function ApplicantBlindProfileScreen() {
     if (!id) return;
     try {
       const [profileRes, expRes, certRes, appRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, bio, skills, city, province').eq('id', id).single(),
+        // ANTI-POACHING: a "Blind Profile" must not fetch the inspector's real
+        // name or precise location. Only the opaque id (→ NX handle), bio, skills.
+        supabase.from('profiles').select('id, bio, skills').eq('id', id).single(),
         supabase.from('work_experience').select('id, user_id, company, title, start_date, end_date, description, is_current').eq('user_id', id).order('start_date', { ascending: false }),
         supabase.from('certifications').select('id, user_id, title, issuing_organization, issue_date, expiry_date, credential_id').eq('user_id', id).order('issue_date', { ascending: false }),
         // ★ HIRE-008: canonical applications table. Legacy column
@@ -165,7 +168,7 @@ export default function ApplicantBlindProfileScreen() {
 
   const handleSelect = useCallback(() => {
     if (!job_id || !id) return;
-    const name = profile?.full_name ?? t('blind.this_inspector', 'this inspector');
+    const name = nxHandle(profile?.id);
     Alert.alert(
       t('blind.confirm_title', 'Confirm Selection'),
       t('blind.confirm_body', `You are selecting ${name} for this job.\n\nThis does not finalize the hire, NEXPEC administration will contact the inspector to confirm availability and negotiate terms on your behalf.`),
@@ -230,11 +233,11 @@ export default function ApplicantBlindProfileScreen() {
       <View style={styles.heroCard}>
         <View style={[styles.heroTop, row]}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarTxt}>{initials(profile?.full_name)}</Text>
+            <Text style={styles.avatarTxt}>NX</Text>
           </View>
           <View style={[styles.heroInfo, { alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
             <Text style={[styles.heroName, { textAlign: txtAlign }]} numberOfLines={2}>
-              {profile?.full_name ?? t('blind.unknown', 'Inspector Profile')}
+              {nxHandle(profile?.id)}
             </Text>
             {loc && (
               <View style={[styles.locRow, row]}>
@@ -454,7 +457,7 @@ export default function ApplicantBlindProfileScreen() {
           <View style={styles.headerCenter}>
             <Text style={styles.headerEyebrow}>{t('blind.header_eyebrow', 'Blind Profile')}</Text>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              {profile?.full_name ?? t('blind.inspector', 'Inspector')}
+              {nxHandle(profile?.id)}
             </Text>
           </View>
           <View style={styles.headerSpacer} />

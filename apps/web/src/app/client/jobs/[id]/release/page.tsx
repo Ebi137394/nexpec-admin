@@ -121,6 +121,7 @@ export default async function ClientReleasePage({
           value={
             state.inspectorFullName ||
             state.inspectorCompanyName ||
+            state.inspectorHandle ||
             '—'
           }
         />

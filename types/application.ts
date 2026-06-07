@@ -1,5 +1,7 @@
 // types/application.ts
 
+import { nxHandle } from '../src/core/utils/handle';
+
 /**
  * Application status enum values
  */
@@ -393,29 +395,23 @@ export const formatApplicationTime = (dateString: string): string => {
 };
 
 /**
- * Get applicant full name
+ * Pseudonymous applicant label for CLIENT-facing surfaces.
+ *
+ * ANTI-POACHING / identity escrow: clients must never see an inspector's real
+ * name pre-reveal (pre-hire + active work). This canonical helper returns the
+ * NX- handle derived from the opaque id so no client caller can leak by
+ * default. The real name is surfaced only on post-completion surfaces (rating,
+ * final report review), which resolve it through their own gated queries.
  */
 export const getApplicantName = (applicant: ApplicantProfile): string => {
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  return fullName || 'Anonymous Inspector';
+  return nxHandle(applicant.id);
 };
 
 /**
- * Get applicant initials for avatar
+ * Identity-free glyph for the pseudonymous avatar sigil.
  */
-export const getApplicantInitials = (applicant: ApplicantProfile): string => {
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-  
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  if (firstName) {
-    return firstName.charAt(0).toUpperCase();
-  }
-  return '?';
+export const getApplicantInitials = (_applicant: ApplicantProfile): string => {
+  return 'NX';
 };
 
 /**

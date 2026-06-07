@@ -36,6 +36,7 @@ import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { assignJobContractor } from '@/lib/assignJob';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { nxHandle } from '@/src/core/utils/handle';
 // ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
 //   lockdown the inspection-photos bucket is private; stored
 //   getPublicUrl() values silently 403 on the device.
@@ -229,7 +230,7 @@ export default function JobDetailScreen() {
 
     Alert.alert(
       'Hire Inspector',
-      `Are you sure you want to hire ${proposal.applicant.full_name} for $${clientPaysAmount}?`,
+      `Are you sure you want to hire ${nxHandle(proposal.applicant.id)} for $${clientPaysAmount}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -283,7 +284,7 @@ export default function JobDetailScreen() {
 
               Alert.alert(
                 'Success',
-                `${proposal.applicant.full_name} has been assigned to this job. A contract draft has been created.`,
+                `${nxHandle(proposal.applicant.id)} has been assigned to this job. A contract draft has been created.`,
                 [{ text: 'OK', onPress: fetchJobDetails }]
               );
             } catch (error: any) {
@@ -476,18 +477,14 @@ export default function JobDetailScreen() {
                 <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
               </View>
               <View style={styles.hiredCard}>
-                <Image
-                  source={{
-                    uri:
-                      acceptedProposal.applicant?.avatar_url ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        acceptedProposal.applicant?.full_name || 'Inspector'
-                      )}&background=6366F1&color=fff`,
-                  }}
-                  style={styles.hiredAvatar}
-                />
+                {/* ANTI-POACHING: pseudonymous sigil + NX handle, never the
+                    real photo/name (pre-reveal: identity escrow until report
+                    sign-off). */}
+                <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{acceptedProposal.applicant?.full_name}</Text>
+                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant?.id)}</Text>
                   <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.headline}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -575,18 +572,12 @@ export default function JobDetailScreen() {
               pendingProposals.map((proposal) => (
                 <View key={proposal.id} style={styles.proposalCard}>
                   <View style={styles.proposalHeader}>
-                    <Image
-                      source={{
-                        uri:
-                          proposal.applicant?.avatar_url ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            proposal.applicant?.full_name || 'Inspector'
-                          )}&background=6366F1&color=fff`,
-                      }}
-                      style={styles.proposalAvatar}
-                    />
+                    {/* ANTI-POACHING: pseudonymous sigil + NX handle only. */}
+                    <View style={[styles.proposalAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                      <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                    </View>
                     <View style={styles.proposalInfo}>
-                      <Text style={styles.proposalName}>{proposal.applicant?.full_name}</Text>
+                      <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
                       <Text style={styles.proposalHeadline} numberOfLines={1}>
                         {proposal.applicant?.headline}
                       </Text>

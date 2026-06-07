@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 import type {
   ClientReportSignal,
   ClientReportState,
@@ -63,14 +64,20 @@ export async function fetchClientJobReport(
 
     const j = rawJob as unknown as Record<string, unknown>;
 
-    // 2. Inspector profile hydration (display only).
+    // 2. Inspector identity — IDENTITY ESCROW. Resolve the real name ONLY
+    //    after the reveal boundary (admin forwarded the report, or the job is
+    //    completed). Pre-reveal the client sees the pseudonymous NX- handle.
     const inspectorId =
       ((j.hired_inspector_id as string | null) ?? null) ||
       ((j.contractor_id as string | null) ?? null);
 
+    const identityRevealed =
+      !!(j.admin_confirmed_at as string | null) ||
+      String(j.status ?? '') === 'completed';
+
     let inspectorFullName: string | null = null;
     let inspectorCompanyName: string | null = null;
-    if (inspectorId) {
+    if (inspectorId && identityRevealed) {
       const { data: prof } = await supabase
         .from('profiles')
         .select('full_name, company_name')
@@ -82,6 +89,7 @@ export async function fetchClientJobReport(
         inspectorCompanyName = (p.company_name as string | null) ?? null;
       }
     }
+    const inspectorHandle = inspectorId ? nxHandle(inspectorId) : null;
 
     // 3. Latest client-originated signal in audit_events for this job.
     const { data: rawEvents } = await supabase
@@ -118,6 +126,7 @@ export async function fetchClientJobReport(
           : (j.client_price_cents as number | null) ?? null,
       inspectorFullName,
       inspectorCompanyName,
+      inspectorHandle,
       payoutStatus: (j.payout_status as string | null) ?? null,
       status: String(j.status ?? ''),
       latestClientSignal: latest,

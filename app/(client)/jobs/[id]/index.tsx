@@ -7,9 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
   RefreshControl,
-  Linking,
   Modal,
 } from 'react-native';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
@@ -30,7 +28,6 @@ import {
   User,
   FileCheck,
   AlertTriangle,
-  FileText,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
@@ -39,6 +36,7 @@ import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { hireContractor } from '@/lib/contracts';
+import { nxHandle } from '@/src/core/utils/handle';
 
 const COLORS = {
   background: '#020420',
@@ -444,21 +442,16 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <CheckCircle size={22} color={COLORS.success} />
-                <Text style={[styles.sectionHeaderTitle, {color: 'red', fontWeight: 'bold'}]}>Hired Inspector 🚨 IN: app/client/jobs/[id]/index.tsx</Text>
+                <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
               </View>
               <View style={styles.hiredCard}>
-                <Image
-                  source={{
-                    uri:
-                      acceptedProposal.applicant.avatar_url ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        acceptedProposal.applicant.full_name
-                      )}&background=6366F1&color=fff`,
-                  }}
-                  style={styles.hiredAvatar}
-                />
+                {/* ANTI-POACHING: pseudonymous sigil + NX handle, never the
+                    real photo/name pre-reveal (identity escrow). */}
+                <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{acceptedProposal.applicant.full_name}</Text>
+                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant.id)}</Text>
                   <Text style={styles.hiredHeadline}>{getHeadline(acceptedProposal.applicant)}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -509,18 +502,12 @@ export default function JobDetailScreen() {
               pendingProposals.map((proposal) => (
                 <View key={proposal.id} style={styles.proposalCard}>
                   <View style={styles.proposalHeader}>
-                    <Image
-                      source={{
-                        uri:
-                          proposal.applicant.avatar_url ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            proposal.applicant.full_name
-                          )}&background=6366F1&color=fff`,
-                      }}
-                      style={styles.proposalAvatar}
-                    />
+                    {/* ANTI-POACHING: pseudonymous sigil + NX handle only. */}
+                    <View style={[styles.proposalAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                      <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                    </View>
                     <View style={styles.proposalInfo}>
-                      <Text style={styles.proposalName}>{proposal.applicant.full_name}</Text>
+                      <Text style={styles.proposalName}>{nxHandle(proposal.applicant.id)}</Text>
                       <Text style={styles.proposalHeadline} numberOfLines={1}>
                         {getHeadline(proposal.applicant)}
                       </Text>
@@ -545,16 +532,8 @@ export default function JobDetailScreen() {
                     </View>
                   </View>
 
-                  {/* 🔴 دکمه مشاهده رزومه بازرس */}
-                  {proposal.applicant?.cv_url && (
-                    <TouchableOpacity 
-                      style={styles.cvButton}
-                      onPress={() => Linking.openURL(proposal.applicant.cv_url)}
-                    >
-                      <FileText size={16} color={COLORS.primary} />
-                      <Text style={styles.cvButtonText}>View Inspector CV</Text>
-                    </TouchableOpacity>
-                  )}
+                  {/* CV intentionally NOT shown pre-reveal: a résumé exposes the
+                      inspector's real name/email/phone/employer (anti-poaching). */}
 
                   {proposal.cover_letter && (
                     <View style={styles.coverLetter}>

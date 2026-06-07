@@ -22,9 +22,15 @@ export interface ClientReportState {
   adminConfirmedAt: string | null;
   /** Client-side final price (admin-set). NEVER the inspector's payout. */
   clientPriceCents: number | null;
-  /** Identity of the inspector who completed the work (display only). */
+  /**
+   * Identity of the inspector who completed the work — display only, and
+   * ONLY populated post-reveal (admin_confirmed_at set OR status completed).
+   * Pre-reveal these stay null and the UI shows `inspectorHandle` instead.
+   */
   inspectorFullName: string | null;
   inspectorCompanyName: string | null;
+  /** Pseudonymous NX- handle, always safe to show (anti-poaching). */
+  inspectorHandle: string | null;
   /** Current escrow / payout posture for context. */
   payoutStatus: string | null;
   /** Job lifecycle status — drives copy ("completed" vs "in_progress"). */

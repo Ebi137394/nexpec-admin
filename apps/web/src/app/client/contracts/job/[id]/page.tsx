@@ -104,8 +104,11 @@ export default async function ClientJobContractPage({
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
           Assigned inspector:{' '}
-          <span className="text-zinc-200">
-            {contract.inspectorName ?? '—'}
+          <span className="font-mono text-zinc-200">
+            {contract.inspectorHandle}
+          </span>{' '}
+          <span className="text-[11px] text-cyan-glow/70">
+            (NEXPEC-Verified)
           </span>
         </p>
       </header>

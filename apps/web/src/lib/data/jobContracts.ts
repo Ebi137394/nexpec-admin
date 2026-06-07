@@ -10,12 +10,15 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 
 export interface ClientJobContractRow {
   id: string;
   jobId: string;
   jobTitle: string | null;
-  inspectorName: string | null;
+  // ANTI-POACHING: client sees the pseudonymous NX- handle, never the real
+  // name — identity escrow reveals the inspector only after report sign-off.
+  inspectorHandle: string;
   clientPriceCents: number;
   status: ContractStatus;
   contractTextMd: string | null;
@@ -123,18 +126,17 @@ export async function fetchMyClientJobContracts(): Promise<ClientJobContractRow[
       supabase,
       rows.map((r) => String(r.job_id)),
     );
-    const names = await profileNameMap(
-      supabase,
-      rows.map((r) => String(r.inspector_id)),
-    );
     return rows.map((r) => ({
       id: String(r.id),
       jobId: String(r.job_id),
       jobTitle: titles.get(String(r.job_id)) ?? null,
-      inspectorName: names.get(String(r.inspector_id)) ?? null,
+      // Pseudonymous handle from the opaque inspector id — never the real name.
+      inspectorHandle: nxHandle(String(r.inspector_id)),
       clientPriceCents: Number(r.client_price_cents ?? 0),
       status: r.status as ContractStatus,
-      contractTextMd: (r.contract_text_md as string | null) ?? null,
+      // Body not rendered in the list, and legacy bodies embed the inspector's
+      // name — never ship name-bearing text to the client list payload.
+      contractTextMd: null,
       customContractUrl: (r.custom_contract_url as string | null) ?? null,
       clientSignedAt: (r.client_signed_at as string | null) ?? null,
       clientSignedName: (r.client_signed_name as string | null) ?? null,
@@ -164,15 +166,28 @@ export async function fetchClientJobContract(
     if (error || !data) return null;
     const r = data as Record<string, unknown>;
     const titles = await jobTitleMap(supabase, [String(r.job_id)]);
-    const names = await profileNameMap(supabase, [String(r.inspector_id)]);
+    const handle = nxHandle(String(r.inspector_id));
+    // Server-side ONLY: resolve the real name solely to SCRUB it out of the
+    // stored contract body before it reaches the client (legacy bodies embed
+    // the inspector's name in the legal text). The name is never returned to
+    // the browser; the inspector's + admin's own projections keep it intact.
+    const realName =
+      (await profileNameMap(supabase, [String(r.inspector_id)])).get(
+        String(r.inspector_id),
+      ) ?? null;
+    let body = (r.contract_text_md as string | null) ?? null;
+    if (body && realName && realName.trim().length > 1) {
+      body = body.split(realName).join(`${handle} (NEXPEC-Verified)`);
+    }
     return {
       id: String(r.id),
       jobId: String(r.job_id),
       jobTitle: titles.get(String(r.job_id)) ?? null,
-      inspectorName: names.get(String(r.inspector_id)) ?? null,
+      // Pseudonymous handle from the opaque inspector id — never the real name.
+      inspectorHandle: handle,
       clientPriceCents: Number(r.client_price_cents ?? 0),
       status: r.status as ContractStatus,
-      contractTextMd: (r.contract_text_md as string | null) ?? null,
+      contractTextMd: body,
       customContractUrl: (r.custom_contract_url as string | null) ?? null,
       clientSignedAt: (r.client_signed_at as string | null) ?? null,
       clientSignedName: (r.client_signed_name as string | null) ?? null,

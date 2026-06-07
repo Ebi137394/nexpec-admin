@@ -121,8 +121,8 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
                       <p className="text-sm font-semibold text-white">
                         {c.jobTitle ?? 'Inspection contract'}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-zinc-500">
-                        Inspector: {c.inspectorName ?? '—'}
+                      <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
+                        Inspector: {c.inspectorHandle}
                       </p>
                       <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[11px] font-semibold text-violet-glow">
                         Your price, {fmtCents(c.clientPriceCents)}

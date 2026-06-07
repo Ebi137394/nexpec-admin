@@ -28,6 +28,7 @@ import {
   adminForwardApplication,
 } from '@/lib/actions/negotiation';
 import { generateJobContract } from '@/lib/actions/jobContracts';
+import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
 import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
 import type {
   ModerationJobDetail,
@@ -582,6 +583,15 @@ export function JobModerationPanel({
             )}
           </section>
         )}
+
+        {/* Flash Reports (NCRs) — admin can acknowledge / resolve disputes /
+            close. Raises also appear in the audit timeline below. */}
+        <FlashReportSection
+          jobId={job.id}
+          viewerRole="super_admin"
+          portal="admin"
+          variant="panel"
+        />
 
         {/* Timeline */}
         <section>

@@ -18,8 +18,11 @@ import {
   Briefcase,
   Tag,
   Users,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { fetchClientJob } from '@/lib/data/jobApplications';
+import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
 import type {
   JobModerationStatus,
   JobStatus,
@@ -39,10 +42,15 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ flash_updated?: string; flash_error?: string }>;
 }
 
-export default async function ClientJobDetailPage({ params }: PageProps) {
+export default async function ClientJobDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
   const { id } = await params;
+  const qp = await searchParams;
   // fetchLaunchedDomainSlugs hits a 4-row table; effectively free.
   const [job, launchedDomains] = await Promise.all([
     fetchClientJob(id),
@@ -127,6 +135,19 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
         tone="client"
       />
 
+      {qp.flash_updated && (
+        <div className="flex items-start gap-3 rounded-2xl border border-cyan-glow/30 bg-cyan-glow/5 p-4 text-cyan-glow">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm">Flash report updated.</p>
+        </div>
+      )}
+      {qp.flash_error && (
+        <div className="flex items-start gap-3 rounded-2xl border border-accent-red/30 bg-accent-red/10 p-4 text-accent-red">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm">{qp.flash_error}</p>
+        </div>
+      )}
+
       {/* Key facts */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <FactTile
@@ -206,6 +227,9 @@ export default async function ClientJobDetailPage({ params }: PageProps) {
           Posted {formatRelative(job.createdAt)}, ID {job.id.slice(0, 8)}
         </p>
       </section>
+
+      {/* Flash Reports (NCRs) — client can review and acknowledge / dispute. */}
+      <FlashReportSection jobId={job.id} viewerRole="client" portal="client" />
     </div>
   );
 }

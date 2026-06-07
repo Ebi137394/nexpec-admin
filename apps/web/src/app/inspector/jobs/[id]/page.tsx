@@ -49,6 +49,7 @@ import type {
 import type { InspectorApplicationStatus } from '@/lib/data/openJobs.types';
 import type { JobUrgency } from '@/lib/data/clientJobs.types';
 import { withdrawApplication } from '@/lib/actions/inspectorApply';
+import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -65,6 +66,9 @@ interface PageProps {
     error?: string;
     already_reported?: string;
     report_submitted?: string;
+    flash_raised?: string;
+    flash_updated?: string;
+    flash_error?: string;
   }>;
 }
 
@@ -84,6 +88,17 @@ export default async function InspectorJobDetailPage({
     fetchLaunchedDomainSlugs(),
   ]);
   if (!job) notFound();
+
+  // Flash Reports (NCRs) can be raised by a hired inspector on an active job.
+  // The list itself renders for any state that has reports (e.g. after the job
+  // moves on), but the "Raise report" CTA is gated to the active window.
+  const isHiredActive =
+    (job.myApplication?.status === 'hired' ||
+      job.myApplication?.status === 'accepted') &&
+    (job.status === 'assigned' || job.status === 'in_progress');
+  const flashRaiseHref = isHiredActive
+    ? `/inspector/jobs/${id}/flash-reports/new`
+    : null;
 
   return (
     <div className="space-y-8">
@@ -180,6 +195,14 @@ export default async function InspectorJobDetailPage({
       */}
       <InspectorWorkflowPanel job={job} report={report} />
 
+      {/* Flash Reports (NCRs) — raise + track mid-job non-conformances. */}
+      <FlashReportSection
+        jobId={job.id}
+        viewerRole="inspector"
+        portal="inspector"
+        raiseHref={flashRaiseHref}
+      />
+
       {/*
         Pending-review CTA — renders only when the job is completed AND the
         inspector hasn't reviewed the client yet. Calmly confirms once submitted.
@@ -225,6 +248,22 @@ export default async function InspectorJobDetailPage({
         <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
           Report submitted. You&apos;ll receive a notification once admin
           completes the review.
+        </Banner>
+      )}
+      {qp.flash_raised && (
+        <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
+          Flash report raised. Admin has been notified and you can track it
+          below.
+        </Banner>
+      )}
+      {qp.flash_updated && (
+        <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
+          Flash report updated.
+        </Banner>
+      )}
+      {qp.flash_error && (
+        <Banner tone="red" icon={<AlertCircle className="h-5 w-5" />}>
+          {qp.flash_error}
         </Banner>
       )}
 

@@ -87,8 +87,16 @@ function revalidateForPortal(portal: Portal, jobId: string): void {
   }
 }
 
-function newReportUrl(jobId: string, params: Record<string, string>): string {
-  const base = `/inspector/jobs/${encodeURIComponent(jobId)}/flash-reports/new`;
+function newReportUrl(
+  portal: 'inspector' | 'admin',
+  jobId: string,
+  params: Record<string, string>,
+): string {
+  const id = encodeURIComponent(jobId);
+  const base =
+    portal === 'admin'
+      ? `/admin/jobs/${id}/flash-reports/new`
+      : `/inspector/jobs/${id}/flash-reports/new`;
   const qs = new URLSearchParams(params).toString();
   return qs ? `${base}?${qs}` : base;
 }
@@ -110,6 +118,9 @@ const RaiseSchema = z.object({
     .min(20, { message: 'Description needs at least 20 characters.' })
     .max(5000, { message: 'Keep the description under 5000 characters.' }),
   locationText: z.string().trim().max(200).optional().or(z.literal('')),
+  // Which surface raised it — inspector (field) or admin (broker). Drives the
+  // return URL only; the RPC still authorises (party or super_admin).
+  portal: z.enum(['inspector', 'admin']).default('inspector'),
 });
 
 export async function raiseFlashReport(formData: FormData): Promise<void> {
@@ -120,13 +131,16 @@ export async function raiseFlashReport(formData: FormData): Promise<void> {
     title: formData.get('title'),
     description: formData.get('description'),
     locationText: formData.get('locationText') ?? '',
+    portal: formData.get('portal') ?? 'inspector',
   });
   const jobIdRaw = String(formData.get('jobId') ?? '');
+  const portalRaw: 'inspector' | 'admin' =
+    formData.get('portal') === 'admin' ? 'admin' : 'inspector';
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message ?? 'Check the form and retry.';
-    redirect(newReportUrl(jobIdRaw, { error: msg }));
+    redirect(newReportUrl(portalRaw, jobIdRaw, { error: msg }));
   }
-  const { jobId, category, severity, title, description, locationText } =
+  const { jobId, category, severity, title, description, locationText, portal } =
     parsed.data;
 
   const supabase = await createSupabaseServerClient();
@@ -134,7 +148,7 @@ export async function raiseFlashReport(formData: FormData): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    redirect('/sign-in?next=' + encodeURIComponent(newReportUrl(jobId, {})));
+    redirect('/sign-in?next=' + encodeURIComponent(newReportUrl(portal, jobId, {})));
   }
 
   // Client-minted id → lets us upload evidence under {reportId}/… BEFORE the
@@ -163,7 +177,7 @@ export async function raiseFlashReport(formData: FormData): Promise<void> {
         message: createErr.message,
       });
     }
-    redirect(newReportUrl(jobId, { error: friendly }));
+    redirect(newReportUrl(portal, jobId, { error: friendly }));
   }
 
   // Evidence — best-effort. The report already exists; an attachment failure
@@ -217,8 +231,8 @@ export async function raiseFlashReport(formData: FormData): Promise<void> {
     }
   }
 
-  revalidatePath(`/inspector/jobs/${jobId}`);
-  redirect(jobUrl('inspector', jobId, { flash_raised: '1' }));
+  revalidateForPortal(portal, jobId);
+  redirect(jobUrl(portal, jobId, { flash_raised: '1' }));
 }
 
 // ─── Transition (any party, gated server-side) ───────────────────────────────

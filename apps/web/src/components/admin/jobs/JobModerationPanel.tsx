@@ -591,6 +591,7 @@ export function JobModerationPanel({
           viewerRole="super_admin"
           portal="admin"
           variant="panel"
+          raiseHref={`/admin/jobs/${job.id}/flash-reports/new`}
         />
 
         {/* Timeline */}

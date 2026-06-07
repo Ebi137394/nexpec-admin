@@ -95,7 +95,7 @@ export default function ReviewReportScreen() {
           id, job_id, contractor_id, summary, notes, file_url, photos_urls, status,
           revision_notes, revision_count, submitted_at,
           jobs (title, price_cents, location, escrow_status, contractor_payout_amount_cents, client_id, agency_id),
-          inspector:profiles (first_name, last_name, avatar_url, rating_average, rating_count)
+          inspector:profiles (rating_average, rating_count)
         `)
         .eq('job_id', id)
         .maybeSingle();
@@ -136,9 +136,11 @@ export default function ReviewReportScreen() {
         // ★ AGENCY-PARITY-006 — ownership pass-through for the gate.
         job_client_id: job?.client_id ?? null,
         job_agency_id: job?.agency_id ?? null,
-        inspector_first_name: inspector?.first_name || '',
-        inspector_last_name: inspector?.last_name || '',
-        inspector_avatar: inspector?.avatar_url,
+        // ANTI-POACHING: inspector identity not held client-side on this
+        // pre-reveal report-review screen. Empty for type compatibility.
+        inspector_first_name: '',
+        inspector_last_name: '',
+        inspector_avatar: null,
         inspector_rating: inspector?.rating_average || 0,
         inspector_reviews: inspector?.rating_count || 0,
       });

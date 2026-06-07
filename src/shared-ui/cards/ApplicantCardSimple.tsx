@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -159,13 +158,10 @@ export const ApplicantCardSimple: React.FC<ApplicantCardSimpleProps> = ({
     <View style={styles.card}>
       {/* Header: Avatar & Info */}
       <View style={styles.header}>
-        {applicant.avatar_url ? (
-          <Image source={{ uri: applicant.avatar_url }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>{getApplicantInitials(applicant)}</Text>
-          </View>
-        )}
+        {/* ANTI-POACHING: pseudonymous sigil only — never the real photo. */}
+        <View style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarText}>{getApplicantInitials(applicant)}</Text>
+        </View>
         <View style={styles.info}>
           <Text style={styles.name}>{getApplicantName(applicant)}</Text>
           <Text style={styles.date}>

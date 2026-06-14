@@ -24,7 +24,7 @@ export async function fetchInspectorJobs(): Promise<InspectorJobLite[]> {
   const id = await uid();
   if (!id) return [];
   const { data } = await sb()
-    .from('jobs').select('id, title').eq('assigned_inspector_id', id)
+    .from('jobs').select('id, title').eq('contractor_id', id)
     .order('created_at', { ascending: false }).limit(100);
   return ((data ?? []) as Array<{ id: string; title: string | null }>).map((j) => ({ id: j.id, title: j.title ?? 'Job' }));
 }

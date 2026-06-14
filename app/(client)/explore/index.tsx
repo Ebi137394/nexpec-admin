@@ -984,10 +984,14 @@ export default function ExploreScreen() {
     [searchQuery, filters]
   );
 
-  // Initial load and filter changes
+  // Initial load and filter changes. Search is owned by the debounced effect
+  // below; depending on fetchInspectors here would re-run on every keystroke
+  // (its closure includes searchQuery), firing a second, un-debounced query per
+  // character. Restrict this effect to mount + filter changes.
   useEffect(() => {
     fetchInspectors(0);
-  }, [fetchInspectors]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   // Debounced search
   useEffect(() => {

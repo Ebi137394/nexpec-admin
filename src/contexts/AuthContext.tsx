@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from 'react';
 import { supabase } from '../lib/supabase';
@@ -107,21 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [fetchOrganization]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  };
+  }, []);
 
   // Add signIn function
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
     if (error) throw error;
-  };
+  }, []);
 
   // Add signUp function
-  const signUp = async (email: string, password: string, role: string) => {
+  const signUp = useCallback(async (email: string, password: string, role: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
@@ -139,10 +140,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Signup error:', err.message);
       return { success: false, error: err.message || 'Signup failed' };
     }
-  };
+  }, []);
+
+  // Memoize the context value so auth consumers don't re-render on every
+  // provider render — only when auth state or the (stable) callbacks change.
+  const value = useMemo(
+    () => ({ ...state, signOut, refreshOrganization, signIn, signUp }),
+    [state, signOut, refreshOrganization, signIn, signUp],
+  );
 
   return (
-    <AuthContext.Provider value={{ ...state, signOut, refreshOrganization, signIn, signUp }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

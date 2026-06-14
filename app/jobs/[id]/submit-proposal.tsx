@@ -47,6 +47,15 @@ export default function SubmitProposalScreen() {
       return;
     }
 
+    // Validate the bid is a real, positive amount. toCents() returns 0 for
+    // non-numeric input and rounds negatives, so an empty/garbage/negative
+    // string must be rejected before it reaches the admin negotiation flow.
+    const bidCents = toCents(bidAmount);
+    if (!Number.isFinite(bidCents) || bidCents <= 0) {
+      Alert.alert('Error', 'Enter a valid bid amount greater than zero.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -59,7 +68,7 @@ export default function SubmitProposalScreen() {
         .insert({
           job_id: id,
           applicant_id: user?.id,
-          bid_amount_cents: toCents(bidAmount),
+          bid_amount_cents: bidCents,
           cover_note: coverLetter,
           status: 'pending',
         });

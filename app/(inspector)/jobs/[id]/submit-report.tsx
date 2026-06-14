@@ -50,12 +50,21 @@ export default function SubmitReportScreen() {
   const signatureRef = useRef<SignatureViewRef>(null);
 
   useEffect(() => {
-    if (jobId) fetchJobDetails();
+    if (jobId) fetchJobDetails().catch(() => {});
   }, [jobId]);
 
   const fetchJobDetails = async () => {
-    // We check if this job has a specific template_url
-    const { data } = await supabase.from('jobs').select('title, template_url').eq('id', jobId).single();
+    // We check if this job has a specific template_url. maybeSingle() avoids a
+    // PGRST116 rejection (0 rows) and we surface the error instead of swallowing.
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('title, template_url')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (error) {
+      console.warn('[submit-report] job details fetch failed:', error.message);
+      return;
+    }
     if (data) setJobData(data);
   };
 

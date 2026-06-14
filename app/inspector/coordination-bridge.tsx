@@ -254,6 +254,7 @@ function CreateBridgeForm({ jobId }: { jobId: string }) {
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
+      if (!row) throw new Error('Bridge creation returned no data.');
       return { bridge_id: row.bridge_id, raw_token: row.raw_token };
     },
     onSuccess: async ({ bridge_id, raw_token }) => {
@@ -769,6 +770,7 @@ function BridgeAdminCard({ view, onMutate }: { view: InspectorBridgeView; onMuta
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
+      if (!row) throw new Error('Token rotation returned no data.');
       return String(row.raw_token);
     },
     onSuccess: async (raw) => {

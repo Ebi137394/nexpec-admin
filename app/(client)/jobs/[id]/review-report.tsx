@@ -242,7 +242,7 @@ export default function ReviewReportScreen() {
     // Logic: Total Payout is the manually set amount plus claimed expenses
     // ★ Task 4: integer cents math is identical to dollar math, just different unit.
     const inspectorPayout = report.contractor_payout_amount_cents + expenseTotal;
-    const serviceCommission = report.job_price_cents_cents - report.contractor_payout_amount_cents;
+    const serviceCommission = report.job_price_cents - report.contractor_payout_amount_cents;
 
     return (
       <View style={styles.paymentCard}>

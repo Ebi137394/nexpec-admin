@@ -58,6 +58,14 @@ export function useWallet(): UseWalletReturn {
           throw walletError;
         }
 
+        // .single() can resolve data=null/error=null under some RLS/PostgREST
+        // edge cases; guard before dereferencing walletData.id below.
+        if (!walletData) {
+          setWallet(null);
+          setTransactions([]);
+          return;
+        }
+
         setWallet(walletData as Wallet);
 
         // 2. Fetch transactions

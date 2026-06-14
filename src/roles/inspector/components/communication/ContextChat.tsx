@@ -360,6 +360,17 @@ const ContextChat: React.FC<ContextChatProps> = ({
     }
   }, [messages]);
 
+  // Guard the simulated-reply timer so a response landing after unmount doesn't
+  // setState on an unmounted component (warning + wasted work).
+  const isMountedRef = useRef(true);
+  const replyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (replyTimerRef.current) clearTimeout(replyTimerRef.current);
+    };
+  }, []);
+
   const sendMessage = useCallback(async () => {
     if (!inputText.trim() || !db) return;
 
@@ -387,7 +398,7 @@ const ContextChat: React.FC<ContextChatProps> = ({
       setIsTyping(true);
 
       // Generate and save response
-      setTimeout(async () => {
+      replyTimerRef.current = setTimeout(async () => {
         const responseText = generateResponse(
           inputText,
           currentFormState,
@@ -413,6 +424,7 @@ const ContextChat: React.FC<ContextChatProps> = ({
           timestamp: new Date().toISOString(),
         };
 
+        if (!isMountedRef.current) return;
         setMessages(prev => [...prev, newAssistantMessage]);
         setIsTyping(false);
       }, 1000);

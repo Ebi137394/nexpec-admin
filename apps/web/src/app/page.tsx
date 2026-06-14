@@ -13,7 +13,6 @@
 import type { Metadata } from 'next';
 import { Nav, type NavViewer } from '@/components/marketing/Nav';
 import { Hero } from '@/components/marketing/Hero';
-import { LiveTicker } from '@/components/marketing/LiveTicker';
 import { HowItWorks } from '@/components/marketing/HowItWorks';
 import { TrustPillars } from '@/components/marketing/TrustPillars';
 import { PlatformScale } from '@/components/marketing/PlatformScale';
@@ -25,7 +24,6 @@ import { SectionTransition } from '@/components/marketing/SectionTransition';
 import { ProvableAI } from '@/components/marketing/ProvableAI';
 import { BlockchainSeals } from '@/components/marketing/BlockchainSeals';
 import { FieldResilience } from '@/components/marketing/FieldResilience';
-import { fetchPublicStats } from '@/lib/data/publicStats';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 // ── Render policy ─────────────────────────────────────────────────────
@@ -73,9 +71,6 @@ export const metadata: Metadata = {
 };
 
 export default async function LandingPage() {
-  // Server-side fetch. Runs once per ISR window, not per request.
-  const stats = await fetchPublicStats();
-
   // Session-aware Nav: detect whether the visitor is authenticated, and if
   // so resolve their role + display label so the Nav can swap the public
   // "Sign in / Get started" CTAs for a contextual "Console" affordance.
@@ -88,7 +83,9 @@ export default async function LandingPage() {
       <Nav viewer={viewer} />
       <main id="top">
         <Hero />
-        <LiveTicker stats={stats} />
+        {/* Public-stats LiveTicker removed — mock/low-signal financial + job
+            stats (jobs dispatched / held in escrow / avg rating) hidden from
+            the landing page per request. Self-contained section; no layout gap. */}
         <HowItWorks />
         <TrustPillars />
 

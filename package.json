@@ -119,6 +119,7 @@
     "@babel/core": "^7.20.0",
     "@react-native-community/cli": "^20.0.1",
     "@types/react": "~18.3.12",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "typescript": "~5.3.3"
   }
 }

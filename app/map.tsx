@@ -689,13 +689,6 @@ export default function InteractiveMapScreen() {
 
       const { data, error } = await query;
 
-      // 🪤 TRAP: Let's see exactly what fields are available for a job!
-      if (data && data.length > 0) {
-        console.log('\n=== 🕵️‍♂️ NEXPEC DB TRAP: JOB DATA ===');
-        console.log(JSON.stringify(data[0], null, 2));
-        console.log('=====================================\n');
-      }
-
       if (error) {
         console.error('[Map] Jobs fetch error:', error.message);
         Alert.alert('Error', 'Failed to load jobs. Pull to refresh.');

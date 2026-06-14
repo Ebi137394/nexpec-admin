@@ -13,6 +13,7 @@
 import type { Metadata } from 'next';
 import { Nav, type NavViewer } from '@/components/marketing/Nav';
 import { Hero } from '@/components/marketing/Hero';
+import { SocialProofCTA } from '@/components/marketing/SocialProofCTA';
 import { HowItWorks } from '@/components/marketing/HowItWorks';
 import { TrustPillars } from '@/components/marketing/TrustPillars';
 import { PlatformScale } from '@/components/marketing/PlatformScale';
@@ -83,9 +84,10 @@ export default async function LandingPage() {
       <Nav viewer={viewer} />
       <main id="top">
         <Hero />
-        {/* Public-stats LiveTicker removed — mock/low-signal financial + job
-            stats (jobs dispatched / held in escrow / avg rating) hidden from
-            the landing page per request. Self-contained section; no layout gap. */}
+        {/* Conditional, data-driven social-proof CTA. Replaces the old fake-
+            stats ticker. Renders ONLY once the marketplace crosses a real
+            traction threshold (>= 100 jobs); returns null otherwise. */}
+        <SocialProofCTA />
         <HowItWorks />
         <TrustPillars />
 

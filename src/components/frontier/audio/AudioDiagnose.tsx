@@ -107,6 +107,25 @@ const AudioDiagnose: React.FC = () => {
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dbTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track the previously-untracked handles so they can be cancelled on unmount.
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const toProcessingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toResultRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Unmount cleanup — cancel every pending interval/timeout so nothing fires
+  // (or calls setState) after the component leaves the tree. Does not affect the
+  // mounted choreography: timings, durations, and sequence are unchanged.
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (dbTimerRef.current) clearInterval(dbTimerRef.current);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      if (toProcessingRef.current) clearTimeout(toProcessingRef.current);
+      if (toResultRef.current) clearTimeout(toResultRef.current);
+    };
+  }, []);
 
   // ─── IDLE PULSING ANIMATION ───────────────────────────
   useEffect(() => {
@@ -289,6 +308,7 @@ const AudioDiagnose: React.FC = () => {
       ms += 50;
       setElapsedMs(ms);
     }, 50);
+    elapsedRef.current = elapsed;
 
     // Simulate decibel fluctuation
     const dbInterval = setInterval(() => {
@@ -297,7 +317,8 @@ const AudioDiagnose: React.FC = () => {
     dbTimerRef.current = dbInterval;
 
     // After 3 seconds, go to processing
-    setTimeout(() => {
+    toProcessingRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
       clearInterval(waveInterval);
       clearInterval(elapsed);
       clearInterval(dbInterval);
@@ -328,7 +349,8 @@ const AudioDiagnose: React.FC = () => {
       dotsLoop.start();
 
       // After 2 seconds, show result
-      setTimeout(() => {
+      toResultRef.current = setTimeout(() => {
+        if (!isMountedRef.current) return;
         dotsLoop.stop();
         setPhase('result');
 

@@ -11,16 +11,28 @@
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type {
+  ClientCreditProfile,
   ClientFinance,
   ClientFinanceMetrics,
   FinanceActivityKind,
   FinanceActivityRow,
+  PaymentTerms,
 } from './clientFinance.types';
 
 export type {
+  ClientCreditProfile,
   ClientFinance,
   ClientFinanceMetrics,
   FinanceActivityRow,
+  PaymentTerms,
+};
+
+const EMPTY_CREDIT: ClientCreditProfile = {
+  terms: 'prepay',
+  creditLimitCents: 0,
+  creditUsedCents: 0,
+  creditAvailableCents: 0,
+  netTermsDueCents: 0,
 };
 
 const EMPTY: ClientFinance = {
@@ -31,8 +43,16 @@ const EMPTY: ClientFinance = {
     completedJobsYtd: 0,
     activeJobsCount: 0,
   },
+  credit: EMPTY_CREDIT,
   recentActivity: [],
 };
+
+const VALID_TERMS: readonly PaymentTerms[] = [
+  'prepay', 'net_15', 'net_30', 'net_45', 'net_60',
+];
+function normalizeTerms(v: unknown): PaymentTerms {
+  return VALID_TERMS.includes(v as PaymentTerms) ? (v as PaymentTerms) : 'prepay';
+}
 
 export async function fetchClientFinance(): Promise<ClientFinance> {
   try {
@@ -42,25 +62,36 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
     } = await supabase.auth.getUser();
     if (!user) return EMPTY;
 
-    // STRICT projection — client-side money columns only.
-    const { data: jobs, error } = await supabase
-      .from('jobs')
-      .select(
-        [
-          'id',
-          'title',
-          'status',
-          'client_price_cents',
-          'payout_status',
-          'created_at',
-          'updated_at',
-          'admin_confirmed_at',
-          'payout_paid_at',
-        ].join(', '),
-      )
-      .eq('client_id', user.id)
-      .is('deleted_at', null)
-      .order('updated_at', { ascending: false });
+    // Credit posture lives on the profile (Net-30/60 trade terms + ceiling).
+    // Read it alongside the job ledger; default to prepay if the row is absent.
+    const [{ data: jobs, error }, { data: prof }] = await Promise.all([
+      supabase
+        .from('jobs')
+        .select(
+          [
+            'id',
+            'title',
+            'status',
+            'client_price_cents',
+            'payout_status',
+            'payment_mode',
+            'escrow_status',
+            'client_settled_at',
+            'created_at',
+            'updated_at',
+            'admin_confirmed_at',
+            'payout_paid_at',
+          ].join(', '),
+        )
+        .eq('client_id', user.id)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false }),
+      supabase
+        .from('profiles')
+        .select('client_payment_terms, client_credit_limit_cents')
+        .eq('id', user.id)
+        .maybeSingle(),
+    ]);
 
     if (error || !jobs) {
       if (error && typeof console !== 'undefined') {
@@ -77,6 +108,10 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
     let completedJobsYtd = 0;
     let activeJobsCount = 0;
 
+    // Net-terms credit exposure.
+    let creditUsedCents = 0;
+    let netTermsDueCents = 0;
+
     const activity: FinanceActivityRow[] = [];
 
     for (const job of jobs) {
@@ -87,6 +122,13 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
       );
       const updatedAt = String(j.updated_at ?? j.created_at ?? '');
 
+      // prepay is the default when payment_mode is unset; net_terms is explicit.
+      const isNetTerms = String(j.payment_mode ?? 'prepay') === 'net_terms';
+      const escrowStatus = String(j.escrow_status ?? '');
+      const settled = j.client_settled_at != null;
+      const isActive = status === 'assigned' || status === 'in_progress';
+      const isCommitted = isActive || status === 'completed';
+
       // Metrics
       if (
         status === 'open' ||
@@ -95,8 +137,19 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
       ) {
         activeJobsCount += 1;
       }
-      if (status === 'assigned' || status === 'in_progress') {
+      // PREPAY escrow only: cash the client locked up front, still held.
+      if (
+        !isNetTerms &&
+        isActive &&
+        escrowStatus !== 'released' &&
+        escrowStatus !== 'refunded'
+      ) {
         heldInEscrowCents += price;
+      }
+      // NET-TERMS credit: drawn exposure (committed, unsettled) + invoiced-due subset.
+      if (isNetTerms && isCommitted && !settled) {
+        creditUsedCents += price;
+        if (j.admin_confirmed_at != null) netTermsDueCents += price;
       }
       if (status === 'completed' && updatedAt >= yearStart) {
         completedJobsYtd += 1;
@@ -141,6 +194,17 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
 
     activity.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
 
+    const creditLimitCents = parseCents(
+      (prof?.client_credit_limit_cents as number | string | null) ?? null,
+    );
+    const credit: ClientCreditProfile = {
+      terms: normalizeTerms(prof?.client_payment_terms),
+      creditLimitCents,
+      creditUsedCents,
+      creditAvailableCents: Math.max(0, creditLimitCents - creditUsedCents),
+      netTermsDueCents,
+    };
+
     return {
       metrics: {
         totalSpendYtdCents,
@@ -149,6 +213,7 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
         completedJobsYtd,
         activeJobsCount,
       },
+      credit,
       recentActivity: activity.slice(0, 25),
     };
   } catch (e) {

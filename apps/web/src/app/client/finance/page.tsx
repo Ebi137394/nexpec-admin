@@ -25,11 +25,16 @@ import {
   ShieldCheck,
   BarChart3,
   FolderLock,
+  Lock,
+  Landmark,
+  CalendarClock,
 } from 'lucide-react';
 import { fetchClientFinance } from '@/lib/data/clientFinance';
 import type {
+  ClientCreditProfile,
   FinanceActivityKind,
   FinanceActivityRow,
+  PaymentTerms,
 } from '@/lib/data/clientFinance.types';
 
 export const metadata: Metadata = {
@@ -39,7 +44,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function ClientFinancePage() {
-  const { metrics, recentActivity } = await fetchClientFinance();
+  const { metrics, credit, recentActivity } = await fetchClientFinance();
 
   return (
     <div className="space-y-10">
@@ -51,9 +56,9 @@ export default async function ClientFinancePage() {
           Spend &amp; invoices
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
-          What you&apos;ve funded, what&apos;s in escrow, and what&apos;s
-          settled. NEXPEC processes payouts to inspectors directly via
-          Stripe, you fund escrow per job; we move the money.
+          What you&apos;ve funded, what&apos;s locked in escrow, and what
+          you owe on terms. NEXPEC holds prepaid funds in a dedicated escrow
+          ledger and releases them to the inspector only on your approval.
         </p>
       </header>
 
@@ -88,6 +93,12 @@ export default async function ClientFinancePage() {
           value={formatCount(metrics.completedJobsYtd)}
           sub={`${formatCount(metrics.activeJobsCount)} currently active`}
         />
+      </section>
+
+      {/* Escrow vs Credit — the crux: locked cash vs borrowed headroom */}
+      <section aria-label="Escrow versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <EscrowPanel lockedCents={metrics.heldInEscrowCents} />
+        <CreditPanel credit={credit} />
       </section>
 
       {/* Activity ledger */}
@@ -186,10 +197,10 @@ export default async function ClientFinancePage() {
             Payment methods
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            Cards on file + ACH instructions are managed via the secure
-            Stripe customer portal. Direct in-portal management lands in
-            the next sprint; for now, our team can rotate cards on
-            request.
+            Prepay jobs are funded by bank transfer into your escrow ledger;
+            net-terms invoices settle by transfer on the due date. To add or
+            update remittance details, or to discuss raising your credit
+            line, our team can help directly.
           </p>
           <Link
             href="/contact?channel=support"
@@ -238,19 +249,19 @@ export default async function ClientFinancePage() {
         <ol className="space-y-3 text-sm text-zinc-400">
           <Step
             n={1}
-            text="You fund a job's escrow when you post it. Funds sit with Stripe, not NEXPEC, we never touch your money directly."
+            text="Prepay: you fund a job's escrow when you post it, and the amount is held in a dedicated escrow ledger — ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
           />
           <Step
             n={2}
-            text="Inspector submits report. Our team reviews technical + financial integrity, then forwards to you."
+            text="Inspector submits the report. Our team reviews technical + financial integrity, then forwards it to you."
           />
           <Step
             n={3}
-            text="You approve the report. That approval is a signal, admin executes the Stripe Connect payout to the inspector."
+            text="You approve the report. That approval releases the held escrow to the inspector's wallet; for net-terms jobs it issues the invoice on your agreed terms."
           />
           <Step
             n={4}
-            text="If you dispute the report, escrow holds until our team mediates. Funds only release on mutual agreement."
+            text="If you dispute the report, escrow holds until our team mediates. Funds only release on mutual agreement; cancellations are refunded from escrow."
           />
         </ol>
       </section>
@@ -259,6 +270,145 @@ export default async function ClientFinancePage() {
 }
 
 /* ─── pieces ─────────────────────────────────────────────────────────── */
+
+const TERMS_LABEL: Record<PaymentTerms, string> = {
+  prepay: 'Prepay',
+  net_15: 'Net-15',
+  net_30: 'Net-30',
+  net_45: 'Net-45',
+  net_60: 'Net-60',
+};
+
+/** Prepay escrow — cash the client has locked and committed. */
+function EscrowPanel({ lockedCents }: { lockedCents: number }) {
+  return (
+    <article className="relative overflow-hidden rounded-3xl border border-violet/30 bg-gradient-to-br from-violet/[0.12] via-violet/[0.05] to-transparent p-6 sm:p-7">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
+          <Lock className="h-4 w-4" strokeWidth={1.75} />
+        </span>
+        <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/90">
+          Locked in escrow · Prepay
+        </p>
+      </div>
+      <p className="mt-5 font-display text-4xl font-semibold tracking-tight text-white">
+        {formatCurrency(lockedCents)}
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-300/90">
+        Cash you&apos;ve <span className="font-medium text-white">already paid</span>{' '}
+        into NEXPEC&apos;s escrow ledger for active jobs. It is ring-fenced —
+        released to the inspector only when you approve the report, and refunded
+        if a job is cancelled.
+      </p>
+      <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-violet/25 bg-violet/10 px-3 py-1 text-[11px] font-medium text-violet-glow">
+        <ShieldCheck className="h-3 w-3" strokeWidth={2} />
+        Your money — held, not spent
+      </p>
+    </article>
+  );
+}
+
+/** Net-terms credit — borrowed headroom, distinct from locked escrow cash. */
+function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
+  const hasCredit = credit.terms !== 'prepay' || credit.creditLimitCents > 0;
+
+  if (!hasCredit) {
+    return (
+      <article className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-7">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-zinc-300 ring-1 ring-inset ring-white/10">
+            <Landmark className="h-4 w-4" strokeWidth={1.75} />
+          </span>
+          <p className="text-[11px] font-semibold uppercase tracking-industrial text-zinc-400">
+            Trade credit · Net terms
+          </p>
+        </div>
+        <p className="mt-5 font-display text-2xl font-semibold tracking-tight text-white">
+          Prepay account
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+          You currently fund each job up front. Approved B2B clients can switch
+          to <span className="text-white">Net-30 to Net-60</span> terms — post
+          jobs against a credit line and settle invoices later, with nothing
+          locked in escrow.
+        </p>
+        <Link
+          href="/contact?channel=support&topic=credit"
+          className="mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-4 py-2 text-xs font-semibold uppercase tracking-industrial text-cyan-glow hover:bg-cyan-glow/20"
+        >
+          Apply for trade credit
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
+        </Link>
+      </article>
+    );
+  }
+
+  const limit = credit.creditLimitCents;
+  const used = credit.creditUsedCents;
+  const usedPct =
+    limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const overLimit = used > limit && limit > 0;
+
+  return (
+    <article className="relative overflow-hidden rounded-3xl border border-cyan-glow/30 bg-gradient-to-br from-cyan-glow/[0.10] via-cyan-glow/[0.04] to-transparent p-6 sm:p-7">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-glow/15 text-cyan-glow ring-1 ring-inset ring-cyan-glow/30">
+            <Landmark className="h-4 w-4" strokeWidth={1.75} />
+          </span>
+          <p className="text-[11px] font-semibold uppercase tracking-industrial text-cyan-glow/90">
+            Trade credit · Net terms
+          </p>
+        </div>
+        <span className="rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-industrial text-cyan-glow">
+          {TERMS_LABEL[credit.terms]}
+        </span>
+      </div>
+
+      <p className="mt-5 text-[11px] font-medium uppercase tracking-industrial text-zinc-400">
+        Available to draw
+      </p>
+      <p className="mt-1 font-display text-4xl font-semibold tracking-tight text-white">
+        {formatCurrency(credit.creditAvailableCents)}
+      </p>
+
+      {/* Usage bar — used vs limit */}
+      <div className="mt-4">
+        <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+          <div
+            className={`h-full rounded-full ${overLimit ? 'bg-accent-red' : 'bg-cyan-glow'}`}
+            style={{ width: `${Math.max(usedPct, used > 0 ? 4 : 0)}%` }}
+          />
+        </div>
+        <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-400">
+          <span>
+            <span className="font-semibold text-white">{formatCurrency(used)}</span> drawn
+          </span>
+          <span>
+            limit <span className="font-semibold text-white">{formatCurrency(limit)}</span>
+          </span>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-relaxed text-zinc-300/90">
+        Headroom you can post jobs against without funding escrow up front.
+        Nothing here is locked — it&apos;s borrowed and settles on terms.
+      </p>
+
+      {credit.netTermsDueCents > 0 && (
+        <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3">
+          <CalendarClock className="h-4 w-4 shrink-0 text-amber-300" strokeWidth={1.75} />
+          <p className="text-xs text-amber-100/90">
+            <span className="font-semibold text-amber-200">
+              {formatCurrency(credit.netTermsDueCents)}
+            </span>{' '}
+            invoiced and due on your {TERMS_LABEL[credit.terms]} terms.
+          </p>
+        </div>
+      )}
+    </article>
+  );
+}
 
 function EmptyState() {
   return (

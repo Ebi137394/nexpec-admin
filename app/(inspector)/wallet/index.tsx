@@ -170,16 +170,19 @@ function BalanceCard({
           />
         ) : (
           <Text style={styles.balanceAmount}>
-            {formatCurrency(wallet?.balance || 0)}
+            {formatCurrency(wallet?.available_balance ?? wallet?.balance ?? 0)}
           </Text>
         )}
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
+          Cleared funds, ready to withdraw
+        </Text>
 
         <View style={styles.balanceStats}>
           <View style={styles.balanceStat}>
             <Text style={styles.balanceStatLabel}>Pending</Text>
-            {/* ✅ FIX: Changed pending_balance to pending_withdrawal */}
+            {/* Accrued on net-terms jobs; clears when the client settles. */}
             <Text style={styles.balanceStatValue}>
-              {formatCurrency(wallet?.pending_withdrawal || 0)}
+              {formatCurrency(wallet?.pending_amount || 0)}
             </Text>
           </View>
           <View style={styles.balanceStatDivider} />

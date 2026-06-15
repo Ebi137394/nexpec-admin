@@ -104,7 +104,7 @@ export default function WithdrawScreen() {
       newErrors.amount = 'Please enter a valid amount';
     } else if (numAmount <= 0) {
       newErrors.amount = 'Amount must be greater than 0';
-    } else if (numAmount > (wallet?.balance || 0)) {
+    } else if (numAmount > (wallet?.available_balance || 0)) {
       newErrors.amount = 'Amount exceeds available balance';
     } else if (numAmount < 25) {
       newErrors.amount = 'Minimum withdrawal amount is $25';
@@ -164,12 +164,18 @@ export default function WithdrawScreen() {
         email: email || undefined,
       };
 
-      // Route through the outbox. The op's client_op_id is passed to the
-      // idempotent, atomic process_withdrawal RPC — a flaky retry can NEVER
-      // double-charge the balance.
+      // Route through the outbox → request_withdrawal RPC (manual payout model):
+      // reserves Available → pending_payouts and queues the request for the admin
+      // Treasury Control Tower. client_op_id makes a flaky retry idempotent.
+      const payoutNote =
+        `${bankDetailsObj.account_holder_name} · ${bankDetailsObj.bank_name} · ` +
+        `acct ${bankDetailsObj.account_number} · transit ${bankDetailsObj.transit_number} · ` +
+        `inst ${bankDetailsObj.institution_number}` +
+        (bankDetailsObj.email ? ` · ${bankDetailsObj.email}` : '');
       const opId = await enqueueWithdrawalRequest({
-        p_amount: parseFloat(amount),
-        p_bank_details: bankDetailsObj,
+        p_amount_cents: toCents(parseFloat(amount)),
+        p_method: 'bank_transfer',
+        p_note: payoutNote,
       });
       if (isOnline()) {
         try {

@@ -72,7 +72,7 @@ export function useWallet(): UseWalletReturn {
         const { data: transactionsData, error: transactionsError } = await supabase
           .from('transactions')
           .select('*')
-          .eq('wallet_id', walletData.id)
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(TRANSACTIONS_PER_PAGE);
 

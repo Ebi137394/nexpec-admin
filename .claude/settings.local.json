@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "Bash(curl -s \"https://api.github.com/repos/anthropics/skills/git/trees/main?recursive=1\")",
+      "Bash(curl -s \"https://api.github.com/repos/anthropics/skills/contents/.claude-plugin/marketplace.json\" -H \"Accept: application/vnd.github.raw\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(p.get\\('name'\\),'->',p.get\\('source',p.get\\('strict',''\\)\\)\\) for p in d.get\\('plugins',[]\\)]\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/anthropics/skills/main/.claude-plugin/marketplace.json\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/vercel-labs/skills/main/package.json\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('name:',d.get\\('name'\\)\\); print\\('version:',d.get\\('version'\\)\\); print\\('bin:',d.get\\('bin'\\)\\)\")",
+      "Bash(curl -s \"https://registry.npmjs.org/skills/latest\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('npm name:',d.get\\('name'\\),'@',d.get\\('version'\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(skills --version)",
+      "Bash(/Users/ebrahimfeyzi/.nvm/versions/node/v20.20.0/bin/npm config *)",
+      "Bash(echo 'prefix: __CMDSUB_OUTPUT__')",
+      "Bash(echo 'cache: __CMDSUB_OUTPUT__')",
+      "Bash(echo \"--- full error path ---\")",
+      "Bash(/Users/ebrahimfeyzi/.nvm/versions/node/v20.20.0/bin/npm install *)",
+      "Bash(skills --help)",
+      "Bash(skills find *)",
+      "Bash(skills add *)",
+      "Bash(grep -aviE \"Cloning|^\\\\s*$\")",
+      "Bash(echo \"=== tree ===\")",
+      "Read(//Users/ebrahimfeyzi/.claude/skills/gstack/**)",
+      "Bash(echo \"=== frontmatter ===\")",
+      "Read(//Users/ebrahimfeyzi/.claude/skills/notebooklm/**)",
+      "Bash(echo \"=== files ===\")",
+      "Bash(chmod +x /Users/ebrahimfeyzi/.claude/skills/publication-svg-illustrator/scripts/validate_svg.py)",
+      "Bash(echo \"=== skill tree ===\")",
+      "Read(//Users/ebrahimfeyzi/.claude/skills/publication-svg-illustrator/**)",
+      "mcp__supabase__list_organizations",
+      "Read(//Users/ebrahimfeyzi/.claude/**)",
+      "Skill(publication-svg-illustrator)"
+    ]
+  }
+}

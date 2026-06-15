@@ -235,16 +235,23 @@ export interface BankDetails {
  * Matches 'wallets' table exactly
  */
 export interface Wallet {
-  id: string;
   user_id: string;
-  balance: number;
-  frozen_balance: number; // Funds locked in escrow
-  pending_withdrawal: number; // Funds currently being processed
-  total_earned: number;
-  total_spent: number;
-  currency: string;
-  created_at: string;
-  updated_at: string;
+  balance?: number | null;
+  available_balance?: number | null;  // cleared, withdrawable now
+  pending_amount?: number | null;     // accrued on net-terms jobs; clears on client settlement
+  pending_payouts?: number | null;    // reserved by an open payout request (in review)
+  escrow_amount?: number | null;
+  total_earned?: number | null;
+  total_spent?: number | null;
+  total_volume?: number | null;
+  agency_revenue?: number | null;
+  currency?: string | null;
+  updated_at?: string;
+  // Legacy / not present on the live wallets table — kept optional for older consumers.
+  id?: string;
+  frozen_balance?: number | null;
+  pending_withdrawal?: number | null;
+  created_at?: string;
 }
 
 /**

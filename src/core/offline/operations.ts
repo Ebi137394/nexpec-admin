@@ -449,7 +449,7 @@ async function handleFlashReportTransition(row: OutboxRow): Promise<void> {
 // Payload: { args: { p_amount, p_bank_details } }
 async function handleWithdrawalRequest(row: OutboxRow): Promise<void> {
   const { args } = JSON.parse(row.payload_json) as { args: Record<string, unknown> };
-  const { error } = await supabase.rpc('process_withdrawal', {
+  const { error } = await supabase.rpc('request_withdrawal', {
     ...args,
     p_client_op_id: row.client_op_id,
   });

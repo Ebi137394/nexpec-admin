@@ -1,17 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  useClientEscrowCredit — mobile parity for the web /client/finance
-//  "Escrow vs Credit" section.
+//  useClientFinance — single live source for the mobile /client finance hub.
 //
-//  Mirrors apps/web/src/lib/data/clientFinance.ts EXACTLY so the two buckets
-//  read identically on both platforms:
-//    • PREPAY escrow held  = client_price_cents for prepay jobs that are active
-//                            and not yet released/refunded (cash actually held).
-//    • NET-TERMS credit    = drawn (committed + unsettled) vs limit vs available,
-//                            with the invoiced-and-due subset broken out.
+//  Mirrors apps/web/src/lib/data/clientFinance.ts EXACTLY so web and mobile
+//  show the same numbers:
+//    • metrics      — total spend YTD, paid-out YTD, active/completed counts.
+//    • escrowCredit — PREPAY escrow held vs NET-TERMS credit (drawn/limit/
+//                     available + invoiced-due subset).
+//    • recentActivity — one row per job, derived from the job ledger.
 //
-//  All figures are integer CENTS (jobs.client_price_cents is bigint cents;
-//  profiles.client_credit_limit_cents is bigint cents). No FX, no dollar math.
-//  GOLDEN_RULE_2: client-side money columns only — never inspector payout/spread.
+//  All money is integer CENTS (jobs.*_cents bigint; profiles credit limit
+//  bigint cents). Single-currency USD. No FX, no SAR, no mock data.
+//  GOLDEN_RULE_2: client-side money columns only (client_price_cents) — never
+//  inspector payout / platform spread.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback } from 'react';
@@ -35,20 +35,66 @@ export interface ClientEscrowCredit {
   netTermsDueCents: number;
 }
 
-interface UseClientEscrowCreditReturn {
-  data: ClientEscrowCredit;
+export interface ClientFinanceMetrics {
+  /** Sum of client_price_cents for completed jobs YTD. */
+  totalSpendYtdCents: number;
+  /** Sum of client_price_cents released to inspectors YTD (payout_status='paid'). */
+  paidOutYtdCents: number;
+  /** Count of completed jobs YTD. */
+  completedJobsYtd: number;
+  /** Count of currently active jobs (open/assigned/in_progress). */
+  activeJobsCount: number;
+}
+
+export type FinanceActivityKind =
+  | 'job_posted'
+  | 'job_assigned'
+  | 'report_received'
+  | 'job_completed'
+  | 'payout_released';
+
+export interface FinanceActivityRow {
+  jobId: string;
+  jobTitle: string;
+  kind: FinanceActivityKind;
+  amountCents: number | null;
+  occurredAt: string;
+  jobStatus: string;
+  payoutStatus: string | null;
+}
+
+export interface ClientFinance {
+  metrics: ClientFinanceMetrics;
+  escrowCredit: ClientEscrowCredit;
+  recentActivity: FinanceActivityRow[];
+}
+
+interface UseClientFinanceReturn extends ClientFinance {
   isLoading: boolean;
   isRefreshing: boolean;
   refresh: () => Promise<void>;
 }
 
-const EMPTY: ClientEscrowCredit = {
+const EMPTY_ESCROW_CREDIT: ClientEscrowCredit = {
   heldInEscrowCents: 0,
   terms: 'prepay',
   creditLimitCents: 0,
   creditUsedCents: 0,
   creditAvailableCents: 0,
   netTermsDueCents: 0,
+};
+
+const EMPTY_METRICS: ClientFinanceMetrics = {
+  totalSpendYtdCents: 0,
+  paidOutYtdCents: 0,
+  completedJobsYtd: 0,
+  activeJobsCount: 0,
+};
+
+const EMPTY: ClientFinance = {
+  metrics: EMPTY_METRICS,
+  escrowCredit: EMPTY_ESCROW_CREDIT,
+  recentActivity: [],
 };
 
 const VALID_TERMS: readonly PaymentTerms[] = [
@@ -63,9 +109,9 @@ function parseCents(v: number | string | null | undefined): number {
   return Number.isFinite(n) ? Math.trunc(n as number) : 0;
 }
 
-export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
+export function useClientFinance(): UseClientFinanceReturn {
   const { user } = useAuth();
-  const [data, setData] = useState<ClientEscrowCredit>(EMPTY);
+  const [data, setData] = useState<ClientFinance>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -84,10 +130,11 @@ export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
           supabase
             .from('jobs')
             .select(
-              'client_price_cents, status, payment_mode, escrow_status, client_settled_at, admin_confirmed_at',
+              'id, title, status, client_price_cents, payout_status, payment_mode, escrow_status, client_settled_at, admin_confirmed_at, payout_paid_at, created_at, updated_at',
             )
             .eq('client_id', user.id)
-            .is('deleted_at', null),
+            .is('deleted_at', null)
+            .order('updated_at', { ascending: false }),
           supabase
             .from('profiles')
             .select('client_payment_terms, client_credit_limit_cents')
@@ -96,20 +143,35 @@ export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
         ]);
 
         const jobs = (jobsRes.data ?? []) as Record<string, unknown>[];
+        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
 
+        // Escrow / credit buckets
         let heldInEscrowCents = 0;
         let creditUsedCents = 0;
         let netTermsDueCents = 0;
+        // Metrics
+        let totalSpendYtdCents = 0;
+        let paidOutYtdCents = 0;
+        let completedJobsYtd = 0;
+        let activeJobsCount = 0;
+
+        const recentActivity: FinanceActivityRow[] = [];
 
         for (const j of jobs) {
           const price = parseCents(j.client_price_cents as number | string | null);
           const status = String(j.status ?? '');
+          const updatedAt = String(j.updated_at ?? j.created_at ?? '');
+          const payoutStatus = (j.payout_status as string | null) ?? null;
+          const adminConfirmedAt = (j.admin_confirmed_at as string | null) ?? null;
+          const payoutPaidAt = (j.payout_paid_at as string | null) ?? null;
+
           const isNetTerms = String(j.payment_mode ?? 'prepay') === 'net_terms';
           const escrowStatus = String(j.escrow_status ?? '');
           const settled = j.client_settled_at != null;
           const isActive = status === 'assigned' || status === 'in_progress';
           const isCommitted = isActive || status === 'completed';
 
+          // Escrow + credit
           if (
             !isNetTerms &&
             isActive &&
@@ -120,9 +182,49 @@ export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
           }
           if (isNetTerms && isCommitted && !settled) {
             creditUsedCents += price;
-            if (j.admin_confirmed_at != null) netTermsDueCents += price;
+            if (adminConfirmedAt != null) netTermsDueCents += price;
           }
+
+          // Metrics
+          if (status === 'open' || isActive) activeJobsCount += 1;
+          if (status === 'completed' && updatedAt >= yearStart) {
+            completedJobsYtd += 1;
+            totalSpendYtdCents += price;
+          }
+          if (payoutStatus === 'paid' && payoutPaidAt && payoutPaidAt >= yearStart) {
+            paidOutYtdCents += price;
+          }
+
+          // Activity — most recent meaningful event per job
+          const kind: FinanceActivityKind =
+            payoutStatus === 'paid'
+              ? 'payout_released'
+              : status === 'completed'
+                ? 'job_completed'
+                : adminConfirmedAt
+                  ? 'report_received'
+                  : isActive
+                    ? 'job_assigned'
+                    : 'job_posted';
+          const occurredAt =
+            kind === 'payout_released'
+              ? payoutPaidAt ?? updatedAt
+              : kind === 'report_received'
+                ? adminConfirmedAt ?? updatedAt
+                : updatedAt;
+
+          recentActivity.push({
+            jobId: String(j.id),
+            jobTitle: String(j.title ?? '(untitled)'),
+            kind,
+            amountCents: price > 0 ? price : null,
+            occurredAt,
+            jobStatus: status,
+            payoutStatus,
+          });
         }
+
+        recentActivity.sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
 
         const prof = profRes.data as Record<string, unknown> | null;
         const creditLimitCents = parseCents(
@@ -130,15 +232,24 @@ export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
         );
 
         setData({
-          heldInEscrowCents,
-          terms: normalizeTerms(prof?.client_payment_terms),
-          creditLimitCents,
-          creditUsedCents,
-          creditAvailableCents: Math.max(0, creditLimitCents - creditUsedCents),
-          netTermsDueCents,
+          metrics: {
+            totalSpendYtdCents,
+            paidOutYtdCents,
+            completedJobsYtd,
+            activeJobsCount,
+          },
+          escrowCredit: {
+            heldInEscrowCents,
+            terms: normalizeTerms(prof?.client_payment_terms),
+            creditLimitCents,
+            creditUsedCents,
+            creditAvailableCents: Math.max(0, creditLimitCents - creditUsedCents),
+            netTermsDueCents,
+          },
+          recentActivity: recentActivity.slice(0, 25),
         });
       } catch (err) {
-        console.error('❌ useClientEscrowCredit:', err);
+        console.error('❌ useClientFinance:', err);
         setData(EMPTY);
       } finally {
         setIsLoading(false);
@@ -153,7 +264,7 @@ export function useClientEscrowCredit(): UseClientEscrowCreditReturn {
   }, [fetchData]);
 
   return {
-    data,
+    ...data,
     isLoading,
     isRefreshing,
     refresh: () => fetchData(true),

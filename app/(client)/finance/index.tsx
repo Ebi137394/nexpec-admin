@@ -1,42 +1,42 @@
-// app/client/finance/index.tsx
-import React, { useState, useCallback } from 'react';
+// app/(client)/finance/index.tsx
+// Client / Agency / Enterprise finance hub (mobile).
+// 100% live: every figure is read from the Supabase job ledger + wallet/credit
+// profile via useClientFinance, in single-currency USD/cents. No mock data,
+// no SAR. Mirrors web /client/finance. Theme: #020420 bg / #7C3AED accent.
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
-  Alert,
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
   StatusBar,
-  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInLeft,
-  FadeInRight,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInLeft } from 'react-native-reanimated';
 import { useTheme } from '@/providers/ThemeProvider';
 import { getColors } from '@/src/constants/theme';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { formatUsd } from '@/src/core/utils/money';
 import {
-  useClientEscrowCredit,
+  useClientFinance,
   type ClientEscrowCredit,
+  type FinanceActivityKind,
+  type FinanceActivityRow,
   type PaymentTerms,
 } from '@/src/roles/client/hooks/useClientEscrowCredit';
 
 // Brand tokens — locked visual identity (#020420 bg / #7C3AED primary).
 const VIOLET = '#7C3AED';
+const VIOLET_LT = '#A78BFA';
 const CYAN = '#22D3EE';
 const AMBER = '#F59E0B';
+const GREEN = '#10B981';
 
 const TERMS_LABEL: Record<PaymentTerms, string> = {
   prepay: 'Prepay',
@@ -46,180 +46,110 @@ const TERMS_LABEL: Record<PaymentTerms, string> = {
   net_60: 'Net-60',
 };
 
-interface FinanceSummary {
-  totalBudget: number;
-  spentBudget: number;
-  remainingBudget: number;
-  pendingInvoices: number;
-  approvedInvoices: number;
-  complianceIssues: number;
+const KIND_META: Record<
+  FinanceActivityKind,
+  { icon: keyof typeof Ionicons.glyphMap; color: string; label: string }
+> = {
+  job_posted: { icon: 'add-circle-outline', color: VIOLET_LT, label: 'Job posted' },
+  job_assigned: { icon: 'person-outline', color: CYAN, label: 'Inspector assigned' },
+  report_received: { icon: 'document-text-outline', color: VIOLET, label: 'Report received' },
+  job_completed: { icon: 'checkmark-circle-outline', color: GREEN, label: 'Job completed' },
+  payout_released: { icon: 'cash-outline', color: GREEN, label: 'Payout released' },
+};
+
+function formatRelative(iso: string): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '';
+  const diff = Date.now() - then;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  return `${Math.floor(mo / 12)}y ago`;
 }
 
 export default function FinanceHubScreen() {
   const { isDarkMode } = useTheme();
   const colors = getColors(isDarkMode);
-  const { t, isRTL } = useLanguage();
+  const { isRTL } = useLanguage();
 
-  // Live escrow-vs-credit buckets — identical derivation to web /client/finance.
   const {
-    data: escrowCredit,
-    isRefreshing: ecRefreshing,
-    refresh: refreshEscrowCredit,
-  } = useClientEscrowCredit();
+    metrics,
+    escrowCredit,
+    recentActivity,
+    isLoading,
+    isRefreshing,
+    refresh,
+  } = useClientFinance();
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [summary, setSummary] = useState<FinanceSummary>({
-    totalBudget: 0,
-    spentBudget: 0,
-    remainingBudget: 0,
-    pendingInvoices: 0,
-    approvedInvoices: 0,
-    complianceIssues: 0,
-  });
+  const onRefresh = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
-  const fetchSummary = async () => {
-    try {
-      setLoading(true);
-      // Mock data for now - would integrate with actual finance service
-      setSummary({
-        totalBudget: 50000,
-        spentBudget: 28500,
-        remainingBudget: 21500,
-        pendingInvoices: 3,
-        approvedInvoices: 12,
-        complianceIssues: 1,
-      });
-    } catch (error) {
-      console.error('Error fetching finance summary:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchSummary();
-  }, []);
-
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([fetchSummary(), refreshEscrowCredit()]);
-    setRefreshing(false);
-  }, [refreshEscrowCredit]);
-
-  const getBudgetPercentage = () => {
-    return (summary.spentBudget / summary.totalBudget) * 100;
-  };
-
-  const renderFinanceCard = ({ item }: { item: any }) => (
-    <Animated.View
-      entering={FadeInLeft}
-      style={[
-        styles.financeCard,
-        { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }
-      ]}
-    >
-      <View style={styles.financeHeader}>
-        <View style={styles.financeIconContainer}>
-          <Ionicons name={item.icon} size={24} color={item.color} />
-        </View>
-        <View style={styles.financeInfo}>
-          <Text style={[styles.financeLabel, { color: colors.textSecondary }]}>{item.label}</Text>
-          <Text style={[styles.financeValue, { color: colors.text }]}>{item.value}</Text>
-        </View>
-      </View>
-      
-      {item.subLabel && (
-        <Text style={[styles.financeSubLabel, { color: colors.textMuted }]}>{item.subLabel}</Text>
-      )}
-    </Animated.View>
-  );
-
-  const financeCards = [
+  const summaryTiles = [
     {
-      id: '1',
-      icon: 'cash-outline',
-      color: '#10B981',
-      label: t('Total Budget'),
-      value: `SAR ${summary.totalBudget.toLocaleString()}`,
-      subLabel: t('Overall project budget')
+      id: 'spend',
+      icon: 'trending-up-outline' as const,
+      color: VIOLET,
+      label: 'Total spend (YTD)',
+      value: formatUsd(metrics.totalSpendYtdCents),
     },
     {
-      id: '2',
-      icon: 'trending-down-outline',
-      color: '#EF4444',
-      label: t('Spent Budget'),
-      value: `SAR ${summary.spentBudget.toLocaleString()}`,
-      subLabel: `${getBudgetPercentage().toFixed(1)}% used`
+      id: 'paid',
+      icon: 'cash-outline' as const,
+      color: GREEN,
+      label: 'Paid out (YTD)',
+      value: formatUsd(metrics.paidOutYtdCents),
     },
     {
-      id: '3',
-      icon: 'trending-up-outline',
-      color: '#3B82F6',
-      label: t('Remaining Budget'),
-      value: `SAR ${summary.remainingBudget.toLocaleString()}`,
-      subLabel: t('Available funds')
+      id: 'active',
+      icon: 'briefcase-outline' as const,
+      color: CYAN,
+      label: 'Active jobs',
+      value: String(metrics.activeJobsCount),
     },
     {
-      id: '4',
-      icon: 'document-text-outline',
-      color: '#F59E0B',
-      label: t('Pending Invoices'),
-      value: summary.pendingInvoices.toString(),
-      subLabel: t('Awaiting approval')
-    },
-    {
-      id: '5',
-      icon: 'checkmark-circle-outline',
-      color: '#10B981',
-      label: t('Approved Invoices'),
-      value: summary.approvedInvoices.toString(),
-      subLabel: t('Processed payments')
-    },
-    {
-      id: '6',
-      icon: 'alert-circle-outline',
-      color: '#EF4444',
-      label: t('Compliance Issues'),
-      value: summary.complianceIssues.toString(),
-      subLabel: t('Require attention')
+      id: 'done',
+      icon: 'checkmark-done-outline' as const,
+      color: VIOLET_LT,
+      label: 'Completed (YTD)',
+      value: String(metrics.completedJobsYtd),
     },
   ];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={VIOLET} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-      
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing || ecRefreshing}
-            onRefresh={onRefresh}
-            tintColor="#7C3AED"
-          />
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={VIOLET} />
         }
       >
-        {/* Header Section */}
+        {/* Header */}
         <Animated.View entering={FadeInDown} style={styles.header}>
           <LinearGradient
-            colors={['rgba(59, 130, 246, 0.15)', 'transparent']}
+            colors={['rgba(124, 58, 237, 0.18)', 'transparent']}
             style={styles.headerGradient}
           />
-          
-          <Text style={[styles.welcomeText, { color: colors.text }]}>
-            {t('Financial Hub')}
-          </Text>
+          <Text style={[styles.welcomeText, { color: colors.text }]}>Financial Hub</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {t('Manage your project finances and compliance')}
+            What you&apos;ve funded, what&apos;s locked, and what you owe on terms.
           </Text>
         </Animated.View>
 
@@ -233,198 +163,136 @@ export default function FinanceHubScreen() {
           <CreditCard credit={escrowCredit} />
         </Animated.View>
 
-        {/* Budget Progress */}
-        <Animated.View
-          entering={FadeInDown.delay(100)}
-          style={styles.section}
-        >
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Budget Overview')}</Text>
-          
-          <View style={[styles.budgetCard, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
-            <View style={styles.budgetHeader}>
-              <Text style={[styles.budgetTitle, { color: colors.text }]}>
-                {t('Budget Utilization')}
-              </Text>
-              <Text style={[styles.budgetPercentage, { color: colors.primary }]}>
-                {getBudgetPercentage().toFixed(1)}%
-              </Text>
-            </View>
-            
-            <View style={styles.progressBar}>
-              <View 
+        {/* Financial summary — live job-ledger metrics */}
+        <Animated.View entering={FadeInDown.delay(120)} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>
+            Financial summary
+          </Text>
+          <View style={styles.tileGrid}>
+            {summaryTiles.map((tile) => (
+              <Animated.View
+                key={tile.id}
+                entering={FadeInLeft}
                 style={[
-                  styles.progressFill,
-                  { 
-                    width: `${getBudgetPercentage()}%`,
-                    backgroundColor: getBudgetPercentage() > 80 ? '#EF4444' : '#3B82F6'
-                  }
-                ]} 
-              />
-            </View>
-            
-            <View style={styles.budgetDetails}>
-              <View style={styles.budgetDetail}>
-                <Text style={[styles.budgetDetailLabel, { color: colors.textSecondary }]}>{t('Spent')}</Text>
-                <Text style={[styles.budgetDetailValue, { color: colors.text }]}>
-                  SAR {summary.spentBudget.toLocaleString()}
-                </Text>
-              </View>
-              <View style={styles.budgetDetail}>
-                <Text style={[styles.budgetDetailLabel, { color: colors.textSecondary }]}>{t('Remaining')}</Text>
-                <Text style={[styles.budgetDetailValue, { color: colors.text }]}>
-                  SAR {summary.remainingBudget.toLocaleString()}
-                </Text>
-              </View>
-            </View>
+                  styles.summaryTile,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              >
+                <View style={[styles.tileIcon, { backgroundColor: hexToRgba(tile.color, 0.15) }]}>
+                  <Ionicons name={tile.icon} size={18} color={tile.color} />
+                </View>
+                <Text style={[styles.tileLabel, { color: colors.textSecondary }]}>{tile.label}</Text>
+                <Text style={[styles.tileValue, { color: colors.text }]}>{tile.value}</Text>
+              </Animated.View>
+            ))}
           </View>
         </Animated.View>
 
-        {/* Finance Cards */}
-        <Animated.View
-          entering={FadeInDown.delay(200)}
-          style={styles.section}
-        >
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Financial Summary')}</Text>
-          <FlatList
-            data={financeCards}
-            renderItem={renderFinanceCard}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            columnWrapperStyle={styles.cardRow}
-            showsVerticalScrollIndicator={false}
-          />
-        </Animated.View>
-
-        {/* Quick Actions */}
-        <Animated.View
-          entering={FadeInDown.delay(300)}
-          style={styles.section}
-        >
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Quick Actions')}</Text>
+        {/* Quick actions — navigation only */}
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>
+            Quick actions
+          </Text>
           <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            {/*
-              Budget Overview is LIVE as of the M1 Financial Suite (Round 1).
-              Invoice Approver + Compliance Vault still scaffolded — kept
-              behind the "Coming soon" alert until their rounds ship.
-            */}
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-              onPress={() => router.push('/(client)/finance/budget' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                <Ionicons name="cash-outline" size={24} color="#10B981" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('Budget Overview')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-              onPress={() => router.push('/(client)/finance/invoices' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                <Ionicons name="document-text-outline" size={24} color="#3B82F6" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('Invoice Approver')}</Text>
-            </TouchableOpacity>
+            <QuickAction
+              icon="bar-chart-outline"
+              color={VIOLET}
+              label="Budget overview"
+              onPress={() => router.push('/(client)/finance/budget' as never)}
+              isDarkMode={isDarkMode}
+              textColor={colors.textSecondary}
+            />
+            <QuickAction
+              icon="document-text-outline"
+              color={CYAN}
+              label="Invoices"
+              onPress={() => router.push('/(client)/finance/invoices' as never)}
+              isDarkMode={isDarkMode}
+              textColor={colors.textSecondary}
+            />
           </View>
-
           <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-              onPress={() => router.push('/(client)/finance/compliance' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
-                <Ionicons name="shield-checkmark-outline" size={24} color="#F59E0B" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('Compliance Vault')}</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-              onPress={() => router.push('/contracts')}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
-                <Ionicons name="contract-outline" size={24} color="#8B5CF6" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('View Contracts')}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.quickActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-              onPress={() => router.push('/(client)/finance/reports' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: 'rgba(124, 58, 237, 0.2)' }]}>
-                <Ionicons name="documents-outline" size={24} color="#7C3AED" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.textSecondary }]}>{t('Deliverables')}</Text>
-            </TouchableOpacity>
+            <QuickAction
+              icon="shield-checkmark-outline"
+              color={AMBER}
+              label="Compliance vault"
+              onPress={() => router.push('/(client)/finance/compliance' as never)}
+              isDarkMode={isDarkMode}
+              textColor={colors.textSecondary}
+            />
+            <QuickAction
+              icon="documents-outline"
+              color={VIOLET_LT}
+              label="Deliverables"
+              onPress={() => router.push('/(client)/finance/reports' as never)}
+              isDarkMode={isDarkMode}
+              textColor={colors.textSecondary}
+            />
           </View>
         </Animated.View>
 
-        {/* Recent Activity */}
-        <Animated.View
-          entering={FadeInDown.delay(400)}
-          style={styles.section}
-        >
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Recent Activity')}</Text>
-          
-          <View style={[styles.activityList, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
-            <View style={[styles.activityItem, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
-              <View style={[styles.activityIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+        {/* Recent activity — live from the job ledger */}
+        <Animated.View entering={FadeInDown.delay(280)} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>
+            Recent activity
+          </Text>
+
+          {recentActivity.length === 0 ? (
+            <View
+              style={[
+                styles.emptyCard,
+                {
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                },
+              ]}
+            >
+              <View style={[styles.tileIcon, { backgroundColor: hexToRgba(VIOLET, 0.15) }]}>
+                <Ionicons name="receipt-outline" size={20} color={VIOLET} />
               </View>
-              <View style={styles.activityContent}>
-                <Text style={[styles.activityTitle, { color: colors.text }]}>
-                  Invoice #INV-2024-001 approved
-                </Text>
-                <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]}>
-                  SAR 2,500.00 - Project Alpha
-                </Text>
-              </View>
-              <Text style={[styles.activityTime, { color: colors.textMuted }]}>2h ago</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No activity yet</Text>
+              <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
+                Post your first inspection and your spend, escrow, and payouts will
+                flow through here in real time.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyCta}
+                onPress={() => router.push('/(client)/create-job' as never)}
+              >
+                <Ionicons name="add" size={16} color="#FFFFFF" />
+                <Text style={styles.emptyCtaText}>Post a job</Text>
+              </TouchableOpacity>
             </View>
-            
-            <View style={[styles.activityItem, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }]}>
-              <View style={[styles.activityIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
-                <Ionicons name="alert-circle-outline" size={20} color="#F59E0B" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={[styles.activityTitle, { color: colors.text }]}>
-                  Compliance check required
-                </Text>
-                <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]}>
-                  Safety documentation review
-                </Text>
-              </View>
-              <Text style={[styles.activityTime, { color: colors.textMuted }]}>1d ago</Text>
+          ) : (
+            <View
+              style={[
+                styles.activityList,
+                {
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                },
+              ]}
+            >
+              {recentActivity.slice(0, 8).map((row, i) => (
+                <ActivityItem
+                  key={`${row.jobId}-${i}`}
+                  row={row}
+                  isLast={i === Math.min(recentActivity.length, 8) - 1}
+                  isDarkMode={isDarkMode}
+                  colors={colors}
+                />
+              ))}
             </View>
-            
-            <View style={styles.activityItem}>
-              <View style={[styles.activityIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                <Ionicons name="trending-up-outline" size={20} color="#3B82F6" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={[styles.activityTitle, { color: colors.text }]}>
-                  Budget utilization at 57%
-                </Text>
-                <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]}>
-                  Monitor spending trends
-                </Text>
-              </View>
-              <Text style={[styles.activityTime, { color: colors.textMuted }]}>3d ago</Text>
-            </View>
-          </View>
+          )}
         </Animated.View>
 
-        {/* App Version */}
-        <Animated.View
-          entering={FadeIn.delay(500)}
-          style={styles.versionContainer}
-        >
-          <Text style={styles.versionText}>{t('NEXPEC v1.0.0')}</Text>
-          <Text style={styles.versionSubtext}>{t('Property Inspection Management')}</Text>
+        {/* Footer */}
+        <Animated.View entering={FadeIn.delay(360)} style={styles.versionContainer}>
+          <Text style={styles.versionText}>NEXPEC</Text>
+          <Text style={styles.versionSubtext}>Property Inspection Management</Text>
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -537,6 +405,95 @@ function CreditCard({ credit }: { credit: ClientEscrowCredit }) {
   );
 }
 
+/* ─── Small pieces ────────────────────────────────────────────────────── */
+
+function QuickAction({
+  icon,
+  color,
+  label,
+  onPress,
+  isDarkMode,
+  textColor,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  label: string;
+  onPress: () => void;
+  isDarkMode: boolean;
+  textColor: string;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.actionButton,
+        {
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+        },
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.actionIcon, { backgroundColor: hexToRgba(color, 0.18) }]}>
+        <Ionicons name={icon} size={22} color={color} />
+      </View>
+      <Text style={[styles.actionLabel, { color: textColor }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ActivityItem({
+  row,
+  isLast,
+  isDarkMode,
+  colors,
+}: {
+  row: FinanceActivityRow;
+  isLast: boolean;
+  isDarkMode: boolean;
+  colors: ReturnType<typeof getColors>;
+}) {
+  const meta = KIND_META[row.kind];
+  return (
+    <TouchableOpacity
+      style={[
+        styles.activityItem,
+        !isLast && {
+          borderBottomWidth: 1,
+          borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+        },
+      ]}
+      onPress={() => router.push(`/(client)/job/${row.jobId}` as never)}
+    >
+      <View style={[styles.activityIcon, { backgroundColor: hexToRgba(meta.color, 0.18) }]}>
+        <Ionicons name={meta.icon} size={18} color={meta.color} />
+      </View>
+      <View style={styles.activityContent}>
+        <Text style={[styles.activityTitle, { color: colors.text }]} numberOfLines={1}>
+          {row.jobTitle}
+        </Text>
+        <Text style={[styles.activitySubtitle, { color: colors.textSecondary }]}>
+          {meta.label}
+          {row.amountCents != null ? `, ${formatUsd(row.amountCents)}` : ''}
+        </Text>
+      </View>
+      <Text style={[styles.activityTime, { color: colors.textMuted }]}>
+        {formatRelative(row.occurredAt)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/** Expand a #RRGGBB hex into an rgba() string at the given alpha. */
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/* ─── Escrow vs Credit card styles ────────────────────────────────────── */
+
 const ec = StyleSheet.create({
   escrowCard: {
     borderRadius: 20,
@@ -583,31 +540,13 @@ const ec = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)',
   },
-  violetEyebrow: {
-    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
-    color: '#C4B5FD',
-  },
-  cyanEyebrow: {
-    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
-    color: '#A5F3FC',
-  },
-  neutralEyebrow: {
-    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
-    color: '#9CA3AF',
-  },
-  eyebrowMuted: {
-    fontSize: 11, fontWeight: '600', letterSpacing: 0.5,
-    color: '#9CA3AF', marginBottom: 2,
-  },
-  bigAmount: {
-    fontSize: 32, fontWeight: '800', color: '#FFFFFF', marginBottom: 8,
-  },
-  midAmount: {
-    fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 8,
-  },
-  cardBody: {
-    fontSize: 13, lineHeight: 19, color: 'rgba(255, 255, 255, 0.72)',
-  },
+  violetEyebrow: { flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6, color: '#C4B5FD' },
+  cyanEyebrow: { flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6, color: '#A5F3FC' },
+  neutralEyebrow: { flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6, color: '#9CA3AF' },
+  eyebrowMuted: { fontSize: 11, fontWeight: '600', letterSpacing: 0.5, color: '#9CA3AF', marginBottom: 2 },
+  bigAmount: { fontSize: 32, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
+  midAmount: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
+  cardBody: { fontSize: 13, lineHeight: 19, color: 'rgba(255, 255, 255, 0.72)' },
   violetChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
     marginTop: 14, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
@@ -620,17 +559,13 @@ const ec = StyleSheet.create({
     backgroundColor: 'rgba(34, 211, 238, 0.12)',
     borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.30)',
   },
-  termsBadgeText: {
-    fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: '#A5F3FC',
-  },
+  termsBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: '#A5F3FC' },
   barTrack: {
     height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 14,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   barFill: { height: '100%', borderRadius: 4 },
-  barLabels: {
-    flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 14,
-  },
+  barLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 14 },
   barLabelMuted: { fontSize: 11, color: '#9CA3AF' },
   barLabelStrong: { fontWeight: '700', color: '#FFFFFF' },
   dueCallout: {
@@ -643,22 +578,15 @@ const ec = StyleSheet.create({
   dueStrong: { fontWeight: '700', color: '#FDE68A' },
 });
 
+/* ─── Screen styles ───────────────────────────────────────────────────── */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#020420',
-  },
+  container: { flex: 1, backgroundColor: '#020420' },
   loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#020420',
+    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#020420',
   },
   header: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
+    alignItems: 'center', paddingTop: 20, paddingBottom: 28, paddingHorizontal: 20,
     position: 'relative',
   },
   headerGradient: {
@@ -666,204 +594,54 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
-  welcomeText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  section: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
+  welcomeText: { fontSize: 28, fontWeight: '800', color: '#FFF', marginBottom: 8 },
+  subtitle: { fontSize: 13, color: '#6B7280', textAlign: 'center', paddingHorizontal: 16 },
+  section: { marginHorizontal: 20, marginBottom: 22 },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 13, fontWeight: '700', color: '#6B7280', marginBottom: 12,
+    textTransform: 'uppercase', letterSpacing: 0.6,
   },
-  budgetCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    padding: 16,
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  summaryTile: {
+    width: '48.5%', borderRadius: 16, padding: 16, marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
-  budgetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  tileIcon: {
+    width: 36, height: 36, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  budgetTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  budgetPercentage: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 4,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  budgetDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  budgetDetail: {
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  budgetDetailLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  budgetDetailValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  cardRow: {
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  financeCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 6,
-  },
-  financeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  financeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  financeInfo: {
-    flex: 1,
-  },
-  financeLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  financeValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  financeSubLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
-  },
+  tileLabel: { fontSize: 12, marginBottom: 4 },
+  tileValue: { fontSize: 19, fontWeight: '800', color: '#FFF' },
+  quickActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   actionButton: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: 6,
+    flex: 1, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1,
   },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  actionLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-  activityList: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
+  actionLabel: { fontSize: 12, textAlign: 'center' },
+  activityList: { borderRadius: 16, overflow: 'hidden', borderWidth: 1 },
+  activityItem: { flexDirection: 'row', alignItems: 'center', padding: 16 },
   activityIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
-  activityContent: {
-    flex: 1,
+  activityContent: { flex: 1, marginRight: 8 },
+  activityTitle: { fontSize: 14, fontWeight: '600', color: '#FFF', marginBottom: 2 },
+  activitySubtitle: { fontSize: 12, color: '#9CA3AF' },
+  activityTime: { fontSize: 11, color: '#9CA3AF' },
+  emptyCard: {
+    borderRadius: 20, padding: 24, alignItems: 'center', borderWidth: 1,
   },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFF',
-    marginBottom: 2,
+  emptyTitle: { fontSize: 17, fontWeight: '800', color: '#FFF', marginTop: 14, marginBottom: 6 },
+  emptyBody: { fontSize: 13, lineHeight: 19, color: '#9CA3AF', textAlign: 'center' },
+  emptyCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16,
+    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999, backgroundColor: VIOLET,
   },
-  activitySubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  activityTime: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  versionText: {
-    fontSize: 14,
-    color: '#4B5563',
-  },
-  versionSubtext: {
-    fontSize: 12,
-    color: '#374151',
-    marginTop: 4,
-  },
+  emptyCtaText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  versionContainer: { alignItems: 'center', paddingVertical: 30 },
+  versionText: { fontSize: 14, color: '#4B5563' },
+  versionSubtext: { fontSize: 12, color: '#374151', marginTop: 4 },
 });

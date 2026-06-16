@@ -26,6 +26,25 @@ import Animated, {
 import { useTheme } from '@/providers/ThemeProvider';
 import { getColors } from '@/src/constants/theme';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { formatUsd } from '@/src/core/utils/money';
+import {
+  useClientEscrowCredit,
+  type ClientEscrowCredit,
+  type PaymentTerms,
+} from '@/src/roles/client/hooks/useClientEscrowCredit';
+
+// Brand tokens — locked visual identity (#020420 bg / #7C3AED primary).
+const VIOLET = '#7C3AED';
+const CYAN = '#22D3EE';
+const AMBER = '#F59E0B';
+
+const TERMS_LABEL: Record<PaymentTerms, string> = {
+  prepay: 'Prepay',
+  net_15: 'Net-15',
+  net_30: 'Net-30',
+  net_45: 'Net-45',
+  net_60: 'Net-60',
+};
 
 interface FinanceSummary {
   totalBudget: number;
@@ -40,6 +59,13 @@ export default function FinanceHubScreen() {
   const { isDarkMode } = useTheme();
   const colors = getColors(isDarkMode);
   const { t, isRTL } = useLanguage();
+
+  // Live escrow-vs-credit buckets — identical derivation to web /client/finance.
+  const {
+    data: escrowCredit,
+    isRefreshing: ecRefreshing,
+    refresh: refreshEscrowCredit,
+  } = useClientEscrowCredit();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,9 +103,9 @@ export default function FinanceHubScreen() {
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    await fetchSummary();
+    await Promise.all([fetchSummary(), refreshEscrowCredit()]);
     setRefreshing(false);
-  }, []);
+  }, [refreshEscrowCredit]);
 
   const getBudgetPercentage = () => {
     return (summary.spentBudget / summary.totalBudget) * 100;
@@ -176,9 +202,9 @@ export default function FinanceHubScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={refreshing || ecRefreshing}
             onRefresh={onRefresh}
-            tintColor="#3B82F6"
+            tintColor="#7C3AED"
           />
         }
       >
@@ -195,6 +221,16 @@ export default function FinanceHubScreen() {
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {t('Manage your project finances and compliance')}
           </Text>
+        </Animated.View>
+
+        {/* Escrow vs Credit — locked cash vs borrowed headroom (web parity) */}
+        <Animated.View entering={FadeInDown.delay(50)} style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>
+            Funds: escrow vs credit
+          </Text>
+          <EscrowCard cents={escrowCredit.heldInEscrowCents} />
+          <View style={{ height: 12 }} />
+          <CreditCard credit={escrowCredit} />
         </Animated.View>
 
         {/* Budget Progress */}
@@ -394,6 +430,218 @@ export default function FinanceHubScreen() {
     </SafeAreaView>
   );
 }
+
+/* ─── Escrow vs Credit cards ──────────────────────────────────────────── */
+
+/** PREPAY escrow — cash the client has locked and committed. */
+function EscrowCard({ cents }: { cents: number }) {
+  return (
+    <View style={ec.escrowCard}>
+      <View style={ec.cardHeaderRow}>
+        <View style={ec.violetIcon}>
+          <Ionicons name="lock-closed" size={16} color={VIOLET} />
+        </View>
+        <Text style={ec.violetEyebrow}>PREPAY ESCROW, LOCKED</Text>
+      </View>
+      <Text style={ec.bigAmount}>{formatUsd(cents)}</Text>
+      <Text style={ec.cardBody}>
+        Cash you&apos;ve already paid into NEXPEC&apos;s escrow ledger for active
+        jobs. Released to the inspector only when you approve the report, and
+        refunded if a job is cancelled.
+      </Text>
+      <View style={ec.violetChip}>
+        <Ionicons name="shield-checkmark" size={12} color={VIOLET} />
+        <Text style={ec.violetChipText}>Your money, held not spent</Text>
+      </View>
+    </View>
+  );
+}
+
+/** NET-TERMS credit — borrowed headroom, distinct from locked escrow cash. */
+function CreditCard({ credit }: { credit: ClientEscrowCredit }) {
+  const hasCredit = credit.terms !== 'prepay' || credit.creditLimitCents > 0;
+
+  if (!hasCredit) {
+    return (
+      <View style={ec.neutralCard}>
+        <View style={ec.cardHeaderRow}>
+          <View style={ec.neutralIcon}>
+            <Ionicons name="business-outline" size={16} color="#9CA3AF" />
+          </View>
+          <Text style={ec.neutralEyebrow}>NET-TERMS CREDIT</Text>
+        </View>
+        <Text style={ec.midAmount}>Prepay account</Text>
+        <Text style={ec.cardBody}>
+          You currently fund each job up front. Approved B2B clients can switch to
+          Net-30 to Net-60 terms, posting jobs against a credit line and settling
+          invoices later, with nothing locked in escrow.
+        </Text>
+      </View>
+    );
+  }
+
+  const limit = credit.creditLimitCents;
+  const used = credit.creditUsedCents;
+  const usedPct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const overLimit = used > limit && limit > 0;
+  const barPct = Math.max(usedPct, used > 0 ? 4 : 0);
+
+  return (
+    <View style={ec.creditCard}>
+      <View style={ec.cardHeaderRow}>
+        <View style={ec.cyanIcon}>
+          <Ionicons name="business" size={16} color={CYAN} />
+        </View>
+        <Text style={ec.cyanEyebrow}>NET-TERMS CREDIT</Text>
+        <View style={ec.termsBadge}>
+          <Text style={ec.termsBadgeText}>{TERMS_LABEL[credit.terms]}</Text>
+        </View>
+      </View>
+
+      <Text style={ec.eyebrowMuted}>AVAILABLE TO DRAW</Text>
+      <Text style={ec.bigAmount}>{formatUsd(credit.creditAvailableCents)}</Text>
+
+      {/* Usage bar — drawn vs limit */}
+      <View style={ec.barTrack}>
+        <View
+          style={[
+            ec.barFill,
+            { width: `${barPct}%`, backgroundColor: overLimit ? '#EF4444' : CYAN },
+          ]}
+        />
+      </View>
+      <View style={ec.barLabels}>
+        <Text style={ec.barLabelMuted}>
+          <Text style={ec.barLabelStrong}>{formatUsd(used)}</Text> drawn
+        </Text>
+        <Text style={ec.barLabelMuted}>
+          limit <Text style={ec.barLabelStrong}>{formatUsd(limit)}</Text>
+        </Text>
+      </View>
+
+      <Text style={ec.cardBody}>
+        Headroom you can post jobs against without funding escrow up front.
+        Nothing here is locked; it&apos;s borrowed and settles on terms.
+      </Text>
+
+      {credit.netTermsDueCents > 0 && (
+        <View style={ec.dueCallout}>
+          <Ionicons name="time-outline" size={14} color={AMBER} />
+          <Text style={ec.dueText}>
+            <Text style={ec.dueStrong}>{formatUsd(credit.netTermsDueCents)}</Text>{' '}
+            invoiced and due on your {TERMS_LABEL[credit.terms]} terms.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const ec = StyleSheet.create({
+  escrowCard: {
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.30)',
+  },
+  creditCard: {
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: 'rgba(34, 211, 238, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.30)',
+  },
+  neutralCard: {
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  violetIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.18)',
+    borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.30)',
+  },
+  cyanIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(34, 211, 238, 0.18)',
+    borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.30)',
+  },
+  neutralIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  violetEyebrow: {
+    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
+    color: '#C4B5FD',
+  },
+  cyanEyebrow: {
+    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
+    color: '#A5F3FC',
+  },
+  neutralEyebrow: {
+    flex: 1, fontSize: 11, fontWeight: '700', letterSpacing: 0.6,
+    color: '#9CA3AF',
+  },
+  eyebrowMuted: {
+    fontSize: 11, fontWeight: '600', letterSpacing: 0.5,
+    color: '#9CA3AF', marginBottom: 2,
+  },
+  bigAmount: {
+    fontSize: 32, fontWeight: '800', color: '#FFFFFF', marginBottom: 8,
+  },
+  midAmount: {
+    fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 8,
+  },
+  cardBody: {
+    fontSize: 13, lineHeight: 19, color: 'rgba(255, 255, 255, 0.72)',
+  },
+  violetChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: 14, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    borderWidth: 1, borderColor: 'rgba(124, 58, 237, 0.30)',
+  },
+  violetChipText: { fontSize: 11, fontWeight: '600', color: '#C4B5FD' },
+  termsBadge: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: 'rgba(34, 211, 238, 0.12)',
+    borderWidth: 1, borderColor: 'rgba(34, 211, 238, 0.30)',
+  },
+  termsBadgeText: {
+    fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: '#A5F3FC',
+  },
+  barTrack: {
+    height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  barFill: { height: '100%', borderRadius: 4 },
+  barLabels: {
+    flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 14,
+  },
+  barLabelMuted: { fontSize: 11, color: '#9CA3AF' },
+  barLabelStrong: { fontWeight: '700', color: '#FFFFFF' },
+  dueCallout: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+    borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.30)',
+  },
+  dueText: { flex: 1, fontSize: 12, lineHeight: 17, color: 'rgba(253, 230, 138, 0.95)' },
+  dueStrong: { fontWeight: '700', color: '#FDE68A' },
+});
 
 const styles = StyleSheet.create({
   container: {

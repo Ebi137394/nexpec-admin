@@ -249,7 +249,7 @@ export default async function ClientFinancePage() {
         <ol className="space-y-3 text-sm text-zinc-400">
           <Step
             n={1}
-            text="Prepay: you fund a job's escrow when you post it, and the amount is held in a dedicated escrow ledger — ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
+            text="Prepay: you fund a job's escrow when you post it, and the amount is held in a dedicated escrow ledger, ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
           />
           <Step
             n={2}
@@ -288,7 +288,7 @@ function EscrowPanel({ lockedCents }: { lockedCents: number }) {
           <Lock className="h-4 w-4" strokeWidth={1.75} />
         </span>
         <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/90">
-          Locked in escrow · Prepay
+          Prepay escrow, locked
         </p>
       </div>
       <p className="mt-5 font-display text-4xl font-semibold tracking-tight text-white">
@@ -296,13 +296,13 @@ function EscrowPanel({ lockedCents }: { lockedCents: number }) {
       </p>
       <p className="mt-2 text-sm leading-relaxed text-zinc-300/90">
         Cash you&apos;ve <span className="font-medium text-white">already paid</span>{' '}
-        into NEXPEC&apos;s escrow ledger for active jobs. It is ring-fenced —
+        into NEXPEC&apos;s escrow ledger for active jobs. It is ring-fenced,
         released to the inspector only when you approve the report, and refunded
         if a job is cancelled.
       </p>
       <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-violet/25 bg-violet/10 px-3 py-1 text-[11px] font-medium text-violet-glow">
         <ShieldCheck className="h-3 w-3" strokeWidth={2} />
-        Your money — held, not spent
+        Your money, held not spent
       </p>
     </article>
   );
@@ -320,7 +320,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
             <Landmark className="h-4 w-4" strokeWidth={1.75} />
           </span>
           <p className="text-[11px] font-semibold uppercase tracking-industrial text-zinc-400">
-            Trade credit · Net terms
+            Net-terms credit
           </p>
         </div>
         <p className="mt-5 font-display text-2xl font-semibold tracking-tight text-white">
@@ -328,8 +328,8 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
         </p>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
           You currently fund each job up front. Approved B2B clients can switch
-          to <span className="text-white">Net-30 to Net-60</span> terms — post
-          jobs against a credit line and settle invoices later, with nothing
+          to <span className="text-white">Net-30 to Net-60</span> terms, posting
+          jobs against a credit line and settling invoices later, with nothing
           locked in escrow.
         </p>
         <Link
@@ -357,7 +357,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
             <Landmark className="h-4 w-4" strokeWidth={1.75} />
           </span>
           <p className="text-[11px] font-semibold uppercase tracking-industrial text-cyan-glow/90">
-            Trade credit · Net terms
+            Net-terms credit
           </p>
         </div>
         <span className="rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-industrial text-cyan-glow">
@@ -392,7 +392,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
 
       <p className="mt-4 text-sm leading-relaxed text-zinc-300/90">
         Headroom you can post jobs against without funding escrow up front.
-        Nothing here is locked — it&apos;s borrowed and settles on terms.
+        Nothing here is locked; it&apos;s borrowed and settles on terms.
       </p>
 
       {credit.netTermsDueCents > 0 && (

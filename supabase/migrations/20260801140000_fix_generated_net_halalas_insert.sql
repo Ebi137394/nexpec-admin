@@ -17,7 +17,22 @@
 --  generated column computes the identical value (platform_fee is 0 for earning/
 --  settlement/payout; for advances net_cents == gross_cents - fee_cents). Bodies
 --  are otherwise reproduced verbatim from production. Idempotent (CREATE OR REPLACE).
+--
+--  ALSO FIXES two more constraint mismatches the same RPCs hit:
+--   • status: the RPCs used 'completed', but transactions_status_check only allows
+--     paid/processing/pending/failed → switched cleared/payout rows to 'paid'.
+--   • type: settle_client_payment used 'settlement' and admin_fund_advance used
+--     'advance', neither permitted by transactions_type_check → extend the CHECK
+--     to include both legitimate ledger types (additive; existing rows still valid).
 -- ════════════════════════════════════════════════════════════════════════════
+
+-- ─── 0. Permit the legitimate 'settlement' + 'advance' ledger types ──────────
+ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_type_check;
+ALTER TABLE public.transactions ADD CONSTRAINT transactions_type_check
+  CHECK (type = ANY (ARRAY[
+    'earning','withdrawal','deposit','escrow','refund','fee','payout',
+    'expense','payment','settlement','advance'
+  ]));
 
 -- ─── 1. credit_inspector_earning_on_approval ────────────────────────────────
 CREATE OR REPLACE FUNCTION public.credit_inspector_earning_on_approval(p_job_id uuid)
@@ -73,7 +88,7 @@ BEGIN
         gross_amount_halalas, platform_fee_halalas, status, description)
   VALUES (v_inspector, v_inspector, p_job_id, 'earning', v_dollars,
         v_cents, 0,
-        CASE WHEN v_cleared THEN 'completed' ELSE 'pending' END,
+        CASE WHEN v_cleared THEN 'paid' ELSE 'pending' END,
         CASE WHEN v_cleared THEN 'Inspection earning (cleared)'
              ELSE 'Inspection earning (accrued — awaiting client settlement)' END);
 
@@ -121,7 +136,7 @@ BEGIN
     INSERT INTO public.transactions(user_id, inspector_id, job_id, type, amount,
           gross_amount_halalas, platform_fee_halalas, status, description)
     VALUES (v_inspector, v_inspector, p_job_id, 'settlement', v_dollars, v_cents, 0,
-            'completed', 'Client settled — inspector funds cleared to available');
+            'paid', 'Client settled — inspector funds cleared to available');
   ELSIF v_adv.id IS NOT NULL THEN
     UPDATE public.payout_advances SET status = 'recovered', recovered_at = now(), updated_at = now()
      WHERE id = v_adv.id;
@@ -158,7 +173,7 @@ BEGIN
     INSERT INTO public.transactions(user_id, inspector_id, type, amount,
           gross_amount_halalas, platform_fee_halalas, status, description, reference_id)
     VALUES (v_req.requester_id, v_req.requester_id, 'payout', v_dollars,
-          v_req.amount_cents, 0, 'completed',
+          v_req.amount_cents, 0, 'paid',
           'Manual payout — admin confirmed', p_reference);
   ELSE
     UPDATE public.supplier_earnings
@@ -169,7 +184,7 @@ BEGIN
     INSERT INTO public.transactions(user_id, type, amount,
           gross_amount_halalas, platform_fee_halalas, status, description, reference_id)
     VALUES (v_req.requester_id, 'payout', v_dollars,
-          v_req.amount_cents, 0, 'completed',
+          v_req.amount_cents, 0, 'paid',
           'Manual supplier payout — admin confirmed', p_reference);
   END IF;
 
@@ -212,7 +227,7 @@ BEGIN
   INSERT INTO public.transactions(user_id, inspector_id, job_id, type, amount,
         gross_amount_halalas, platform_fee_halalas, status, description)
   VALUES (v_adv.requester_id, v_adv.requester_id, v_adv.job_id, 'advance', v_net_d,
-        v_adv.gross_cents, v_adv.fee_cents, 'completed',
+        v_adv.gross_cents, v_adv.fee_cents, 'paid',
         'Early payout advance (net of fee) — recovered on client settlement');
 
   UPDATE public.payout_advances

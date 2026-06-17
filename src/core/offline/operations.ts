@@ -440,13 +440,14 @@ async function handleFlashReportTransition(row: OutboxRow): Promise<void> {
 
 // ── withdrawal_request ─────────────────────────────────────────────
 //
-// #QA — wallet withdrawal via the atomic + idempotent process_withdrawal RPC
-// (migration 20260719). Routed through the outbox so a flaky-network submit whose
-// RESPONSE is lost retries the SAME client_op_id → the RPC dedups → the balance is
-// NEVER double-charged. Insufficient funds / not-authorized are deterministic (the
-// RPC raises 22000/28000) → classified fatal → surfaced, not retried.
+// #QA — wallet withdrawal via the atomic + idempotent canonical request_withdrawal
+// RPC (request_withdrawal(bigint, text, text, uuid)). Routed through the outbox so
+// a flaky-network submit whose RESPONSE is lost retries the SAME client_op_id → the
+// RPC dedups → the balance is NEVER double-charged. Insufficient funds /
+// not-authorized are deterministic (the RPC raises P0001/28000) → classified fatal
+// → surfaced, not retried.
 //
-// Payload: { args: { p_amount, p_bank_details } }
+// Payload: { args: { p_amount_cents, p_method, p_note? } } (p_client_op_id added below)
 async function handleWithdrawalRequest(row: OutboxRow): Promise<void> {
   const { args } = JSON.parse(row.payload_json) as { args: Record<string, unknown> };
   const { error } = await supabase.rpc('request_withdrawal', {

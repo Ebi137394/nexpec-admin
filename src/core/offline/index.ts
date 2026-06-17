@@ -351,8 +351,10 @@ export async function enqueueFlashReportTransition(
  * Enqueue a wallet withdrawal. Does NOT auto-flush — the withdraw screen awaits
  * flushQueue() then reads getOpStatus() to render a definite outcome (success /
  * queued offline / failed), because a withdrawal needs a clear result. Idempotent
- * end-to-end: the op's client_op_id is passed to process_withdrawal, so a flaky
- * retry can never double-charge. `args` = { p_amount, p_bank_details }.
+ * end-to-end: the op's client_op_id is passed to the canonical request_withdrawal
+ * RPC, so a flaky retry can never double-charge.
+ * `args` = { p_amount_cents, p_method, p_note? } (p_client_op_id is added by the
+ * outbox handler).
  */
 export async function enqueueWithdrawalRequest(args: Record<string, unknown>): Promise<string> {
   const opId = makeUuid();

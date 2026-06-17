@@ -18,7 +18,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(26);
 
 \set A   '11111111-1111-1111-1111-111111111111'
 \set B   '22222222-2222-2222-2222-222222222222'
@@ -124,6 +124,16 @@ set local role anon;
 set local request.jwt.claims to '';
 select throws_ok($$ select 1 from public.wallets $$, '42501', NULL, 'wallets: anon has no access at all');
 
+-- ════════════════════════════════════════════════════════════════════════════
+--  Legacy-overload perimeter — the insecure 2-arg request_withdrawal is GONE
+--  (no SET search_path, no null-uid guard, anon-granted, dead code). Only the
+--  canonical idempotent 4-arg overload may exist.
+-- ════════════════════════════════════════════════════════════════════════════
 reset role;
+select ok(to_regprocedure('public.request_withdrawal(numeric, jsonb)') IS NULL,
+  'request_withdrawal: insecure legacy (numeric,jsonb) overload is dropped');
+select ok(to_regprocedure('public.request_withdrawal(bigint, text, text, uuid)') IS NOT NULL,
+  'request_withdrawal: canonical (bigint,text,text,uuid) overload is present');
+
 select * from finish();
 rollback;

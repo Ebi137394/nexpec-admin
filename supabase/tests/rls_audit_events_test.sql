@@ -84,10 +84,13 @@ reset role;
 set local role anon;
 set local request.jwt.claims to '{"role":"anon"}';
 
--- 8) Anonymous callers see no audit rows.
-select is_empty(
+-- 8) Anonymous callers cannot read audit rows. After 20260801143000, anon has
+--    NO table privilege at all (revoked), so this is denied at the privilege
+--    level (42501) — strictly stronger than RLS returning an empty set.
+select throws_ok(
   'select 1 from public.audit_events',
-  'anon CANNOT read audit_events (no anon SELECT policy)'
+  '42501', NULL,
+  'anon CANNOT read audit_events (privilege revoked, not just RLS-empty)'
 );
 
 reset role;

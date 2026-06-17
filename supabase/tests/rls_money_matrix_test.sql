@@ -18,7 +18,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(24);
 
 \set A   '11111111-1111-1111-1111-111111111111'
 \set B   '22222222-2222-2222-2222-222222222222'
@@ -40,6 +40,8 @@ insert into public.withdrawal_requests (requester_id, requester_role, amount_cen
   values (:'A','inspector',5000,'requested');
 insert into public.payout_advances (requester_id, requester_role, gross_cents, fee_bps, fee_cents, net_cents, status)
   values (:'A','inspector',5000,400,200,4800,'requested');
+insert into public.supplier_earnings (supplier_id, available_balance_halalas, pending_halalas)
+  values (:'A', 20000, 0);
 insert into public.transactions (user_id, amount, type, gross_amount_halalas, platform_fee_halalas, status)
   values (:'A', 100.00, 'earning', 0, 0, 'paid');
 insert into public.invoices (invoice_number, job_id, client_id, client_amount_cents, platform_fee_cents, total_cents)
@@ -85,6 +87,13 @@ select throws_ok($$ truncate public.transactions $$, '42501', NULL, 'transaction
 select isnt_empty($$ select 1 from public.payout_advances where requester_id = '11111111-1111-1111-1111-111111111111' $$,
   'payout_advances: requester reads OWN');
 
+-- SUPPLIER_EARNINGS (two-bucket halalas ledger — same lockdown as wallets)
+select isnt_empty($$ select 1 from public.supplier_earnings where supplier_id = '11111111-1111-1111-1111-111111111111' $$,
+  'supplier_earnings: supplier reads OWN');
+select throws_ok($$ update public.supplier_earnings set available_balance_halalas = 999999 where supplier_id = '11111111-1111-1111-1111-111111111111' $$,
+  '42501', NULL, 'supplier_earnings: direct balance UPDATE denied (no mint-money)');
+select throws_ok($$ truncate public.supplier_earnings $$, '42501', NULL, 'supplier_earnings: TRUNCATE denied');
+
 -- ════════════════════════════════════════════════════════════════════════════
 --  Act as authenticated user B — cross-tenant reads must be empty
 -- ════════════════════════════════════════════════════════════════════════════
@@ -97,6 +106,8 @@ select is_empty($$ select 1 from public.transactions where user_id = '11111111-1
   'transactions: other user CANNOT read A''s');
 select is_empty($$ select 1 from public.payout_advances where requester_id = '11111111-1111-1111-1111-111111111111' $$,
   'payout_advances: other user CANNOT read A''s');
+select is_empty($$ select 1 from public.supplier_earnings where supplier_id = '11111111-1111-1111-1111-111111111111' $$,
+  'supplier_earnings: other user CANNOT read A''s');
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  Act as ADMIN — override read

@@ -67,6 +67,24 @@ Exit code `0` = all green, `1` = one or more assertions failed, `2` = setup/fata
   production project ref (`sxqpjxhslzzcdrdctatm`). Override only with
   `ALLOW_PROD=1`, which is not recommended (it creates and deletes users).
 
+## CI gate
+
+`.github/workflows/staging-money-e2e.yml` runs this against staging on a nightly
+schedule (07:00 UTC), on every push to `main`, and on manual dispatch. It skips
+(does not fail) when the staging secrets are absent, so fork PRs are unaffected.
+
+Add these as repo **Actions secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `STAGING_SUPABASE_URL` | `https://<staging-ref>.supabase.co` |
+| `STAGING_SUPABASE_SERVICE_ROLE_KEY` | staging `service_role` key |
+| `STAGING_SUPABASE_ANON_KEY` | staging `anon` key |
+
+The DB-layer pgTAP suite (`supabase test db`) stays the fast local/pre-push gate —
+it needs the full Supabase stack (postgis/vector/pg_cron), which is heavy and
+container-flaky in CI. Run it locally before pushing schema changes.
+
 ## Notes
 
 - Test users are tagged `e2e_<role>_<runId>@nexpec.test` and removed on exit, so

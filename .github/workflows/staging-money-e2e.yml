@@ -1,0 +1,64 @@
+name: staging-money-e2e
+
+# Phase 5 end-to-end money gate. Runs the full manual-payout chain
+# (credit -> settle -> request_withdrawal -> admin_mark_withdrawal_paid, plus the
+# supplier branch + security negatives) against STAGING using real auth sessions.
+#
+# pgTAP (supabase/tests/*) is the fast local/pre-push DB-layer gate; this job is
+# the stack-level gate that needs staging credentials, so it lives in CI only.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   STAGING_SUPABASE_URL               https://<staging-ref>.supabase.co
+#   STAGING_SUPABASE_SERVICE_ROLE_KEY  staging service_role key
+#   STAGING_SUPABASE_ANON_KEY          staging anon key
+# When STAGING_SUPABASE_URL is absent (e.g. fork PRs) the job skips, not fails.
+#
+# The runner has a hard production-ref guard (refuses sxqpjxhslzzcdrdctatm unless
+# ALLOW_PROD=1), creates throwaway e2e_* users, and cleans them up on exit.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * *' # nightly 07:00 UTC
+  push:
+    branches: [main]
+
+concurrency:
+  group: staging-money-e2e
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: money flow · staging E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Guard — staging secrets present
+        id: secrets
+        env:
+          URL: ${{ secrets.STAGING_SUPABASE_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::STAGING_SUPABASE_URL not set — skipping staging money E2E."
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install (root)
+        if: steps.secrets.outputs.has_secrets == 'true'
+        run: npm ci
+
+      - name: Run E2E money-flow runner
+        if: steps.secrets.outputs.has_secrets == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+        run: npm run qa:e2e:money

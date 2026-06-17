@@ -79,6 +79,30 @@ Run on a seeded staging account once Layers 1–2 are green:
 - [ ] **Abuse:** a non-admin hitting an admin action (e.g. direct Treasury POST)
       is rejected; requesting a payout above balance is blocked in the UI.
 
+## Drift reconciliation backlog (surfaced by the first clean `db reset`)
+
+Replaying the full migration set against an empty DB exposed production-only
+("ghost") objects never committed to the repo. Adopted so far: the earlier 4 FK
+targets (in baseline), `invoices` + `fin_visible_client_ids` (139000), the 4
+budget RPCs (138000), and now `projects` / `applications` / `inspection_reports`
+/ `reports` (`00000000020000`, structure + hardened grants).
+
+Still un-versioned (do NOT block local startup, but needed for 100% fidelity):
+
+- **`work_orders`** table — FK target + RLS-policy reference from `reports`.
+- **Ghost trigger functions** on `applications`: `audit_capture`,
+  `increment_job_applications_count`, `enforce_application_rate_limit`,
+  `log_application_event`, `handle_job_acceptance`,
+  `validate_application_status_transition`; on `inspection_reports`:
+  (`tg_enqueue_document_analysis` IS versioned).
+- **`is_super_admin()`** — used by an `inspection_reports` RESTRICTIVE policy.
+- **RLS policies + triggers + outgoing FKs** for the 4 newly-adopted tables, and
+  the `inspection_reports.domain` enum retype (enum lands at 20260616120000).
+
+Plan: once `db reset` runs clean end-to-end, dump each remaining ghost object
+(same JSON-bundle method) and add a late reconciliation migration that layers the
+policies/triggers/FKs after all dependencies exist.
+
 ## Stripe (manual-model verification)
 
 Because payouts are 100% manual, no Stripe Connect payout should ever fire. Layer

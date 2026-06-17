@@ -34,7 +34,7 @@ insert into public.profiles (id, email, role) values
   (:'A','a.rls@test.nx','inspector'),
   (:'B','b.rls@test.nx','inspector'),
   (:'ADM','adm.rls@test.nx','admin');
-insert into public.jobs (id, title) values (:'JOB','rls matrix job');
+insert into public.jobs (id, title, client_id) values (:'JOB','rls matrix job', :'A');  -- jobs_owner_xor: exactly one owner
 insert into public.wallets (user_id, available_balance) values (:'A', 100), (:'B', 200);
 insert into public.withdrawal_requests (requester_id, requester_role, amount_cents, status)
   values (:'A','inspector',5000,'requested');

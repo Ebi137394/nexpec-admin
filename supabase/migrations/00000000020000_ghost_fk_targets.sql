@@ -41,6 +41,12 @@
 CREATE TABLE IF NOT EXISTS public.projects (
   id              uuid        NOT NULL DEFAULT gen_random_uuid(),
   organization_id uuid        NOT NULL,
+  -- Compatibility column: the Feb-2025 findings migration (20250206190700)
+  -- creates an RLS policy referencing projects.client_id. Prod later replaced
+  -- client_id with organization_id (and that change was out-of-band), so the
+  -- column is absent from the current prod dump. Re-added here (nullable) purely
+  -- so that historical migration replays cleanly on a fresh db reset.
+  client_id       uuid,
   name            text        NOT NULL,
   status          text        DEFAULT 'active'::text,
   budget          numeric     DEFAULT 0,

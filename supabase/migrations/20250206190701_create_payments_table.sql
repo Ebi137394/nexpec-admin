@@ -1,5 +1,16 @@
 -- Create payments table for financial tracking
-CREATE TABLE payments (
+-- Replay-safety: payment_status was created out-of-band on the live DB and is in
+-- no migration, so a from-scratch replay (db reset / --include-all) dies here.
+-- Create it guarded + make the table idempotent. No effect on prod (which already
+-- has the type). Values cover the migration's default ('pending'); confirm against
+-- prod if the legacy payments table is ever brought back into active use.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_status') THEN
+    CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'paid', 'failed', 'refunded', 'cancelled');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS payments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   client_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

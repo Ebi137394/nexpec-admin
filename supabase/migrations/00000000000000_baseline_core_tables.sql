@@ -25,6 +25,31 @@
 --      baseline to also include those four tables.
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- ─── REQUIRED EXTENSIONS ──────────────────────────────────────────────────
+--  Hosted Supabase pre-provisions PostGIS / pgcrypto / pgvector in the
+--  `extensions` schema and puts that schema on the search_path, so the
+--  GEOGRAPHY columns + ST_* generated expressions (here), extensions.digest /
+--  gen_random_bytes, and vector(...) columns (later migrations) "just work"
+--  upstream. A fresh local `supabase start` does NOT, so a clean db reset
+--  failed at the first GEOGRAPHY column ("type geography does not exist").
+--
+--  Enable them here, before the first table, and make the `extensions` schema
+--  resolvable for unqualified types/functions — both in THIS session (for the
+--  rest of this file) and for every future connection (later migration files +
+--  runtime), mirroring hosted. Fully idempotent; a no-op on an env that already
+--  has them.
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS postgis  WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+CREATE EXTENSION IF NOT EXISTS vector   WITH SCHEMA extensions;
+
+SET search_path TO public, extensions;
+DO $baseline_ext$
+BEGIN
+  EXECUTE format('ALTER DATABASE %I SET search_path TO public, extensions', current_database());
+END
+$baseline_ext$;
+
 -- ─── public.profiles ────────────────────────────────────────────────────
 -- ════════════════════════════════════════════════════════════════════════
 --  GHOST FK-TARGET TABLES — folded in 2026-08 (canonical record: migration

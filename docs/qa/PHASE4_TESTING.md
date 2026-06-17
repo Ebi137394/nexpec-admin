@@ -103,6 +103,29 @@ Plan: once `db reset` runs clean end-to-end, dump each remaining ghost object
 (same JSON-bundle method) and add a late reconciliation migration that layers the
 policies/triggers/FKs after all dependencies exist.
 
+## Forward-ref / ghost audit results (P4.0b)
+
+A full scan of all 198 migrations (forward references + ghost objects, comments &
+function bodies excluded) found that a clean from-scratch `db reset` is blocked by
+a broad drift layer, not a few objects:
+
+- **Ghost tables** (DDL-target, never `CREATE TABLE`d in any migration):
+  `flash_reports`, `flash_report_attachments`, `job_applications`, `proposals`,
+  `project_documents`, `stripe_webhook_events`, `specialty_slug_remap`.
+- **Ghost function**: `is_super_admin()` — used in 9 migrations' policies, defined
+  in none.
+- **Ordering** (created later than first use): `contracts` (created 20260518210000),
+  `org_members` (created 20260521120000).
+- Already fixed en route: extensions (postgis/pgcrypto/vector), 4 ghost FK tables
+  (projects/applications/inspection_reports/reports), projects.client_id shim,
+  payment_status guard, messages→conversations guard.
+
+Conclusion: the migration history is materially incomplete vs production. The right
+remediation is a single `supabase db dump --schema-only` of prod to regenerate a
+complete baseline — NOT per-object hand-reconstruction. Until then, the txn-safe
+money-flow pgTAP suite can validate the engine directly against staging (real
+schema), decoupled from local-reset reconciliation.
+
 ## Stripe (manual-model verification)
 
 Because payouts are 100% manual, no Stripe Connect payout should ever fire. Layer

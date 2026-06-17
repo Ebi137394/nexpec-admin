@@ -675,13 +675,19 @@ export async function startSupplierConnectOnboarding(): Promise<string | null> {
   if (error) return null;
   return (data as { url?: string } | null)?.url ?? null;
 }
-// Trigger a payout via the parallel supplier EF (server re-derives + verifies).
+// Request a MANUAL payout (NX-STRIPE-004). Reserves available → pending_payouts
+// via request_withdrawal; an admin settles it in the Treasury Control Tower
+// (admin_mark_withdrawal_paid). No automated Stripe Connect egress.
 export async function supplierWithdraw(amountCents: number): Promise<{ ok: boolean; error?: string }> {
   const uid = await getUserId();
   if (!uid) return { ok: false, error: 'Not signed in.' };
-  const { error } = await sb().functions.invoke('create-supplier-payout', { body: { user_id: uid, amount_cents: amountCents } });
+  const { error } = await sb().rpc('request_withdrawal', {
+    p_amount_cents: amountCents,
+    p_method: 'bank_transfer',
+    p_client_op_id: globalThis.crypto.randomUUID(),
+  });
   if (error) {
-    let msg = (error as { message?: string }).message ?? 'Payout failed';
+    let msg = (error as { message?: string }).message ?? 'Payout request failed';
     try {
       const body = await (error as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.();
       if (body?.error) msg = body.error;

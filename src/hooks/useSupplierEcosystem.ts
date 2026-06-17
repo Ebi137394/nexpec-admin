@@ -519,11 +519,17 @@ export async function startSupplierConnectOnboarding(): Promise<string | null> {
   return (data as any)?.url ?? null;
 }
 export async function supplierWithdraw(amountCents: number): Promise<{ ok: boolean; error?: string }> {
+  // NX-STRIPE-004: manual payout flow — request_withdrawal reserves funds; an
+  // admin settles via admin_mark_withdrawal_paid in the Treasury Control Tower.
   const { data: u } = await supabase.auth.getUser();
   const uid = u.user?.id; if (!uid) return { ok: false, error: 'Not signed in.' };
-  const { error } = await supabase.functions.invoke('create-supplier-payout', { body: { user_id: uid, amount_cents: amountCents } });
+  const { error } = await supabase.rpc('request_withdrawal', {
+    p_amount_cents: amountCents,
+    p_method: 'bank_transfer',
+    p_client_op_id: globalThis.crypto.randomUUID(),
+  });
   if (error) {
-    let msg = (error as any).message ?? 'Payout failed';
+    let msg = (error as any).message ?? 'Payout request failed';
     try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* keep */ }
     return { ok: false, error: msg };
   }

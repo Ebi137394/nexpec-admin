@@ -424,120 +424,17 @@ export default function FinanceScreen() {
   useFocusEffect( useCallback(() => { loadAllData(); }, [loadAllData]), );
 
   const handleWithdraw = useCallback(async () => {
-    // ★ Phase C — Stripe Connect-aware withdraw flow.
-    //   If the inspector has a verified Stripe Connect account, we run
-    //   the full balance through the create-stripe-payout EF (transfer
-    //   to connected acct → payout to bank, no application fee). If
-    //   they only have manual fallbacks (PayPal/Wise/Payoneer), we
-    //   keep routing to the existing manual withdrawal form. If they
-    //   have neither, we prompt them to add a method.
-
+    // NX-STRIPE-004: automated Stripe Connect payouts are DISABLED. All
+    // withdrawals now go through the manual flow — the withdraw form enqueues
+    // request_withdrawal (reserves Available → pending_payouts), and an admin
+    // settles it in the Treasury Control Tower (admin_mark_withdrawal_paid).
+    // No client-initiated Stripe egress.
     if (!session?.user?.id) {
       Alert.alert('Not signed in', 'Please sign in again to withdraw.');
       return;
     }
-
-    // Pull fresh Connect status — we don't want to trust stale state
-    // since the webhook updates this asynchronously after onboarding.
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('stripe_connect_status, stripe_connect_payouts_enabled')
-      .eq('id', session.user.id)
-      .single();
-
-    const stripeReady =
-      profile?.stripe_connect_status === 'verified' &&
-      profile?.stripe_connect_payouts_enabled === true;
-
-    // No methods AND no Stripe Connect → nudge them to add one
-    if (paymentMethods.length === 0 && !stripeReady) {
-      Alert.alert(
-        'No Payment Method',
-        'Please add a payment method before withdrawing.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Add Method', onPress: () => setShowAddPaymentModal(true) },
-        ],
-      );
-      return;
-    }
-
-    // Stripe Connect path — call the EF directly. $50 USD minimum.
-    if (stripeReady) {
-      const balanceCents = Math.round(walletStats.availableBalance * 100);
-      const balanceUSD = (balanceCents / 100).toFixed(2);
-
-      if (balanceCents < 5000) {
-        Alert.alert(
-          'Below minimum',
-          `You need at least $50.00 USD to withdraw. Current balance: $${balanceUSD}.`,
-        );
-        return;
-      }
-
-      Alert.alert(
-        'Withdraw to Bank',
-        `Send $${balanceUSD} USD to your verified bank account?\n\nFunds typically arrive in 1–2 business days.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Withdraw',
-            style: 'default',
-            onPress: async () => {
-              setActionLoading(true);
-              try {
-                const { data, error: payoutErr } = await supabase.functions.invoke(
-                  'create-stripe-payout',
-                  {
-                    body: {
-                      user_id: session.user.id,
-                      amount_cents: balanceCents,
-                    },
-                  },
-                );
-                if (payoutErr) {
-                  // ★ supabase-js wraps non-2xx responses with a generic
-                  //   "Edge Function returned a non-2xx status code" — the
-                  //   real error from the EF lives in error.context.json().
-                  //   Surface it so we can debug without trawling logs.
-                  let realMsg = payoutErr.message ?? 'Payout failed';
-                  try {
-                    const body = await (payoutErr as any).context?.json?.();
-                    if (body?.error) realMsg = body.error;
-                  } catch {
-                    /* ignore — fall back to generic message */
-                  }
-                  throw new Error(realMsg);
-                }
-                if (data?.warning) {
-                  Alert.alert('Payout Pending', data.warning);
-                } else {
-                  Alert.alert(
-                    'Withdrawal Initiated',
-                    `Your $${balanceUSD} USD payout is on its way. We'll notify you when it lands in your bank.`,
-                  );
-                }
-                await fetchWalletStats();
-              } catch (err: any) {
-                Alert.alert('Withdrawal Failed', err?.message ?? 'Unknown error');
-              } finally {
-                setActionLoading(false);
-              }
-            },
-          },
-        ],
-      );
-      return;
-    }
-
-    // Fallback: manual payment-method users land on the existing form
     router.push('/(inspector)/wallet/withdraw');
-  }, [
-    walletStats.availableBalance,
-    paymentMethods,
-    session?.user?.id,
-    fetchWalletStats,
-  ]);
+  }, [session?.user?.id]);
 
   // 🌟 تابع ذخیره متدهای غیر از استرایپ (پی‌پال، بانک، وایز) تو دیتابیس
   const handleSaveProviderDetail = async () => {

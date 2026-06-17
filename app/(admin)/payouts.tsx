@@ -176,50 +176,30 @@ export default function PayoutsScreen() {
     }
   }, [fetchPayouts]);
 
-  // ─── آپدیت جدید: اتصال به بک‌اند Stripe (Edge Function) ───
+  // NX-STRIPE-004: automated Stripe Connect payouts are DISABLED. This action
+  // no longer triggers a Stripe transfer — it marks the job's payout status.
+  // The ACTUAL funds are settled manually in the web Treasury Control Tower
+  // (admin_mark_withdrawal_paid against the inspector's withdrawal_request).
   const processViaEdgeFunction = useCallback(
     async (jobId: string) => {
-      setBusyIds((s) => new Set(s).add(jobId));
-      try {
-        const { data, error } = await supabase.functions.invoke(
-          'process-payout',
-          { body: { job_id: jobId } },
-        );
-
-        if (error) throw error;
-
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Payout Approved',
-          `Transfer ${data?.transfer_id ?? ''} created successfully.`,
-        );
-        await fetchPayouts();
-      } catch (err: any) {
-        Alert.alert('Payout Failed', err.message ?? 'Please try again.');
-      } finally {
-        setBusyIds((s) => {
-          const n = new Set(s);
-          n.delete(jobId);
-          return n;
-        });
-      }
+      await mutateStatus(jobId, 'paid');
+      Alert.alert(
+        'Marked Paid',
+        'Job payout marked paid. Wire the funds out-of-band and settle the payout in the Treasury Control Tower (web).',
+      );
     },
-    [fetchPayouts],
+    [mutateStatus],
   );
 
   const onApprove = useCallback(
     (r: JobPayout) => {
       Alert.alert(
         'Approve Payout',
-        `Transfer ${fmt(r.payout_amount_cents)} to ${displayName(r)}?\n\nThis will create a Stripe transfer to the inspector's bank account.`,
+        `Mark ${fmt(r.payout_amount_cents)} to ${displayName(r)} as paid?\n\nWire the funds out-of-band, then settle the payout in the Treasury Control Tower. This only marks the job's payout status.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Approve & Transfer',
+            text: 'Mark Paid',
             onPress: () => processViaEdgeFunction(r.id),
           },
         ],

@@ -1,0 +1,16 @@
+[
+  "auth_recovery_codes",
+  "country_codes",
+  "courses",
+  "fx_rates",
+  "fx_refresh_runs",
+  "invoices",
+  "job_expenses",
+  "knowledge_base",
+  "legal_documents",
+  "payments",
+  "payout_requests",
+  "transactions",
+  "user_roles",
+  "withdrawals"
+]

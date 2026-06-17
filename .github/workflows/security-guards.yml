@@ -57,3 +57,6 @@ jobs:
 
       - name: No DB refs without a migration (schema-drift guard)
         run: node scripts/qa/check-db-refs.mjs
+
+      - name: God-mode RLS coverage (no admin-excluded table)
+        run: node scripts/qa/check-rls-admin-coverage.mjs

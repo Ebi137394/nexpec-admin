@@ -23,7 +23,8 @@
     "qa:outbox:baseline": "node scripts/qa/check-outbox-routing.mjs --write-baseline",
     "qa:db-refs": "node scripts/qa/check-db-refs.mjs",
     "qa:db-refs:baseline": "node scripts/qa/check-db-refs.mjs --write-baseline",
-    "qa:e2e:money": "node scripts/qa/e2e-money-flow.mjs"
+    "qa:e2e:money": "node scripts/qa/e2e-money-flow.mjs",
+    "qa:rls-admin": "node scripts/qa/check-rls-admin-coverage.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

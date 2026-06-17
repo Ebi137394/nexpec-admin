@@ -17,38 +17,35 @@ CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 -- Enable Row Level Security
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
--- Users can view messages in conversations they are part of
-CREATE POLICY "Users can view messages in their conversations"
-  ON messages FOR SELECT
-  USING (
-    conversation_id IN (
-      SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()
-    )
-  );
-
--- Users can insert messages in conversations they are part of
-CREATE POLICY "Users can send messages in their conversations"
-  ON messages FOR INSERT
-  WITH CHECK (
-    conversation_id IN (
-      SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()
-    )
-  );
-
--- Users can update read status of messages in their conversations
-CREATE POLICY "Users can update read status"
-  ON messages FOR UPDATE
-  USING (
-    conversation_id IN (
-      SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    conversation_id IN (
-      SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()
-    )
-  );
+-- RLS Policies — GUARDED for clean-replay ordering.
+-- The canonical `conversations` table is created later
+-- (20260518160000_conversations_and_messages_v2), so on a from-scratch replay it
+-- does not exist yet and these subqueries would fail. These legacy policies are
+-- also SUPERSEDED by v2's msg_* policies. Create them only where conversations
+-- already exists (the live DB this migration first ran against); skip on a fresh
+-- reset, where v2 installs the operative policies. No effect on prod.
+DO $msgpol$
+BEGIN
+  IF to_regclass('public.conversations') IS NOT NULL THEN
+    EXECUTE $p$
+      CREATE POLICY "Users can view messages in their conversations"
+        ON messages FOR SELECT
+        USING (conversation_id IN (SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()))
+    $p$;
+    EXECUTE $p$
+      CREATE POLICY "Users can send messages in their conversations"
+        ON messages FOR INSERT
+        WITH CHECK (conversation_id IN (SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()))
+    $p$;
+    EXECUTE $p$
+      CREATE POLICY "Users can update read status"
+        ON messages FOR UPDATE
+        USING (conversation_id IN (SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()))
+        WITH CHECK (conversation_id IN (SELECT id FROM conversations WHERE user1_id = auth.uid() OR user2_id = auth.uid()))
+    $p$;
+  END IF;
+END
+$msgpol$;
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_messages_updated_at()

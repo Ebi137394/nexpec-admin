@@ -41,7 +41,8 @@ select is(
 -- ── Wrong key fails ──────────────────────────────────────────────────────────
 select throws_ok(
   $$ select public.admin_decrypt_tax_id('99999999-9999-9999-9999-999999999999', 'wrong-key-9999999999999') $$,
-  'admin_decrypt_tax_id with the wrong key fails (pgcrypto)'
+  '39000', NULL,
+  'admin_decrypt_tax_id with the wrong key fails (pgcrypto: Wrong key or corrupt data)'
 );
 
 -- ── Non-admin is denied (and never reaches plaintext) ────────────────────────

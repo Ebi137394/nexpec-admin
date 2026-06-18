@@ -48,6 +48,11 @@ export async function requestWithdrawal(formData: FormData): Promise<void> {
     p_note: parsed.data.note ? parsed.data.note : null,
     p_client_op_id: globalThis.crypto.randomUUID(),
   });
+  // Tax-info-before-money gate: route the payee to the Tax Center to complete
+  // (or, if exempt, an admin clears them) before any payout can be requested.
+  if (error?.message.includes('TAX_NOT_VERIFIED')) {
+    redirect('/inspector/tax-center?from=payout');
+  }
   if (error) redirect(`${BACK}?error=${encodeURIComponent(friendly(error.message))}`);
 
   revalidatePath(BACK);

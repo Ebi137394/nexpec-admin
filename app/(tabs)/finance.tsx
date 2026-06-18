@@ -185,7 +185,7 @@ const WalletTransactionItem: React.FC<{ tx: Transaction }> = ({ tx }) => {
       <View style={[s.txIcon, { backgroundColor: `${color}15` }]}><Ionicons name={icon} size={20} color={color} /></View>
       <View style={s.txInfo}>
         <Text style={s.txDesc} numberOfLines={1}>{tx.description}</Text>
-        <View style={s.txMeta}><Text style={s.txDate}>{formatDate(tx.created_at)}</Text><View style={[s.txStatusDot, { backgroundColor: getStatusColor(tx.status) }]} /><Text style={[s.txStatus, { color: getStatusColor(tx.status) }]}>{tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}</Text></View>
+        <View style={s.txMeta}><Text style={s.txDate}>{formatDate(tx.created_at)}</Text><View style={[s.txStatusDot, { backgroundColor: getStatusColor(tx.status) }]} /><Text style={[s.txStatus, { color: getStatusColor(tx.status) }]}>{(tx.status ?? '').charAt(0).toUpperCase() + (tx.status ?? '').slice(1)}</Text></View>
       </View>
       <Text style={[ s.txAmount, { color: isPositive ? COLORS.green : COLORS.textPrimary }, ]}>{isPositive ? '+' : '-'}{formatCurrency(tx.amount)}</Text>
     </View>

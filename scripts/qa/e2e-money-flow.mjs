@@ -146,6 +146,15 @@ async function main() {
 
   // ── 3. security negatives BEFORE opening a request ─────────────────────────
   console.log('\n[3] Withdrawal security negatives');
+  // Tax-info-before-money: a payee with no verified tax profile is blocked.
+  const taxBlocked = await rpc(inspector.client, 'request_withdrawal',
+    { p_amount_cents: 1000, p_method: 'bank_transfer', p_client_op_id: randomUUID() });
+  check('withdrawal blocked until tax verified (TAX_NOT_VERIFIED)', /TAX_NOT_VERIFIED/.test(taxBlocked.errMsg || ''), taxBlocked.errMsg);
+  // Verify tax (tokenized; no raw PII) so the rest of the flow proceeds.
+  const txErr = (await admin.from('tax_profiles')
+    .upsert({ user_id: inspector.id, tax_status: 'verified', form_type: 'w9', tax_residency_country: 'US' }, { onConflict: 'user_id' })).error;
+  check('seed verified tax_profile (inspector)', !txErr, txErr?.message);
+
   const insuff = await rpc(inspector.client, 'request_withdrawal',
     { p_amount_cents: 99999900, p_method: 'bank_transfer', p_client_op_id: randomUUID() });
   check('insufficient balance rejected (P0001)', insuff.errCode === 'P0001', insuff.errMsg);
@@ -195,6 +204,9 @@ async function main() {
   const seErr = (await admin.from('supplier_earnings')
     .upsert({ supplier_id: supplier.id, available_balance_halalas: 50000, pending_halalas: 0 }, { onConflict: 'supplier_id' })).error;
   check('seed supplier_earnings', !seErr, seErr?.message);
+  // Supplier must also clear the tax gate before any payout.
+  await admin.from('tax_profiles')
+    .upsert({ user_id: supplier.id, tax_status: 'verified', form_type: 'w8ben', tax_residency_country: 'CA' }, { onConflict: 'user_id' });
   const sOp = randomUUID();
   const sWd = await rpc(supplier.client, 'request_withdrawal',
     { p_amount_cents: 30000, p_method: 'bank_transfer', p_client_op_id: sOp });

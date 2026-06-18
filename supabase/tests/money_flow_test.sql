@@ -28,7 +28,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(24);
+select plan(25);
 
 -- ── Fixed actor + job ids ───────────────────────────────────────────────────
 --  A = admin, I = inspector, C = client; J1 = prepay job, J2 = net-terms job.
@@ -135,6 +135,16 @@ select is(
 --  5. MANUAL PAYOUT REQUEST — act as the INSPECTOR (auth.uid() = I)
 -- ════════════════════════════════════════════════════════════════════════════
 set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+-- TAX-INFO-BEFORE-MONEY: payout blocked until the payee's tax profile is verified
+select throws_ok(
+  $$ select public.request_withdrawal(10000, 'bank_transfer', null, null) $$,
+  'P0001', 'TAX_NOT_VERIFIED',
+  'request_withdrawal blocked until tax_status = verified'
+);
+-- Seed a verified, tokenized tax profile for the inspector (no raw PII)
+insert into public.tax_profiles (user_id, tax_status, form_type, tax_residency_country)
+  values ('22222222-2222-2222-2222-222222222222', 'verified', 'w9', 'US');
 
 -- INSUFFICIENT_BALANCE first (no open request exists yet)
 select throws_ok(

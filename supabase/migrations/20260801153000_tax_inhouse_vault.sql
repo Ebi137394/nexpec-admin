@@ -18,7 +18,7 @@
 --  SSN-protection / breach-notification review on the launch roadmap.
 -- ════════════════════════════════════════════════════════════════════════════
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;  -- pgcrypto lives in the "extensions" schema (Supabase default)
 
 ALTER TABLE public.tax_profiles
   ADD COLUMN IF NOT EXISTS tax_id_cipher bytea;   -- pgp_sym_encrypt(raw TIN, key)
@@ -50,7 +50,7 @@ BEGIN
   INSERT INTO public.tax_profiles (user_id, tax_status, form_type, tax_residency_country,
         masked_tax_id, tax_id_cipher, submitted_at, updated_at)
   VALUES (v_uid, 'submitted', p_form_type, p_country,
-        v_last4, public.pgp_sym_encrypt(p_tax_id, p_key), now(), now())
+        v_last4, extensions.pgp_sym_encrypt(p_tax_id, p_key), now(), now())
   ON CONFLICT (user_id) DO UPDATE SET
         tax_status = 'submitted',
         form_type = EXCLUDED.form_type,
@@ -79,7 +79,7 @@ BEGIN
   SELECT tax_id_cipher INTO v_cipher FROM public.tax_profiles WHERE user_id = p_user_id;
   IF v_cipher IS NULL THEN RAISE EXCEPTION 'NO_TAX_ID_ON_FILE' USING ERRCODE = 'P0002'; END IF;
 
-  v_plain := public.pgp_sym_decrypt(v_cipher, p_key);   -- raises on wrong key
+  v_plain := extensions.pgp_sym_decrypt(v_cipher, p_key);   -- raises on wrong key
 
   -- Accountable: log WHO decrypted WHOSE tax id, every time.
   INSERT INTO public.audit_events
@@ -106,8 +106,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname='pgp_sym_encrypt') THEN
     RAISE EXCEPTION 'SELFTEST: pgcrypto pgp_sym_encrypt unavailable';
   END IF;
-  v_c := public.pgp_sym_encrypt('123-45-6789', 'selftest-key-0123456789');
-  v_p := public.pgp_sym_decrypt(v_c, 'selftest-key-0123456789');
+  v_c := extensions.pgp_sym_encrypt('123-45-6789', 'selftest-key-0123456789');
+  v_p := extensions.pgp_sym_decrypt(v_c, 'selftest-key-0123456789');
   IF v_p <> '123-45-6789' THEN RAISE EXCEPTION 'SELFTEST: pgcrypto round-trip mismatch'; END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                   WHERE table_schema='public' AND table_name='tax_profiles' AND column_name='tax_id_cipher') THEN

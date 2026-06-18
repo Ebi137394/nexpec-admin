@@ -182,7 +182,15 @@ export default function InspectorJobDetailScreen() {
       
       if (user) {
         setUserId(user.id);
-        setUserRole(user.role || null);
+        // user.role is the Postgres role ('authenticated') — NOT the app role.
+        // Resolve the real app role from profiles so admin/client controls fire.
+        const { data: _prof } = await supabase
+          .from('profiles').select('role').eq('id', user.id).maybeSingle();
+        setUserRole(
+          (_prof as { role?: string } | null)?.role ??
+            (user.user_metadata?.role as string | undefined) ??
+            null,
+        );
         await Promise.all([
           fetchJob(),
           fetchApplication(user.id),
@@ -622,6 +630,8 @@ const fetchApplication = async (uid: string) => {
   // LOGIC: Who sees what?
   const isClient = userId === job.client_id;
   const isHired = userId === job.contractor_id;
+  // God-mode: admin oversees any job, never applies to it.
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
   const isJobActive = job.status === 'assigned' || job.status === 'in_progress';
   const jobStatus = getJobStatusConfig(job.status);
 
@@ -1061,7 +1071,7 @@ const fetchApplication = async (uid: string) => {
 
       {/* Bottom Action Bar */}
       {/* Show Apply button ONLY if: Not Client, Not Hired, Not Applied, Job is Open */}
-      {!isClient && !isHired && !application && job.status === 'open' && (
+      {!isAdmin && !isClient && !isHired && !application && job.status === 'open' && (
         <View style={styles.actionBar}>
           <TouchableOpacity
             style={styles.applyButton}

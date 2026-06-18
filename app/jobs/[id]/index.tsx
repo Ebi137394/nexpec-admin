@@ -85,6 +85,7 @@ export default function JobDetailScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [application, setApplication] = useState<Application | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [isInspectionModalVisible, setIsInspectionModalVisible] = useState(false);
 
@@ -129,6 +130,7 @@ export default function JobDetailScreen() {
         .from('profiles').select('role').eq('id', _u.id).maybeSingle();
       _role = (_p as { role?: string } | null)?.role ?? null;
     }
+    setViewerRole(_role);
     const { data, error } = await supabase
       .from('jobs')
       .select(jobFieldsForRole(_role))
@@ -303,6 +305,8 @@ export default function JobDetailScreen() {
   // LOGIC: Who sees what?
   const isClient = userId === job.client_id;
   const isHired = userId === job.contractor_id;
+  // God-mode: admin views any job for oversight, never as an applicant.
+  const isAdmin = viewerRole === 'admin' || viewerRole === 'super_admin';
   const isJobActive = job.status === 'assigned' || job.status === 'in_progress';
   const jobStatus = getJobStatusConfig(job.status);
 
@@ -487,7 +491,7 @@ export default function JobDetailScreen() {
 
       {/* Bottom Action Bar */}
       {/* Show Apply button ONLY if: Not Client, Not Hired, Not Applied, Job is Open */}
-      {!isClient && !isHired && !application && job.status === 'open' && (
+      {!isAdmin && !isClient && !isHired && !application && job.status === 'open' && (
         <View style={styles.actionBar}>
           <TouchableOpacity
             style={styles.applyButton}

@@ -463,10 +463,9 @@ export async function fetchOperationalData(): Promise<OperationalData> {
       .from('jobs')
       .select('client_price_cents, status')
       .in('status', ['assigned', 'in_progress']),
-    supabase
-      .from('payout_requests')
-      .select('amount')
-      .eq('status', 'pending'),
+    // Money tables stay RLS-locked; admin reads via SECURITY DEFINER RPC
+    // (mobile has no service_role path). Returns [{ amount, ... }].
+    supabase.rpc('admin_list_payout_requests', { p_status: 'pending' }),
   ]);
 
   const allJobs = (allJobsRes.data ?? []) as any[];

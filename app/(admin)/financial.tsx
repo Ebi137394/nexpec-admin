@@ -765,15 +765,11 @@ export default function FinancialDashboard() {
             .select('client_price_cents, status, escrow_status')
             .in('status', ['assigned', 'in_progress']),
 
-          // 4. Recent transactions with job title joined
-          supabase
-            .from('transactions')
-            .select(
-              `id, type, amount, gross_amount_halalas, status, created_at, reference_id, description, job_id,
-               job:jobs!transactions_job_id_fkey ( title )`,
-            )
-            .order('created_at', { ascending: false })
-            .limit(20),
+          // 4. Recent transactions with job title joined.
+          //    Money tables stay RLS-locked; admin reads via SECURITY DEFINER
+          //    RPC (mobile has no service_role path). Returns the same shape:
+          //    [{ id, type, amount, ..., job: { title } }].
+          supabase.rpc('admin_recent_transactions', { p_limit: 20 }),
         ]);
 
       // ─── KPIs ────────────────────────────────────────────────────

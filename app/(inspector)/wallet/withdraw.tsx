@@ -32,6 +32,7 @@ import { LoadingOverlay, SuccessAnimation } from '@/components';
 // #QA — withdrawals route through the offline outbox; the op's client_op_id is
 // passed to the idempotent process_withdrawal RPC so a flaky retry can't double-charge.
 import { enqueueWithdrawalRequest, isOnline, flushQueue, getOpStatus } from '@/lib/offline';
+import { supabase } from '@/lib/supabase';
 // #QA — canonical USD/cents money formatter (single source of truth, mirrors web).
 import { formatUsd, toCents } from '@/src/core/utils/money';
 
@@ -151,6 +152,31 @@ export default function WithdrawScreen() {
 
   const handleWithdraw = async () => {
     if (!validateForm()) return;
+
+    // Tax-info-before-money: pre-check the payee's tax status and route to the
+    // Tax Center if not cleared. The DB gate (TAX_NOT_VERIFIED) is the hard
+    // backstop; we pre-check here because the offline outbox can't surface the
+    // specific error message back to this screen.
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: tp } = await supabase
+          .from('tax_profiles')
+          .select('tax_status, is_tax_exempt, expires_at')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const verified =
+          tp?.tax_status === 'verified' &&
+          (!tp?.expires_at || new Date(tp.expires_at) > new Date());
+        const cleared = verified || tp?.is_tax_exempt === true;
+        if (!cleared) {
+          router.push('/(inspector)/tax-center');
+          return;
+        }
+      }
+    } catch {
+      /* non-blocking: the DB gate still enforces TAX_NOT_VERIFIED */
+    }
 
     setIsSubmitting(true);
 

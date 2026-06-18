@@ -140,7 +140,7 @@ export default function SettingsScreen() {
           icon: <FileText size={22} color="#94A3B8" />,
           title: 'Terms of Service',
           subtitle: 'Legal information',
-          onPress: () => showComingSoon('Terms of Service'),
+          onPress: () => router.push('/profile/terms' as any),
         },
         {
           id: 'about',

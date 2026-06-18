@@ -6,8 +6,9 @@ import { nxHandle } from '../src/core/utils/handle';
  * Application status enum values
  */
 export type ApplicationStatus = 
-  | 'pending' 
-  | 'shortlisted' 
+  | 'pending'
+  | 'reviewing'
+  | 'shortlisted'
   | 'offered' 
   | 'CLIENT_SELECTED' 
   | 'hired' 

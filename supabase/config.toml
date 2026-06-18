@@ -52,6 +52,10 @@ verify_jwt = false   # cron-invoked via CRON_SECRET
 enabled = true
 verify_jwt = false   # cron via RECON_CRON_SECRET; admin "Run now" via its own requireUser()
 
+[functions.tax-vault]
+enabled = true
+verify_jwt = true    # caller JWT drives the owner/admin checks in the vault RPCs; key injected server-side
+
 [functions.generate-dispute-report]
 enabled = true
 verify_jwt = true    # admin/internal; called with a bearer (service-role or user JWT)

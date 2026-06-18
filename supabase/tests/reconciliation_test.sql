@@ -43,8 +43,8 @@ set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","
 select (public.admin_ledger_snapshot()->>'liabilities_cents')::bigint as after \gset
 select (public.admin_ledger_snapshot()->>'wallets_cents')::bigint    as w_after \gset
 
-select is(:after - :before,   43500::bigint, 'snapshot liabilities reflect the +43500c we added');
-select is(:w_after - :w_before, 17500::bigint, 'wallet bucket reflects +17500c (dollars→cents)');
+select is((:after - :before)::bigint,    43500::bigint, 'snapshot liabilities reflect the +43500c we added');
+select is((:w_after - :w_before)::bigint, 17500::bigint, 'wallet bucket reflects +17500c (dollars→cents)');
 
 -- ── Drift logic: Stripe figure computed inline vs live liabilities ───────────
 select is(

@@ -720,6 +720,12 @@ export default function FinancialDashboard() {
     marginRate: 0,
   });
   const [recentTxns, setRecentTxns] = useState<RecentTxn[]>([]);
+  const [recon, setRecon] = useState<{
+    status: string;
+    driftCents: number | null;
+    liabilitiesCents: number;
+    runAt: string;
+  } | null>(null);
   // ★ Phase 4.2 — pipeline / leaderboard / balance state was moved to
   //   dedicated sub-screens under /financial/. This dashboard only
   //   keeps KPIs, charts, and a Recent Transactions preview.
@@ -897,6 +903,22 @@ export default function FinancialDashboard() {
       }));
       setRecentTxns(txnRows);
 
+      // Latest Treasury reconciliation (admin-only via RLS) — drift sentinel.
+      const { data: reconRow } = await supabase
+        .from('reconciliation_runs')
+        .select('status, drift_cents, liabilities_cents, run_at')
+        .order('run_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (reconRow) {
+        setRecon({
+          status: reconRow.status,
+          driftCents: reconRow.drift_cents == null ? null : Number(reconRow.drift_cents),
+          liabilitiesCents: Number(reconRow.liabilities_cents ?? 0),
+          runAt: reconRow.run_at,
+        });
+      }
+
       // ★ Phase 4.2 — pipeline counts, pending payouts rollup,
       //   leaderboards, client balances, active jobs and remaining
       //   payouts all moved to /financial/* sub-screens via
@@ -1043,6 +1065,45 @@ export default function FinancialDashboard() {
 
         {/* ── Range picker ────────────────────────────────────────── */}
         <RangePicker active={rangeKey} onChange={setRangeKey} />
+
+        {/* ── Reconciliation sentinel (ledger vs Stripe) ──────────── */}
+        {recon && (
+          <View
+            style={{
+              marginBottom: 12,
+              borderRadius: 16,
+              borderWidth: 1,
+              padding: 14,
+              borderColor: recon.status === 'shortfall' ? 'rgba(239,68,68,0.40)' : 'rgba(124,58,237,0.25)',
+              backgroundColor: recon.status === 'shortfall' ? 'rgba(239,68,68,0.08)' : 'rgba(124,58,237,0.06)',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons
+                name={recon.status === 'shortfall' ? 'alert-circle' : 'shield-checkmark'}
+                size={16}
+                color={recon.status === 'shortfall' ? '#F87171' : '#A78BFA'}
+              />
+              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>
+                {recon.status === 'shortfall'
+                  ? 'Treasury shortfall'
+                  : recon.status === 'solvent'
+                    ? 'Treasury solvent'
+                    : 'Treasury snapshot'}
+              </Text>
+            </View>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 5, lineHeight: 16 }}>
+              {recon.status === 'shortfall'
+                ? `Stripe holds ${formatUSD(Math.abs(recon.driftCents ?? 0))} less than the ${formatUSD(recon.liabilitiesCents)} owed. Investigate before paying out.`
+                : recon.driftCents != null
+                  ? `Stripe backs the ${formatUSD(recon.liabilitiesCents)} owed, with a ${formatUSD(recon.driftCents)} buffer.`
+                  : `Liabilities ${formatUSD(recon.liabilitiesCents)}, awaiting Stripe compare.`}
+            </Text>
+            <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 3 }}>
+              {`Last run ${formatShortDate(recon.runAt)}`}
+            </Text>
+          </View>
+        )}
 
         {/* ── KPI cards ───────────────────────────────────────────── */}
         <View style={s.kpiGrid}>

@@ -1,0 +1,61 @@
+name: reconcile-ledger-cron
+
+# Daily Treasury reconciliation: invokes the reconcile-ledger edge function,
+# which pulls the real Stripe balance and compares it to NEXPEC's internal
+# custodial liabilities, recording a reconciliation_runs row. The job FAILS
+# (alerting you) if the run reports a shortfall — Stripe holds less than we owe.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   RECON_FUNCTION_URL   https://<project-ref>.supabase.co/functions/v1/reconcile-ledger
+#   RECON_CRON_SECRET    same value set via `supabase secrets set RECON_CRON_SECRET=…`
+# When RECON_FUNCTION_URL is absent (e.g. forks) the job skips, not fails.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *' # daily 06:00 UTC
+
+concurrency:
+  group: reconcile-ledger-cron
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: treasury · daily reconciliation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard — secrets present
+        id: guard
+        env:
+          URL: ${{ secrets.RECON_FUNCTION_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::RECON_FUNCTION_URL not set — skipping daily reconciliation."
+          else
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Invoke reconcile-ledger
+        if: steps.guard.outputs.has == 'true'
+        env:
+          URL: ${{ secrets.RECON_FUNCTION_URL }}
+          SECRET: ${{ secrets.RECON_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          resp="$(curl -sS -X POST "$URL" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${SECRET}" \
+            -d '{}' )"
+          echo "Response: $resp"
+          status="$(printf '%s' "$resp" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status","error"))' 2>/dev/null || echo error)"
+          echo "Reconciliation status: $status"
+          if [ "$status" = "shortfall" ]; then
+            echo "::error::TREASURY SHORTFALL — Stripe balance is below custodial liabilities. Investigate immediately."
+            exit 1
+          fi
+          if [ "$status" != "solvent" ] && [ "$status" != "snapshot_only" ]; then
+            echo "::error::Reconciliation did not complete cleanly (status=$status)."
+            exit 1
+          fi
+          echo "Reconciliation OK (status=$status)."

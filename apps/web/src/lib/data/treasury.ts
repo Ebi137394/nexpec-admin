@@ -170,3 +170,46 @@ export async function fetchTreasury(): Promise<TreasuryData> {
     return EMPTY;
   }
 }
+
+// ─── Reconciliation runs (ledger-vs-Stripe drift history) ────────────────────
+export interface ReconciliationRunRow {
+  id: string;
+  runAt: string;
+  source: string;
+  liabilitiesCents: number;
+  stripeBalanceCents: number | null;
+  driftCents: number | null;
+  status: 'snapshot_only' | 'solvent' | 'shortfall' | 'error';
+  escrowHeldCents: number;
+  openPayoutsCents: number;
+}
+
+/** Latest reconciliation runs (admin-only via RLS). Newest first. */
+export async function fetchReconciliationRuns(limit = 10): Promise<ReconciliationRunRow[]> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('reconciliation_runs')
+      .select('id, run_at, source, liabilities_cents, stripe_balance_cents, drift_cents, status, escrow_held_cents, open_payouts_cents')
+      .order('run_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      if (typeof console !== 'undefined') console.warn('[fetchReconciliationRuns]', error.message);
+      return [];
+    }
+    return (data ?? []).map((r) => ({
+      id: r.id,
+      runAt: r.run_at,
+      source: r.source,
+      liabilitiesCents: Number(r.liabilities_cents ?? 0),
+      stripeBalanceCents: r.stripe_balance_cents == null ? null : Number(r.stripe_balance_cents),
+      driftCents: r.drift_cents == null ? null : Number(r.drift_cents),
+      status: r.status,
+      escrowHeldCents: Number(r.escrow_held_cents ?? 0),
+      openPayoutsCents: Number(r.open_payouts_cents ?? 0),
+    }));
+  } catch (e) {
+    if (typeof console !== 'undefined') console.warn('[fetchReconciliationRuns] threw:', e);
+    return [];
+  }
+}

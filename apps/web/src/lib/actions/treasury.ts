@@ -92,3 +92,17 @@ export async function fundAdvance(formData: FormData): Promise<void> {
   revalidatePath('/admin/dashboard');
   redirect(`${BACK}?funded=1`);
 }
+
+// "Run now": invoke the reconcile-ledger edge function (pulls real Stripe
+// balance, records a reconciliation_runs row). The function self-authorizes the
+// admin via the forwarded bearer; money tables stay locked.
+export async function runReconciliation(): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.functions.invoke('reconcile-ledger', { body: {} });
+  if (error) redirect(`${BACK}?error=${encodeURIComponent(friendly(error.message))}`);
+
+  revalidatePath(BACK);
+  const status = (data as { status?: string } | null)?.status;
+  if (status === 'shortfall') redirect(`${BACK}?recon=shortfall`);
+  redirect(`${BACK}?recon=ok`);
+}

@@ -20,19 +20,26 @@ import {
   Building2,
 } from 'lucide-react';
 import { formatCents } from '@nexpec/shared-core';
-import { fetchTreasury, type WithdrawalRow, type AdvanceRow } from '@/lib/data/treasury';
-import { markWithdrawalPaid, rejectWithdrawal, fundAdvance } from '@/lib/actions/treasury';
+import {
+  fetchTreasury,
+  fetchReconciliationRuns,
+  type WithdrawalRow,
+  type AdvanceRow,
+  type ReconciliationRunRow,
+} from '@/lib/data/treasury';
+import { markWithdrawalPaid, rejectWithdrawal, fundAdvance, runReconciliation } from '@/lib/actions/treasury';
 
 export const metadata: Metadata = { title: 'Treasury Control Tower' };
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: Promise<{ error?: string; paid?: string; rejected?: string; funded?: string }>;
+  searchParams: Promise<{ error?: string; paid?: string; rejected?: string; funded?: string; recon?: string }>;
 }
 
 export default async function TreasuryPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const { summary, requests, advances, recent } = await fetchTreasury();
+  const reconRuns = await fetchReconciliationRuns(8);
 
   return (
     <div className="space-y-8">
@@ -63,6 +70,12 @@ export default async function TreasuryPage({ searchParams }: PageProps) {
       )}
       {sp.funded && (
         <Banner tone="green" icon={<CheckCircle2 className="h-4 w-4" />}>Advance funded, the inspector was paid the net amount.</Banner>
+      )}
+      {sp.recon === 'ok' && (
+        <Banner tone="green" icon={<CheckCircle2 className="h-4 w-4" />}>Reconciliation complete, the Stripe balance backs your liabilities.</Banner>
+      )}
+      {sp.recon === 'shortfall' && (
+        <Banner tone="red" icon={<AlertCircle className="h-4 w-4" />}>Reconciliation found a SHORTFALL, Stripe holds less than you owe. Investigate before paying out.</Banner>
       )}
 
       {/* Cash position */}
@@ -141,6 +154,59 @@ export default async function TreasuryPage({ searchParams }: PageProps) {
               <AdvanceCard key={a.id} a={a} />
             ))}
           </div>
+        )}
+      </section>
+
+      {/* Reconciliation — ledger vs Stripe balance */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Landmark className="h-4 w-4 text-violet-glow" strokeWidth={1.75} />
+            <h2 className="font-display text-lg font-semibold tracking-tight text-white">
+              Reconciliation
+            </h2>
+          </div>
+          <form action={runReconciliation}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-violet-glow/30 bg-violet-glow/10 px-3 py-1.5 text-xs font-semibold text-violet-glow transition hover:bg-violet-glow/20"
+            >
+              <Zap className="h-3.5 w-3.5" strokeWidth={2} />
+              Run now
+            </button>
+          </form>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          Real Stripe balance vs custodial liabilities (wallets + supplier earnings + platform). A shortfall means Stripe holds less than you owe.
+        </p>
+
+        {reconRuns.length === 0 ? (
+          <p className="mt-5 text-sm text-zinc-500">No reconciliation runs yet. Run one to capture a baseline.</p>
+        ) : (
+          <ul className="mt-5 space-y-1.5">
+            {reconRuns.map((run) => (
+              <li
+                key={run.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.04] bg-white/[0.015] px-3 py-2.5 text-xs"
+              >
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-zinc-300">{fmtTime(run.runAt)}</span>
+                  <span className="text-zinc-500">
+                    {run.source} · owe {formatCents(run.liabilitiesCents)}
+                    {run.stripeBalanceCents != null && <> · Stripe {formatCents(run.stripeBalanceCents)}</>}
+                  </span>
+                </span>
+                <span className="flex items-center gap-3">
+                  {run.driftCents != null && (
+                    <span className={`font-mono ${run.driftCents < 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                      {run.driftCents < 0 ? '' : '+'}{formatCents(run.driftCents)}
+                    </span>
+                  )}
+                  <ReconPill status={run.status} />
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 
@@ -332,6 +398,21 @@ function StatusPill({ status }: { status: string }) {
   return (
     <span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial ${tone}`}>
       {status}
+    </span>
+  );
+}
+
+function ReconPill({ status }: { status: ReconciliationRunRow['status'] }) {
+  const map: Record<ReconciliationRunRow['status'], { tone: string; label: string }> = {
+    solvent: { tone: 'border-accent-green/30 bg-accent-green/10 text-accent-green', label: 'solvent' },
+    shortfall: { tone: 'border-accent-red/30 bg-accent-red/10 text-accent-red', label: 'shortfall' },
+    snapshot_only: { tone: 'border-white/[0.06] bg-white/[0.04] text-zinc-400', label: 'snapshot' },
+    error: { tone: 'border-amber-500/30 bg-amber-500/10 text-amber-400', label: 'error' },
+  };
+  const { tone, label } = map[status] ?? map.error;
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial ${tone}`}>
+      {label}
     </span>
   );
 }

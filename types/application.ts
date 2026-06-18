@@ -287,7 +287,8 @@ export const DEFAULT_APPLICATION_FORM: ApplicationFormData = {
  */
 export const STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   // ★ Client may now jump straight to CLIENT_SELECTED from pending or shortlisted.
-  pending: ['shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  pending: ['reviewing', 'shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  reviewing: ['shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
   shortlisted: ['CLIENT_SELECTED', 'offered', 'pending', 'rejected', 'withdrawn'],
   // Legacy 'offered' kept so old rows still validate; treat the same as CLIENT_SELECTED.
   offered: ['hired', 'rejected', 'withdrawn'],

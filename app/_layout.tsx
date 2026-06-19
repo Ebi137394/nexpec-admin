@@ -146,6 +146,10 @@ function AuthGate() {
       'contracts',     // app/contracts/index.tsx
       'contract',      // app/contract/[id].tsx
       'chat',          // app/chat/[job_id].tsx
+      'inbox',         // app/inbox/{index,[id]}.tsx — unified conversations inbox.
+                       //  Every role dashboard's "Messages" + Profile→"Help & Support"
+                       //  push('/inbox'); without this the gate's fallback silently
+                       //  replace()s the user back to roleHome (the dashboard bounce).
       'report',        // app/report/[id].tsx
       'job-details',   // app/job-details/[id].tsx
       'applicant',     // app/(shared)/applicant/[id].tsx — resolved bare via Expo Router groups

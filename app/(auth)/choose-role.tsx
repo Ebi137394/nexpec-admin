@@ -202,7 +202,7 @@ export default function ChooseRoleScreen() {
               <Text style={s.cardPitch}>{item.pitch}</Text>
 
               <View style={s.bulletList}>
-                {item.bullets.map((b, i) => (
+                {item.bullets.map((b: any, i: number) => (
                   <View key={i} style={s.bulletRow}>
                     <View style={s.bulletDot} />
                     <Text style={s.bulletText}>{b}</Text>

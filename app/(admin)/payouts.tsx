@@ -115,7 +115,7 @@ export default function PayoutsScreen() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setPayouts((data as JobPayout[]) ?? []);
+      setPayouts((data as unknown as JobPayout[]) ?? []);
     } catch (err: any) {
       Alert.alert('Fetch Error', err.message ?? 'Could not load payouts.');
     } finally {

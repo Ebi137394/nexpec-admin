@@ -651,7 +651,7 @@ export async function fetchOperationalData(): Promise<OperationalData> {
     0,
   );
   const pendingPayoutsCents = (pendingPayoutsRes.data ?? []).reduce(
-    (sum, p: any) => sum + Math.round(Number(p.amount) * 100),
+    (sum: number, p: any) => sum + Math.round(Number(p.amount) * 100),
     0,
   );
 

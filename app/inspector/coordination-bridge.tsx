@@ -422,12 +422,12 @@ function ExistingBridgeView({ bridgeId }: { bridgeId: string }) {
       <BridgeHeaderCard view={view} onRefresh={refresh} />
       {view.slots
         .slice()
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map((slot) => (
+        .sort((a: any, b: any) => a.sort_order - b.sort_order)
+        .map((slot: any) => (
           <InspectorSlotCard
             key={slot.id}
             slot={slot}
-            documents={view.documents.filter((d) => d.slot_id === slot.id)}
+            documents={view.documents.filter((d: any) => d.slot_id === slot.id)}
             disabled={isTerminal}
             onMutate={refresh}
           />
@@ -438,7 +438,7 @@ function ExistingBridgeView({ bridgeId }: { bridgeId: string }) {
       {!isTerminal && (
         <ProposeScheduleCard
           bridgeId={bridgeId}
-          existingSlotId={view.slots.find((s) => s.kind === 'schedule')?.id}
+          existingSlotId={view.slots.find((s: any) => s.kind === 'schedule')?.id}
           onProposed={refresh}
         />
       )}

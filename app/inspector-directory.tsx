@@ -207,7 +207,7 @@ export default function InspectorDirectoryScreen() {
 
         const { data, error: qErr } = await q;
         if (qErr) throw qErr;
-        const rows = (data ?? []) as InspectorRow[];
+        const rows = (data ?? []) as unknown as InspectorRow[];
         setHasMore(rows.length === PAGE_SIZE);
         setOffset(currentOffset + rows.length);
         setItems((prev) => (append ? [...prev, ...rows] : rows));

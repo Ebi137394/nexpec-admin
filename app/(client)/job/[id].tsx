@@ -148,7 +148,7 @@ export default function JobDetailScreen() {
         .single();
 
       if (jobError) throw jobError;
-      setJob(jobData);
+      setJob(jobData as unknown as Job);
 
       // 🔴 کاملاً اصلاح شد: فقط از applications و بدون تگ‌های اضافی دیتابیس
       // ★ Task 4: column renamed proposed_price → proposed_price_cents.

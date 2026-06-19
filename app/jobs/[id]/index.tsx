@@ -142,7 +142,7 @@ export default function JobDetailScreen() {
       return;
     }
 
-    setJob(data);
+    setJob(data as unknown as Job);
   };
 
   const fetchApplication = async (uid: string) => {

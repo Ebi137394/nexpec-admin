@@ -56,7 +56,7 @@ export default function FindJobsScreen() {
       }
 
       console.log('✅ Jobs fetched:', data?.length || 0);
-      setJobs(data || []);
+      setJobs((data || []) as unknown as Job[]);
     } catch (error: any) {
       console.error('💥 Error in fetchOpenJobs:', error);
       showAlert('Error', error.message || 'Failed to load jobs');

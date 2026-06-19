@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAcademyData } from '@/src/hooks/useAcademyData';
-import type { CourseWithProgress } from '@/src/types/resources';
+import type { Course, CourseWithProgress } from '@/src/types/resources';
 import CourseModal from './CourseModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

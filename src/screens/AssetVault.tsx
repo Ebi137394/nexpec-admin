@@ -12,12 +12,12 @@ import {
   Linking,
   RefreshControl,
 } from "react-native";
-import { queryAssetIntelligence } from "../lib/queryAssetIntelligence";
+import { queryAssetIntelligence } from "../core/services/queryAssetIntelligence";
 import type {
   AssetIntelligenceResult,
   TimelineItem,
   TimelineAttachment,
-} from "../lib/assetIntelligence.types";
+} from "../core/types/assetIntelligence.types";
 
 // ────────────────────────────────────────────────────────────────
 // Status badge colours

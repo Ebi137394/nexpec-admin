@@ -20,8 +20,10 @@ const DynamicInspectionForm: React.FC = () => {
   // ─── Your existing form state ───
   const [findings, setFindings] = useState('');
   const [recommendations, setRecommendations] = useState('');
-  // activeVoiceField + handleTranscriptionReady removed 2026-05-20 along
-  // with the VoiceDrafter component. Typed entry only from here.
+  // VoiceDrafter (voice-to-text) was removed 2026-05-20; the inline field
+  // highlight below is retained, so we keep this lightweight selection state
+  // (which field is visually targeted) — no transcription.
+  const [activeVoiceField, setActiveVoiceField] = useState<'findings' | 'recommendations' | null>(null);
 
   // ─── JSA Modal state ───
   const [isJSAModalVisible, setIsJSAModalVisible] = useState(false);

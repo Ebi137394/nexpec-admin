@@ -32,3 +32,7 @@ export * from '@/src/roles/client/hooks/useDashboard';
 export * from '@/src/roles/inspector/hooks/useEarnings';
 export * from '@/src/roles/inspector/hooks/useInspectorData';
 export * from '@/src/roles/inspector/hooks/useWallet';
+
+// Disambiguate SupportMessage/SupportTicket (exported by both useAssistant and
+// useAdminSupport) — an explicit re-export resolves the export-* ambiguity.
+export type { SupportMessage, SupportTicket } from '@/src/core/hooks/useAssistant';

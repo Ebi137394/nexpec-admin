@@ -98,7 +98,7 @@ export function useInspectorData(): InspectorDataReturn {
       return;
     }
 
-    setJobs((data as InspectorJob[]).map(mapJob));
+    setJobs((data as unknown as InspectorJob[]).map(mapJob));
   }, [user?.id]);
 
   const fetchEarnings = useCallback(async () => {

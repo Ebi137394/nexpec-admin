@@ -192,7 +192,6 @@ export function deriveExifSubset(raw: Record<string, unknown> | null | undefined
 
 /** Returns a v4 UUID string. Wraps expo-crypto.randomUUID. */
 export function newUuid(): string {
-  // @ts-expect-error randomUUID exists on expo-crypto from SDK 49+
   if (typeof Crypto.randomUUID === 'function') return Crypto.randomUUID();
   // Fallback (RFC 4122 v4 with Math.random — adequate for client id;
   // server side enforces uniqueness via PK).

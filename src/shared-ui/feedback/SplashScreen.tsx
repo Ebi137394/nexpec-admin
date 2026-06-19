@@ -39,7 +39,6 @@ const SplashScreen = ({ onFinish }: SplashScreenProps) => {
     // Fade in loading text after logo appears
     textOpacity.value = withTiming(1, {
       duration: 500,
-      delay: 1000,
       easing: Easing.out(Easing.ease),
     });
 

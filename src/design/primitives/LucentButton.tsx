@@ -112,7 +112,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
         ]}
       >
         <LinearGradient
-          colors={grad as unknown as string[]}
+          colors={grad as unknown as readonly [string, string, ...string[]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={s.primaryGrad}

@@ -79,7 +79,7 @@ export function useOnboardingChecklist() {
         return;
       }
 
-      const p = pRaw as ProfileShape;
+      const p = pRaw as unknown as ProfileShape;
       const role = (p.role ?? ctxRole ?? 'client').toString().toLowerCase();
 
       // Admins do not see a checklist.

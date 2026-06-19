@@ -176,7 +176,6 @@ const styles = StyleSheet.create({
     borderRadius: width * 0.4,
     backgroundColor: COLORS.success,
     opacity: 0.05,
-    blurRadius: 50, // Note: blurRadius works differently on Android/iOS, simpler opacity is safer
   },
   content: {
     flex: 1,

@@ -26,7 +26,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Shield, Building2, Zap, Wrench, FlaskConical } from 'lucide-react-native';
+import { Shield, Building2, Zap, Wrench, FlaskConical, type LucideIcon } from 'lucide-react-native';
 import {
   getInspectionDomainMeta,
   type InspectionDomainIconKey,
@@ -35,7 +35,7 @@ import {
 // Map the abstract iconKey from shared-core → concrete Lucide RN component.
 const ICON_BY_KEY: Record<
   InspectionDomainIconKey,
-  React.ComponentType<{ size?: number; color?: string }>
+  LucideIcon
 > = {
   shield: Shield,
   building: Building2,

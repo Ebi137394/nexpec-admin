@@ -35,7 +35,7 @@ export async function getOrCreateCalendar(): Promise<string | null> {
 }
 
 function findBestIOSCalendar(calendars: Calendar.Calendar[]): Calendar.Calendar | null {
-  const defaultCal = calendars.find(cal => cal.source?.type === Calendar.SourceType.DEFAULT); if (defaultCal) return defaultCal;
+  const defaultCal = calendars.find(cal => cal.source?.type === (Calendar.SourceType as any).DEFAULT); if (defaultCal) return defaultCal;
   const iCloudCal = calendars.find(cal => cal.source?.type === Calendar.SourceType.CALDAV && (cal.source?.name?.toLowerCase().includes('icloud') || cal.source?.name?.toLowerCase().includes('cloud'))); if (iCloudCal) return iCloudCal;
   const caldavCal = calendars.find(cal => cal.source?.type === Calendar.SourceType.CALDAV); if (caldavCal) return caldavCal;
   const localCal = calendars.find(cal => cal.source?.type === Calendar.SourceType.LOCAL); if (localCal) return localCal;
@@ -55,7 +55,7 @@ async function createNexpecCalendar(): Promise<string | null> {
     let sourceId: string | undefined;
     if (Platform.OS === 'ios') {
       const sources = await Calendar.getSourcesAsync();
-      const defaultSource = sources.find(s => s.type === Calendar.SourceType.DEFAULT); const iCloudSource = sources.find(s => s.type === Calendar.SourceType.CALDAV && s.name?.toLowerCase().includes('icloud')); const localSource = sources.find(s => s.type === Calendar.SourceType.LOCAL);
+      const defaultSource = sources.find(s => s.type === (Calendar.SourceType as any).DEFAULT); const iCloudSource = sources.find(s => s.type === Calendar.SourceType.CALDAV && s.name?.toLowerCase().includes('icloud')); const localSource = sources.find(s => s.type === Calendar.SourceType.LOCAL);
       const selectedSource = defaultSource || iCloudSource || localSource || sources[0];
       if (!selectedSource) return null;
       sourceId = selectedSource.id;

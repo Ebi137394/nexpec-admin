@@ -291,7 +291,7 @@ const AvatarWithFallback: React.FC<{ uri: string | null; name: string }> = ({ ur
 
 // Header Component
 const Header: React.FC<{ userData: typeof USER_DATA }> = ({ userData }) => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const currentHour = new Date().getHours();
   const greeting =
     currentHour < 12 ? 'Good Morning' : currentHour < 18 ? 'Good Afternoon' : 'Good Evening';
@@ -555,7 +555,7 @@ const PerformanceChart: React.FC = () => {
 
 // Inspection Item Component
 const InspectionItem: React.FC<{ item: Inspection; index: number }> = ({ item, index }) => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const translateX = useRef(new Animated.Value(50)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 

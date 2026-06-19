@@ -12,6 +12,9 @@ import type {
   QueueItemStatus,
 } from '../types/sync';
 
+// Re-export so consumers (e.g. useOfflineSync) can import the event type from here.
+export type { SyncEngineEvent } from '../types/sync';
+
 // ─── Constants ──────────────────────────────────────────────
 const QUEUE_STORAGE_KEY = '@nexpec_sync_queue_v2';
 const LOCK_STORAGE_KEY = '@nexpec_sync_lock';

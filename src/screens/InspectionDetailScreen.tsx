@@ -506,7 +506,7 @@ const ActionFooter: React.FC<ActionFooterProps> = ({ status, onStartInspection }
 // MAIN SCREEN COMPONENT
 // ============================================
 const InspectionDetailScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute<InspectionDetailRouteProp>();
   
   // Get inspectionId from route params with fallback

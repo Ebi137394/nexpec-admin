@@ -113,7 +113,7 @@ export const downloadFile = async (bucket: string, path: string): Promise<Blob> 
 // Helper function to get file metadata
 export const getFileMetadata = async (bucket: string, path: string): Promise<any> => {
   try {
-    const { data, error } = await supabase.storage.from(bucket).getMetadata(path);
+    const { data, error } = await (supabase.storage.from(bucket) as any).getMetadata(path);
     if (error) {
       throw error;
     }
@@ -198,7 +198,7 @@ export const createSignedUrls = async (
     if (error) {
       throw error;
     }
-    return data || [];
+    return (data || []) as { path: string; signedUrl: string }[];
   } catch (error) {
     console.error('Create signed URLs failed:', error);
     throw error;
@@ -342,7 +342,7 @@ export const getTransformedUrl = (
   path: string,
   width?: number,
   height?: number,
-  format?: 'webp' | 'avif' | 'jpg' | 'png' = 'webp',
+  format: 'original' | 'webp' | 'avif' | 'jpg' | 'png' = 'webp',
   quality: number = 80
 ): string => {
   return getPublicUrlWithOptions(bucket, path, {

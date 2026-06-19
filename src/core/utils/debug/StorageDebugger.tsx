@@ -59,7 +59,7 @@ export default function StorageDebugger({ imageUrl }: { imageUrl: string }) {
 
       // Extract all headers
       const headers: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
+      response.headers.forEach((value: string, key: string) => {
         headers[key] = value;
         console.log(`📋 Header [${key}]:`, value);
       });

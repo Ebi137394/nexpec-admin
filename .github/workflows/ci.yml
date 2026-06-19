@@ -67,12 +67,13 @@ jobs:
         run: cd apps/web && npm run typecheck
 
   mobile-typecheck:
-    name: mobile · typecheck (advisory)
+    name: mobile · typecheck
     runs-on: ubuntu-latest
-    # Mobile root has known pre-existing tsc errors (see memory). Kept visible
-    # but non-blocking; TODO(P3.5): remove continue-on-error after burndown +
-    # a scoped tsconfig for the Expo app.
-    continue-on-error: true
+    # BLOCKING as of the 372 -> 0 burndown. The root tsconfig is scoped to the
+    # Expo app (apps/web + supabase excluded — each has its own gate above), and
+    # the mobile tree is tsc-clean. A new mobile type error now fails CI.
+    # NOTE: Babel still strips types for the EAS binary, so this gate is
+    # correctness/hygiene, not a build blocker for the app artifact itself.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,4 +82,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: mobile · tsc --noEmit
+        # --max-old-space-size guards against OOM on the large React Native tree.
         run: npx tsc --noEmit
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096

@@ -96,7 +96,7 @@ export const useChat = ({ roomId }: UseChatOptions): UseChatReturn => {
 
         if (fetchError) throw fetchError;
 
-        const transformedMessages = ((data || []) as ChatMessageType[])
+        const transformedMessages = ((data || []) as unknown as ChatMessageType[])
           .map(transformMessage)
           .reverse(); // Reverse to get chronological order
 

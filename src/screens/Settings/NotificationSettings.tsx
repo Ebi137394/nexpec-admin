@@ -4,7 +4,7 @@ import { View, Text, Switch, StyleSheet, ActivityIndicator } from 'react-native'
 import { supabase } from '../../lib/supabase';
 
 export const NotificationSettings = () => {
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = async () => {
@@ -17,7 +17,7 @@ export const NotificationSettings = () => {
   };
 
   const toggleSetting = async (key: string, value: boolean) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings((prev: any) => ({ ...prev, [key]: value }));
     await supabase
       .from('notification_settings')
       .update({ [key]: value })

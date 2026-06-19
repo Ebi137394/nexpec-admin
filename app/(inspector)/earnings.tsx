@@ -70,16 +70,16 @@ const CircularProgress = React.memo(({
 // ─── Wallet Hero ──────────────────────────────────────────────────────────────
 
 interface WalletHeroProps {
-  availableBalanceHalalas: number;
-  pendingHalalas: number;
-  totalEarnedHalalas: number;
+  availableBalanceCents: number;
+  pendingCents: number;
+  totalEarnedCents: number;
   balanceProgressPct: number;
 }
 
 const WalletHero = React.memo(({
-  availableBalanceHalalas,
-  pendingHalalas,
-  totalEarnedHalalas,
+  availableBalanceCents,
+  pendingCents,
+  totalEarnedCents,
   balanceProgressPct,
 }: WalletHeroProps) => (
   <LinearGradient
@@ -93,21 +93,21 @@ const WalletHero = React.memo(({
         <Text style={styles.walletLabel}>Available Balance</Text>
         {/* Replaces hardcoded "$450 Total Earned" */}
         <Text style={styles.walletAmount}>
-          {formatHalalas(availableBalanceHalalas)}
+          {formatHalalas(availableBalanceCents)}
         </Text>
         <View style={styles.walletMetaRow}>
           <View style={styles.walletMetaItem}>
             <View style={[styles.metaDot, { backgroundColor: '#F59E0B' }]} />
             <Text style={styles.walletMetaLabel}>Pending</Text>
             <Text style={styles.walletMetaValue}>
-              {formatHalalas(pendingHalalas)}
+              {formatHalalas(pendingCents)}
             </Text>
           </View>
           <View style={styles.walletMetaItem}>
             <View style={[styles.metaDot, { backgroundColor: '#3B82F6' }]} />
             <Text style={styles.walletMetaLabel}>All Time</Text>
             <Text style={styles.walletMetaValue}>
-              {formatHalalas(totalEarnedHalalas, true)}
+              {formatHalalas(totalEarnedCents, true)}
             </Text>
           </View>
         </View>
@@ -126,8 +126,8 @@ const WalletHero = React.memo(({
 
 const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakdown }) => {
   const feeBarPct = useMemo(() => {
-    if (!breakdown.gross_halalas) return 0;
-    return Math.round((breakdown.platform_fee_halalas / breakdown.gross_halalas) * 100);
+    if (!breakdown.gross_cents) return 0;
+    return Math.round((breakdown.platform_fee_cents / breakdown.gross_cents) * 100);
   }, [breakdown]);
 
   return (
@@ -138,7 +138,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
       <View style={styles.breakdownRow}>
         <Text style={styles.breakdownLabel}>Gross Earnings</Text>
         <Text style={styles.breakdownValueGreen}>
-          {formatHalalas(breakdown.gross_halalas)}
+          {formatHalalas(breakdown.gross_cents)}
         </Text>
       </View>
 
@@ -156,7 +156,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
           </View>
         </View>
         <Text style={styles.breakdownValueRed}>
-          −{formatHalalas(breakdown.platform_fee_halalas)}
+          −{formatHalalas(breakdown.platform_fee_cents)}
         </Text>
       </View>
 
@@ -167,7 +167,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
           Net Payout
         </Text>
         <Text style={[styles.breakdownValueGreen, { fontSize: 17, fontWeight: '800' }]}>
-          {formatHalalas(breakdown.net_halalas)}
+          {formatHalalas(breakdown.net_cents)}
         </Text>
       </View>
     </View>
@@ -178,16 +178,16 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
 
 interface WeeklyBarChartProps {
   weeklyEarnings: DailyEarning[];
-  maxWeeklyHalalas: number;
-  weeklyTotalHalalas: number;
+  maxWeeklyCents: number;
+  weeklyTotalCents: number;
 }
 
 const MAX_BAR_HEIGHT = 80;
 
 const WeeklyBarChart = React.memo(({
   weeklyEarnings,
-  maxWeeklyHalalas,
-  weeklyTotalHalalas,
+  maxWeeklyCents,
+  weeklyTotalCents,
 }: WeeklyBarChartProps) => {
   const today = new Date().getDay();
 
@@ -196,15 +196,15 @@ const WeeklyBarChart = React.memo(({
       <View style={styles.chartHeader}>
         <Text style={styles.cardTitle}>Weekly Earnings</Text>
         <Text style={styles.chartTotal}>
-          {formatHalalas(weeklyTotalHalalas, true)}
+          {formatHalalas(weeklyTotalCents, true)}
         </Text>
       </View>
       <Text style={styles.cardSubtitle}>Net payout, this week</Text>
 
       <View style={styles.barsContainer}>
         {weeklyEarnings.map((day, idx) => {
-          const heightPct = maxWeeklyHalalas > 0
-            ? (day.net_halalas / maxWeeklyHalalas)
+          const heightPct = maxWeeklyCents > 0
+            ? (day.net_cents / maxWeeklyCents)
             : 0;
           const barH   = Math.max(4, Math.round(heightPct * MAX_BAR_HEIGHT));
           const isToday = idx === today;
@@ -212,7 +212,7 @@ const WeeklyBarChart = React.memo(({
           return (
             <View key={day.day} style={styles.barColumn}>
               <Text style={styles.barAmount}>
-                {day.net_halalas > 0 ? formatHalalas(day.net_halalas, true) : ''}
+                {day.net_cents > 0 ? formatHalalas(day.net_cents, true) : ''}
               </Text>
               <View style={styles.barTrack}>
                 <LinearGradient
@@ -236,16 +236,16 @@ const WeeklyBarChart = React.memo(({
 // ─── Tax Estimate ─────────────────────────────────────────────────────────────
 
 interface TaxEstimateProps {
-  ytdGrossHalalas: number;
-  taxEstimateHalalas: number;
+  ytdGrossCents: number;
+  taxEstimateCents: number;
 }
 
-const TaxEstimateCard = React.memo(({ ytdGrossHalalas, taxEstimateHalalas }: TaxEstimateProps) => {
+const TaxEstimateCard = React.memo(({ ytdGrossCents, taxEstimateCents }: TaxEstimateProps) => {
   const taxPct = Math.round(TAX_ESTIMATE_RATE * 100);
   const taxProgressPct = useMemo(() => {
-    if (!ytdGrossHalalas) return 0;
-    return Math.min(100, Math.round((taxEstimateHalalas / ytdGrossHalalas) * 100));
-  }, [ytdGrossHalalas, taxEstimateHalalas]);
+    if (!ytdGrossCents) return 0;
+    return Math.min(100, Math.round((taxEstimateCents / ytdGrossCents) * 100));
+  }, [ytdGrossCents, taxEstimateCents]);
 
   return (
     <View style={[styles.card, styles.taxCard]}>
@@ -267,13 +267,13 @@ const TaxEstimateCard = React.memo(({ ytdGrossHalalas, taxEstimateHalalas }: Tax
       <View style={styles.taxRow}>
         <View style={styles.taxItem}>
           <Text style={styles.taxItemLabel}>YTD Gross</Text>
-          <Text style={styles.taxItemValue}>{formatHalalas(ytdGrossHalalas)}</Text>
+          <Text style={styles.taxItemValue}>{formatHalalas(ytdGrossCents)}</Text>
         </View>
         <Ionicons name="arrow-forward" size={16} color="#475569" />
         <View style={styles.taxItem}>
           <Text style={styles.taxItemLabel}>Est. Tax</Text>
           <Text style={[styles.taxItemValue, { color: '#F59E0B' }]}>
-            {formatHalalas(taxEstimateHalalas)}
+            {formatHalalas(taxEstimateCents)}
           </Text>
         </View>
       </View>
@@ -293,13 +293,13 @@ const TaxEstimateCard = React.memo(({ ytdGrossHalalas, taxEstimateHalalas }: Tax
 interface WorkTimerProps {
   isActive: boolean;
   elapsedSeconds: number;
-  effectiveHourlyRateHalalas: number;
+  effectiveHourlyRateCents: number;
   onStart: () => void;
   onStop: () => void;
 }
 
 const WorkTimerCard = React.memo(({
-  isActive, elapsedSeconds, effectiveHourlyRateHalalas, onStart, onStop,
+  isActive, elapsedSeconds, effectiveHourlyRateCents, onStart, onStop,
 }: WorkTimerProps) => (
   <View style={styles.card}>
     <Text style={styles.cardTitle}>Work Timer</Text>
@@ -322,8 +322,8 @@ const WorkTimerCard = React.memo(({
       <View style={styles.timerRateBox}>
         <Text style={styles.timerRateLabel}>Effective Rate</Text>
         <Text style={styles.timerRateValue}>
-          {effectiveHourlyRateHalalas > 0
-            ? `${formatHalalas(effectiveHourlyRateHalalas)}/hr`
+          {effectiveHourlyRateCents > 0
+            ? `${formatHalalas(effectiveHourlyRateCents)}/hr`
             : '—'}
         </Text>
       </View>
@@ -387,7 +387,7 @@ const TransactionItem = React.memo(({ item }: { item: EarningsTransaction }) => 
 
       <View style={styles.txRight}>
         {/* Net payout — replaces demo amounts */}
-        <Text style={styles.txAmount}>{formatHalalas(item.net_amount_halalas)}</Text>
+        <Text style={styles.txAmount}>{formatHalalas(item.net_amount_cents)}</Text>
         <View style={[styles.txBadge, { backgroundColor: statusStyle.bg }]}>
           <Text style={[styles.txBadgeText, { color: statusStyle.color }]}>
             {statusStyle.label}
@@ -448,9 +448,9 @@ export default function EarningsScreen() {
         >
           {/* ① Wallet Hero */}
           <WalletHero
-            availableBalanceHalalas={data.availableBalanceHalalas}
-            pendingHalalas={data.pendingHalalas}
-            totalEarnedHalalas={data.totalEarnedHalalas}
+            availableBalanceCents={data.availableBalanceCents}
+            pendingCents={data.pendingCents}
+            totalEarnedCents={data.totalEarnedCents}
             balanceProgressPct={data.balanceProgressPct}
           />
 
@@ -460,21 +460,21 @@ export default function EarningsScreen() {
           {/* ③ Weekly Bar Chart */}
           <WeeklyBarChart
             weeklyEarnings={data.weeklyEarnings}
-            maxWeeklyHalalas={data.maxWeeklyHalalas}
-            weeklyTotalHalalas={data.weeklyTotalHalalas}
+            maxWeeklyCents={data.maxWeeklyCents}
+            weeklyTotalCents={data.weeklyTotalCents}
           />
 
           {/* ④ Tax Estimate */}
           <TaxEstimateCard
-            ytdGrossHalalas={data.ytdGrossHalalas}
-            taxEstimateHalalas={data.taxEstimateHalalas}
+            ytdGrossCents={data.ytdGrossCents}
+            taxEstimateCents={data.taxEstimateCents}
           />
 
           {/* ⑤ Work Timer */}
           <WorkTimerCard
             isActive={!!data.activeSession}
             elapsedSeconds={data.sessionElapsedSeconds}
-            effectiveHourlyRateHalalas={data.effectiveHourlyRateHalalas}
+            effectiveHourlyRateCents={data.effectiveHourlyRateCents}
             onStart={handleStart}
             onStop={handleStop}
           />

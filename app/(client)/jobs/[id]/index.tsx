@@ -93,6 +93,11 @@ export default function JobDetailScreen() {
   const [hiringId, setHiringId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<any>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
+  // Client → Admin selection modal (restored: state was referenced by
+  // openApprovalModal/submitToAdmin + the modal JSX but never declared).
+  const [proposalToApprove, setProposalToApprove] = useState<Proposal | null>(null);
+  const [clientComment, setClientComment] = useState('');
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
 
   const fetchJobDetails = async () => {
     if (!id) return;
@@ -107,7 +112,7 @@ export default function JobDetailScreen() {
         .single();
 
       if (jobError) throw jobError;
-      setJob(jobData);
+      setJob(jobData as unknown as Job);
 
       // Fetch proposals with applicant profiles
       // ✅ Using standard join syntax with Foreign Key relationship (applications.applicant_id -> profiles.id)

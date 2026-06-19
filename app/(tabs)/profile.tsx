@@ -46,7 +46,7 @@ interface Profile {
   headline?: string | null;
   title?: string | null;
   skills?: string[] | null;
-  role?: 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier' | null;
+  role?: 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier' | 'admin' | 'super_admin' | null;
   is_verified: boolean;
   verification_status: 'unverified' | 'pending' | 'verified' | 'rejected';
   created_at: string;

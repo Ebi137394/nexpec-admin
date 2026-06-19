@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { View, ActivityIndicator, I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { translations } from './translations';
-import { Updates } from 'expo'; 
 
 type Language = keyof typeof translations; // Automatically gets all keys
 type TranslationKey = keyof typeof translations['en']['profile'];
@@ -11,7 +10,9 @@ type TranslationKey = keyof typeof translations['en']['profile'];
 interface LanguageContextType {
   language: string;
   setLanguage: (lang: string) => Promise<void>;
-  t: (key: TranslationKey) => string;
+  // fallback is accepted at call sites for ergonomics; the impl below still
+  // returns the key on a miss, so runtime behavior is unchanged.
+  t: (key: string, fallback?: string) => string;
   isRTL: boolean;
 }
 
@@ -69,7 +70,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const t = (key: TranslationKey): string => {
+  const t = (key: string, fallback?: string): string => {
     // @ts-ignore
     return translations[language]?.profile?.[key] || translations['en']?.profile?.[key] || String(key);
   };

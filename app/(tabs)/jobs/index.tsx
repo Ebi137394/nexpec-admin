@@ -260,7 +260,7 @@ export default function JobsScreen() {
       const type = job.job_type || job.inspection_type;
       
       const matchLoc = selectedLocations.length === 0 || selectedLocations.includes(loc);
-      const matchType = selectedTypes.length === 0 || selectedTypes.includes(type);
+      const matchType = selectedTypes.length === 0 || selectedTypes.includes(type as string);
       
       const q = searchQuery.toLowerCase();
       const locString = loc.toLowerCase();
@@ -277,7 +277,7 @@ export default function JobsScreen() {
       const type = job.job_type || job.inspection_type;
       
       const matchLoc = selectedLocations.length === 0 || selectedLocations.includes(loc);
-      const matchType = selectedTypes.length === 0 || selectedTypes.includes(type);
+      const matchType = selectedTypes.length === 0 || selectedTypes.includes(type as string);
       
       const q = searchQuery.toLowerCase();
       const locString = loc.toLowerCase();
@@ -479,7 +479,7 @@ export default function JobsScreen() {
           <View style={st.mapContainer}>
             {discoverLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : (
               <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={DEFAULT_REGION} clusterColor={COLORS.primary} clusterTextColor="#FFF">
-                {discoverMapJobs.map((job) => ( <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude, longitude: job.longitude }} onPress={() => setSelectedJobId(job.id)}><PriceMarker amount={(job.payout_amount_cents || 0) / 100} selected={selectedJobId === job.id} /></Marker> ))}
+                {discoverMapJobs.map((job) => ( <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude as number, longitude: job.longitude as number }} onPress={() => setSelectedJobId(job.id)}><PriceMarker amount={(job.payout_amount_cents || 0) / 100} selected={selectedJobId === job.id} /></Marker> ))}
               </MapView>
             )}
           </View>
@@ -524,7 +524,7 @@ export default function JobsScreen() {
               {myWorkLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : (
                 <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={DEFAULT_REGION} clusterColor={COLORS.primary} clusterTextColor="#FFF">
                   {myMapJobs.map((job) => ( 
-                    <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude, longitude: job.longitude }} onPress={() => setSelectedJobId(job.id)}>
+                    <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude as number, longitude: job.longitude as number }} onPress={() => setSelectedJobId(job.id)}>
                       <PriceMarker amount={(job.client_price_cents || 0) / 100} selected={selectedJobId === job.id} />
                     </Marker> 
                   ))}

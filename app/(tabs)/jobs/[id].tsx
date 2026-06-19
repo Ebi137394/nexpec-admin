@@ -187,7 +187,7 @@ export default function JobDetailScreen() {
         return {
           id: p.id,
           // ★ Task 4: integer cents end-to-end across all renamed columns.
-          bid_amount_cents: p.proposed_price_cents || p.bid_amount_cents || jobData?.client_price_cents || jobData?.price_cents || jobData?.budget_cents || 0,
+          bid_amount_cents: p.proposed_price_cents || p.bid_amount_cents || (jobData as any)?.client_price_cents || (jobData as any)?.price_cents || (jobData as any)?.budget_cents || 0,
           cover_letter: p.cover_letter || p.cover_note || '',
           status: p.status ? String(p.status).toLowerCase() : 'pending',
           created_at: p.created_at,
@@ -363,7 +363,7 @@ export default function JobDetailScreen() {
                 if (jobError) throw new Error("Job DB Error: " + jobError.message);
 
                 // 3. Update local state
-                setReportData(prev => ({ ...prev, is_client_approved: true }));
+                setReportData((prev: any) => ({ ...prev, is_client_approved: true }));
                 Alert.alert("Success!", "Report approved. Job has been finalized.");
               } catch (err: any) {
                 console.error("Save Error:", err);

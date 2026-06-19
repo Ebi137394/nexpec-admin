@@ -302,14 +302,14 @@ export default function ResourcesScreen() {
       const { data: jobs, error: jobError } = await jobQuery;
       if (jobError) throw jobError; if (!jobs || jobs.length === 0) { setJobsWithDocs([]); return; }
       
-      const jobIds = jobs.map((j) => j.id);
+      const jobIds = (jobs as any[]).map((j) => j.id);
       // SAFE QUERY - Removed relational join on profiles to prevent PGRST200
       const { data: docs, error: docError } = await supabase.from('project_documents').select('*').in('job_id', jobIds).order('created_at', { ascending: false });
       if (docError) throw docError;
       
       const docsMap = new Map<string, ProjectDocument[]>();
       (docs || []).forEach((d: any) => { const list = docsMap.get(d.job_id) || []; list.push({ id: d.id, job_id: d.job_id, file_name: d.file_name, file_type: d.file_type || '', file_size: d.file_size || 0, file_url: d.file_url || '', document_url: d.document_url ?? null, category: d.category || 'other', uploaded_by: d.uploaded_by, uploaded_by_name: 'User', created_at: d.created_at, notes: d.notes, }); docsMap.set(d.job_id, list); });
-      const merged: JobWithDocs[] = jobs.map((j) => ({ ...j, documents: docsMap.get(j.id) || [], }));
+      const merged: JobWithDocs[] = (jobs as any[]).map((j) => ({ ...j, documents: docsMap.get(j.id) || [], }));
       setJobsWithDocs(merged);
       const firstActive = merged.find((j) => j.status !== 'completed'); if (firstActive) { setExpandedProjects(new Set([firstActive.id])); }
     } catch (err) { console.error('Error fetching jobs with docs:', err); }

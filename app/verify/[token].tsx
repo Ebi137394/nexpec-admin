@@ -161,20 +161,20 @@ export default function VerifyPage() {
 
       // Optional: sign a 1-hour URL for the rendered HTML so visitors
       // can download the full affidavit document.
-      if (rpcRes.data?.html_storage_path) {
+      if ((rpcRes.data as any)?.html_storage_path) {
         const { data: signed } = await supabase.storage
           .from('compliance')
-          .createSignedUrl(rpcRes.data.html_storage_path, 60 * 60);
+          .createSignedUrl((rpcRes.data as any).html_storage_path, 60 * 60);
         setHtmlUrl(signed?.signedUrl ?? null);
       }
 
       // Same for the canonical PDF (Tier 1 of the PDF pipeline).
       // The PDF is the un-alterable presentation layer: anyone re-downloading
       // it and recomputing SHA-256 should land on row.pdf_sha256.
-      if (rpcRes.data?.pdf_storage_path) {
+      if ((rpcRes.data as any)?.pdf_storage_path) {
         const { data: signed } = await supabase.storage
           .from('compliance')
-          .createSignedUrl(rpcRes.data.pdf_storage_path, 60 * 60);
+          .createSignedUrl((rpcRes.data as any).pdf_storage_path, 60 * 60);
         setPdfUrl(signed?.signedUrl ?? null);
       }
     } catch (e) {

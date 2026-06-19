@@ -48,7 +48,7 @@ export default function SuperDashboard() {
       if (!error && realJobs) {
         setJobs(realJobs);
         // Find the first active/in-progress job to attach to the ChatFAB
-        const activeJob = realJobs.find((j: any) => j.status === 'in_progress' || j.status === 'Active');
+        const activeJob = (realJobs as any[]).find((j: any) => j.status === 'in_progress' || j.status === 'Active');
         if (activeJob) setActiveJobId(activeJob.id);
       }
 

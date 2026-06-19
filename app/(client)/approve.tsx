@@ -63,7 +63,7 @@ export default function ApproveScreen() {
       setJob(jobData);
 
       // Check if current user is the client
-      setIsClient(jobData.client_id === user.id);
+      setIsClient((jobData as any).client_id === user.id);
 
       // 2. Fetch Inspection Report (if exists)
       const { data: reportData } = await supabase

@@ -264,7 +264,7 @@ const ConversationRow = React.memo(({ item, myId }: { item: Conversation; myId: 
 export default function MessagesListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, profile } = useAuth() as {
+  const { user, profile } = useAuth() as unknown as {
     user: { id: string } | null;
     profile: Profile | null;
     [key: string]: any;

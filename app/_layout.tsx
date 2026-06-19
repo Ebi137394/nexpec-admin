@@ -145,6 +145,8 @@ function AuthGate() {
       'reviews',       // app/reviews/submit/[jobId]
       'contracts',     // app/contracts/index.tsx
       'contract',      // app/contract/[id].tsx
+      'deals',         // app/deals/[id]/sign.tsx — client_supply deal-signing
+                       //  (pushed from contracts/index + rfqs/[id]); unlisted → silent bounce.
       'chat',          // app/chat/[job_id].tsx
       'inbox',         // app/inbox/{index,[id]}.tsx — unified conversations inbox.
                        //  Every role dashboard's "Messages" + Profile→"Help & Support"

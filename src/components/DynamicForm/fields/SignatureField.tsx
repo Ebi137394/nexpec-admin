@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { PenTool, RotateCcw, X, AlertCircle } from 'lucide-react-native';
-import SignatureCanvas from 'react-native-signature-canvas';
+import SignatureCanvas, { type SignatureViewRef } from 'react-native-signature-canvas';
 import * as FileSystem from 'expo-file-system';
 import { FieldProps } from '../types';
 import { NEXPEC_THEME } from '../theme';
@@ -24,7 +24,7 @@ export const SignatureField: React.FC<FieldProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
-  const signatureRef = useRef(null);
+  const signatureRef = useRef<SignatureViewRef>(null);
   const { colors, spacing, borderRadius, fontSize } = NEXPEC_THEME;
 
   const handleSignature = async (signature: string) => {

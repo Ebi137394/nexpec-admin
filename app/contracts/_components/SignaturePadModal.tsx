@@ -322,7 +322,7 @@ export default function SignaturePadModal({
               <View pointerEvents="none" style={s.signXLabel}>
                 <Text style={s.signXLabelText}>X</Text>
               </View>
-              <Text pointerEvents="none" style={s.lineLabel}>
+              <Text style={[s.lineLabel, { pointerEvents: 'none' }]}>
                 SIGN HERE
               </Text>
               {!hasInk ? (

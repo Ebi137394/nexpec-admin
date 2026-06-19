@@ -29,6 +29,7 @@ import {
   History,
   Eye,
   DollarSign,
+  LucideIcon,
 } from 'lucide-react-native';
 
 // Import navigation types
@@ -296,7 +297,7 @@ const StatusBanner: React.FC<StatusBannerProps> = ({ status, progress }) => {
 
 // Glassmorphic Info Card Component
 interface InfoCardProps {
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: LucideIcon | React.ComponentType<{ size: number; color: string }>;
   label: string;
   value: string;
   subtitle?: string;

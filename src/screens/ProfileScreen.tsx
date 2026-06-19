@@ -51,6 +51,7 @@ import {
   Briefcase,
   BadgeCheck,
   Wrench,
+  LucideIcon,
 } from 'lucide-react-native';
 
 // ============================================
@@ -120,7 +121,7 @@ interface Certification {
 
 interface SettingItem {
   id: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: LucideIcon | React.ComponentType<{ size: number; color: string }>;
   title: string;
   subtitle?: string;
   type: 'toggle' | 'navigation' | 'action';
@@ -469,7 +470,7 @@ const SettingsRow: React.FC<SettingsRowProps> = ({ item, onToggle }) => {
 // Settings Group
 interface SettingsGroupProps {
   title: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: LucideIcon | React.ComponentType<{ size: number; color: string }>;
   items: SettingItem[];
   onToggle: (itemId: string, value: boolean) => void;
 }

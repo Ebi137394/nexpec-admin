@@ -36,6 +36,7 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   Sparkles,
+  LucideIcon,
 } from 'lucide-react-native';
 
 // Enable LayoutAnimation for Android
@@ -103,7 +104,7 @@ interface FilterChip {
   id: string;
   label: string;
   value: InspectionStatus | 'all';
-  icon?: React.ComponentType<{ size: number; color: string }>;
+  icon?: LucideIcon | React.ComponentType<{ size: number; color: string }>;
   count?: number;
 }
 

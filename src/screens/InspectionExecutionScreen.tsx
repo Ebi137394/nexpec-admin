@@ -36,6 +36,7 @@ import {
   CheckCircle2,
   CircleDot,
   FileText,
+  LucideIcon,
 } from 'lucide-react-native';
 
 // Import navigation types
@@ -106,7 +107,7 @@ interface ChecklistItemState {
 interface Category {
   id: string;
   title: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: LucideIcon | React.ComponentType<{ size: number; color: string }>;
   items: ChecklistItem[];
 }
 

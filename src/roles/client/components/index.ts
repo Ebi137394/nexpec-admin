@@ -1,5 +1,4 @@
 // Client Dashboard Components
-export { default as OperationsDashboard } from './operations/OperationsDashboard';
 export { default as AssetVault } from './assets/AssetVault';
 export { default as OrganizationManager } from './team/OrganizationManager';
 
@@ -10,25 +9,6 @@ export { default as ComplianceAudit } from './finance/ComplianceAudit';
 
 // Export SpendingAnalytics as named export to avoid conflict
 export { SpendingAnalytics } from './finance/SpendingAnalytics';
-
-// Operations Components
-export { default as VisualPipeline } from './operations/components/VisualPipeline';
-export { default as LiveRadar } from './operations/components/LiveRadar';
-export { default as ComplianceHeatmap } from './operations/components/ComplianceHeatmap';
-export { default as CriticalAlertBanner } from './operations/components/CriticalAlertBanner';
-
-// Operations Types
-export type {
-  ProjectStage,
-  InspectorStatus,
-  ComplianceHeatmapData,
-  CriticalAlert,
-  OperationsDashboardData,
-  OperationsData,
-  PipelineStep,
-  HeatmapCell,
-  HeatmapRiskLevel,
-} from './operations/types/operations.types';
 
 // Legacy Components (for backward compatibility)
 export { default as CriticalAlerts } from './CriticalAlerts';
@@ -44,8 +24,6 @@ export { default as ReportConfigurator } from './reports/ReportConfigurator';
 export { default as WebReportShare } from './sharing/WebReportShare';
 export { default as BatchActionBar } from './actions/BatchActionBar';
 export { default as BatchActionBarSimple } from './actions/BatchActionBarSimple';
-export { default as OperationsDashboardTest } from './OperationsDashboardTest';
-export { default as OperationsDashboardMinimal } from './OperationsDashboardMinimal';
 export { default as TestHooks } from './TestHooks';
 export { default as TestSupabase } from './TestSupabase';
 export { default as FrontierScreen } from '@/src/components/frontier/FrontierScreen';

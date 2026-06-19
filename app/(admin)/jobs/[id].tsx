@@ -770,7 +770,7 @@ export default function SpreadEditor() {
             label="Scheduled"
             value={(job as any).scheduled_date ? new Date((job as any).scheduled_date).toLocaleDateString() : '—'}
           />
-          <InfoRow icon="cash-outline" label="Orig. Budget" value={currency(job.budget)} />
+          <InfoRow icon="cash-outline" label="Orig. Budget" value={currency((job as any).budget)} />
         </View>
 
         <View style={s.section}>

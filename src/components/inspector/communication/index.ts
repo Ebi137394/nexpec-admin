@@ -6,4 +6,4 @@
 //  New code should import directly from the new location.
 // ════════════════════════════════════════════════════════════════════════════
 export * from '@/src/roles/inspector/components/communication/index';
-export { default } from '@/src/roles/inspector/components/communication/index';
+// Canonical barrel is named-exports-only (no default); `export *` above is the full re-export.

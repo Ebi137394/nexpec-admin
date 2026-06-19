@@ -30,6 +30,7 @@ export interface Job {
   budget_cents: number | null;          // ★ Task 4
   client_price_cents: number | null;    // ★ Task 4
   payout_amount_cents: number | null;   // ★ Task 4
+  inspector_payout_cents: number | null; // canonical jobs column (admin-set inspector payout)
   platform_spread_cents: number | null; // ★ Task 4
   payout_status: string;
   admin_confirmed_at: string | null;

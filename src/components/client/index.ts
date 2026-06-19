@@ -5,4 +5,4 @@
 //  this file is a transparent re-export so legacy imports keep working.
 // ════════════════════════════════════════════════════════════════════════════
 export * from '@/src/roles/client/components/index';
-export { default } from '@/src/roles/client/components/index';
+// Canonical barrel is named-exports-only (no default); `export *` above is the full re-export.

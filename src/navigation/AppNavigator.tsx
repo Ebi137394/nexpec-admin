@@ -74,7 +74,7 @@ const modalTransition: NativeStackNavigationOptions = {
 
 // Custom iOS-style transition
 const customTransition: NativeStackNavigationOptions = {
-  animation: 'ios',
+  animation: 'ios' as any, // value preserved verbatim; 'ios' dropped from current RN-screens StackAnimationTypes
   animationDuration: 350,
 };
 
@@ -94,7 +94,8 @@ const defaultScreenOptions: NativeStackNavigationOptions = {
   animationDuration: 400,
   // Status bar
   statusBarStyle: 'light',
-  statusBarColor: COLORS.background,
+  // statusBarColor dropped from current RN-screens option types; preserved verbatim at runtime
+  ...({ statusBarColor: COLORS.background } as any),
   statusBarAnimation: 'fade',
 };
 

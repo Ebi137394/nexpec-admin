@@ -474,6 +474,7 @@ export default function ChatScreen(): React.JSX.Element {
             return;
         } else {
             // INSPECTOR/CLIENT SIDE: Hardcode the support persona
+            // Hardcoded support persona; cast preserves the literal verbatim (carries full_name; title omitted by design)
             setOtherParticipant({
                 id: 'support',
                 full_name: 'NEXPEC Support',
@@ -481,7 +482,7 @@ export default function ChatScreen(): React.JSX.Element {
                 last_name: 'Support',
                 role: 'admin',
                 avatar_url: null
-            });
+            } as unknown as ChatParticipant);
             const { data: msgs, error: msgsError } = await getJobMessages(jobId!, 50, 0, chatMode, user.id);
             if (!msgsError) setMessages(msgs || []);
             markMessagesRead(jobId!);

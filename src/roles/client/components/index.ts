@@ -8,7 +8,7 @@ export { default as InvoiceApprover } from './finance/InvoiceApprover';
 export { default as ComplianceAudit } from './finance/ComplianceAudit';
 
 // Export SpendingAnalytics as named export to avoid conflict
-export { SpendingAnalytics } from './finance/SpendingAnalytics';
+export { default as SpendingAnalytics } from './finance/SpendingAnalytics';
 
 // Legacy Components (for backward compatibility)
 export { default as CriticalAlerts } from './CriticalAlerts';

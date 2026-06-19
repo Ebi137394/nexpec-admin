@@ -48,7 +48,10 @@ export interface UseOrgMembershipsApi extends UseOrgMembershipsState {
   refresh: () => Promise<void>;
 }
 
-const listSchema = z.array(orgMembershipEntrySchema);
+// `orgMembershipEntrySchema` comes from a package that bundles its own zod, so
+// its ZodType isn't assignable to this module's `z`. Cast is type-only — the
+// runtime schema/validation is unchanged. (Proper fix: dedupe zod versions.)
+const listSchema = z.array(orgMembershipEntrySchema as any);
 
 export function useOrgMemberships(): UseOrgMembershipsApi {
   const [memberships, setMemberships] = useState<OrgMembershipEntry[]>([]);

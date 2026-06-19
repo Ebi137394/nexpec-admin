@@ -147,3 +147,65 @@ export function isCustomSpecialtySlug(slug: string): boolean {
 // Surface a small bit of typing metadata for static analysis (keeps the
 // import-graph contract identical to the previous file).
 export { SPECIALTY_BY_SLUG };
+
+// ─── SpecialtyPicker helpers ────────────────────────────────────────────────
+// Restored: SpecialtyPicker imports these but they had gone missing, which
+// crashed the picker when its modal opened. Behavior modeled on the data +
+// helpers above.
+
+/** Alias kept for call-site compatibility (pickers import `isCustomSlug`). */
+export const isCustomSlug = isCustomSpecialtySlug;
+
+/**
+ * Human-readable label for a slug: known canonical slugs return their `name`;
+ * custom slugs (`custom_<body>`) decode the kebab body to a Title Case phrase;
+ * anything else is de-kebabed best-effort.
+ */
+export function prettifySlug(slug: string): string {
+  const known = getSpecialty(slug);
+  if (known) return known.name;
+  const body = isCustomSpecialtySlug(slug)
+    ? slug.slice(CUSTOM_SLUG_PREFIX.length)
+    : slug;
+  return body
+    .replace(/[-_]+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Convert free-form user text into a persisted custom slug
+ * (`custom_<kebab-body>`, lowercased, capped). Returns '' when the sanitised
+ * body is empty (callers treat '' as "no valid custom entry").
+ */
+export function slugifyCustomLabel(label: string): string {
+  const body = label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, CUSTOM_SLUG_MAX_BODY_LEN)
+    .replace(/-+$/g, '');
+  return body ? `${CUSTOM_SLUG_PREFIX}${body}` : '';
+}
+
+/**
+ * Search canonical specialties by free-text query (matches name, slug and
+ * synonyms), optionally constrained to a group title. Empty query returns the
+ * group's specialties (or all). Case-insensitive.
+ */
+export function searchSpecialties(
+  query: string,
+  groupFilter: SpecialtyGroupSlug | null = null,
+): SpecialtyOption[] {
+  const q = query.trim().toLowerCase();
+  return SPECIALTIES.filter((s) => {
+    if (groupFilter && s.group !== groupFilter) return false;
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.slug.toLowerCase().includes(q) ||
+      s.synonyms.some((syn) => syn.toLowerCase().includes(q))
+    );
+  });
+}

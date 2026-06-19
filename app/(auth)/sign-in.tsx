@@ -222,7 +222,7 @@ export default function SignInScreen() {
   const [biometricLoading, setBiometricLoading] = useState(false);
   // ★ Social-auth busy state (per provider, so the spinner only lands
   //   on the button the user actually tapped).
-  const [socialBusy, setSocialBusy] = useState<'apple' | 'google' | null>(null);
+  const [socialBusy, setSocialBusy] = useState<'apple' | 'google' | 'linkedin_oidc' | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;

@@ -337,7 +337,7 @@ async function probeContractsViews(): Promise<ProbeResult> {
 interface Section {
   id: string;
   title: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: React.ComponentType<any>;
   result: ProbeResult;
 }
 

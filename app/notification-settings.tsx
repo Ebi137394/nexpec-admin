@@ -80,7 +80,7 @@ const COLORS = {
 
 type UserRole = 'inspector' | 'client' | 'agency';
 
-interface NotificationToggle { id: string; label: string; description: string; icon: LucideIcon; iconColor: string; iconBg: string; roles: UserRole[] | 'all'; defaultValue: boolean; }
+interface NotificationToggle { id: string; label: string; description: string; icon: LucideIcon; iconColor: string; iconBg: string; roles: (UserRole | 'enterprise')[] | 'all'; defaultValue: boolean; }
 interface ToggleGroup { id: string; title: string; subtitle: string; icon: LucideIcon; iconColor: string; iconBg: string; toggles: NotificationToggle[]; }
 
 // ── 2. Enterprise Feature Set ────────────────────────────────────

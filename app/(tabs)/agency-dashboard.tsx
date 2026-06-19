@@ -501,7 +501,7 @@ export default function AgencyDashboard() {
       // the rest of the dashboard still renders.
       const contractRows =
         contractsRes && !contractsRes.error && Array.isArray(contractsRes.data)
-          ? (contractsRes.data as AgencyContractRow[])
+          ? (contractsRes.data as unknown as AgencyContractRow[])
           : [];
       if (contractsRes?.error) {
         console.warn(

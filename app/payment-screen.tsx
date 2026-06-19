@@ -119,7 +119,7 @@ export default function PaymentScreen() {
 
     const { error } = await presentPaymentSheet({
       clientSecret,
-    });
+    } as any);
 
     if (error) {
       console.error('presentPaymentSheet error:', error);

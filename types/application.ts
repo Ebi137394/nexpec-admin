@@ -7,6 +7,8 @@ import { nxHandle } from '../src/core/utils/handle';
  */
 export type ApplicationStatus = 
   | 'pending'
+  | 'submitted'
+  | 'under_review'
   | 'reviewing'
   | 'shortlisted'
   | 'offered' 
@@ -211,6 +213,20 @@ export const APPLICATION_STATUS_CONFIG: Record<ApplicationStatus, StatusConfig> 
     icon: 'clock',
     description: 'Waiting for client review',
   },
+  submitted: {
+    label: 'Submitted',
+    color: '#F59E0B',
+    bgColor: '#F59E0B20',
+    icon: 'clock',
+    description: 'Application submitted',
+  },
+  under_review: {
+    label: 'Under Review',
+    color: '#3B82F6',
+    bgColor: '#3B82F620',
+    icon: 'eye',
+    description: 'Client is reviewing your application',
+  },
   reviewing: {
     label: 'Under Review',
     color: '#3B82F6',
@@ -287,7 +303,9 @@ export const DEFAULT_APPLICATION_FORM: ApplicationFormData = {
  */
 export const STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   // ★ Client may now jump straight to CLIENT_SELECTED from pending or shortlisted.
-  pending: ['reviewing', 'shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  pending: ['submitted', 'under_review', 'reviewing', 'shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  submitted: ['under_review', 'reviewing', 'shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
+  under_review: ['reviewing', 'shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
   reviewing: ['shortlisted', 'CLIENT_SELECTED', 'offered', 'rejected', 'withdrawn'],
   shortlisted: ['CLIENT_SELECTED', 'offered', 'pending', 'rejected', 'withdrawn'],
   // Legacy 'offered' kept so old rows still validate; treat the same as CLIENT_SELECTED.

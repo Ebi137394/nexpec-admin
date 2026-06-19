@@ -93,7 +93,7 @@ export interface ChatParticipant {
   last_name: string | null;
   avatar_url: string | null;
   title: string | null;
-  role: 'client' | 'inspector';
+  role: 'client' | 'inspector' | 'admin' | 'super_admin';
 }
 
 /**

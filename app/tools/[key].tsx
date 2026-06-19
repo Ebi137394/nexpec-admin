@@ -56,7 +56,7 @@ export default function ToolRunnerScreen() {
             schema={tool.input_schema}
             isLoading={running}
             submitButtonText="Calculate"
-            onSubmit={(values) => run(tool.key, values, tool.engine)}
+            onSubmit={async (values) => { await run(tool.key, values, tool.engine); }}
           />
         </>
       )}

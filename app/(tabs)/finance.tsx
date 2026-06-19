@@ -157,7 +157,7 @@ const PaymentMethodCard: React.FC<{ method: PaymentMethod; onSetDefault: (id: st
 
   if(method.type === 'paypal') { iconName = 'logo-paypal'; brandColor = '#0070BA'; }
   else if (method.type === 'bank_account') { iconName = 'business-outline'; brandColor = COLORS.green; }
-  else if (method.type === 'stripe' || method.type === 'card' || method.type === 'visa') { iconName = 'card-outline'; brandColor = '#635BFF'; }
+  else if (method.type === 'stripe' || method.type === 'card' || (method.type as string) === 'visa') { iconName = 'card-outline'; brandColor = '#635BFF'; }
   else if (method.type === 'wise') { iconName = 'globe-outline'; brandColor = '#00B9FF'; }
   else if (method.type === 'payoneer') { iconName = 'cash-outline'; brandColor = '#FF4800'; }
 

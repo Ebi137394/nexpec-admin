@@ -72,3 +72,6 @@ secrets/
 
 # Raw live-DDL dumps from scripts/ops/dump-ghost-ddl.sh (reconciliation artifacts, not source)
 supabase/ghost-ddl/
+
+# Local EAS env push helper (carries environment-specific EXPO_PUBLIC keys; do not commit)
+scripts/eas-prod-env.sh

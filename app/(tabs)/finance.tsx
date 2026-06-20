@@ -632,6 +632,13 @@ export default function FinanceScreen() {
           Alert.alert('Success', 'Payment method added successfully!'); 
           await fetchPaymentMethods(); 
         } else if (provider.id === 'stripe_connect') {
+          // A Stripe-rejected account can never be re-linked (account-link create
+          // returns 500), so short-circuit with an accurate, non-blocking notice
+          // instead of attempting the doomed onboarding call.
+          if (stripeConnect.status === 'rejected') {
+            setStripeError('Your payout account was rejected by Stripe and can\'t be re-linked from the app. Please contact support to resolve it.');
+            return;
+          }
           // ★ Phase B — Stripe Connect Express onboarding for inspectors.
           //   Calls the create-stripe-connect-link Edge Function which:
           //     1. Creates an Express account if one doesn't exist
@@ -696,7 +703,7 @@ export default function FinanceScreen() {
       } finally { 
         setActionLoading(false); 
       }
-    }, [ session?.user?.id, session?.user?.email, initPaymentSheet, presentPaymentSheet, fetchPaymentMethods, ], );
+    }, [ session?.user?.id, session?.user?.email, initPaymentSheet, presentPaymentSheet, fetchPaymentMethods, stripeConnect.status, ], );
 
   const earningsData = useMemo(() => {
     if (!earnings) return null;

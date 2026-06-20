@@ -266,7 +266,7 @@ export default function BudgetOverviewScreen() {
           <Text style={s.kicker}>{roleLabel.toUpperCase()} PORTAL, FINANCE</Text>
           <Text style={s.title}>Budget Overview</Text>
           <Text style={s.subtitle}>
-            Live spend tracker, what's committed, what's in escrow, what's
+            Live spend tracker, what's committed, what's held, what's
             settled. Visibility runs under your account's role.
           </Text>
 
@@ -335,7 +335,7 @@ export default function BudgetOverviewScreen() {
           />
           <HeroTile
             icon="wallet"
-            label="In escrow"
+            label="Held"
             value={formatCents(summary.inEscrowCents)}
             sub="Funded, awaiting completion"
             tone="cyan"

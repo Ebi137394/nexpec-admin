@@ -44,7 +44,7 @@ interface ReportRow {
 }
 
 const ESCROW_LABEL: Record<PayoutStatus, string> = {
-  unpaid: 'In escrow',
+  unpaid: 'Held',
   processing: 'Processing',
   paid: 'Released',
   disputed: 'Disputed',

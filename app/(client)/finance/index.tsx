@@ -156,7 +156,7 @@ export default function FinanceHubScreen() {
         {/* Escrow vs Credit — locked cash vs borrowed headroom (web parity) */}
         <Animated.View entering={FadeInDown.delay(50)} style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>
-            Funds: escrow vs credit
+            Funds: held vs credit
           </Text>
           <EscrowCard cents={escrowCredit.heldInEscrowCents} />
           <View style={{ height: 12 }} />
@@ -255,7 +255,7 @@ export default function FinanceHubScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No activity yet</Text>
               <Text style={[styles.emptyBody, { color: colors.textSecondary }]}>
-                Post your first inspection and your spend, escrow, and payouts will
+                Post your first inspection and your spend, held funds, and payouts will
                 flow through here in real time.
               </Text>
               <TouchableOpacity
@@ -309,11 +309,11 @@ function EscrowCard({ cents }: { cents: number }) {
         <View style={ec.violetIcon}>
           <Ionicons name="lock-closed" size={16} color={VIOLET} />
         </View>
-        <Text style={ec.violetEyebrow}>PREPAY ESCROW, LOCKED</Text>
+        <Text style={ec.violetEyebrow}>PREPAID, LOCKED</Text>
       </View>
       <Text style={ec.bigAmount}>{formatUsd(cents)}</Text>
       <Text style={ec.cardBody}>
-        Cash you&apos;ve already paid into NEXPEC&apos;s escrow ledger for active
+        Cash you&apos;ve already paid into NEXPEC&apos;s held-funds ledger for active
         jobs. Released to the inspector only when you approve the report, and
         refunded if a job is cancelled.
       </Text>
@@ -342,7 +342,7 @@ function CreditCard({ credit }: { credit: ClientEscrowCredit }) {
         <Text style={ec.cardBody}>
           You currently fund each job up front. Approved B2B clients can switch to
           Net-30 to Net-60 terms, posting jobs against a credit line and settling
-          invoices later, with nothing locked in escrow.
+          invoices later, with nothing locked as held funds.
         </Text>
       </View>
     );
@@ -388,7 +388,7 @@ function CreditCard({ credit }: { credit: ClientEscrowCredit }) {
       </View>
 
       <Text style={ec.cardBody}>
-        Headroom you can post jobs against without funding escrow up front.
+        Headroom you can post jobs against without funding a held balance up front.
         Nothing here is locked; it&apos;s borrowed and settles on terms.
       </Text>
 

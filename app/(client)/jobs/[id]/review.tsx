@@ -146,7 +146,7 @@ const PaymentCard = ({ price, expenses, inspectorName }: { price: number, expens
         <View style={styles.paymentHeader}>
           <View style={{flexDirection:'row', gap:8, alignItems:'center'}}>
             <Lock size={16} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.paymentLabel}>Escrow + Expenses</Text>
+            <Text style={styles.paymentLabel}>Held Funds + Expenses</Text>
           </View>
           <View style={styles.securedBadge}>
             <Shield size={12} color="#059669" />

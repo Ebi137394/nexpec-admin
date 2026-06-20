@@ -250,7 +250,7 @@ export default function ReviewReportScreen() {
           <View style={styles.rowBetween}>
             <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
               <Lock size={14} color="rgba(255,255,255,0.9)" />
-              <Text style={styles.payLabel}>Managed Escrow Disbursement</Text>
+              <Text style={styles.payLabel}>Managed Disbursement</Text>
             </View>
             <View style={styles.secureBadge}><Text style={styles.secureText}>MANAGED</Text></View>
           </View>

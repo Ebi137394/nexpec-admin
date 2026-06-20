@@ -211,7 +211,7 @@ export default function ClientDisputesScreen() {
       if (error) throw error;
       Alert.alert(
         'Dispute filed',
-        'Escrow on this job is now paused and admin has been notified. You\'ll get a notification when there\'s a resolution.',
+        'Funds on this job are now paused and admin has been notified. You\'ll get a notification when there\'s a resolution.',
       );
       setFilerOpen(false);
       await fetchDisputes();
@@ -283,7 +283,7 @@ export default function ClientDisputesScreen() {
               <Text style={s.emptyTitle}>No disputes, clean record</Text>
               <Text style={s.emptySub}>
                 When something goes wrong on a job, file a dispute here. Admin
-                pauses escrow and mediates between you and the inspector.
+                pauses the funds and mediates between you and the inspector.
               </Text>
               <Pressable
                 onPress={openFiler}
@@ -422,7 +422,7 @@ function FileDisputeSheet(props: {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.sheetKicker}>FILE A DISPUTE</Text>
-              <Text style={s.sheetTitle}>Pause escrow + alert admin</Text>
+              <Text style={s.sheetTitle}>Pause funds + alert admin</Text>
             </View>
             <Pressable onPress={props.onClose} hitSlop={10}>
               <Ionicons name="close" size={22} color={C.textSec} />
@@ -537,7 +537,7 @@ function FileDisputeSheet(props: {
               <Ionicons name="alert-circle" size={14} color="#FFF" />
             )}
             <Text style={s.submitBtnText}>
-              {props.submitting ? 'Filing…' : 'File dispute, pause escrow'}
+              {props.submitting ? 'Filing…' : 'File dispute, pause funds'}
             </Text>
           </Pressable>
         </View>

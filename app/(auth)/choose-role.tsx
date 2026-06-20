@@ -68,7 +68,7 @@ const ROLES: RoleSpec[] = [
     bullets: [
       'Take camera-only, GPS-anchored evidence',
       'Build a Compliance-Certified credential tier',
-      'Get paid directly via the NEXPEC escrow',
+      'Get paid directly through NEXPEC',
       'Carry your verified jobs as portable proof',
     ],
   },

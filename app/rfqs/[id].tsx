@@ -47,7 +47,7 @@ export default function RfqDetailScreen() {
   };
 
   const doAccept = (offer: ClientOffer) => {
-    Alert.alert('Accept this offer?', 'You will review and sign the NEXPEC supply agreement, then we hold your payment in escrow and dispatch the inspection.',
+    Alert.alert('Accept this offer?', 'You will review and sign the NEXPEC supply agreement, then we hold your payment securely and dispatch the inspection.',
       [{ text: 'Cancel', style: 'cancel' }, { text: 'Review & sign', style: 'default', onPress: async () => {
         setAwarding(offer.id);
         try {

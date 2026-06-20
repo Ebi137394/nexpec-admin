@@ -106,7 +106,7 @@ const PaymentCard = ({ price }: { price: number }) => {
     <View style={styles.paymentCard}>
       <View style={styles.paymentHeader}>
         <Lock size={16} color="#FFFFFF" />
-        <Text style={styles.paymentLabel}>Secure Escrow Payment</Text>
+        <Text style={styles.paymentLabel}>Secure Held Payment</Text>
       </View>
       <Text style={styles.paymentAmount}>{formatCurrency(price)}</Text>
       <View style={styles.paymentDivider} />

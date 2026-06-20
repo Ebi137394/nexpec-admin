@@ -15,6 +15,20 @@ import { useEarnings, formatUSD } from '../../hooks/useEarnings';
 import { formatDuration } from '../../utils/currency';
 import { formatUsd, toCents } from '../../src/core/utils/money';
 
+// Maps a raw Edge Function / Stripe failure to a calm, user-facing line so a
+// backend hiccup (or a restricted Stripe account) degrades to an inline notice
+// instead of a blocking modal — local wallet / earnings / history still render.
+function friendlyStripeError(err: any, fallback: string): string {
+  const raw = String(err?.message ?? err?.context?.error ?? '').toLowerCase();
+  if (
+    raw.includes('non-2xx') || raw.includes('restrict') ||
+    raw.includes('capability') || raw.includes('account')
+  ) {
+    return 'Payment services are temporarily unavailable. You can still view your wallet and history — please try again shortly.';
+  }
+  return fallback;
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLORS = { background: '#020420', surface: '#0F172A', surfaceLight: '#1E293B', border: '#1F2937', borderLight: '#334155', primary: '#7C3AED', primaryLight: '#8B5CF6', primaryDark: '#6D28D9', primaryBg: 'rgba(124, 58, 237, 0.12)', blue: '#3B82F6', blueBg: 'rgba(59, 130, 246, 0.12)', green: '#10B981', greenBg: 'rgba(16, 185, 129, 0.12)', red: '#EF4444', redBg: 'rgba(239, 68, 68, 0.12)', amber: '#F59E0B', amberBg: 'rgba(245, 158, 11, 0.12)', cyan: '#06B6D4', cyanBg: 'rgba(6, 182, 212, 0.12)', white: '#F8FAFC', textPrimary: '#F1F5F9', textSecondary: '#94A3B8', textMuted: '#64748B', textDark: '#475569' };
 
@@ -307,6 +321,7 @@ export default function FinanceScreen() {
   const [walletLoading, setWalletLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [stripeError, setStripeError] = useState<string | null>(null); // inline, non-blocking Stripe/Edge failure notice
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showProviderForm, setShowProviderForm] = useState<PaymentProviderOption | null>(null);
   const [providerInputValue, setProviderInputValue] = useState('');
@@ -411,6 +426,7 @@ export default function FinanceScreen() {
 
   const loadAllData = useCallback(async () => {
     setWalletLoading(true);
+    setStripeError(null); // clear any prior inline notice on a fresh load/retry
     await Promise.all([ determineUserRole(), fetchWalletStats(), fetchTransactions(), fetchPaymentMethods(), ]);
     setWalletLoading(false);
   }, [determineUserRole, fetchWalletStats, fetchTransactions, fetchPaymentMethods]);
@@ -559,10 +575,8 @@ export default function FinanceScreen() {
               );
               await loadAllData();
             } catch (err: any) {
-              Alert.alert(
-                'Deposit Failed',
-                err.message || 'An error occurred.',
-              );
+              // Graceful degradation: inline notice instead of a blocking modal.
+              setStripeError(friendlyStripeError(err, 'We couldn\'t start the deposit. Please try again.'));
             } finally {
               setActionLoading(false);
             }
@@ -678,7 +692,7 @@ export default function FinanceScreen() {
           setProviderInputValue('');
         } 
       } catch (err: any) {
-        Alert.alert('Error', err.message || 'Failed to add payment method.'); 
+        setStripeError(friendlyStripeError(err, 'We couldn\'t add that payment method. Please try again.'));
       } finally { 
         setActionLoading(false); 
       }
@@ -706,6 +720,15 @@ export default function FinanceScreen() {
       {actionLoading && ( <View style={s.overlay}><View style={s.overlayBox}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.overlayText}>Processing…</Text></View></View> )}
       <View style={s.header}><View><Text style={s.headerTitle}>Finance</Text><Text style={s.headerSub}>Wallet & Earnings</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
       <Animated.ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false} onScroll={Animated.event( [{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }, )} scrollEventThrottle={16} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>
+        {stripeError && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.amberBg, borderColor: COLORS.amber, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14 }}>
+            <Ionicons name="alert-circle-outline" size={18} color={COLORS.amber} />
+            <Text style={{ flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 }}>{stripeError}</Text>
+            <TouchableOpacity onPress={() => setStripeError(null)} hitSlop={8} accessibilityLabel="Dismiss">
+              <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
         <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} />
         {userRole === 'inspector' && earningsData && (
           <>

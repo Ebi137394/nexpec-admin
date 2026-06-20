@@ -27,7 +27,8 @@
 //  Hard guarantees
 //  ───────────────
 //    1. Authenticated Bearer JWT required.
-//    2. Authorization — caller's profiles.role must be 'inspector'.
+//    2. Authorization — caller's profiles.role must be a buyer
+//       (client / agency / enterprise; admin/super_admin = god-mode).
 //    3. Amount is integer halalas only. Floats are rejected.
 //    4. Stripe idempotency_key keyed on (user_id, amount, daily slot)
 //       — replaying within the same day with the same amount returns
@@ -107,7 +108,7 @@ serve(async (req) => {
       );
     }
 
-    // ── Step 2: Authorize — caller must be an inspector ─────────────
+    // ── Step 2: Authorize — caller must be a buyer (client/agency/enterprise) ──
     const { data: profile, error: profErr } = await supabaseAdmin
       .from('profiles')
       .select('role')
@@ -117,14 +118,18 @@ serve(async (req) => {
       console.error('[create-wallet-deposit-intent] profile lookup failed:', profErr.message);
       return jsonResponse({ error: 'Profile lookup failed', code: 'DB_ERROR' }, 500);
     }
-    if (!profile || profile.role !== 'inspector') {
+    // Wallet top-ups are a BUYER action — clients/agencies/enterprises prefund
+    // their balance to pay for inspections. (admin/super_admin = god-mode.)
+    // Inspectors/suppliers EARN and withdraw; they never top up.
+    const DEPOSIT_ROLES = ['client', 'agency', 'enterprise', 'admin', 'super_admin'];
+    if (!profile || !DEPOSIT_ROLES.includes(profile.role as string)) {
       console.warn(
-        `[create-wallet-deposit-intent][SECURITY] non-inspector topup attempt — user=${user.id} role=${profile?.role ?? 'unknown'}`,
+        `[create-wallet-deposit-intent][SECURITY] unauthorized topup attempt — user=${user.id} role=${profile?.role ?? 'unknown'}`,
       );
       return jsonResponse(
         {
-          error: 'Wallet top-ups are only available to inspectors',
-          code: 'NOT_INSPECTOR',
+          error: 'Wallet top-ups are available to buyer accounts (client, agency, enterprise).',
+          code: 'NOT_AUTHORIZED',
         },
         403,
       );

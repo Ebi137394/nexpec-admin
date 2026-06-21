@@ -39,6 +39,32 @@ const stripInspectorSignature = (raw: string): string =>
     .filter((line) => !/^\s*signed\s*by\s*[:\-]/i.test(line))
     .join('\n')
     .trim();
+
+const titleCase = (s: string): string =>
+  s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Parse a stored report's free-text notes into structured sections so it can be
+// rendered as a polished document (not a raw monospace blob). Recognizes a
+// leading [TAG] line and ALL-CAPS "HEADING:" markers; the inspector signature
+// line is dropped (re-rendered separately as the pseudonymous NX handle).
+type ReportSection = { title: string; body: string };
+function parseReport(raw: string): { tag: string | null; sections: ReportSection[] } {
+  const lines = stripInspectorSignature(raw).split('\n');
+  let tag: string | null = null;
+  const out: { title: string; body: string[] }[] = [];
+  let cur: { title: string; body: string[] } | null = null;
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t && !cur) continue; // skip leading blank lines
+    const tagMatch = t.match(/^\[(.+)\]$/);
+    if (tagMatch && !cur && out.length === 0) { tag = titleCase(tagMatch[1]); continue; }
+    const headMatch = t.match(/^([A-Z][A-Z0-9 /&'\-]{2,}):$/);
+    if (headMatch) { cur = { title: titleCase(headMatch[1].trim()), body: [] }; out.push(cur); continue; }
+    if (!cur) { cur = { title: 'Summary', body: [] }; out.push(cur); }
+    cur.body.push(line);
+  }
+  return { tag, sections: out.map((s) => ({ title: s.title, body: s.body.join('\n').trim() })) };
+}
 // ★ AGENCY-PARITY-006 — Approve & Request-revision now hit the
 //   approve_inspection_report RPC (atomic, ownership-checked against
 //   BOTH jobs.client_id and jobs.agency_id). Gating mirrors the parent
@@ -53,8 +79,7 @@ interface ReportDetails {
   report_id: string; job_id: string; contractor_id: string; summary: string;
   report_file_url: string | null; photos_urls: string[]; report_status: string;
   revision_notes: string | null; revision_count: number; submitted_at: string;
-  job_title: string; job_price_cents: number; job_location: string; escrow_status: string;  // ★ Task 4
-  contractor_payout_amount_cents: number;  // ★ Task 4
+  job_title: string; job_price_cents: number; job_location: string;  // ★ Task 4
   // ★ AGENCY-PARITY-006 — buyer-ownership fields fetched alongside job
   //   metadata so canManageJob can be computed locally.
   job_client_id: string | null;
@@ -123,7 +148,7 @@ export default function ReviewReportScreen() {
         // there are no revision_* columns on this table.
         .select(`
           id, job_id, inspector_id, notes, photo_url, pdf_url, final_report_doc, status, created_at,
-          jobs (title, price_cents, location, escrow_status, contractor_payout_amount_cents, client_id, agency_id),
+          jobs (title, price_cents, location, client_id, agency_id),
           inspector:profiles (rating_average, rating_count)
         `)
         .eq('job_id', id)
@@ -163,8 +188,6 @@ export default function ReviewReportScreen() {
         // ★ Task 4: integer cents end-to-end.
         job_price_cents: job?.price_cents || 0,
         job_location: job?.location || '',
-        escrow_status: job?.escrow_status || 'funded',
-        contractor_payout_amount_cents: job?.contractor_payout_amount_cents || 0,
         // ★ AGENCY-PARITY-006 — ownership pass-through for the gate.
         job_client_id: job?.client_id ?? null,
         job_agency_id: job?.agency_id ?? null,
@@ -300,7 +323,7 @@ export default function ReviewReportScreen() {
             </View>
           )}
           <View style={[styles.rowBetween, {marginTop: 8}]}>
-            <Text style={[styles.lineLabel, {color:'#FFF', fontWeight:'bold'}]}>Held in Escrow</Text>
+            <Text style={[styles.lineLabel, {color:'#FFF', fontWeight:'bold'}]}>Secured Funds</Text>
             <Text style={[styles.lineValue, {fontSize: 16}]}>{formatCurrency(report.job_price_cents + expenseTotal)}</Text>
           </View>
         </View>
@@ -339,6 +362,16 @@ export default function ReviewReportScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#7C3AED"/></View>;
   if (!report) return null;
 
+  const parsed = parseReport(report.summary);
+  const statusMeta =
+    report.report_status === 'approved'
+      ? { label: 'Approved', color: '#22C55E' }
+      : report.report_status === 'published'
+      ? { label: 'Published', color: '#22C55E' }
+      : report.report_status === 'revision_requested'
+      ? { label: 'Revision Requested', color: '#F59E0B' }
+      : { label: 'Submitted', color: '#7C3AED' };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -368,34 +401,61 @@ export default function ReviewReportScreen() {
         {/* Expenses Section */}
         <ExpensesList />
 
-        {/* Report — rendered as a clean document; inspector identity
-            anonymized to the pseudonymous NX handle (anti-poaching). */}
+        {/* Report — parsed into structured sections + a credential signature.
+            Inspector identity stays the pseudonymous NX handle (anti-poaching). */}
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <FileText size={20} color="#7C3AED" />
-            <Text style={styles.cardTitle}>Inspector's Report</Text>
+          <View style={styles.reportHeaderRow}>
+            <View style={styles.reportIconWrap}>
+              <FileText size={18} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Inspector's Report</Text>
+              {parsed.tag ? <Text style={styles.reportEyebrow}>{parsed.tag}</Text> : null}
+            </View>
+            <View style={[styles.statusPill, { borderColor: statusMeta.color + '59', backgroundColor: statusMeta.color + '1F' }]}>
+              <Text style={[styles.statusPillText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+            </View>
           </View>
-          <View style={styles.reportDoc}>
-            <Text style={styles.reportMono}>{stripInspectorSignature(report.summary)}</Text>
-            <View style={styles.sigRow}>
-              <View style={styles.sigAvatar}>
-                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>NX</Text>
+
+          <View style={styles.reportBody}>
+            {parsed.sections.length === 0 ? (
+              <Text style={styles.sectionBody}>No report details were provided.</Text>
+            ) : (
+              parsed.sections.map((sec, i) => (
+                <View key={i} style={i > 0 ? { marginTop: 18 } : undefined}>
+                  <View style={styles.sectionLabelRow}>
+                    <View style={styles.sectionTick} />
+                    <Text style={styles.sectionLabel}>{sec.title}</Text>
+                  </View>
+                  <Text style={styles.sectionBody}>{sec.body || 'None noted.'}</Text>
+                </View>
+              ))
+            )}
+
+            {/* Credential signature — anonymized, tamper-evident chip */}
+            <View style={styles.credChip}>
+              <View style={styles.credSigil}>
+                <Text style={styles.credSigilTxt}>NX</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sigHandle}>Signed by {nxHandle(report.contractor_id)}</Text>
-                <Text style={styles.sigVerified}>✓ Verified NEXPEC Inspector</Text>
+                <Text style={styles.credName}>{nxHandle(report.contractor_id)}</Text>
+                <Text style={styles.credRole}>Verified NEXPEC Inspector</Text>
+              </View>
+              <View style={styles.credVerified}>
+                <Check size={12} color="#22C55E" />
+                <Text style={styles.credVerifiedTxt}>Verified</Text>
               </View>
             </View>
           </View>
 
           {report.report_file_url && (
             <TouchableOpacity style={styles.docBtn} onPress={() => Linking.openURL(report.report_file_url!)}>
-              <FileText size={20} color="#7C3AED" />
+              <View style={styles.docIconWrap}><FileText size={18} color="#7C3AED" /></View>
               <View style={{flex:1}}>
-                <Text style={styles.docName}>Full_Report.pdf</Text>
-                <Text style={styles.docSub}>Tap to view document</Text>
+                <Text style={styles.docName}>Full Inspection Report</Text>
+                <Text style={styles.docSub}>PDF · tap to open</Text>
               </View>
-              <Download size={20} color="#9CA3AF" />
+              <Download size={18} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
@@ -585,13 +645,28 @@ const styles = StyleSheet.create({
 
   summaryText: { color: '#CBD5E1', lineHeight: 22 },
 
-  // Report "document" rendering + anonymized signature
-  reportDoc: { backgroundColor: '#06081E', borderRadius: 12, borderWidth: 1, borderColor: '#1A1D3C', padding: 14, marginTop: 2 },
-  reportMono: { color: '#CBD5E1', fontSize: 13, lineHeight: 21, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  sigRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#1A1D3C' },
-  sigAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#312E81', alignItems: 'center', justifyContent: 'center' },
-  sigHandle: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  sigVerified: { color: '#22C55E', fontSize: 12, fontWeight: '600', marginTop: 1 },
+  // Report document (premium structured rendering)
+  reportHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  reportIconWrap: { width: 38, height: 38, borderRadius: 11, backgroundColor: 'rgba(124,58,237,0.15)', borderWidth: 1, borderColor: 'rgba(124,58,237,0.30)', alignItems: 'center', justifyContent: 'center' },
+  reportEyebrow: { color: '#7C3AED', fontSize: 11, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginTop: 3 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
+  statusPillText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
+
+  reportBody: { backgroundColor: '#06081E', borderRadius: 14, borderWidth: 1, borderColor: '#1A1D3C', padding: 18 },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  sectionTick: { width: 3, height: 13, borderRadius: 2, backgroundColor: '#7C3AED' },
+  sectionLabel: { color: '#A78BFA', fontSize: 12, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase' },
+  sectionBody: { color: '#E5E7EB', fontSize: 15, lineHeight: 23 },
+
+  // Credential signature chip
+  credChip: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#1A1D3C' },
+  credSigil: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#312E81', borderWidth: 1, borderColor: 'rgba(124,58,237,0.5)', alignItems: 'center', justifyContent: 'center' },
+  credSigilTxt: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 },
+  credName: { color: '#FFFFFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.3 },
+  credRole: { color: '#9CA3AF', fontSize: 12, marginTop: 1 },
+  credVerified: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(34,197,94,0.12)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.30)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  credVerifiedTxt: { color: '#22C55E', fontSize: 11, fontWeight: '700' },
+  docIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(124,58,237,0.12)', alignItems: 'center', justifyContent: 'center' },
 
   docBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(124,58,237,0.10)', padding: 12, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: 'rgba(124,58,237,0.35)' },
   docName: { fontWeight: '700', color: '#FFFFFF' },

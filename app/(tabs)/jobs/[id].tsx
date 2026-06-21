@@ -12,6 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { jobFieldsForRole } from '@/lib/jobsProjection';
+// ★ ANTI-POACHING + AUDIT PARITY — pseudonymous handle + per-job audit timeline,
+//   matching the canonical /(client)/jobs/[id] screen (this stale tab copy had
+//   diverged and still leaked real name/photo/CV).
+import { nxHandle } from '@/src/core/utils/handle';
+import AuditTimeline from '@/src/components/audit/AuditTimeline';
 // ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
 //   lockdown the inspection-photos bucket is private; stored
 //   getPublicUrl() values silently 403 on the device.
@@ -27,12 +32,14 @@ const COLORS = {
   error: '#EF4444', text: '#FFFFFF', textSecondary: '#9CA3AF',
 };
 
-// Whitelist of safe, non-sensitive fields to expose to Client/Agency.
+// ★ ANTI-POACHING: pre-reveal, client/agency surfaces never receive the
+//   inspector's real name, photo, or résumé. Keep ONLY the opaque id
+//   (→ nxHandle) plus non-identifying competency signals. Dropping the PII
+//   columns here means they never enter device memory in the first place
+//   (defense-in-depth behind the anonymized render below).
 const SAFE_PROFILE_FIELDS = [
-  'id', 'full_name', 'first_name', 'last_name',
-  'avatar_url', 'professional_title', 'title', 'headline',
+  'id', 'professional_title', 'title', 'headline',
   'rating_average', 'rating', 'completed_jobs_count', 'total_jobs',
-  'cv_url',
 ] as const;
 
 const formatDate = (dateString?: string | null): string => {
@@ -476,15 +483,21 @@ export default function JobDetailScreen() {
                 <CheckCircle size={22} color={COLORS.success} />
                 <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
               </View>
-              <View style={styles.hiredCard}>
-                <Image
-                  source={{
-                    uri: acceptedProposal.applicant?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(acceptedProposal.applicant?.full_name || 'Inspector')}&background=${COLORS.primary.replace('#', '')}&color=fff`,
-                  }}
-                  style={styles.hiredAvatar}
-                />
+              {/* ANTI-POACHING: tappable card → anonymized Trust Card; pseudonymous
+                  sigil + NX handle only, never the real photo/name pre-reveal. */}
+              <TouchableOpacity
+                style={styles.hiredCard}
+                activeOpacity={0.85}
+                onPress={() =>
+                  acceptedProposal.applicant?.id &&
+                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}` as any)
+                }
+              >
+                <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{acceptedProposal.applicant?.full_name}</Text>
+                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant?.id)}</Text>
                   <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.professional_title || 'Inspector'}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -497,7 +510,7 @@ export default function JobDetailScreen() {
                     </View>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               {/* 🔴 پیام ادمین و لینک مدارک برای کلاینت */}
               {(acceptedProposal.admin_feedback || acceptedProposal.admin_attachment) && (
@@ -536,7 +549,11 @@ export default function JobDetailScreen() {
                   {reportData.is_published ? 'Final Inspection Report Ready' : 'Report Pending Admin Review'}
                 </Text>
                 {reportData.is_published && (
-                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => setViewerVisible(true)}>
+                  /* Symptom 3 fix — open the dedicated full report viewer (multi-photo,
+                     findings, downloadable history) at /jobs/[id]/review-report,
+                     matching /(client)/jobs/[id] + web, instead of the minimal
+                     single-photo in-screen modal. */
+                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${id}/review-report` as any)}>
                     <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Full Report</Text>
                   </TouchableOpacity>
                 )}
@@ -597,24 +614,19 @@ export default function JobDetailScreen() {
             {pendingProposals.map((proposal) => (
               <View key={proposal.id} style={styles.proposalCard}>
                 <View style={styles.proposalHeader}>
-                  <Image source={{ uri: proposal.applicant?.avatar_url || `https://ui-avatars.com/api/?name=Inspector&background=${COLORS.primary.replace('#', '')}&color=fff` }} style={styles.proposalAvatar} />
+                  {/* ANTI-POACHING: pseudonymous sigil + NX handle only. */}
+                  <View style={[styles.proposalAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
+                    <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
+                  </View>
                   <View style={styles.proposalInfo}>
-                    <Text style={styles.proposalName}>{proposal.applicant?.full_name}</Text>
+                    <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
                     <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || 'Inspector'}</Text>
                   </View>
                 </View>
 
-                {proposal.applicant?.cv_url ? (
-                  <TouchableOpacity style={styles.cvButton} onPress={() => openCV(proposal.applicant.cv_url)}>
-                    <FileText size={16} color={COLORS.primary} />
-                    <Text style={styles.cvButtonText}>View Inspector CV</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={[styles.cvButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.cardBorder }]}>
-                    <FileText size={16} color={COLORS.textSecondary} />
-                    <Text style={[styles.cvButtonText, { color: COLORS.textSecondary }]}>No CV Uploaded</Text>
-                  </View>
-                )}
+                {/* CV intentionally NOT shown pre-reveal: a résumé exposes the
+                    inspector's real name/email/phone/employer (anti-poaching).
+                    Identity is escrowed until an admin-brokered reveal. */}
 
                 {proposal.cover_letter ? (
                   <View style={styles.coverLetter}>
@@ -735,6 +747,29 @@ export default function JobDetailScreen() {
               </View>
             )}
           </View>
+
+          {/* ★ Symptom 4 fix — Activity & Audit Trail (RLS-filtered to this job's
+              events), parity with /(client)/jobs/[id] + web. */}
+          <View style={clientAuditStyles.card}>
+            <View style={clientAuditStyles.header}>
+              <View style={clientAuditStyles.iconWrap}>
+                <Ionicons name="shield-checkmark" size={18} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={clientAuditStyles.title}>Activity & Audit Trail</Text>
+                <Text style={clientAuditStyles.sub}>
+                  Every status change, pricing update, and hiring decision on this job
+                </Text>
+              </View>
+            </View>
+            <AuditTimeline
+              jobId={String(id)}
+              inline
+              showHeader={false}
+              emptyTitle="No activity yet"
+              emptySubtitle="Updates to this job will appear here in real time."
+            />
+          </View>
         </ScrollView>
 
         <Modal visible={commentModalVisible} transparent animationType="fade">
@@ -786,6 +821,42 @@ export default function JobDetailScreen() {
     </>
   );
 }
+
+// ★ Audit Trail card (locked NEXPEC theme, RLS-filtered) — parity with /(client)/jobs/[id].
+//   No horizontal margin: the ScrollView's scrollContent already applies padding:20,
+//   so this card aligns flush with the other sections.
+const clientAuditStyles = StyleSheet.create({
+  card: {
+    marginTop: 16,
+    marginBottom: 24,
+    backgroundColor: '#0A0E2E',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1A1F4E',
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1F4E',
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.30)',
+  },
+  title: { fontSize: 14, fontWeight: '800', color: '#F8FAFC', letterSpacing: 0.2 },
+  sub:   { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },

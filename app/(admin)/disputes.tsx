@@ -68,7 +68,7 @@ const C = {
 const RESOLUTIONS = [
   {
     value: 'completed',
-    label: "Client's favour, release escrow",
+    label: "Client's favour, release funds",
     description: 'Job is marked complete and the inspector is paid out. Use when work was delivered as agreed.',
     icon: 'checkmark-circle',
     tone: C.ok,
@@ -78,7 +78,7 @@ const RESOLUTIONS = [
   {
     value: 'cancelled',
     label: "Inspector's favour, refund client",
-    description: 'Job is cancelled and escrow is refunded to the client. Use when the inspector failed to deliver.',
+    description: 'Job is cancelled and the Secured Funds are refunded to the client. Use when the inspector failed to deliver.',
     icon: 'close-circle',
     tone: C.danger,
     toneDim: C.dangerDim,
@@ -87,7 +87,7 @@ const RESOLUTIONS = [
   {
     value: 'in_progress',
     label: 'Back to mediation, keep frozen',
-    description: 'Reopen the job for further negotiation. Escrow stays frozen. Use when more evidence is needed.',
+    description: 'Reopen the job for further negotiation. Secured Funds stay frozen. Use when more evidence is needed.',
     icon: 'sync',
     tone: C.info,
     toneDim: C.infoDim,
@@ -267,10 +267,10 @@ export default function AdminDisputesScreen() {
       if (error) throw error;
       const verb =
         resolution === 'completed'
-          ? 'Escrow released to the inspector.'
+          ? 'Secured Funds released to the inspector.'
           : resolution === 'cancelled'
-            ? 'Escrow refunded to the client.'
-            : 'Escrow stays frozen, job back in mediation.';
+            ? 'Secured Funds refunded to the client.'
+            : 'Secured Funds stay frozen, job back in mediation.';
       Alert.alert('Dispute resolved', verb);
       setResolving(null);
       await fetchAll();
@@ -341,7 +341,7 @@ export default function AdminDisputesScreen() {
                   notation: 'compact',
                 }).format(totalEscrowCents / 100)}
               </Text>
-              <Text style={s.statLabel}>Escrow frozen</Text>
+              <Text style={s.statLabel}>Funds frozen</Text>
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
@@ -362,7 +362,7 @@ export default function AdminDisputesScreen() {
               </View>
               <Text style={s.emptyTitle}>No open disputes</Text>
               <Text style={s.emptySub}>
-                The platform is in good standing. New disputes surface here in real-time and pause escrow until you resolve.
+                The platform is in good standing. New disputes surface here in real-time and freeze the Secured Funds until you resolve.
               </Text>
             </View>
           ) : (
@@ -517,7 +517,7 @@ function ResolveSheet({
           </View>
 
           <Text style={s.sheetExplain}>
-            Pick the outcome. Escrow moves the moment you confirm, audit
+            Pick the outcome. Secured Funds move the moment you confirm, audit
             row + notifications to both parties are written atomically.
           </Text>
 
@@ -585,7 +585,7 @@ function ResolveSheet({
               <Ionicons name="hammer" size={14} color="#FFF" />
             )}
             <Text style={s.submitBtnText}>
-              {submitting ? 'Recording resolution…' : 'Confirm + move escrow'}
+              {submitting ? 'Recording resolution…' : 'Confirm + move funds'}
             </Text>
           </Pressable>
         </View>

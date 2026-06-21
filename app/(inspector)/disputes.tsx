@@ -201,7 +201,7 @@ export default function InspectorDisputesScreen() {
       if (error) throw error;
       Alert.alert(
         'Dispute filed',
-        'Escrow on this job is now paused and admin has been notified. You\'ll get a notification when there\'s a resolution.',
+        'Secured Funds on this job are now frozen and admin has been notified. You\'ll get a notification when there\'s a resolution.',
       );
       setFilerOpen(false);
       await fetchDisputes();
@@ -301,7 +301,7 @@ export default function InspectorDisputesScreen() {
               <Text style={s.emptyTitle}>No disputes, clean record</Text>
               <Text style={s.emptySub}>
                 If a client is late on payment or you have a scope disagreement,
-                file a dispute here. Admin pauses escrow and mediates.
+                file a dispute here. Admin freezes the Secured Funds and mediates.
               </Text>
               <Pressable
                 onPress={openFiler}
@@ -373,7 +373,7 @@ export default function InspectorDisputesScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.sheetKicker}>FILE A DISPUTE</Text>
-                <Text style={s.sheetTitle}>Pause escrow + alert admin</Text>
+                <Text style={s.sheetTitle}>Freeze Secured Funds + alert admin</Text>
               </View>
               <Pressable onPress={() => setFilerOpen(false)} hitSlop={10}>
                 <Ionicons name="close" size={22} color={C.textSec} />
@@ -484,7 +484,7 @@ export default function InspectorDisputesScreen() {
                 <Ionicons name="alert-circle" size={14} color="#1F1300" />
               )}
               <Text style={s.submitBtnText}>
-                {filing ? 'Filing…' : 'File dispute, pause escrow'}
+                {filing ? 'Filing…' : 'File dispute, freeze funds'}
               </Text>
             </Pressable>
           </View>

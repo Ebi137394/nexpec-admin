@@ -388,7 +388,7 @@ export default function Dashboard() {
             </View>
           </View>
           <Text style={s.financialHeroSubtitle} numberOfLines={2}>
-            Resolve disputed jobs, Release or refund escrow, Audit-annotated
+            Resolve disputed jobs, Release or refund Secured Funds, Audit-annotated
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color="#EF4444" />

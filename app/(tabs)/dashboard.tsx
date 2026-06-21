@@ -152,7 +152,7 @@ export default function DashboardScreen() {
             )}
           </View>
         </ScrollView>
-        <TouchableOpacity style={styles.fab} onPress={() => router.push('/(tabs)/map-screen')}>
+        <TouchableOpacity style={styles.fab} onPress={() => router.push('/map')}>
           <Ionicons name="map" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </SafeAreaView>

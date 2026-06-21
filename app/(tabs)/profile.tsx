@@ -662,7 +662,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/(tabs)/my-jobs')}
+                  onPress={() => router.push('/my-jobs')}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
                     <Ionicons name="list" size={24} color="#8B5CF6" />
@@ -698,7 +698,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickAction, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}
-                  onPress={() => router.push('/(tabs)/my-jobs')}
+                  onPress={() => router.push('/my-jobs')}
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
                     <Ionicons name="calendar" size={24} color="#3B82F6" />

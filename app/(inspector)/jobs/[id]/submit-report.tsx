@@ -228,7 +228,7 @@ export default function SubmitReportScreen() {
       //    row's existence is the "client review pending" signal and
       //    payment success drives final completion.
       Alert.alert('Success', 'Report submitted successfully!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/my-jobs') }
+        { text: 'OK', onPress: () => router.replace('/my-jobs') }
       ]);
     } catch (err: any) {
       const errorMessage = err.message || 'Unknown error occurred';

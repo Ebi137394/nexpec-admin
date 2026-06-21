@@ -447,7 +447,7 @@ export default function ClientDashboardScreen() {
     [safeNav],
   );
   const onViewAllJobs = useCallback(
-    () => safeNav('/(tabs)/my-jobs'),
+    () => safeNav('/my-jobs'),
     [safeNav],
   );
   const onOpenLedger = useCallback(

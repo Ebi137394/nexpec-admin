@@ -282,7 +282,7 @@ export default function DashboardScreen() {
   // Navigation Handlers - UPDATED ✅
   // ============================================
   const handleFindJobs = () => router.push('/map');
-  const handleMyContracts = () => router.push('/(tabs)/my-jobs' as any); // ✅ Updated to correct route
+  const handleMyContracts = () => router.push('/my-jobs' as any); // ✅ Updated to correct route
   const handleMessages = () => router.push('/inbox' as any); // unified conversations inbox
   const handleAgreements = () => router.push('/contracts' as any); // unified Contracts hub
   const handleNotifications = () => router.push('/notifications' as any);
@@ -292,10 +292,10 @@ export default function DashboardScreen() {
   //   the existing my-jobs screen. Individual rows route to the underlying
   //   job detail (the canonical inspector destination) instead of a
   //   nonexistent application detail page.
-  const handleViewAllApplications = () => router.push('/(tabs)/my-jobs' as any);
+  const handleViewAllApplications = () => router.push('/my-jobs' as any);
   const handleApplicationPress = (jobId: string | null | undefined) => {
     if (!jobId) {
-      router.push('/(tabs)/my-jobs' as any);
+      router.push('/my-jobs' as any);
       return;
     }
     router.push(`/jobs/${jobId}` as any);

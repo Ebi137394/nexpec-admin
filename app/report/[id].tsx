@@ -144,7 +144,7 @@ export default function InspectionScreen({ onClose }: Props) {
       if (updateError) throw updateError;
 
       Alert.alert('Report Submitted! 🚀', 'Your inspection is now complete.', [
-        { text: 'OK', onPress: () => router.push('/(tabs)/my-jobs' as any) }
+        { text: 'OK', onPress: () => router.push('/my-jobs' as any) }
       ]);
 
     } catch (error: any) {

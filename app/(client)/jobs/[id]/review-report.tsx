@@ -91,13 +91,18 @@ export default function ReviewReportScreen() {
       //   can compute canManageJob without an extra round trip.
       const { data: rData, error: rError } = await supabase
         .from('inspection_reports')
+        // Real inspection_reports schema: inspector_id (not contractor_id),
+        // notes (not summary), pdf_url/final_report_doc (not file_url),
+        // photo_url single (not photos_urls[]), created_at (not submitted_at);
+        // there are no revision_* columns on this table.
         .select(`
-          id, job_id, contractor_id, summary, notes, file_url, photos_urls, status,
-          revision_notes, revision_count, submitted_at,
+          id, job_id, inspector_id, notes, photo_url, pdf_url, final_report_doc, status, created_at,
           jobs (title, price_cents, location, escrow_status, contractor_payout_amount_cents, client_id, agency_id),
           inspector:profiles (rating_average, rating_count)
         `)
         .eq('job_id', id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (rError) throw rError;
@@ -119,14 +124,15 @@ export default function ReviewReportScreen() {
       setReport({
         report_id: rData.id,
         job_id: rData.job_id,
-        contractor_id: rData.contractor_id,
-        summary: rData.summary || rData.notes || 'No summary provided.',
-        report_file_url: rData.file_url,
-        photos_urls: rData.photos_urls || [],
+        // Map real columns → existing UI fields (interface unchanged):
+        contractor_id: rData.inspector_id,
+        summary: rData.notes || 'No summary provided.',
+        report_file_url: rData.pdf_url || rData.final_report_doc || null,
+        photos_urls: rData.photo_url ? [rData.photo_url] : [],
         report_status: rData.status,
-        revision_notes: rData.revision_notes,
-        revision_count: rData.revision_count,
-        submitted_at: rData.submitted_at,
+        revision_notes: null,   // no revision_notes column on inspection_reports
+        revision_count: 0,      // no revision_count column on inspection_reports
+        submitted_at: rData.created_at,
         job_title: job?.title || 'Job',
         // ★ Task 4: integer cents end-to-end.
         job_price_cents: job?.price_cents || 0,

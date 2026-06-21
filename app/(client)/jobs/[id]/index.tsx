@@ -92,7 +92,6 @@ export default function JobDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [hiringId, setHiringId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<any>(null);
-  const [viewerVisible, setViewerVisible] = useState(false);
   // Client → Admin selection modal (restored: state was referenced by
   // openApprovalModal/submitToAdmin + the modal JSX but never declared).
   const [proposalToApprove, setProposalToApprove] = useState<Proposal | null>(null);
@@ -163,6 +162,22 @@ export default function JobDetailScreen() {
               },
         }));
         setProposals(mappedProposals as any);
+      }
+
+      // Fetch the latest inspection report for this job so the report card
+      // renders here too (parity with the Dashboard entry points). Hardened:
+      // newest row only, never throws on 0/many.
+      try {
+        const { data: reportResult } = await supabase
+          .from('inspection_reports')
+          .select('*')
+          .eq('job_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (reportResult) setReportData(reportResult);
+      } catch (e) {
+        // No report yet — leave the card hidden.
       }
     } catch (error) {
       console.error('Error fetching job details:', error);

@@ -31,12 +31,15 @@ import {
   User,
   FileCheck,
   AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { assignJobContractor } from '@/lib/assignJob';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { nxHandle } from '@/src/core/utils/handle';
+// ★ AUDIT PARITY — per-job audit timeline (matches /(client)/jobs/[id]).
+import AuditTimeline from '@/src/components/audit/AuditTimeline';
 // ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
 //   lockdown the inspection-photos bucket is private; stored
 //   getPublicUrl() values silently 403 on the device.
@@ -476,10 +479,17 @@ export default function JobDetailScreen() {
                 <CheckCircle size={22} color={COLORS.success} />
                 <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
               </View>
-              <View style={styles.hiredCard}>
-                {/* ANTI-POACHING: pseudonymous sigil + NX handle, never the
-                    real photo/name (pre-reveal: identity escrow until report
-                    sign-off). */}
+              {/* ANTI-POACHING: tappable card → anonymized Trust Card; pseudonymous
+                  sigil + NX handle, never the real photo/name (pre-reveal: identity
+                  escrow until report sign-off). */}
+              <TouchableOpacity
+                style={styles.hiredCard}
+                activeOpacity={0.85}
+                onPress={() =>
+                  acceptedProposal.applicant?.id &&
+                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}` as any)
+                }
+              >
                 <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
                   <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                 </View>
@@ -511,7 +521,7 @@ export default function JobDetailScreen() {
                 <TouchableOpacity style={styles.messageButton}>
                   <MessageSquare size={20} color={COLORS.primary} />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             </View>
 
           )}
@@ -526,7 +536,10 @@ export default function JobDetailScreen() {
                   {reportData.is_published ? 'Final Inspection Report Ready' : 'Report Pending Admin Review'}
                 </Text>
                 {reportData.is_published && (
-                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => setViewerVisible(true)}>
+                  /* Symptom 3 fix — open the dedicated full report viewer
+                     (multi-photo, findings, history) instead of the minimal
+                     single-photo in-screen modal; parity with /(client)/jobs/[id]. */
+                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${params.id}/review-report` as any)}>
                     <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Full Report</Text>
                   </TouchableOpacity>
                 )}
@@ -643,6 +656,29 @@ export default function JobDetailScreen() {
               ))
             )}
           </View>
+
+          {/* ★ Activity & Audit Trail (RLS-filtered to this job's events) —
+              parity with /(client)/jobs/[id] + web. */}
+          <View style={clientAuditStyles.card}>
+            <View style={clientAuditStyles.header}>
+              <View style={clientAuditStyles.iconWrap}>
+                <ShieldCheck size={18} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={clientAuditStyles.title}>Activity & Audit Trail</Text>
+                <Text style={clientAuditStyles.sub}>
+                  Every status change, pricing update, and hiring decision on this job
+                </Text>
+              </View>
+            </View>
+            <AuditTimeline
+              jobId={String(params.id)}
+              inline
+              showHeader={false}
+              emptyTitle="No activity yet"
+              emptySubtitle="Updates to this job will appear here in real time."
+            />
+          </View>
         </ScrollView>
 
         <Modal visible={viewerVisible} animationType="slide" transparent={true}>
@@ -668,6 +704,42 @@ export default function JobDetailScreen() {
     </>
   );
 }
+
+// ★ Audit Trail card (locked NEXPEC theme, RLS-filtered) — parity with /(client)/jobs/[id].
+//   No horizontal margin: scrollContent already applies padding:20, so this card
+//   aligns flush with the other sections.
+const clientAuditStyles = StyleSheet.create({
+  card: {
+    marginTop: 16,
+    marginBottom: 24,
+    backgroundColor: '#0A0E2E',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#1A1F4E',
+    overflow: 'hidden',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1F4E',
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.30)',
+  },
+  title: { fontSize: 14, fontWeight: '800', color: '#F8FAFC', letterSpacing: 0.2 },
+  sub:   { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+});
 
 const styles = StyleSheet.create({
   container: {

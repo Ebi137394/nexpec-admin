@@ -13,6 +13,32 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { nxHandle } from '@/src/core/utils/handle';
+
+// ★ NEXPEC brand palette (locked): deep-navy canvas + violet accent.
+const C = {
+  bg: '#020420',
+  card: '#0A0D2C',
+  border: '#1A1D3C',
+  violet: '#7C3AED',
+  violetSoft: 'rgba(124,58,237,0.14)',
+  text: '#FFFFFF',
+  textDim: '#9CA3AF',
+  textMute: '#64748B',
+  success: '#22C55E',
+  warning: '#F59E0B',
+  danger: '#EF4444',
+};
+
+// ANTI-POACHING: a stored report's free-text notes can carry the inspector's
+// real name in a "SIGNED BY:" line. Strip it for client-facing display — the
+// signature is re-rendered separately as the pseudonymous NX handle.
+const stripInspectorSignature = (raw: string): string =>
+  (raw || '')
+    .split('\n')
+    .filter((line) => !/^\s*signed\s*by\s*[:\-]/i.test(line))
+    .join('\n')
+    .trim();
 // ★ AGENCY-PARITY-006 — Approve & Request-revision now hit the
 //   approve_inspection_report RPC (atomic, ownership-checked against
 //   BOTH jobs.client_id and jobs.agency_id). Gating mirrors the parent
@@ -245,10 +271,9 @@ export default function ReviewReportScreen() {
   const PaymentCard = () => {
     if (!report) return null;
     const expenseTotal = expenses.reduce((sum, item) => sum + item.amount, 0);
-    // Logic: Total Payout is the manually set amount plus claimed expenses
-    // ★ Task 4: integer cents math is identical to dollar math, just different unit.
-    const inspectorPayout = report.contractor_payout_amount_cents + expenseTotal;
-    const serviceCommission = report.job_price_cents - report.contractor_payout_amount_cents;
+    // PRICE-BLINDNESS: the client/agency sees ONLY what they pay (project value
+    // + any reimbursed expenses). The inspector's net payout and the NEXPEC
+    // managed commission are deliberately NOT derived or shown on this screen.
 
     return (
       <View style={styles.paymentCard}>
@@ -274,15 +299,9 @@ export default function ReviewReportScreen() {
               <Text style={styles.lineValue}>+ {formatCurrency(expenseTotal)}</Text>
             </View>
           )}
-          {serviceCommission > 0 && (
-            <View style={styles.rowBetween}>
-              <Text style={styles.lineLabel}>Managed Commission</Text>
-              <Text style={styles.lineValue}>- {formatCurrency(serviceCommission)}</Text>
-            </View>
-          )}
           <View style={[styles.rowBetween, {marginTop: 8}]}>
-            <Text style={[styles.lineLabel, {color:'#FFF', fontWeight:'bold'}]}>Net to Contractor</Text>
-            <Text style={[styles.lineValue, {fontSize: 16}]}>{formatCurrency(inspectorPayout)}</Text>
+            <Text style={[styles.lineLabel, {color:'#FFF', fontWeight:'bold'}]}>Held in Escrow</Text>
+            <Text style={[styles.lineValue, {fontSize: 16}]}>{formatCurrency(report.job_price_cents + expenseTotal)}</Text>
           </View>
         </View>
       </View>
@@ -317,17 +336,17 @@ export default function ReviewReportScreen() {
     );
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#3B82F6"/></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#7C3AED"/></View>;
   if (!report) return null;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft size={24} color="#0F172A" />
+          <ChevronLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review & Pay</Text>
         <View style={{width:40}} />
@@ -337,7 +356,7 @@ export default function ReviewReportScreen() {
 
         {/* Status Banner */}
         <View style={styles.statusBanner}>
-          <Clock size={16} color="#B45309" />
+          <Clock size={16} color="#F59E0B" />
           <Text style={styles.statusText}>Action Required: Review findings to release payment.</Text>
         </View>
 
@@ -349,22 +368,34 @@ export default function ReviewReportScreen() {
         {/* Expenses Section */}
         <ExpensesList />
 
-        {/* Report Summary */}
+        {/* Report — rendered as a clean document; inspector identity
+            anonymized to the pseudonymous NX handle (anti-poaching). */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <FileText size={20} color="#3B82F6" />
+            <FileText size={20} color="#7C3AED" />
             <Text style={styles.cardTitle}>Inspector's Report</Text>
           </View>
-          <Text style={styles.summaryText}>{report.summary}</Text>
+          <View style={styles.reportDoc}>
+            <Text style={styles.reportMono}>{stripInspectorSignature(report.summary)}</Text>
+            <View style={styles.sigRow}>
+              <View style={styles.sigAvatar}>
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>NX</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sigHandle}>Signed by {nxHandle(report.contractor_id)}</Text>
+                <Text style={styles.sigVerified}>✓ Verified NEXPEC Inspector</Text>
+              </View>
+            </View>
+          </View>
 
           {report.report_file_url && (
             <TouchableOpacity style={styles.docBtn} onPress={() => Linking.openURL(report.report_file_url!)}>
-              <FileText size={20} color="#EF4444" />
+              <FileText size={20} color="#7C3AED" />
               <View style={{flex:1}}>
                 <Text style={styles.docName}>Full_Report.pdf</Text>
                 <Text style={styles.docSub}>Tap to view document</Text>
               </View>
-              <Download size={20} color="#64748B" />
+              <Download size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
@@ -373,7 +404,7 @@ export default function ReviewReportScreen() {
         {report.photos_urls.length > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Camera size={20} color="#8B5CF6" />
+              <Camera size={20} color="#7C3AED" />
               <Text style={styles.cardTitle}>Evidence Photos</Text>
             </View>
             <View style={styles.photoGrid}>
@@ -386,14 +417,14 @@ export default function ReviewReportScreen() {
 
        {/* EXTERNAL CHAT BUTTON */}
        <TouchableOpacity 
-         style={{ backgroundColor: '#F1F5F9', padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: '#7C3AED', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-         onPress={() => router.push(`/chat/${id}?chatType=admin_support`)} 
+         style={{ backgroundColor: 'rgba(124,58,237,0.10)', padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: '#7C3AED', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+         onPress={() => router.push(`/chat/${id}?chatType=admin_support`)}
        >
          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
            <FileText size={24} color="#7C3AED" style={{ marginRight: 12 }} />
            <View>
-             <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: 'bold' }}>Chat with Admin</Text>
-             <Text style={{ color: '#64748B', fontSize: 12 }}>External support conversation</Text>
+             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>Chat with Admin</Text>
+             <Text style={{ color: '#9CA3AF', fontSize: 12 }}>External support conversation</Text>
            </View>
          </View>
          <ChevronRight size={20} color="#7C3AED" />
@@ -474,7 +505,7 @@ export default function ReviewReportScreen() {
             <Text style={styles.modalTitle}>Request Changes</Text>
             <Text style={styles.modalSub}>Describe what needs to change. The inspector will receive your note and can resubmit.</Text>
             <View style={{ width: '100%', marginBottom: 16 }}>
-              <View style={{ borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 10, minHeight: 96 }}>
+              <View style={{ borderWidth: 1, borderColor: '#1A1D3C', borderRadius: 12, backgroundColor: '#06081E', paddingHorizontal: 12, paddingVertical: 10, minHeight: 96 }}>
                 <RevisionNotesInput value={revisionNotes} onChangeText={setRevisionNotes} />
               </View>
             </View>
@@ -510,73 +541,82 @@ function RevisionNotesInput({ value, onChangeText }: { value: string; onChangeTe
       placeholder="e.g. The exterior photo doesn't clearly show the company signage. Please retake with the sign in frame."
       placeholderTextColor="#94A3B8"
       multiline
-      style={{ flex: 1, padding: 0, margin: 0, color: '#0F172A', fontSize: 14, lineHeight: 20, textAlignVertical: 'top', minHeight: 76 }}
+      style={{ flex: 1, padding: 0, margin: 0, color: '#FFFFFF', fontSize: 14, lineHeight: 20, textAlignVertical: 'top', minHeight: 76 }}
     />
   );
 }
 
 // STYLES
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 60, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  container: { flex: 1, backgroundColor: '#020420' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#020420' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 60, backgroundColor: '#020420', borderBottomWidth: 1, borderBottomColor: '#1A1D3C' },
   backBtn: { padding: 8 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginLeft: 10 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginLeft: 10 },
   scrollContent: { padding: 16, paddingBottom: 120 },
 
-  statusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF3C7', padding: 12, borderRadius: 12, marginBottom: 16 },
-  statusText: { color: '#B45309', fontWeight: '600', fontSize: 13 },
-  jobTitle: { fontSize: 24, fontWeight: '800', color: '#0F172A', marginBottom: 20 },
+  statusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(245,158,11,0.12)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)', padding: 12, borderRadius: 12, marginBottom: 16 },
+  statusText: { color: '#F59E0B', fontWeight: '600', fontSize: 13, flex: 1 },
+  jobTitle: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 20 },
 
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
+  card: { backgroundColor: '#0A0D2C', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#1A1D3C' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 
-  // Payment Card
-  paymentCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 20, elevation: 4 },
-  paymentGradient: { backgroundColor: '#059669', padding: 20 },
+  // Payment Card (price-blind, on-brand)
+  paymentCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 20, borderWidth: 1, borderColor: 'rgba(124,58,237,0.45)' },
+  paymentGradient: { backgroundColor: '#0A0D2C', padding: 20 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   payLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 12, fontWeight: '600' },
-  secureBadge: { backgroundColor: '#FFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  secureText: { color: '#059669', fontSize: 10, fontWeight: '800' },
-  totalAmount: { color: '#FFF', fontSize: 32, fontWeight: '800', marginVertical: 8 },
-  totalLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 16 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 12 },
-  lineLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 13 },
-  lineValue: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  secureBadge: { backgroundColor: '#7C3AED', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  secureText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  totalAmount: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', marginVertical: 8 },
+  totalLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginBottom: 16 },
+  divider: { height: 1, backgroundColor: '#1A1D3C', marginBottom: 12 },
+  lineLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  lineValue: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 
   // Expense List
-  expenseRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  expDesc: { fontWeight: '600', color: '#334155' },
-  expDate: { fontSize: 12, color: '#94A3B8' },
-  expAmount: { fontWeight: '700', color: '#0F172A' },
-  viewReceipt: { fontSize: 12, color: '#3B82F6', fontWeight: '600', marginTop: 4 },
+  expenseRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1A1D3C' },
+  expDesc: { fontWeight: '600', color: '#E5E7EB' },
+  expDate: { fontSize: 12, color: '#64748B' },
+  expAmount: { fontWeight: '700', color: '#FFFFFF' },
+  viewReceipt: { fontSize: 12, color: '#7C3AED', fontWeight: '600', marginTop: 4 },
 
-  summaryText: { color: '#475569', lineHeight: 22 },
-  docBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FEF2F2', padding: 12, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: '#FECACA' },
-  docName: { fontWeight: '700', color: '#0F172A' },
-  docSub: { fontSize: 12, color: '#64748B' },
+  summaryText: { color: '#CBD5E1', lineHeight: 22 },
+
+  // Report "document" rendering + anonymized signature
+  reportDoc: { backgroundColor: '#06081E', borderRadius: 12, borderWidth: 1, borderColor: '#1A1D3C', padding: 14, marginTop: 2 },
+  reportMono: { color: '#CBD5E1', fontSize: 13, lineHeight: 21, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  sigRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#1A1D3C' },
+  sigAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#312E81', alignItems: 'center', justifyContent: 'center' },
+  sigHandle: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  sigVerified: { color: '#22C55E', fontSize: 12, fontWeight: '600', marginTop: 1 },
+
+  docBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(124,58,237,0.10)', padding: 12, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: 'rgba(124,58,237,0.35)' },
+  docName: { fontWeight: '700', color: '#FFFFFF' },
+  docSub: { fontSize: 12, color: '#9CA3AF' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8 },
+  photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8, backgroundColor: '#1A1D3C' },
 
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#FFF', padding: 16, paddingBottom: 34, borderTopWidth: 1, borderTopColor: '#E2E8F0', flexDirection: 'row', gap: 12 },
-  revisionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: '#FEF3C7' },
-  revisionText: { fontSize: 14, fontWeight: '600', color: '#B45309' },
-  approveBtn: { flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: '#22C55E' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#0A0D2C', padding: 16, paddingBottom: 34, borderTopWidth: 1, borderTopColor: '#1A1D3C', flexDirection: 'row', gap: 12 },
+  revisionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: 'rgba(245,158,11,0.14)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
+  revisionText: { fontSize: 14, fontWeight: '600', color: '#F59E0B' },
+  approveBtn: { flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: '#7C3AED' },
   approveText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
 
   // Modals
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center' },
-  modalIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#22C55E', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
-  modalSub: { textAlign: 'center', color: '#64748B', marginBottom: 24 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#0A0D2C', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#1A1D3C' },
+  modalIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
+  modalSub: { textAlign: 'center', color: '#9CA3AF', marginBottom: 24 },
   modalBtns: { flexDirection: 'row', gap: 12, width: '100%' },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center' },
-  cancelText: { fontWeight: '600', color: '#64748B' },
-  modalConfirm: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#22C55E', alignItems: 'center' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#1A1D3C', alignItems: 'center' },
+  cancelText: { fontWeight: '600', color: '#9CA3AF' },
+  modalConfirm: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#7C3AED', alignItems: 'center' },
   confirmText: { fontWeight: '600', color: '#FFF' },
-  successBtn: { width: '100%', padding: 16, backgroundColor: '#3B82F6', borderRadius: 12, alignItems: 'center' },
+  successBtn: { width: '100%', padding: 16, backgroundColor: '#7C3AED', borderRadius: 12, alignItems: 'center' },
   successText: { color: '#FFF', fontWeight: '700' }
 });

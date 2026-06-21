@@ -176,6 +176,9 @@ export interface Translation {
     'Compliance Vault': string;
     'Recent Activity': string;
   };
+  // Loose, partial-friendly namespace for incrementally-wired screens
+  // (Phase 3+). A locale may omit it; t() falls back to English then the key.
+  common?: Record<string, string>;
 }
 
 // English (Base)
@@ -354,7 +357,29 @@ const en: Translation = {
     'Invoice Approver': 'Invoice Approver',
     'Compliance Vault': 'Compliance Vault',
     'Recent Activity': 'Recent Activity',
-  }
+  },
+  common: {
+    'Active': 'Active',
+    'Pending': 'Pending',
+    'All': 'All',
+    'Jobs': 'Jobs',
+    'Clear': 'Clear',
+    'job': 'job',
+    'jobs': 'jobs',
+    'found': 'found',
+    'Search location or title...': 'Search location or title...',
+    'Search city, region, or job title…': 'Search city, region, or job title…',
+    'Unlimited': 'Unlimited',
+    'Tools': 'Tools',
+    'Engineering Tools': 'Engineering Tools',
+    'Marketplace': 'Marketplace',
+    'Find Suppliers': 'Find Suppliers',
+    'RFQs & Procurement': 'RFQs & Procurement',
+    'Become a Supplier': 'Become a Supplier',
+    'Quotes': 'Quotes',
+    'Supplier Rating': 'Supplier Rating',
+    'My Projects': 'My Projects',
+  },
 };
 
 // Italian
@@ -891,7 +916,29 @@ const de: Translation = {
     'Invoice Approver': 'Rechnungsgenehmiger',
     'Compliance Vault': 'Compliance-Tresor',
     'Recent Activity': 'Letzte Aktivität',
-  }
+  },
+  common: {
+    'Active': 'Aktiv',
+    'Pending': 'Ausstehend',
+    'All': 'Alle',
+    'Jobs': 'Aufträge',
+    'Clear': 'Löschen',
+    'job': 'Auftrag',
+    'jobs': 'Aufträge',
+    'found': 'gefunden',
+    'Search location or title...': 'Ort oder Titel suchen...',
+    'Search city, region, or job title…': 'Stadt, Region oder Auftragstitel suchen…',
+    'Unlimited': 'Unbegrenzt',
+    'Tools': 'Werkzeuge',
+    'Engineering Tools': 'Ingenieurwerkzeuge',
+    'Marketplace': 'Marktplatz',
+    'Find Suppliers': 'Lieferanten finden',
+    'RFQs & Procurement': 'Ausschreibungen & Beschaffung',
+    'Become a Supplier': 'Lieferant werden',
+    'Quotes': 'Angebote',
+    'Supplier Rating': 'Lieferantenbewertung',
+    'My Projects': 'Meine Projekte',
+  },
 };
 
 // French
@@ -1070,7 +1117,29 @@ const fr: Translation = {
     'Invoice Approver': 'Approbateur de factures',
     'Compliance Vault': 'Coffre-fort de conformité',
     'Recent Activity': 'Activité récente',
-  }
+  },
+  common: {
+    'Active': 'Actif',
+    'Pending': 'En attente',
+    'All': 'Tout',
+    'Jobs': 'Missions',
+    'Clear': 'Effacer',
+    'job': 'mission',
+    'jobs': 'missions',
+    'found': 'trouvées',
+    'Search location or title...': 'Rechercher un lieu ou un titre...',
+    'Search city, region, or job title…': 'Rechercher une ville, une région ou un intitulé…',
+    'Unlimited': 'Illimité',
+    'Tools': 'Outils',
+    'Engineering Tools': 'Outils d’ingénierie',
+    'Marketplace': 'Place de marché',
+    'Find Suppliers': 'Trouver des fournisseurs',
+    'RFQs & Procurement': 'Appels d’offres et achats',
+    'Become a Supplier': 'Devenir fournisseur',
+    'Quotes': 'Devis',
+    'Supplier Rating': 'Évaluation fournisseur',
+    'My Projects': 'Mes projets',
+  },
 };
 
 // Spanish
@@ -1249,7 +1318,29 @@ const es: Translation = {
     'Invoice Approver': 'Aprobador de facturas',
     'Compliance Vault': 'Bóveda de cumplimiento',
     'Recent Activity': 'Actividad reciente',
-  }
+  },
+  common: {
+    'Active': 'Activo',
+    'Pending': 'Pendiente',
+    'All': 'Todos',
+    'Jobs': 'Trabajos',
+    'Clear': 'Borrar',
+    'job': 'trabajo',
+    'jobs': 'trabajos',
+    'found': 'encontrados',
+    'Search location or title...': 'Buscar ubicación o título...',
+    'Search city, region, or job title…': 'Buscar ciudad, región o título de trabajo…',
+    'Unlimited': 'Ilimitado',
+    'Tools': 'Herramientas',
+    'Engineering Tools': 'Herramientas de ingeniería',
+    'Marketplace': 'Mercado',
+    'Find Suppliers': 'Buscar proveedores',
+    'RFQs & Procurement': 'Solicitudes y adquisiciones',
+    'Become a Supplier': 'Conviértete en proveedor',
+    'Quotes': 'Cotizaciones',
+    'Supplier Rating': 'Valoración del proveedor',
+    'My Projects': 'Mis proyectos',
+  },
 };
 
 // Chinese (Simplified)
@@ -1428,7 +1519,29 @@ const zh: Translation = {
     'Invoice Approver': '发票审批人',
     'Compliance Vault': '合规库',
     'Recent Activity': '最近活动',
-  }
+  },
+  common: {
+    'Active': '进行中',
+    'Pending': '待处理',
+    'All': '全部',
+    'Jobs': '工作',
+    'Clear': '清除',
+    'job': '个工作',
+    'jobs': '个工作',
+    'found': '找到',
+    'Search location or title...': '搜索地点或标题...',
+    'Search city, region, or job title…': '搜索城市、地区或职位…',
+    'Unlimited': '无限制',
+    'Tools': '工具',
+    'Engineering Tools': '工程工具',
+    'Marketplace': '市场',
+    'Find Suppliers': '查找供应商',
+    'RFQs & Procurement': '询价与采购',
+    'Become a Supplier': '成为供应商',
+    'Quotes': '报价',
+    'Supplier Rating': '供应商评分',
+    'My Projects': '我的项目',
+  },
 };
 
 // Arabic (RTL)
@@ -1607,7 +1720,29 @@ const ar: Translation = {
     'Invoice Approver': 'معتمد الفواتير',
     'Compliance Vault': 'خزنة الامتثال',
     'Recent Activity': 'النشاط الأخير',
-  }
+  },
+  common: {
+    'Active': 'نشط',
+    'Pending': 'قيد الانتظار',
+    'All': 'الكل',
+    'Jobs': 'الوظائف',
+    'Clear': 'مسح',
+    'job': 'وظيفة',
+    'jobs': 'وظائف',
+    'found': 'تم العثور عليها',
+    'Search location or title...': 'ابحث عن الموقع أو العنوان...',
+    'Search city, region, or job title…': 'ابحث عن مدينة أو منطقة أو عنوان وظيفة…',
+    'Unlimited': 'غير محدود',
+    'Tools': 'الأدوات',
+    'Engineering Tools': 'أدوات هندسية',
+    'Marketplace': 'السوق',
+    'Find Suppliers': 'البحث عن موردين',
+    'RFQs & Procurement': 'طلبات العروض والمشتريات',
+    'Become a Supplier': 'كن موردًا',
+    'Quotes': 'عروض الأسعار',
+    'Supplier Rating': 'تقييم المورد',
+    'My Projects': 'مشاريعي',
+  },
 };
 
 // Persian / Farsi (RTL)
@@ -1786,7 +1921,29 @@ const fa: Translation = {
     'Invoice Approver': 'تأییدکننده فاکتور',
     'Compliance Vault': 'گاوصندوق انطباق',
     'Recent Activity': 'فعالیت اخیر',
-  }
+  },
+  common: {
+    'Active': 'فعال',
+    'Pending': 'در انتظار',
+    'All': 'همه',
+    'Jobs': 'کارها',
+    'Clear': 'پاک کردن',
+    'job': 'کار',
+    'jobs': 'کار',
+    'found': 'یافت شد',
+    'Search location or title...': 'جستجوی مکان یا عنوان...',
+    'Search city, region, or job title…': 'جستجوی شهر، منطقه یا عنوان شغلی…',
+    'Unlimited': 'نامحدود',
+    'Tools': 'ابزارها',
+    'Engineering Tools': 'ابزارهای مهندسی',
+    'Marketplace': 'بازار',
+    'Find Suppliers': 'یافتن تأمین‌کنندگان',
+    'RFQs & Procurement': 'درخواست‌ها و تدارکات',
+    'Become a Supplier': 'تأمین‌کننده شوید',
+    'Quotes': 'پیشنهادات قیمت',
+    'Supplier Rating': 'امتیاز تأمین‌کننده',
+    'My Projects': 'پروژه‌های من',
+  },
 };
 
 // ★ Official V1 launch locales: English, French, Spanish, German, Chinese,

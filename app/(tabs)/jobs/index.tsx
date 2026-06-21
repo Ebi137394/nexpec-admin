@@ -9,6 +9,7 @@ import { Marker, Region } from 'react-native-maps';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS, INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 // ★ Phase 5 — Discovery Engine: proximity-sorted feed + radius override
 import { useDiscoverJobs } from '@/src/hooks/useDiscoverJobs';
@@ -309,6 +310,10 @@ export default function JobsScreen() {
   const isClientSide =
     userRole === 'client' || userRole === 'agency' || userRole === 'enterprise';
 
+  // i18n — Phase 3 Batch 1. uiLang drives memo recomputation on language flips
+  // (non-RTL switches don't reload the tree, so the memos below must depend on it).
+  const { t, language: uiLang } = useLanguage();
+
   const handleToggleFilter = useCallback((category: string, value: string) => {
     if (category === 'location') { setSelectedLocations(prev => prev.includes(value) ? prev.filter(l => l !== value) : [...prev, value]); } 
     else if (category === 'type') { setSelectedTypes(prev => prev.includes(value) ? prev.filter(t => t !== value) : [...prev, value]); } 
@@ -359,7 +364,7 @@ export default function JobsScreen() {
             <Ionicons name="search" size={16} color={COLORS.textMuted} style={{ marginRight: 6 }} />
             <TextInput
               style={st.searchInput}
-              placeholder={isDiscoverTab ? "Search city, region, or job title…" : "Search location or title..."}
+              placeholder={isDiscoverTab ? t('Search city, region, or job title…') : t('Search location or title...')}
               placeholderTextColor={COLORS.textMuted}
               value={searchQuery}
               onChangeText={handleSearchChange}
@@ -373,7 +378,7 @@ export default function JobsScreen() {
           </View>
           {hasFilters && (
             <TouchableOpacity style={st.clearMiniBtn} onPress={handleClearFilters} activeOpacity={0.7}>
-              <Text style={st.clearMiniBtnText}>Clear</Text>
+              <Text style={st.clearMiniBtnText}>{t('Clear')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -394,7 +399,7 @@ export default function JobsScreen() {
                   style={{ marginRight: 6 }}
                 />
                 <Text style={[st.radiusPillText, radiusPillActive && st.radiusPillTextActive]}>
-                  {effectiveRadiusKm === null ? 'Unlimited' : `Within ${effectiveRadiusKm} km`}
+                  {effectiveRadiusKm === null ? t('Unlimited') : `${effectiveRadiusKm} km`}
                 </Text>
                 <Ionicons
                   name="chevron-down"
@@ -423,16 +428,16 @@ export default function JobsScreen() {
         )}
       </View>
     );
-  }, [unifiedFilterChips, searchQuery, selectedLocations, selectedTypes, hasFilters, isDiscoverTab, effectiveRadiusKm, radiusPillActive, handleOpenRadiusSheet, handleSearchChange, handleClearFilters, handleToggleFilter]);
+  }, [unifiedFilterChips, searchQuery, selectedLocations, selectedTypes, hasFilters, isDiscoverTab, effectiveRadiusKm, radiusPillActive, handleOpenRadiusSheet, handleSearchChange, handleClearFilters, handleToggleFilter, uiLang]);
 
   const DiscoverListHeader = useMemo(() => (
     <View style={{ paddingTop: 10 }}>
       {UnifiedFilterHeader}
       <View style={st.resultsCountWrap}>
-        <Text style={st.resultsCountText}>{filteredDiscoverJobs.length} {filteredDiscoverJobs.length === 1 ? 'job' : 'jobs'} found</Text>
+        <Text style={st.resultsCountText}>{filteredDiscoverJobs.length} {filteredDiscoverJobs.length === 1 ? t('job') : t('jobs')} {t('found')}</Text>
       </View>
     </View>
-  ), [UnifiedFilterHeader, filteredDiscoverJobs.length]);
+  ), [UnifiedFilterHeader, filteredDiscoverJobs.length, uiLang]);
 
   const MyWorkListHeader = useMemo( () => (
       <View style={st.myWorkListHeader}>
@@ -446,21 +451,21 @@ export default function JobsScreen() {
         <PipelineSection userId={user?.id ?? null} userRole={userRole} />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.statsRow}>
-          <StatsCard icon="play-circle" label="Active" count={stats.active} color={COLORS.blue} bg={COLORS.blueBg} onPress={() => setFilter(filter === 'active' ? 'all' : 'active')} active={filter === 'active'} />
-          <StatsCard icon="time" label="Pending" count={stats.pending} color={COLORS.amber} bg={COLORS.amberBg} onPress={() => setFilter(filter === 'pending' ? 'all' : 'pending')} active={filter === 'pending'} />
-          <StatsCard icon="checkmark-circle" label="Completed" count={stats.completed} color={COLORS.green} bg={COLORS.greenBg} onPress={() => setFilter(filter === 'completed' ? 'all' : 'completed') } active={filter === 'completed'} />
+          <StatsCard icon="play-circle" label={t('Active')} count={stats.active} color={COLORS.blue} bg={COLORS.blueBg} onPress={() => setFilter(filter === 'active' ? 'all' : 'active')} active={filter === 'active'} />
+          <StatsCard icon="time" label={t('Pending')} count={stats.pending} color={COLORS.amber} bg={COLORS.amberBg} onPress={() => setFilter(filter === 'pending' ? 'all' : 'pending')} active={filter === 'pending'} />
+          <StatsCard icon="checkmark-circle" label={t('Completed')} count={stats.completed} color={COLORS.green} bg={COLORS.greenBg} onPress={() => setFilter(filter === 'completed' ? 'all' : 'completed') } active={filter === 'completed'} />
         </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.filterRow}>
-          {['all', 'active', 'pending', 'completed'].map((f) => ( <FilterChip key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={filter === f} onPress={() => setFilter(f)} /> ))}
+          {['all', 'active', 'pending', 'completed'].map((f) => ( <FilterChip key={f} label={t(f.charAt(0).toUpperCase() + f.slice(1))} active={filter === f} onPress={() => setFilter(f)} /> ))}
         </ScrollView>
         <View style={{ marginTop: 6 }}>
           {UnifiedFilterHeader}
           <View style={st.resultsCountWrap}>
-             <Text style={st.resultsCountText}>{filteredMyJobs.length} {filteredMyJobs.length === 1 ? 'job' : 'jobs'} found</Text>
+             <Text style={st.resultsCountText}>{filteredMyJobs.length} {filteredMyJobs.length === 1 ? t('job') : t('jobs')} {t('found')}</Text>
           </View>
         </View>
       </View>
-    ), [filter, stats, UnifiedFilterHeader, filteredMyJobs.length, user?.id, userRole] );
+    ), [filter, stats, UnifiedFilterHeader, filteredMyJobs.length, user?.id, userRole, uiLang] );
 
   if (roleLoading) {
     return <SafeAreaView style={[st.container, { justifyContent: 'center' }]}><ActivityIndicator size="large" color={COLORS.primary}/></SafeAreaView>;
@@ -469,7 +474,7 @@ export default function JobsScreen() {
   return (
     <SafeAreaView style={st.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
-      <View style={st.header}><Text style={st.headerTitle}>{isClientSide ? 'My Projects' : 'Jobs'}</Text></View>
+      <View style={st.header}><Text style={st.headerTitle}>{isClientSide ? t('My Projects') : t('Jobs')}</Text></View>
       
       {!isClientSide && <SegmentedControl activeIndex={activeTab} onChange={setActiveTab} />}
       

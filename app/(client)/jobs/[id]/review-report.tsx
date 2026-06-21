@@ -117,6 +117,9 @@ export default function ReviewReportScreen() {
   const [revisionNotes, setRevisionNotes] = useState('');
   const [revisionSubmitting, setRevisionSubmitting] = useState(false);
   const [successKind, setSuccessKind] = useState<'approved' | 'revision'>('approved');
+  // Track evidence photos whose remote image failed to load, so a broken /
+  // permission-gated URL never leaves a dead dark tile in the grid.
+  const [brokenPhotos, setBrokenPhotos] = useState<Record<string, boolean>>({});
 
   // ★ AGENCY-PARITY-006 — same gate as the parent /jobs/[id] screen.
   //   Buyer (client or agency) sees the action buttons; everyone else sees
@@ -363,6 +366,9 @@ export default function ReviewReportScreen() {
   if (!report) return null;
 
   const parsed = parseReport(report.summary);
+  const photos = (report.photos_urls || []).filter(
+    (u) => typeof u === 'string' && u.trim().length > 0 && !brokenPhotos[u],
+  );
   const statusMeta =
     report.report_status === 'approved'
       ? { label: 'Approved', color: '#22C55E' }
@@ -460,20 +466,34 @@ export default function ReviewReportScreen() {
           )}
         </View>
 
-        {/* Photos */}
-        {report.photos_urls.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Camera size={20} color="#7C3AED" />
-              <Text style={styles.cardTitle}>Evidence Photos</Text>
-            </View>
+        {/* Photos — always render the section; show a clean empty state when
+            there are no (valid) evidence photos instead of a dead dark tile. */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Camera size={20} color="#7C3AED" />
+            <Text style={styles.cardTitle}>Evidence Photos</Text>
+          </View>
+          {photos.length > 0 ? (
             <View style={styles.photoGrid}>
-              {report.photos_urls.map((url, i) => (
-                <Image key={i} source={{ uri: url }} style={styles.photo} />
+              {photos.map((url) => (
+                <Image
+                  key={url}
+                  source={{ uri: url }}
+                  style={styles.photo}
+                  onError={() => setBrokenPhotos((prev) => ({ ...prev, [url]: true }))}
+                />
               ))}
             </View>
-         </View>
-       )}
+          ) : (
+            <View style={styles.photoEmpty}>
+              <View style={styles.photoEmptyIcon}>
+                <Camera size={22} color="#7C3AED" />
+              </View>
+              <Text style={styles.photoEmptyTitle}>No evidence photos attached</Text>
+              <Text style={styles.photoEmptySub}>The inspector did not include photo evidence with this report.</Text>
+            </View>
+          )}
+        </View>
 
        {/* EXTERNAL CHAT BUTTON */}
        <TouchableOpacity 
@@ -499,12 +519,12 @@ export default function ReviewReportScreen() {
       <View style={styles.footer}>
         <TouchableOpacity style={styles.revisionBtn} onPress={() => { setRevisionNotes(''); setShowRevisionModal(true); }}>
           <RefreshCw size={20} color="#F59E0B" />
-          <Text style={styles.revisionText}>Request Changes</Text>
+          <Text style={styles.revisionText} numberOfLines={1}>Request Changes</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.approveBtn} onPress={() => setShowConfirmModal(true)}>
           <CheckCircle2 size={20} color="#FFF" />
-          <Text style={styles.approveText}>Approve & Pay</Text>
+          <Text style={styles.approveText} numberOfLines={1}>Approve & Pay</Text>
         </TouchableOpacity>
       </View>
       )}
@@ -674,12 +694,16 @@ const styles = StyleSheet.create({
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photo: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8, backgroundColor: '#1A1D3C' },
+  photoEmpty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 22, paddingHorizontal: 16 },
+  photoEmptyIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(124,58,237,0.12)', borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  photoEmptyTitle: { color: '#E5E7EB', fontSize: 14, fontWeight: '700' },
+  photoEmptySub: { color: '#64748B', fontSize: 12, marginTop: 3, textAlign: 'center', lineHeight: 17 },
 
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#0A0D2C', padding: 16, paddingBottom: 34, borderTopWidth: 1, borderTopColor: '#1A1D3C', flexDirection: 'row', gap: 12 },
-  revisionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: 'rgba(245,158,11,0.14)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
-  revisionText: { fontSize: 14, fontWeight: '600', color: '#F59E0B' },
-  approveBtn: { flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: '#7C3AED' },
-  approveText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  revisionBtn: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 10, borderRadius: 12, backgroundColor: 'rgba(245,158,11,0.14)', borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
+  revisionText: { fontSize: 14, fontWeight: '600', color: '#F59E0B', flexShrink: 1 },
+  approveBtn: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#7C3AED' },
+  approveText: { fontSize: 14, fontWeight: '700', color: '#FFF', flexShrink: 1 },
 
   // Modals
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },

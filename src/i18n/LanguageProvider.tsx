@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { View, ActivityIndicator, I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { translations, type Translation } from './translations';
+import * as Updates from 'expo-updates';
 
 type Language = keyof typeof translations; // Automatically gets all keys
 type TranslationKey = keyof typeof translations['en']['profile'];
@@ -22,10 +23,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<string>('en');
   const [isReady, setIsReady] = useState(false);
 
-  // ✅ Allowed all 12 languages here
-  const SUPPORTED_LANGUAGES = [
-    'en', 'en-GB', 'fa', 'es', 'fr', 'de', 'ar', 'tr', 'zh', 'ja', 'ru', 'it'
-  ];
+  // ★ Official V1 launch locales — must stay in sync with translations.ts and
+  //   the picker in app/profile/language.tsx.
+  const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'zh', 'ar', 'fa'];
 
   useEffect(() => {
     loadLanguage();
@@ -63,8 +63,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (isNewLangRTL !== I18nManager.isRTL) {
         I18nManager.allowRTL(isNewLangRTL);
         I18nManager.forceRTL(isNewLangRTL);
+        // A direction flip only re-lays-out the native tree after a reload.
+        // The choice is already persisted above, so loadLanguage() re-applies
+        // the correct direction on boot regardless of which path runs here.
+        try {
+          await Updates.reloadAsync();
+        } catch {
+          // Expo Go / no update channel: fall back to a dev reload; otherwise
+          // the new direction takes effect on the next app launch.
+          try { require('react-native').DevSettings?.reload?.(); } catch {}
+        }
       }
-      
+
     } catch (error) {
       console.error('Error saving language:', error);
     }

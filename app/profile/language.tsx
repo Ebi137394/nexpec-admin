@@ -10,17 +10,12 @@ import { useLanguage } from '@/src/i18n/LanguageProvider';
 // IMPORTANT: The 'id' here must match the keys in translations.ts
 const LANGUAGES = [
   { id: 'en', name: 'English (United States)', flag: '🇺🇸' },
-  { id: 'fa', name: 'Persian (فارسی)', flag: '🦁☀️' },
-  { id: 'en-GB', name: 'English (United Kingdom)', flag: '🇬🇧' },
-  { id: 'es', name: 'Spanish (Español)', flag: '🇪🇸' },
   { id: 'fr', name: 'French (Français)', flag: '🇫🇷' },
+  { id: 'es', name: 'Spanish (Español)', flag: '🇪🇸' },
   { id: 'de', name: 'German (Deutsch)', flag: '🇩🇪' },
-  { id: 'tr', name: 'Turkish (Türkçe)', flag: '🇹🇷' },
-  { id: 'ar', name: 'Arabic (العربية)', flag: '🇸🇦' },
   { id: 'zh', name: 'Chinese (Simplified)', flag: '🇨🇳' },
-  { id: 'ja', name: 'Japanese (日本語)', flag: '🇯🇵' },
-  { id: 'ru', name: 'Russian (Русский)', flag: '🇷🇺' },
-  { id: 'it', name: 'Italian (Italiano)', flag: '🇮🇹' },
+  { id: 'ar', name: 'Arabic (العربية)', flag: '🇸🇦' },
+  { id: 'fa', name: 'Persian (فارسی)', flag: '🇮🇷' },
 ];
 
 export default function LanguageScreen() {
@@ -34,7 +29,7 @@ export default function LanguageScreen() {
   const handleSelectLanguage = async (languageId: string) => {
     // 🔓 UNLOCKED: This array now includes ALL your languages.
     // Before, 'fr' and others were missing from here, causing the "Coming Soon" error.
-    const validLanguages = ['en', 'en-GB', 'fa', 'es', 'fr', 'de', 'ar', 'tr', 'zh', 'ja', 'ru', 'it'];
+    const validLanguages = ['en', 'fr', 'es', 'de', 'zh', 'ar', 'fa'];
     
     if (validLanguages.includes(languageId)) {
       try {

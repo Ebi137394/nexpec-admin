@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { View, ActivityIndicator, I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { translations } from './translations';
+import { translations, type Translation } from './translations';
 
 type Language = keyof typeof translations; // Automatically gets all keys
 type TranslationKey = keyof typeof translations['en']['profile'];
@@ -70,9 +70,21 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Namespace-agnostic lookup: searches EVERY namespace in the active language,
+  // then falls back through English → an explicit fallback → the key itself.
+  // This lets new screens register their own namespaces (dashboard, jobs,
+  // finance, …) without ever touching this resolver again.
   const t = (key: string, fallback?: string): string => {
-    // @ts-ignore
-    return translations[language]?.profile?.[key] || translations['en']?.profile?.[key] || String(key);
+    const pick = (dict?: Translation): string | undefined => {
+      if (!dict) return undefined;
+      const flat = dict as unknown as Record<string, Record<string, string>>;
+      for (const ns of Object.keys(flat)) {
+        const v = flat[ns]?.[key];
+        if (v) return v;
+      }
+      return undefined;
+    };
+    return pick(translations[language]) ?? pick(translations['en']) ?? fallback ?? String(key);
   };
 
   const isRTL = language === 'fa' || language === 'ar';

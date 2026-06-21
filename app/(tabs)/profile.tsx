@@ -75,6 +75,11 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Buyer belongs to ≥1 organization (canonical source: org_members via the
+  // fetch_my_org_memberships RPC — same as the Team/Structure screens). Gates
+  // the "Team" menu item so it only appears once an org exists; until then the
+  // Organization hub (with its Create CTA) is the single entry point.
+  const [hasOrg, setHasOrg] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<Stats>({
     inspections: 0,
@@ -156,6 +161,20 @@ export default function ProfileScreen() {
       });
 
       await fetchStats(user.id);
+
+      // Resolve org membership for buyer roles (drives the Team menu gate).
+      // Canonical source = org_members via fetch_my_org_memberships RPC.
+      const r = profileData?.role;
+      if (r === 'client' || r === 'agency' || r === 'enterprise') {
+        try {
+          const { data: orgs } = await supabase.rpc('fetch_my_org_memberships' as never);
+          setHasOrg(Array.isArray(orgs) && orgs.length > 0);
+        } catch {
+          setHasOrg(false);
+        }
+      } else {
+        setHasOrg(false);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -906,13 +925,16 @@ export default function ProfileScreen() {
             {renderMenuItem('lock-closed-outline', t('Security'), () => router.push('/profile/security' as any))}
             {renderMenuItem('card-outline', t('Payment Methods'), () => router.push('/profile/payments' as any))}
             {renderMenuItem('document-text-outline', t('My Contracts'), () => router.push('/contracts/' as any))}
-            {/* Team + Organization are org-management screens (app/(client)/team + structure),
-               built for buyer/org roles. Hidden for the individual Inspector role, which has
-               no org and would otherwise be bounced by the route guard. */}
-            {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise') &&
-              renderMenuItem('people-outline', t('Team'), () => router.push('/(client)/team' as any))}
+            {/* Org-management for buyer roles (client/agency/enterprise); hidden for
+               individual Inspector. "Organization" (structure hub) is the single
+               entry point and carries the Create-organization CTA. "Team" is
+               collapsed into that hub — it only surfaces once the buyer actually
+               belongs to an org (hasOrg), so a brand-new buyer sees one door, not
+               two empty "No organization" screens. */}
             {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise') &&
               renderMenuItem('git-branch-outline', t('Organization'), () => router.push('/(client)/structure' as any))}
+            {(profile?.role === 'client' || profile?.role === 'agency' || profile?.role === 'enterprise') && hasOrg &&
+              renderMenuItem('people-outline', t('Team'), () => router.push('/(client)/team' as any))}
             {renderMenuItem('notifications-outline', t('Notifications'), () => router.push('/notification-settings'))}
           </View>
         </Animated.View>

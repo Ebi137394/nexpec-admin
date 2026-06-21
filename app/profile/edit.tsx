@@ -50,6 +50,11 @@ export default function EditProfileScreen() {
   const [sponsoredCountries, setSponsoredCountries] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  // Role drives which sections render + persist. The inspector-only
+  // professional fields (specialties + work authorization) are hidden and
+  // never written for buyer roles (client / agency / enterprise).
+  const [role, setRole] = useState<string | null>(null);
+  const isInspector = role === 'inspector';
 
   // Load initial data
   useEffect(() => {
@@ -75,6 +80,7 @@ export default function EditProfileScreen() {
           setHeadline(data.headline || '');
           setBio(data.bio || '');
           setAvatarUri(data.avatar_url || null);
+          setRole((data.role as string) ?? null);
           // Specialty slugs — defensively coerce to a string[]. The
           // migration declares the column NOT NULL DEFAULT '{}', so
           // post-migration we always get an array; before the migration
@@ -188,23 +194,29 @@ export default function EditProfileScreen() {
         updates.headline = null;
       }
 
-      // ★ Specialty taxonomy slugs (Phase 3). Always write the array —
-      //   never NULL. Empty array means the inspector has declared no
-      //   specialties, which is a legitimate state.
-      updates.specialty_slugs = specialtySlugs;
+      // Inspector-only professional fields. Buyer roles never see these
+      // inputs (gated in the render), so we must never persist them —
+      // keeps buyer profile rows free of meaningless freelancer /
+      // work-authorization data.
+      if (isInspector) {
+        // ★ Specialty taxonomy slugs (Phase 3). Always write the array —
+        //   never NULL. Empty array means the inspector has declared no
+        //   specialties, which is a legitimate state.
+        updates.specialty_slugs = specialtySlugs;
 
-      // ★ JURISDICTION-002 capture. country_of_residence may legally
-      //   be NULL (not declared yet) — pass through. Arrays always
-      //   write the actual array; booleans are normalised.
-      updates.country_of_residence = countryOfResidence ?? null;
-      updates.work_authorized_countries = normaliseCountryArray(workAuthorizedCountries);
-      updates.open_to_sponsored_work = Boolean(openToSponsoredWork);
-      // If sponsorship is OFF we deliberately clear the preferred-list
-      // — preserving it across a toggle-off would create silent state
-      // the inspector can't see in the UI when the picker is hidden.
-      updates.sponsored_countries = openToSponsoredWork
-        ? normaliseCountryArray(sponsoredCountries)
-        : [];
+        // ★ JURISDICTION-002 capture. country_of_residence may legally
+        //   be NULL (not declared yet) — pass through. Arrays always
+        //   write the actual array; booleans are normalised.
+        updates.country_of_residence = countryOfResidence ?? null;
+        updates.work_authorized_countries = normaliseCountryArray(workAuthorizedCountries);
+        updates.open_to_sponsored_work = Boolean(openToSponsoredWork);
+        // If sponsorship is OFF we deliberately clear the preferred-list
+        // — preserving it across a toggle-off would create silent state
+        // the inspector can't see in the UI when the picker is hidden.
+        updates.sponsored_countries = openToSponsoredWork
+          ? normaliseCountryArray(sponsoredCountries)
+          : [];
+      }
 
       const { error } = await supabase
         .from('profiles')
@@ -298,6 +310,11 @@ export default function EditProfileScreen() {
             numberOfLines={4}
           />
 
+          {/* Inspector-only professional profile (specialties + work
+              authorization). Hidden for buyer roles (client / agency /
+              enterprise) — they never see or persist freelancer attributes. */}
+          {isInspector && (
+          <>
           {/* ★ Specialty taxonomy (Phase 3) — search + chip multi-select. */}
           <View style={styles.specialtySection}>
             <Text style={styles.label}>Specialties</Text>
@@ -374,6 +391,8 @@ export default function EditProfileScreen() {
               </View>
             ) : null}
           </View>
+          </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

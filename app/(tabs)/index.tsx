@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // --- Secure Chat ---
 import ChatFAB from '../../components/chat/ChatFAB';
@@ -173,6 +174,7 @@ const priorityMeta = (priority?: string | null) => {
  *  ────────────────────────────────────────────────────── */
 export default function DashboardHome() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
 
   /** ── State ── */
   const [refreshing, setRefreshing] = useState(false);
@@ -240,10 +242,10 @@ export default function DashboardHome() {
   /** ── Derived ── */
   const greeting = useMemo(() => {
     const h = new Date().getHours();
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    return 'Good evening';
-  }, []);
+    if (h < 12) return t('Good morning');
+    if (h < 17) return t('Good afternoon');
+    return t('Good evening');
+  }, [language]);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -255,8 +257,8 @@ export default function DashboardHome() {
 
   const firstName = useMemo(() => {
     const n = profile?.full_name?.trim();
-    return n ? n.split(' ')[0] : 'Inspector';
-  }, [profile]);
+    return n ? n.split(' ')[0] : t('Inspector');
+  }, [profile, language]);
 
   const focusJob = useMemo(() => {
     return (
@@ -311,7 +313,7 @@ export default function DashboardHome() {
     return new Date(raw);
   }, [focusJob]);
 
-  const nextDeadlineLabel = focusJob?.title || 'No active deadline';
+  const nextDeadlineLabel = focusJob?.title || t('No active deadline');
 
   // MOCK — replace with real `reports` table count when available
   const pendingDrafts = useMemo(() => {
@@ -659,8 +661,8 @@ export default function DashboardHome() {
                         </View>
                         <Text style={styles.focusBadgeText}>
                           {focusJob.status === 'in_progress'
-                            ? 'IN PROGRESS'
-                            : 'NEXT UP'}
+                            ? t('IN PROGRESS')
+                            : t('NEXT UP')}
                         </Text>
                       </View>
                       <View style={styles.focusArrow}>
@@ -672,9 +674,9 @@ export default function DashboardHome() {
                       </View>
                     </View>
 
-                    <Text style={styles.focusKicker}>Today's mission</Text>
+                    <Text style={styles.focusKicker}>{t("Today's mission")}</Text>
                     <Text style={styles.focusTitle} numberOfLines={2}>
-                      {focusJob.title || 'Field inspection'}
+                      {focusJob.title || t('Field inspection')}
                     </Text>
 
                     <View style={styles.focusMetaRow}>
@@ -696,7 +698,7 @@ export default function DashboardHome() {
                           color="rgba(255,255,255,0.85)"
                         />
                         <Text style={styles.focusMetaText} numberOfLines={1}>
-                          {focusJob.location || 'On-site'}
+                          {focusJob.location || t('On-site')}
                         </Text>
                       </View>
                     </View>
@@ -715,10 +717,10 @@ export default function DashboardHome() {
                     <Ionicons name="sparkles" size={20} color={BRAND.primary} />
                   </View>
                   <Text style={styles.emptyFocusTitle}>
-                    Ready for the next mission
+                    {t('Ready for the next mission')}
                   </Text>
                   <Text style={styles.emptyFocusSub}>
-                    No active assignments, tap below to find your next job.
+                    {t('No active assignments, tap below to find your next job.')}
                   </Text>
                 </View>
               )}
@@ -749,19 +751,19 @@ export default function DashboardHome() {
                 <KpiCard
                   icon="briefcase"
                   value={String(stats.activeJobs)}
-                  label="Active Jobs"
+                  label={t('Active Jobs')}
                   accent={BRAND.primary}
                 />
                 <KpiCard
                   icon="document-text"
                   value={String(stats.pendingProposals)}
-                  label="Proposals"
+                  label={t('Proposals')}
                   accent={BRAND.warning}
                 />
                 <KpiCard
                   icon="trending-up"
                   value={formatMoney(stats.totalEarnings)}
-                  label="Earnings"
+                  label={t('Earnings')}
                   accent={BRAND.success}
                 />
               </View>
@@ -770,14 +772,14 @@ export default function DashboardHome() {
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleWrap}>
                   <View style={styles.sectionAccent} />
-                  <Text style={styles.sectionTitle}>Quick Actions</Text>
+                  <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
                 </View>
               </View>
 
               <View style={styles.quickActions}>
                 <ActionItem
                   icon="search"
-                  label="Find Jobs"
+                  label={t('Find Jobs')}
                   color={BRAND.primary}
                   onPress={() => {
                     try {
@@ -787,7 +789,7 @@ export default function DashboardHome() {
                 />
                 <ActionItem
                   icon="document-attach-outline"
-                  label="Contracts"
+                  label={t('Contracts')}
                   color={BRAND.cyan}
                   onPress={() => {
                     try {
@@ -799,7 +801,7 @@ export default function DashboardHome() {
                 />
                 <ActionItem
                   icon="chatbubbles-outline"
-                  label="Messages"
+                  label={t('Messages')}
                   color={BRAND.success}
                   badge={unreadMessages}
                   onPress={() => {
@@ -810,7 +812,7 @@ export default function DashboardHome() {
                 />
                 <ActionItem
                   icon="wallet-outline"
-                  label="Wallet"
+                  label={t('Wallet')}
                   color={BRAND.pink}
                   onPress={() => {
                     try {
@@ -824,7 +826,7 @@ export default function DashboardHome() {
               <View style={[styles.sectionHeader, { marginTop: 28 }]}>
                 <View style={styles.sectionTitleWrap}>
                   <View style={styles.sectionAccent} />
-                  <Text style={styles.sectionTitle}>Today's Agenda</Text>
+                  <Text style={styles.sectionTitle}>{t("Today's Agenda")}</Text>
                 </View>
                 <View style={styles.sectionCount}>
                   <Text style={styles.sectionCountText}>
@@ -835,19 +837,19 @@ export default function DashboardHome() {
 
               <View style={styles.filterRow}>
                 <FilterChip
-                  label="All"
+                  label={t('All')}
                   count={jobs.length}
                   active={filter === 'all'}
                   onPress={() => setFilter('all')}
                 />
                 <FilterChip
-                  label="Active"
+                  label={t('Active')}
                   count={stats.activeJobs}
                   active={filter === 'active'}
                   onPress={() => setFilter('active')}
                 />
                 <FilterChip
-                  label="Today"
+                  label={t('Today')}
                   count={todayCount}
                   active={filter === 'today'}
                   onPress={() => setFilter('today')}
@@ -865,9 +867,9 @@ export default function DashboardHome() {
                     color={BRAND.primary}
                   />
                 </View>
-                <Text style={styles.emptyTitle}>Nothing on your plate</Text>
+                <Text style={styles.emptyTitle}>{t('Nothing on your plate')}</Text>
                 <Text style={styles.emptySub}>
-                  When you accept a contract, it will land here.
+                  {t('When you accept a contract, it will land here.')}
                 </Text>
                 <Pressable
                   style={styles.emptyCta}
@@ -877,7 +879,7 @@ export default function DashboardHome() {
                     } catch {}
                   }}
                 >
-                  <Text style={styles.emptyCtaText}>Browse open jobs</Text>
+                  <Text style={styles.emptyCtaText}>{t('Browse open jobs')}</Text>
                   <Ionicons
                     name="arrow-forward"
                     size={14}
@@ -943,6 +945,7 @@ const OperationsHubWidget = ({
   onDocsPress?: () => void;
   onDeadlinePress?: () => void;
 }) => {
+  const { t, isRTL, language } = useLanguage();
   const [now, setNow] = useState<Date>(new Date());
   const sweep = useRef(new Animated.Value(0)).current;
   const urgentPulse = useRef(new Animated.Value(0)).current;
@@ -993,7 +996,7 @@ const OperationsHubWidget = ({
   }>(() => {
     if (!nextDeadline) return { countdownStr: '—', tone: 'idle' };
     const ms = nextDeadline.getTime() - now.getTime();
-    if (ms <= 0) return { countdownStr: 'OVERDUE', tone: 'past' };
+    if (ms <= 0) return { countdownStr: t('OVERDUE'), tone: 'past' };
 
     const totalSec = Math.floor(ms / 1000);
     const days = Math.floor(totalSec / 86400);
@@ -1017,7 +1020,7 @@ const OperationsHubWidget = ({
       )}:${String(secs).padStart(2, '0')}`,
       tone: 'urgent',
     };
-  }, [nextDeadline, now]);
+  }, [nextDeadline, now, language]);
 
   /** ── Sub-metric meta ── */
   const draftMeta = useMemo(() => {
@@ -1031,8 +1034,8 @@ const OperationsHubWidget = ({
   // Same-day shows "Today 9am", otherwise "Mon 9am" / "Fri 2:30pm".
   const formatVendorTime = (d: Date | null | undefined): string | null => {
     if (!d) return null;
-    const t = d.getTime();
-    if (!Number.isFinite(t) || Number.isNaN(t)) return null;
+    const ts = d.getTime();
+    if (!Number.isFinite(ts) || Number.isNaN(ts)) return null;
     const hh = d.getHours();
     const mm = d.getMinutes();
     const ampm = hh >= 12 ? 'pm' : 'am';
@@ -1041,7 +1044,7 @@ const OperationsHubWidget = ({
       mm === 0
         ? `${h12}${ampm}`
         : `${h12}:${String(mm).padStart(2, '0')}${ampm}`;
-    if (d.toDateString() === now.toDateString()) return `Today ${timeStr}`;
+    if (d.toDateString() === now.toDateString()) return `${t('Today')} ${timeStr}`;
     const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
     return `${weekday} ${timeStr}`;
   };
@@ -1051,62 +1054,62 @@ const OperationsHubWidget = ({
       case 'confirmed': {
         const formatted = formatVendorTime(vendorSyncDate);
         return {
-          label: 'VENDOR',
-          value: formatted || 'OK',
+          label: t('VENDOR'),
+          value: formatted || t('OK'),
           color: BRAND.successBright,
           icon: 'calendar-outline' as const,
         };
       }
       case 'pending':
         return {
-          label: 'VENDOR',
-          value: 'Pending',
+          label: t('VENDOR'),
+          value: t('Pending'),
           color: BRAND.warning,
           icon: 'mail-outline' as const,
         };
       default:
         return {
-          label: 'VENDOR',
+          label: t('VENDOR'),
           value: '—',
           color: BRAND.textMuted,
           icon: 'mail-outline' as const,
         };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorSync, vendorSyncDate, now]);
+  }, [vendorSync, vendorSyncDate, now, language]);
 
   const docsMeta = useMemo(() => {
     switch (docsStatus) {
       case 'ready':
         return {
-          label: 'DOCS',
-          value: 'All Set',
+          label: t('DOCS'),
+          value: t('All Set'),
           color: BRAND.successBright,
           icon: 'folder-open' as const,
         };
       case 'partial':
         return {
-          label: 'DOCS',
-          value: 'Partial',
+          label: t('DOCS'),
+          value: t('Partial'),
           color: BRAND.warning,
           icon: 'folder-open-outline' as const,
         };
       case 'missing':
         return {
-          label: 'DOCS',
-          value: 'Missing',
+          label: t('DOCS'),
+          value: t('Missing'),
           color: BRAND.danger,
           icon: 'folder-open-outline' as const,
         };
       default:
         return {
-          label: 'DOCS',
+          label: t('DOCS'),
           value: '—',
           color: BRAND.textMuted,
           icon: 'folder-outline' as const,
         };
     }
-  }, [docsStatus]);
+  }, [docsStatus, language]);
 
   /** ── Overall readiness ──
    *  Vendor pending OR docs missing → escalates toward "ACTION NEEDED".
@@ -1127,10 +1130,10 @@ const OperationsHubWidget = ({
     if (countdownTone === 'past') score += 2;
     else if (countdownTone === 'urgent') score += 1;
 
-    if (score === 0) return { label: 'READY', color: BRAND.successBright };
-    if (score <= 2) return { label: 'STANDBY', color: BRAND.warning };
-    return { label: 'ACTION NEEDED', color: BRAND.danger };
-  }, [vendorSync, docsStatus, pendingDrafts, countdownTone]);
+    if (score === 0) return { label: t('READY'), color: BRAND.successBright };
+    if (score <= 2) return { label: t('STANDBY'), color: BRAND.warning };
+    return { label: t('ACTION NEEDED'), color: BRAND.danger };
+  }, [vendorSync, docsStatus, pendingDrafts, countdownTone, language]);
 
   /** ── Countdown color ── */
   const countdownColor =
@@ -1193,7 +1196,7 @@ const OperationsHubWidget = ({
             size={12}
             color={BRAND.primary}
           />
-          <Text style={styles.hubLabel}>OPERATIONS HUB</Text>
+          <Text style={styles.hubLabel}>{t('OPERATIONS HUB')}</Text>
         </View>
         <View
           style={[
@@ -1242,7 +1245,7 @@ const OperationsHubWidget = ({
             size={11}
             color={BRAND.textMuted}
           />
-          <Text style={styles.hubKicker}>NEXT DEADLINE</Text>
+          <Text style={styles.hubKicker}>{t('NEXT DEADLINE')}</Text>
         </View>
         <Animated.Text
           style={[
@@ -1296,7 +1299,7 @@ const OperationsHubWidget = ({
             {pendingDrafts}
           </Text>
           <Text style={[styles.hubStatLabel, styles.hubStatLabelLeft]}>
-            DRAFTS
+            {t('DRAFTS')}
           </Text>
         </Pressable>
 
@@ -1382,6 +1385,7 @@ const InlineJobCard = ({
   job: JobRow;
   onPress: () => void;
 }) => {
+  const { t, isRTL } = useLanguage();
   const stat = statusMeta(job.status);
   const prio = priorityMeta(job.priority);
   const due = computeDueLabel(job.due_date || job.scheduled_date);
@@ -1399,7 +1403,7 @@ const InlineJobCard = ({
       : BRAND.textPrimary;
 
   const showOpenForm = job.status === 'in_progress';
-  const ctaLabel = showOpenForm ? 'Open Form' : 'View Details';
+  const ctaLabel = showOpenForm ? t('Open Form') : t('View Details');
 
   return (
     <Pressable
@@ -1431,7 +1435,7 @@ const InlineJobCard = ({
               style={[styles.priorityDot, { backgroundColor: prio.color }]}
             />
             <Text style={[styles.priorityText, { color: prio.color }]}>
-              {prio.label}
+              {t(prio.label)}
             </Text>
           </View>
         </View>
@@ -1444,14 +1448,14 @@ const InlineJobCard = ({
         >
           <Text style={styles.statusEmoji}>{stat.icon}</Text>
           <Text style={[styles.statusText, { color: stat.color }]}>
-            {stat.label}
+            {t(stat.label)}
           </Text>
         </View>
       </View>
 
       {/* Title + client */}
       <Text style={styles.cardTitle} numberOfLines={2}>
-        {job.title || 'Untitled job'}
+        {job.title || t('Untitled job')}
       </Text>
       <View style={styles.cardClientRow}>
         <Text style={styles.cardClientName} numberOfLines={1}>
@@ -1471,11 +1475,11 @@ const InlineJobCard = ({
 
       {/* Stats box */}
       <View style={styles.cardStatsBox}>
-        <CardStat label="Rate" value={formatRate(job)} />
+        <CardStat label={t('Rate')} value={formatRate(job)} />
         <View style={styles.cardStatVDivider} />
-        <CardStat label="Duration" value={formatDuration(job)} />
+        <CardStat label={t('Duration')} value={formatDuration(job)} />
         <View style={styles.cardStatVDivider} />
-        <CardStat label="Due" value={due.label} valueColor={dueColor} />
+        <CardStat label={t('Due')} value={due.label} valueColor={dueColor} />
       </View>
 
       {/* Single CTA — Clone removed */}

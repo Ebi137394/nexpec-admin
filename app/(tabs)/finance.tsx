@@ -14,6 +14,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useEarnings, formatUSD } from '../../hooks/useEarnings';
 import { formatDuration } from '../../utils/currency';
 import { formatUsd, toCents } from '../../src/core/utils/money';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // Maps a raw Edge Function / Stripe failure to a calm, user-facing line so a
 // backend hiccup (or a restricted Stripe account) degrades to an inline notice
@@ -81,13 +82,14 @@ const STRIPE_STATUS_DISPLAY: Record<string, {
 };
 
 const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConnect: StripeConnectState; onWithdraw: () => void; onDeposit: () => void; }> = ({ stats, userRole, stripeConnect, onWithdraw, onDeposit }) => {
+  const { t, isRTL, language } = useLanguage();
   const balanceAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(balanceAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }).start(); }, []);
-  const roleLabel = userRole === 'inspector' ? 'Inspector'
-    : userRole === 'client' ? 'Client'
-    : userRole === 'enterprise' ? 'Enterprise'
-    : userRole === 'supplier' ? 'Supplier'
-    : 'Agency';
+  const roleLabel = userRole === 'inspector' ? t('Inspector')
+    : userRole === 'client' ? t('Client')
+    : userRole === 'enterprise' ? t('Enterprise')
+    : userRole === 'supplier' ? t('Supplier')
+    : t('Agency');
   const roleIcon: keyof typeof Ionicons.glyphMap = userRole === 'inspector' ? 'shield-checkmark'
     : userRole === 'client' ? 'briefcase'
     : userRole === 'enterprise' ? 'business-outline'
@@ -106,7 +108,7 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
       <LinearGradient colors={['rgba(124,58,237,0.18)', 'rgba(124,58,237,0.06)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
       <View style={s.heroHeader}>
         <View>
-          <Text style={s.heroLabel}>Available Balance</Text>
+          <Text style={s.heroLabel}>{t('Available Balance')}</Text>
           <Animated.Text style={[ s.heroBalance, { opacity: balanceAnim, transform: [ { translateY: balanceAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) } ] } ]}>
             {formatCurrency(stats.availableBalance)}
           </Animated.Text>
@@ -116,7 +118,7 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
           {stripeDisplay && (
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: stripeDisplay.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, gap: 4 }}>
               <Ionicons name={stripeDisplay.icon} size={11} color={stripeDisplay.color} />
-              <Text style={{ fontSize: 10, fontWeight: '600', color: stripeDisplay.color, letterSpacing: 0.3 }}>{stripeDisplay.label}</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: stripeDisplay.color, letterSpacing: 0.3 }}>{t(stripeDisplay.label)}</Text>
             </View>
           )}
         </View>
@@ -140,9 +142,9 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
           the row with the same backed-only rule. */}
       {userRole === 'inspector' && (
         <View style={s.miniStatsRow}>
-          <MiniStat label="Pending"      value={formatCurrency(stats.pendingAmount)} color={COLORS.amber} />
+          <MiniStat label={t('Pending')}      value={formatCurrency(stats.pendingAmount)} color={COLORS.amber} />
           <MiniStatDivider />
-          <MiniStat label="Total Earned" value={formatCurrency(stats.totalEarned)}   color={COLORS.green} />
+          <MiniStat label={t('Total Earned')} value={formatCurrency(stats.totalEarned)}   color={COLORS.green} />
         </View>
       )}
       
@@ -150,14 +152,14 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
         {userRole === 'inspector' && (
           <TouchableOpacity style={[s.heroBtn, s.heroBtnPrimary]} onPress={onWithdraw} activeOpacity={0.8}>
             <Ionicons name="arrow-up-circle" size={18} color="#FFF" />
-            <Text style={s.heroBtnTextWhite}>Withdraw</Text>
+            <Text style={s.heroBtnTextWhite}>{t('Withdraw')}</Text>
           </TouchableOpacity>
         )}
         
         {(userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') && (
           <TouchableOpacity style={[s.heroBtn, s.heroBtnOutline]} onPress={onDeposit} activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={[s.heroBtnTextWhite, { color: COLORS.primary }]}>Deposit</Text>
+            <Text style={[s.heroBtnTextWhite, { color: COLORS.primary }]}>{t('Deposit')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -166,6 +168,7 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
 };
 
 const PaymentMethodCard: React.FC<{ method: PaymentMethod; onSetDefault: (id: string) => void; onRemove: (id: string) => void; }> = ({ method, onSetDefault, onRemove }) => {
+  const { t, isRTL, language } = useLanguage();
   let iconName: keyof typeof Ionicons.glyphMap = 'card-outline';
   let brandColor = COLORS.primary;
 
@@ -179,8 +182,8 @@ const PaymentMethodCard: React.FC<{ method: PaymentMethod; onSetDefault: (id: st
     <View style={[s.methodCard, method.is_default && s.methodCardDefault]}>
       <View style={[s.methodIcon, { backgroundColor: `${brandColor}20` }]}><Ionicons name={iconName} size={22} color={brandColor} /></View>
       <View style={s.methodInfo}>
-        <View style={s.methodLabelRow}><Text style={s.methodLabel}>{method.label}</Text>{method.is_default && ( <View style={s.defaultBadge}><Text style={s.defaultBadgeText}>Default</Text></View> )}</View>
-        <Text style={s.methodLast4}>{method.type === 'bank_account' ? `Account ending in ${method.last4}` : `•••• ${method.last4}`}</Text>
+        <View style={s.methodLabelRow}><Text style={s.methodLabel}>{method.label}</Text>{method.is_default && ( <View style={s.defaultBadge}><Text style={s.defaultBadgeText}>{t('Default')}</Text></View> )}</View>
+        <Text style={s.methodLast4}>{method.type === 'bank_account' ? `${t('Account ending in')} ${method.last4}` : `•••• ${method.last4}`}</Text>
       </View>
       <View style={s.methodActions}>
         {!method.is_default && ( <TouchableOpacity onPress={() => onSetDefault(method.id)} style={s.methodActionBtn}><Ionicons name="checkmark-circle-outline" size={20} color={COLORS.textMuted} /></TouchableOpacity> )}
@@ -287,11 +290,12 @@ const SmartBreakdownCard: React.FC<{ icon: keyof typeof Ionicons.glyphMap; label
 );
 
 const TaxReserveCard: React.FC<{ totalEarned: number; taxRate?: number; }> = ({ totalEarned, taxRate = 0.25 }) => {
+  const { t, isRTL, language } = useLanguage();
   const reserveAmount = totalEarned * taxRate;
   return (
     <View style={s.taxCard}>
-      <View style={s.taxHeader}><View style={[s.taxIconWrap, { backgroundColor: COLORS.amberBg }]}><Ionicons name="calculator-outline" size={18} color={COLORS.amber} /></View><View style={{ flex: 1 }}><Text style={s.taxTitle}>Tax Reserve Estimate</Text><Text style={s.taxSub}>{(taxRate * 100).toFixed(0)}% of total earnings</Text></View><Text style={s.taxAmount}>{formatUSD(reserveAmount)}</Text></View>
-      <Text style={s.taxDisclaimer}>This is an estimate only. Please consult your tax advisor.</Text>
+      <View style={s.taxHeader}><View style={[s.taxIconWrap, { backgroundColor: COLORS.amberBg }]}><Ionicons name="calculator-outline" size={18} color={COLORS.amber} /></View><View style={{ flex: 1 }}><Text style={s.taxTitle}>{t('Tax Reserve Estimate')}</Text><Text style={s.taxSub}>{(taxRate * 100).toFixed(0)}{t('% of total earnings')}</Text></View><Text style={s.taxAmount}>{formatUSD(reserveAmount)}</Text></View>
+      <Text style={s.taxDisclaimer}>{t('This is an estimate only. Please consult your tax advisor.')}</Text>
     </View>
   );
 };
@@ -306,6 +310,7 @@ const SectionHeader: React.FC<{ icon: keyof typeof Ionicons.glyphMap; title: str
 export default function FinanceScreen() {
   const router = useRouter();
   const { session } = useAuth();
+  const { t, isRTL, language } = useLanguage();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const [walletStats, setWalletStats] = useState<WalletStats>(DEFAULT_STATS);
@@ -445,7 +450,7 @@ export default function FinanceScreen() {
     // settles it in the Treasury Control Tower (admin_mark_withdrawal_paid).
     // No client-initiated Stripe egress.
     if (!session?.user?.id) {
-      Alert.alert('Not signed in', 'Please sign in again to withdraw.');
+      Alert.alert(t('Not signed in'), t('Please sign in again to withdraw.'));
       return;
     }
     router.push('/(inspector)/wallet/withdraw');
@@ -454,7 +459,7 @@ export default function FinanceScreen() {
   // 🌟 تابع ذخیره متدهای غیر از استرایپ (پی‌پال، بانک، وایز) تو دیتابیس
   const handleSaveProviderDetail = async () => {
     if (!providerInputValue.trim()) {
-      Alert.alert('Required', 'Please enter your account details.');
+      Alert.alert(t('Required'), t('Please enter your account details.'));
       return;
     }
     setActionLoading(true);
@@ -472,12 +477,12 @@ export default function FinanceScreen() {
       const { error } = await supabase.from('payment_methods').insert([newMethod]);
       if (error) throw error;
 
-      Alert.alert('Success', `${showProviderForm?.name} added successfully!`);
+      Alert.alert(t('Success'), `${showProviderForm?.name} ${t('added successfully!')}`);
       setShowProviderForm(null);
       setProviderInputValue('');
       await fetchPaymentMethods();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save payment method.');
+      Alert.alert(t('Error'), err.message || t('Failed to save payment method.'));
     } finally {
       setActionLoading(false);
     }
@@ -505,27 +510,27 @@ export default function FinanceScreen() {
   //   flow, same success copy — only the network calls change.
   const handleDeposit = useCallback(async () => {
     if (Platform.OS !== 'ios') {
-      Alert.alert('Deposit', 'Deposit flow will open.');
+      Alert.alert(t('Deposit'), t('Deposit flow will open.'));
       return;
     }
     Alert.prompt(
-      'Deposit Funds',
-      'Enter amount in USD:',
+      t('Deposit Funds'),
+      t('Enter amount in USD:'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: 'Continue',
+          text: t('Continue'),
           onPress: async (amountStr) => {
             const amountSar = parseFloat(amountStr || '0');
             if (isNaN(amountSar) || amountSar <= 0) {
-              Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+              Alert.alert(t('Invalid Amount'), t('Please enter a valid amount.'));
               return;
             }
             const amountHalalas = Math.round(amountSar * 100);
             if (amountHalalas < 100 || amountHalalas > 1_000_000) {
               Alert.alert(
-                'Out of range',
-                'Deposit must be between $1 and $10,000 USD.',
+                t('Out of range'),
+                t('Deposit must be between $1 and $10,000 USD.'),
               );
               return;
             }
@@ -543,12 +548,12 @@ export default function FinanceScreen() {
                 throw new Error(
                   typeof fnErr === 'string'
                     ? fnErr
-                    : 'Failed to start the deposit.',
+                    : t('Failed to start the deposit.'),
                 );
               }
               const clientSecret = data?.clientSecret;
               if (!clientSecret) {
-                throw new Error('Invalid response from payment server.');
+                throw new Error(t('Invalid response from payment server.'));
               }
 
               // 2. Present the Stripe Payment Sheet.
@@ -569,13 +574,13 @@ export default function FinanceScreen() {
               //    stats — the new balance will appear within a few
               //    seconds once the webhook lands.
               Alert.alert(
-                'Success',
-                `Deposit of ${formatCurrency(amountSar)} submitted! Your balance will update once the payment clears.`,
+                t('Success'),
+                `${t('Deposit of')} ${formatCurrency(amountSar)} ${t('submitted! Your balance will update once the payment clears.')}`,
               );
               await loadAllData();
             } catch (err: any) {
               // Graceful degradation: inline notice instead of a blocking modal.
-              setStripeError(friendlyStripeError(err, 'We couldn\'t start the deposit. Please try again.'));
+              setStripeError(friendlyStripeError(err, t('We couldn\'t start the deposit. Please try again.')));
             } finally {
               setActionLoading(false);
             }
@@ -589,11 +594,11 @@ export default function FinanceScreen() {
   }, [initPaymentSheet, presentPaymentSheet, loadAllData]);
 
   const handleSetDefault = useCallback( async (methodId: string) => {
-      try { await supabase .from('payment_methods') .update({ is_default: false }) .eq('user_id', session?.user?.id); await supabase .from('payment_methods') .update({ is_default: true }) .eq('id', methodId); await fetchPaymentMethods(); } catch (err: any) { Alert.alert('Error', err.message || 'Failed to update default method.'); }
+      try { await supabase .from('payment_methods') .update({ is_default: false }) .eq('user_id', session?.user?.id); await supabase .from('payment_methods') .update({ is_default: true }) .eq('id', methodId); await fetchPaymentMethods(); } catch (err: any) { Alert.alert(t('Error'), err.message || t('Failed to update default method.')); }
     }, [session?.user?.id, fetchPaymentMethods], );
 
   const handleRemoveMethod = useCallback( (methodId: string) => {
-      Alert.alert( 'Remove Payment Method', 'Are you sure you want to remove this payment method?', [ { text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: async () => { try { await supabase .from('payment_methods') .delete() .eq('id', methodId); await fetchPaymentMethods(); } catch (err: any) { Alert.alert( 'Error', err.message || 'Failed to remove payment method.', ); } }, }, ], );
+      Alert.alert( t('Remove Payment Method'), t('Are you sure you want to remove this payment method?'), [ { text: t('Cancel'), style: 'cancel' }, { text: t('Remove'), style: 'destructive', onPress: async () => { try { await supabase .from('payment_methods') .delete() .eq('id', methodId); await fetchPaymentMethods(); } catch (err: any) { Alert.alert( t('Error'), err.message || t('Failed to remove payment method.'), ); } }, }, ], );
     }, [fetchPaymentMethods], );
 
   const handleAddPaymentMethod = useCallback( async (provider: PaymentProviderOption) => {
@@ -604,13 +609,13 @@ export default function FinanceScreen() {
             body: { user_id: session?.user?.id, email: session?.user?.email }, 
           });
           
-          if (apiError) throw new Error(apiError.message || 'Failed to communicate with payment server.');
+          if (apiError) throw new Error(apiError.message || t('Failed to communicate with payment server.'));
 
           // 🔴 THE FIX: Extracting the correct secret from the advanced backend
           const clientSecret = data?.setupIntentClientSecret || data?.clientSecret;
           const setupIntentId = data?.setupIntentId; // 👈 آی‌دی رو گرفتیم
-          
-          if (!clientSecret) throw new Error('Invalid response from payment server.');
+
+          if (!clientSecret) throw new Error(t('Invalid response from payment server.'));
 
           const { error: initError } = await initPaymentSheet({ setupIntentClientSecret: clientSecret, merchantDisplayName: 'NEXPEC', }); 
           if (initError) throw initError; 
@@ -628,14 +633,14 @@ export default function FinanceScreen() {
             });
           }
           
-          Alert.alert('Success', 'Payment method added successfully!'); 
-          await fetchPaymentMethods(); 
+          Alert.alert(t('Success'), t('Payment method added successfully!'));
+          await fetchPaymentMethods();
         } else if (provider.id === 'stripe_connect') {
           // A Stripe-rejected account can never be re-linked (account-link create
           // returns 500), so short-circuit with an accurate, non-blocking notice
           // instead of attempting the doomed onboarding call.
           if (stripeConnect.status === 'rejected') {
-            setStripeError('Your payout account was rejected by Stripe and can\'t be re-linked from the app. Please contact support to resolve it.');
+            setStripeError(t('Your payout account was rejected by Stripe and can\'t be re-linked from the app. Please contact support to resolve it.'));
             return;
           }
           // ★ Phase B — Stripe Connect Express onboarding for inspectors.
@@ -662,7 +667,7 @@ export default function FinanceScreen() {
 
           if (linkError || !data?.url) {
             throw new Error(
-              linkError?.message ?? 'Could not start Stripe onboarding.',
+              linkError?.message ?? t('Could not start Stripe onboarding.'),
             );
           }
 
@@ -688,8 +693,8 @@ export default function FinanceScreen() {
           await fetchPaymentMethods();
           await determineUserRole();
           Alert.alert(
-            'Stripe Connect',
-            'Onboarding complete. Your account is being verified, you\'re ready to receive payouts.',
+            t('Stripe Connect'),
+            t('Onboarding complete. Your account is being verified, you\'re ready to receive payouts.'),
           );
         } else {
           // 🌟 برای پی‌پال، وایز و پایونیر، همین مودالِ سریع رو باز می‌کنیم
@@ -698,9 +703,9 @@ export default function FinanceScreen() {
           setProviderInputValue('');
         } 
       } catch (err: any) {
-        setStripeError(friendlyStripeError(err, 'We couldn\'t add that payment method. Please try again.'));
-      } finally { 
-        setActionLoading(false); 
+        setStripeError(friendlyStripeError(err, t('We couldn\'t add that payment method. Please try again.')));
+      } finally {
+        setActionLoading(false);
       }
     }, [ session?.user?.id, session?.user?.email, initPaymentSheet, presentPaymentSheet, fetchPaymentMethods, stripeConnect.status, ], );
 
@@ -710,7 +715,7 @@ export default function FinanceScreen() {
   }, [earnings]);
 
   if (walletLoading && !refreshing) {
-    return ( <SafeAreaView style={s.loadingWrap}><StatusBar barStyle="light-content" backgroundColor={COLORS.background} /><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>Loading Finance…</Text></SafeAreaView> );
+    return ( <SafeAreaView style={s.loadingWrap}><StatusBar barStyle="light-content" backgroundColor={COLORS.background} /><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>{t('Loading Finance…')}</Text></SafeAreaView> );
   }
 
   const availableProviders = PAYMENT_PROVIDERS.filter(p =>
@@ -723,14 +728,14 @@ export default function FinanceScreen() {
   return (
     <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
-      {actionLoading && ( <View style={s.overlay}><View style={s.overlayBox}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.overlayText}>Processing…</Text></View></View> )}
-      <View style={s.header}><View><Text style={s.headerTitle}>Finance</Text><Text style={s.headerSub}>Wallet & Earnings</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
+      {actionLoading && ( <View style={s.overlay}><View style={s.overlayBox}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.overlayText}>{t('Processing…')}</Text></View></View> )}
+      <View style={s.header}><View><Text style={s.headerTitle}>{t('Finance')}</Text><Text style={s.headerSub}>{t('Wallet & Earnings')}</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
       <Animated.ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false} onScroll={Animated.event( [{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }, )} scrollEventThrottle={16} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>
         {stripeError && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.amberBg, borderColor: COLORS.amber, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14 }}>
             <Ionicons name="alert-circle-outline" size={18} color={COLORS.amber} />
             <Text style={{ flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 }}>{stripeError}</Text>
-            <TouchableOpacity onPress={() => setStripeError(null)} hitSlop={8} accessibilityLabel="Dismiss">
+            <TouchableOpacity onPress={() => setStripeError(null)} hitSlop={8} accessibilityLabel={t('Dismiss')}>
               <Ionicons name="close" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -738,30 +743,30 @@ export default function FinanceScreen() {
         <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} />
         {userRole === 'inspector' && earningsData && (
           <>
-            <SectionHeader icon="trending-up" title="Earnings Overview" subtitle="Your performance at a glance" color={COLORS.green} />
+            <SectionHeader icon="trending-up" title={t('Earnings Overview')} subtitle={t('Your performance at a glance')} color={COLORS.green} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickStatsRow}>
-              <QuickStatCard icon="cash-outline" label="This Month" value={formatUSD(earningsData.monthlyEarnings)} sub={`${earningsData.growthPct >= 0 ? '+' : ''}${earningsData.growthPct.toFixed(1)}%`} color={COLORS.green} bgColor={COLORS.greenBg} />
-              <QuickStatCard icon="calendar-outline" label="This Week" value={formatUSD(earningsData.weeklyEarnings)} color={COLORS.primary} bgColor={COLORS.primaryBg} />
-              <QuickStatCard icon="briefcase-outline" label="Avg / Job" value={formatUSD(earningsData.avgPerJob)} sub={`${earningsData.completedJobs} jobs`} color={COLORS.blue} bgColor={COLORS.blueBg} />
-              <QuickStatCard icon="time-outline" label="Hourly Rate" value={formatUSD(earningsData.hourlyRate)} sub={formatDuration(earningsData.hoursWorked)} color={COLORS.amber} bgColor={COLORS.amberBg} />
+              <QuickStatCard icon="cash-outline" label={t('This Month')} value={formatUSD(earningsData.monthlyEarnings)} sub={`${earningsData.growthPct >= 0 ? '+' : ''}${earningsData.growthPct.toFixed(1)}%`} color={COLORS.green} bgColor={COLORS.greenBg} />
+              <QuickStatCard icon="calendar-outline" label={t('This Week')} value={formatUSD(earningsData.weeklyEarnings)} color={COLORS.primary} bgColor={COLORS.primaryBg} />
+              <QuickStatCard icon="briefcase-outline" label={t('Avg / Job')} value={formatUSD(earningsData.avgPerJob)} sub={`${earningsData.completedJobs} ${t('jobs')}`} color={COLORS.blue} bgColor={COLORS.blueBg} />
+              <QuickStatCard icon="time-outline" label={t('Hourly Rate')} value={formatUSD(earningsData.hourlyRate)} sub={formatDuration(earningsData.hoursWorked)} color={COLORS.amber} bgColor={COLORS.amberBg} />
             </ScrollView>
-            {earningsData.weeklyData.length > 0 && ( <><SectionHeader icon="bar-chart-outline" title="Weekly Earnings" subtitle="Last 7 days performance" color={COLORS.primary} /><View style={s.card}><GrowthChart data={earningsData.weeklyData} labels={earningsData.weeklyLabels} /></View></> )}
-            {earningsData.breakdown.length > 0 && ( <><SectionHeader icon="pie-chart-outline" title="Smart Breakdown" subtitle="Where your money comes from" color={COLORS.primary} /><View style={s.card}>{earningsData.breakdown.map((item: any, idx: number) => ( <SmartBreakdownCard key={`bd-${idx}`} icon={item.icon || 'ellipse'} label={item.label} amount={item.amount} percentage={item.percentage} color={item.color || COLORS.primary} /> ))}</View></> )}
-            {earningsData.totalEarnings > 0 && ( <><SectionHeader icon="calculator-outline" title="Tax Planning" subtitle="Estimated tax reserve" color={COLORS.amber} /><TaxReserveCard totalEarned={earningsData.totalEarnings} /></> )}
+            {earningsData.weeklyData.length > 0 && ( <><SectionHeader icon="bar-chart-outline" title={t('Weekly Earnings')} subtitle={t('Last 7 days performance')} color={COLORS.primary} /><View style={s.card}><GrowthChart data={earningsData.weeklyData} labels={earningsData.weeklyLabels} /></View></> )}
+            {earningsData.breakdown.length > 0 && ( <><SectionHeader icon="pie-chart-outline" title={t('Smart Breakdown')} subtitle={t('Where your money comes from')} color={COLORS.primary} /><View style={s.card}>{earningsData.breakdown.map((item: any, idx: number) => ( <SmartBreakdownCard key={`bd-${idx}`} icon={item.icon || 'ellipse'} label={item.label} amount={item.amount} percentage={item.percentage} color={item.color || COLORS.primary} /> ))}</View></> )}
+            {earningsData.totalEarnings > 0 && ( <><SectionHeader icon="calculator-outline" title={t('Tax Planning')} subtitle={t('Estimated tax reserve')} color={COLORS.amber} /><TaxReserveCard totalEarned={earningsData.totalEarnings} /></> )}
           </>
         )}
-        <SectionHeader icon="card-outline" title="Payment Methods" subtitle={`${paymentMethods.length} method${paymentMethods.length !== 1 ? 's' : ''}`} color={COLORS.primary} rightAction={{ label: '+ Add', onPress: () => setShowAddPaymentModal(true), }} />
-        {paymentMethods.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="card-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>No Payment Methods</Text><Text style={s.emptySub}>Add a payment method to withdraw or deposit funds</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>Add Payment Method</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
-        <SectionHeader icon="receipt-outline" title="Recent Transactions" subtitle={`${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`} color={COLORS.primary} rightAction={ transactions.length > 5 ? { label: 'See All', onPress: () => router.push('/transactions'), } : undefined } />
-        {transactions.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="receipt-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>No Transactions Yet</Text><Text style={s.emptySub}>Your transaction history will appear here</Text></View> ) : ( <View style={s.card}>{transactions.slice(0, 10).map((tx, idx) => ( <React.Fragment key={tx.id}><WalletTransactionItem tx={tx} />{idx < Math.min(transactions.length, 10) - 1 && ( <View style={s.txDivider} /> )}</React.Fragment> ))}</View> )}
+        <SectionHeader icon="card-outline" title={t('Payment Methods')} subtitle={`${paymentMethods.length} ${paymentMethods.length !== 1 ? t('methods') : t('method')}`} color={COLORS.primary} rightAction={{ label: t('+ Add'), onPress: () => setShowAddPaymentModal(true), }} />
+        {paymentMethods.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="card-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Payment Methods')}</Text><Text style={s.emptySub}>{t('Add a payment method to withdraw or deposit funds')}</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>{t('Add Payment Method')}</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
+        <SectionHeader icon="receipt-outline" title={t('Recent Transactions')} subtitle={`${transactions.length} ${transactions.length !== 1 ? t('transactions') : t('transaction')}`} color={COLORS.primary} rightAction={ transactions.length > 5 ? { label: t('See All'), onPress: () => router.push('/transactions'), } : undefined } />
+        {transactions.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="receipt-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Transactions Yet')}</Text><Text style={s.emptySub}>{t('Your transaction history will appear here')}</Text></View> ) : ( <View style={s.card}>{transactions.slice(0, 10).map((tx, idx) => ( <React.Fragment key={tx.id}><WalletTransactionItem tx={tx} />{idx < Math.min(transactions.length, 10) - 1 && ( <View style={s.txDivider} /> )}</React.Fragment> ))}</View> )}
         <View style={{ height: 120 }} />
       </Animated.ScrollView>
       <Modal visible={showAddPaymentModal} transparent animationType="slide" onRequestClose={() => setShowAddPaymentModal(false)}>
         <Pressable style={s.modalOverlay} onPress={() => setShowAddPaymentModal(false)}>
           <Pressable style={s.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={s.modalHandle} /><Text style={s.modalTitle}>Add Payment Method</Text><Text style={s.modalSub}>Choose how you want to receive or send payments</Text>
-            {availableProviders.map((p) => ( <TouchableOpacity key={p.id} style={s.providerRow} onPress={() => handleAddPaymentMethod(p)} activeOpacity={0.7}><View style={[ s.providerIcon, { backgroundColor: `${p.color}20` }, ]}><Ionicons name={p.icon} size={24} color={p.color} /></View><View style={s.providerInfo}><Text style={s.providerName}>{p.name}</Text><Text style={s.providerDesc}>{p.description}</Text></View><Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} /></TouchableOpacity> ))}
-            <TouchableOpacity style={s.modalCancel} onPress={() => setShowAddPaymentModal(false)} activeOpacity={0.7}><Text style={s.modalCancelText}>Cancel</Text></TouchableOpacity>
+            <View style={s.modalHandle} /><Text style={s.modalTitle}>{t('Add Payment Method')}</Text><Text style={s.modalSub}>{t('Choose how you want to receive or send payments')}</Text>
+            {availableProviders.map((p) => ( <TouchableOpacity key={p.id} style={s.providerRow} onPress={() => handleAddPaymentMethod(p)} activeOpacity={0.7}><View style={[ s.providerIcon, { backgroundColor: `${p.color}20` }, ]}><Ionicons name={p.icon} size={24} color={p.color} /></View><View style={s.providerInfo}><Text style={s.providerName}>{t(p.name)}</Text><Text style={s.providerDesc}>{t(p.description)}</Text></View><Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} /></TouchableOpacity> ))}
+            <TouchableOpacity style={s.modalCancel} onPress={() => setShowAddPaymentModal(false)} activeOpacity={0.7}><Text style={s.modalCancelText}>{t('Cancel')}</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -772,12 +777,12 @@ export default function FinanceScreen() {
           <Pressable style={s.modalOverlay} onPress={() => setShowProviderForm(null)}>
             <Pressable style={s.modalSheet} onPress={(e) => e.stopPropagation()}>
               <View style={s.modalHandle} />
-              <Text style={s.modalTitle}>Add {showProviderForm?.name}</Text>
-              <Text style={s.modalSub}>Enter your {showProviderForm?.id === 'paypal' ? 'PayPal email' : 'account details'}</Text>
+              <Text style={s.modalTitle}>{t('Add')} {showProviderForm?.name}</Text>
+              <Text style={s.modalSub}>{t('Enter your')} {showProviderForm?.id === 'paypal' ? t('PayPal email') : t('account details')}</Text>
 
               <TextInput
                 style={{ backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, color: COLORS.textPrimary, fontSize: 15, marginBottom: 10 }}
-                placeholder={showProviderForm?.id === 'paypal' ? "e.g., inspector@nexpec.com" : "Account Number or IBAN"}
+                placeholder={showProviderForm?.id === 'paypal' ? t("e.g., inspector@nexpec.com") : t("Account Number or IBAN")}
                 placeholderTextColor={COLORS.textMuted}
                 value={providerInputValue}
                 onChangeText={setProviderInputValue}
@@ -786,11 +791,11 @@ export default function FinanceScreen() {
               />
 
               <TouchableOpacity style={[s.modalCancel, { backgroundColor: COLORS.primary, marginTop: 10 }]} onPress={handleSaveProviderDetail} activeOpacity={0.7}>
-                <Text style={[s.modalCancelText, { color: '#FFF' }]}>Save Account</Text>
+                <Text style={[s.modalCancelText, { color: '#FFF' }]}>{t('Save Account')}</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={s.modalCancel} onPress={() => setShowProviderForm(null)} activeOpacity={0.7}>
-                <Text style={s.modalCancelText}>Cancel</Text>
+                <Text style={s.modalCancelText}>{t('Cancel')}</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>

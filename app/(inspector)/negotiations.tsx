@@ -32,6 +32,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420',
@@ -94,6 +95,7 @@ const formatUSD = (cents: number | null) => {
 export default function InspectorNegotiationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
 
   const [items, setItems] = useState<Negotiation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,13 +152,13 @@ export default function InspectorNegotiationsScreen() {
   const respond = useCallback(
     async (applicationId: string, decision: 'accepted' | 'rejected') => {
       if (actingId) return;
-      const verb = decision === 'accepted' ? 'Accept' : 'Decline';
+      const verb = decision === 'accepted' ? t('Accept') : t('Decline');
       const body =
         decision === 'accepted'
-          ? 'Your bid will be replaced with the admin\'s counter amount. This is binding.'
-          : 'The application returns to its prior state. Admin can issue a new counter later.';
-      Alert.alert(`${verb} counter offer?`, body, [
-        { text: 'Cancel', style: 'cancel' },
+          ? t('Your bid will be replaced with the admin\'s counter amount. This is binding.')
+          : t('The application returns to its prior state. Admin can issue a new counter later.');
+      Alert.alert(`${verb} ${t('counter offer?')}`, body, [
+        { text: t('Cancel'), style: 'cancel' },
         {
           text: verb,
           style: decision === 'accepted' ? 'default' : 'destructive',
@@ -172,8 +174,8 @@ export default function InspectorNegotiationsScreen() {
               await fetchAll();
             } catch (err: any) {
               Alert.alert(
-                'Could not record decision',
-                err?.message ?? 'Please try again in a moment.',
+                t('Could not record decision'),
+                err?.message ?? t('Please try again in a moment.'),
               );
             } finally {
               setActingId(null);
@@ -182,7 +184,7 @@ export default function InspectorNegotiationsScreen() {
         },
       ]);
     },
-    [actingId, fetchAll],
+    [actingId, fetchAll, language],
   );
 
   const counts = useMemo(
@@ -208,8 +210,8 @@ export default function InspectorNegotiationsScreen() {
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.kicker}>INSPECTOR PORTAL</Text>
-            <Text style={s.headerTitle}>Negotiations</Text>
+            <Text style={s.kicker}>{t('INSPECTOR PORTAL')}</Text>
+            <Text style={s.headerTitle}>{t('Negotiations')}</Text>
           </View>
           <View style={{ width: 38 }} />
         </View>
@@ -231,34 +233,33 @@ export default function InspectorNegotiationsScreen() {
           <View style={s.statStrip}>
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.amber }]}>{counts.pending}</Text>
-              <Text style={s.statLabel}>Awaiting you</Text>
+              <Text style={s.statLabel}>{t('Awaiting you')}</Text>
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.ok }]}>{counts.accepted}</Text>
-              <Text style={s.statLabel}>Accepted</Text>
+              <Text style={s.statLabel}>{t('Accepted')}</Text>
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.textMuted }]}>{counts.rejected}</Text>
-              <Text style={s.statLabel}>Declined</Text>
+              <Text style={s.statLabel}>{t('Declined')}</Text>
             </View>
           </View>
 
           {loading ? (
             <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
               <ActivityIndicator size="large" color={C.primary} />
-              <Text style={s.loadingText}>LOADING NEGOTIATIONS…</Text>
+              <Text style={s.loadingText}>{t('LOADING NEGOTIATIONS…')}</Text>
             </View>
           ) : items.length === 0 ? (
             <View style={s.empty}>
               <View style={s.emptyIcon}>
                 <Ionicons name="swap-horizontal" size={22} color={C.primary} />
               </View>
-              <Text style={s.emptyTitle}>No negotiations yet</Text>
+              <Text style={s.emptyTitle}>{t('No negotiations yet')}</Text>
               <Text style={s.emptySub}>
-                When admin sends a counter-offer on one of your bids, it lands here.
-                You can accept or decline without navigating to each job.
+                {t('When admin sends a counter-offer on one of your bids, it lands here. You can accept or decline without navigating to each job.')}
               </Text>
             </View>
           ) : (
@@ -288,11 +289,11 @@ export default function InspectorNegotiationsScreen() {
                           onPress={() => router.push(`/(inspector)/jobs/${n.job_id}` as any)}
                         >
                           <Text style={s.cardTitle} numberOfLines={1}>
-                            {n.job_title ?? 'Untitled job'}
+                            {n.job_title ?? t('Untitled job')}
                           </Text>
                           <Text style={s.cardTime}>
                             {n.admin_countered_at
-                              ? `Counter sent ${new Date(n.admin_countered_at).toLocaleString()}`
+                              ? `${t('Counter sent')} ${new Date(n.admin_countered_at).toLocaleString()}`
                               : ''}
                           </Text>
                         </Pressable>
@@ -305,7 +306,7 @@ export default function InspectorNegotiationsScreen() {
                           >
                             <Ionicons name={meta.icon as any} size={9} color={meta.tone} />
                             <Text style={[s.statusPillText, { color: meta.tone }]}>
-                              {meta.label}
+                              {t(meta.label)}
                             </Text>
                           </View>
                         )}
@@ -314,12 +315,12 @@ export default function InspectorNegotiationsScreen() {
                       {/* Money diff row */}
                       <View style={s.moneyRow}>
                         <View style={s.moneyCol}>
-                          <Text style={s.moneyLabel}>YOUR BID</Text>
+                          <Text style={s.moneyLabel}>{t('YOUR BID')}</Text>
                           <Text style={s.moneyOriginal}>{formatUSD(n.bid_amount_cents)}</Text>
                         </View>
                         <Ionicons name="arrow-forward" size={16} color={C.textDim} />
                         <View style={s.moneyCol}>
-                          <Text style={s.moneyLabel}>COUNTER</Text>
+                          <Text style={s.moneyLabel}>{t('COUNTER')}</Text>
                           <Text style={[s.moneyCounter, { color: isPending ? C.amber : C.text }]}>
                             {formatUSD(n.admin_counter_cents)}
                           </Text>
@@ -339,14 +340,14 @@ export default function InspectorNegotiationsScreen() {
 
                       {n.admin_comment && (
                         <View style={s.commentBox}>
-                          <Text style={s.commentLabel}>ADMIN NOTE</Text>
+                          <Text style={s.commentLabel}>{t('ADMIN NOTE')}</Text>
                           <Text style={s.commentText}>{n.admin_comment}</Text>
                         </View>
                       )}
 
                       {n.inspector_decision_at && (
                         <Text style={s.decisionMeta}>
-                          You {n.inspector_decision === 'accepted' ? 'accepted' : 'declined'}{' '}
+                          {t('You')} {n.inspector_decision === 'accepted' ? t('accepted') : t('declined')}{' '}
                           {new Date(n.inspector_decision_at).toLocaleString()}
                           {n.inspector_decision_note ? `, "${n.inspector_decision_note}"` : ''}
                         </Text>
@@ -364,7 +365,7 @@ export default function InspectorNegotiationsScreen() {
                             ]}
                           >
                             <Ionicons name="close" size={13} color={C.danger} />
-                            <Text style={s.declineText}>Decline</Text>
+                            <Text style={s.declineText}>{t('Decline')}</Text>
                           </Pressable>
                           <Pressable
                             onPress={() => respond(n.id, 'accepted')}
@@ -380,7 +381,7 @@ export default function InspectorNegotiationsScreen() {
                             ) : (
                               <Ionicons name="checkmark" size={14} color="#1F1300" />
                             )}
-                            <Text style={s.acceptText}>{acting ? 'Recording…' : 'Accept'}</Text>
+                            <Text style={s.acceptText}>{acting ? t('Recording…') : t('Accept')}</Text>
                           </Pressable>
                         </View>
                       )}
@@ -393,7 +394,7 @@ export default function InspectorNegotiationsScreen() {
                             pressed && { transform: [{ scale: 0.98 }] },
                           ]}
                         >
-                          <Text style={s.viewBtnText}>Open job</Text>
+                          <Text style={s.viewBtnText}>{t('Open job')}</Text>
                           <Ionicons name="chevron-forward" size={12} color={C.textSec} />
                         </Pressable>
                       )}

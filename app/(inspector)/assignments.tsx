@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420', card: '#0B1138',
@@ -54,6 +55,7 @@ const SECTIONS: Array<{ key: Bucket; label: string; icon: keyof typeof Ionicons.
 ];
 
 export default function InspectorAssignmentsScreen() {
+  const { t, isRTL, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
@@ -64,7 +66,7 @@ export default function InspectorAssignmentsScreen() {
     setError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError('You must be signed in.'); return; }
+      if (!user) { setError(t('You must be signed in.')); return; }
 
       // Source A — applications I'm hired/accepted on.
       const appRes = await supabase
@@ -136,11 +138,11 @@ export default function InspectorAssignmentsScreen() {
       setFeSet(fullyExecuted);
     } catch (e: unknown) {
       console.warn('[assignments] load threw:', e);
-      setError((e as Error)?.message ?? 'Could not load your assignments.');
+      setError((e as Error)?.message ?? t('Could not load your assignments.'));
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => { void load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); void load(); }, [load]);
@@ -159,7 +161,7 @@ export default function InspectorAssignmentsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
-        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>Loading assignments…</Text></View>
+        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>{t('Loading assignments…')}</Text></View>
       </SafeAreaView>
     );
   }
@@ -171,7 +173,7 @@ export default function InspectorAssignmentsScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}><Ionicons name="arrow-back" size={22} color={C.text} /></TouchableOpacity>
-        <Text style={s.headerTitle}>My assignments</Text>
+        <Text style={s.headerTitle}>{t('My assignments')}</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -181,9 +183,9 @@ export default function InspectorAssignmentsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-          <Text style={s.kicker}>INSPECTOR, ACTIVE WORK</Text>
-          <Text style={s.title}>Assignments</Text>
-          <Text style={s.subtitle}>{total} job{total === 1 ? '' : 's'} assigned to you, grouped by where they are in the pipeline.</Text>
+          <Text style={s.kicker}>{t('INSPECTOR, ACTIVE WORK')}</Text>
+          <Text style={s.title}>{t('Assignments')}</Text>
+          <Text style={s.subtitle}>{total} {total === 1 ? t('job') : t('jobs')} {t('assigned to you, grouped by where they are in the pipeline.')}</Text>
         </Animated.View>
 
         {error ? (<View style={s.errorBanner}><Ionicons name="alert-circle" size={16} color={C.red} /><Text style={s.errorText}>{error}</Text></View>) : null}
@@ -191,9 +193,9 @@ export default function InspectorAssignmentsScreen() {
         {total === 0 ? (
           <View style={s.emptyState}>
             <Ionicons name="briefcase-outline" size={32} color={C.textMute} />
-            <Text style={s.emptyText}>No active assignments. Browse the open queue to find work.</Text>
+            <Text style={s.emptyText}>{t('No active assignments. Browse the open queue to find work.')}</Text>
             <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(inspector)/jobs' as any)} activeOpacity={0.85}>
-              <Text style={s.browseBtnText}>Browse open jobs</Text>
+              <Text style={s.browseBtnText}>{t('Browse open jobs')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -204,7 +206,7 @@ export default function InspectorAssignmentsScreen() {
               <Animated.View key={sec.key} entering={FadeInDown.duration(220)} style={{ gap: 8 }}>
                 <View style={s.sectionHead}>
                   <Ionicons name={sec.icon} size={14} color={sec.tone} />
-                  <Text style={[s.sectionLabel, { color: sec.tone }]}>{sec.label}</Text>
+                  <Text style={[s.sectionLabel, { color: sec.tone }]}>{t(sec.label)}</Text>
                   <View style={[s.countPill, { borderColor: sec.tone + '44', backgroundColor: sec.tone + '14' }]}><Text style={[s.countPillText, { color: sec.tone }]}>{items.length}</Text></View>
                 </View>
                 {items.map((r) => <AssignmentCard key={r.jobId} r={r} />)}
@@ -212,14 +214,13 @@ export default function InspectorAssignmentsScreen() {
             );
           })
         )}
-
-        <Text style={s.footnote}>Source, applications (hired/accepted) + inspector_job_contracts_view, RLS-gated by applicant_id.</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 function AssignmentCard({ r }: { r: Row }) {
+  const { t } = useLanguage();
   const tone = STATUS_TONE[r.jobStatus] ?? C.textMute;
   const canSubmit = r.jobStatus === 'assigned' || r.jobStatus === 'in_progress';
   return (
@@ -235,7 +236,7 @@ function AssignmentCard({ r }: { r: Row }) {
         </View>
         <View style={s.metaRow}>
           <Ionicons name="calendar-outline" size={11} color={C.textMute} />
-          <Text style={s.metaText}>{r.scheduledDate ? formatDate(r.scheduledDate) : 'Unscheduled'}</Text>
+          <Text style={s.metaText}>{r.scheduledDate ? formatDate(r.scheduledDate) : t('Unscheduled')}</Text>
           {r.urgency && r.urgency !== 'normal' && (
             <Text style={[s.urgency, { color: r.urgency === 'critical' ? C.red : r.urgency === 'high' ? C.orange : C.textMute }]}>{r.urgency.toUpperCase()}</Text>
           )}
@@ -243,16 +244,16 @@ function AssignmentCard({ r }: { r: Row }) {
       </TouchableOpacity>
       <View style={s.cardBottom}>
         <View>
-          <Text style={s.payout}>{r.payoutCents != null ? formatCents(r.payoutCents) : 'Pending price'}</Text>
+          <Text style={s.payout}>{r.payoutCents != null ? formatCents(r.payoutCents) : t('Pending price')}</Text>
           {r.payoutStatus && r.payoutStatus !== 'unpaid' && <Text style={s.payoutStatus}>{r.payoutStatus.toUpperCase()}</Text>}
         </View>
         {canSubmit ? (
           <TouchableOpacity style={s.reportBtn} activeOpacity={0.85} onPress={() => router.push(`/(inspector)/jobs/${r.jobId}/submit-report` as any)}>
-            <Ionicons name="document-text-outline" size={14} color="#fff" /><Text style={s.reportBtnText}>Submit report</Text>
+            <Ionicons name="document-text-outline" size={14} color="#fff" /><Text style={s.reportBtnText}>{t('Submit report')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={s.viewBtn} activeOpacity={0.7} onPress={() => router.push(`/(inspector)/jobs/${r.jobId}` as any)}>
-            <Text style={s.viewBtnText}>View</Text><Ionicons name="chevron-forward" size={13} color={C.textSec} />
+            <Text style={s.viewBtnText}>{t('View')}</Text><Ionicons name="chevron-forward" size={13} color={C.textSec} />
           </TouchableOpacity>
         )}
       </View>

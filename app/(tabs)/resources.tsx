@@ -16,6 +16,7 @@ import { signedUrl, parseSupabaseStorageUrl, SIGNED_URL_TTL } from '@/src/core/s
 import { supabase } from '../../lib/supabase';
 import { jobFieldsForRole } from '../../lib/jobsProjection';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) { UIManager.setLayoutAnimationEnabledExperimental(true); }
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -38,16 +39,17 @@ const getJobStatusConfig = (status: string) => { switch (status) { case 'assigne
 //   between Project Docs and Library. Project Docs is the only mode.
 
 const CollapsibleProject: React.FC<{ job: JobWithDocs; userRole: UserRole; isExpanded: boolean; onToggle: () => void; onViewDoc: (doc: ProjectDocument) => void; onUploadDoc?: (jobId: string) => void; }> = React.memo(({ job, userRole, isExpanded, onToggle, onViewDoc, onUploadDoc }) => {
+  const { t } = useLanguage();
   const rotateAnim = useRef(new Animated.Value(isExpanded ? 1 : 0)).current; const statusCfg = getJobStatusConfig(job.status); const isArchived = job.status === 'completed';
   useEffect(() => { Animated.spring(rotateAnim, { toValue: isExpanded ? 1 : 0, tension: 60, friction: 10, useNativeDriver: true, }).start(); }, [isExpanded]);
   const rotation = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'], });
   return (
     <View style={[s.projectCard, isArchived && s.projectCardArchived]}>
-      <TouchableOpacity style={s.projectHeader} onPress={onToggle} activeOpacity={0.7}><View style={s.projectHeaderLeft}><View style={[s.projectStatusDot, { backgroundColor: statusCfg.color }]} /><View style={{ flex: 1 }}><Text style={s.projectTitle} numberOfLines={1}>{job.title || 'Untitled Project'}</Text></View></View><View style={s.projectHeaderRight}><View style={[s.projectDocCount, { backgroundColor: `${statusCfg.color}15` }]}><Ionicons name="document-text-outline" size={12} color={statusCfg.color} /><Text style={[s.projectDocCountText, { color: statusCfg.color }]}>{job.documents.length}</Text></View><Animated.View style={{ transform: [{ rotate: rotation }] }}><Ionicons name="chevron-down" size={18} color={COLORS.textMuted} /></Animated.View></View></TouchableOpacity>
+      <TouchableOpacity style={s.projectHeader} onPress={onToggle} activeOpacity={0.7}><View style={s.projectHeaderLeft}><View style={[s.projectStatusDot, { backgroundColor: statusCfg.color }]} /><View style={{ flex: 1 }}><Text style={s.projectTitle} numberOfLines={1}>{job.title || t('Untitled Project')}</Text></View></View><View style={s.projectHeaderRight}><View style={[s.projectDocCount, { backgroundColor: `${statusCfg.color}15` }]}><Ionicons name="document-text-outline" size={12} color={statusCfg.color} /><Text style={[s.projectDocCountText, { color: statusCfg.color }]}>{job.documents.length}</Text></View><Animated.View style={{ transform: [{ rotate: rotation }] }}><Ionicons name="chevron-down" size={18} color={COLORS.textMuted} /></Animated.View></View></TouchableOpacity>
       {isExpanded && (
         <View style={s.projectContent}>
           <View style={s.projectStatusBar}><View style={[s.statusBadge, { backgroundColor: statusCfg.bg }]}><Ionicons name={statusCfg.icon} size={12} color={statusCfg.color} /><Text style={[s.statusBadgeText, { color: statusCfg.color }]}>{statusCfg.label}</Text></View></View>
-          {job.documents.length === 0 ? ( <View style={s.noDocsWrap}><Ionicons name="document-outline" size={28} color={COLORS.textDark} /><Text style={s.noDocsText}>No documents uploaded yet</Text>{(userRole === 'client' || userRole === 'agency') && onUploadDoc && ( <TouchableOpacity style={s.noDocsUploadBtn} onPress={() => onUploadDoc(job.id)} activeOpacity={0.8}><Ionicons name="cloud-upload-outline" size={14} color={COLORS.primary} /><Text style={s.noDocsUploadText}>Upload First Document</Text></TouchableOpacity> )}</View> ) : (
+          {job.documents.length === 0 ? ( <View style={s.noDocsWrap}><Ionicons name="document-outline" size={28} color={COLORS.textDark} /><Text style={s.noDocsText}>{t('No documents uploaded yet')}</Text>{(userRole === 'client' || userRole === 'agency') && onUploadDoc && ( <TouchableOpacity style={s.noDocsUploadBtn} onPress={() => onUploadDoc(job.id)} activeOpacity={0.8}><Ionicons name="cloud-upload-outline" size={14} color={COLORS.primary} /><Text style={s.noDocsUploadText}>{t('Upload First Document')}</Text></TouchableOpacity> )}</View> ) : (
             <View style={s.docsList}>
               {job.documents.map((doc, idx) => {
                 const isExternal = !!doc.document_url;
@@ -57,7 +59,7 @@ const CollapsibleProject: React.FC<{ job: JobWithDocs; userRole: UserRole; isExp
                   ? { icon: 'link' as const, color: COLORS.cyan }
                   : getFileTypeConfig(doc.file_name);
                 const catCfg = DOC_CATEGORIES.find(c => c.key === doc.category);
-                return ( <TouchableOpacity key={doc.id} style={[s.docItem, idx < job.documents.length - 1 && s.docItemBorder]} onPress={() => onViewDoc(doc)} activeOpacity={0.7}><View style={[s.docFileIcon, { backgroundColor: `${fileCfg.color}15` }]}><Ionicons name={fileCfg.icon} size={20} color={fileCfg.color} /></View><View style={s.docInfo}><Text style={s.docFileName} numberOfLines={1}>{doc.file_name}</Text><View style={s.docMetaRow}>{catCfg && ( <View style={[s.docCatBadge, { backgroundColor: catCfg.bg }]}><Text style={[s.docCatText, { color: catCfg.color }]}>{catCfg.label}</Text></View> )}{isExternal ? ( <View style={[s.docCatBadge, { backgroundColor: COLORS.cyanBg }]}><Text style={[s.docCatText, { color: COLORS.cyan }]}>EXTERNAL LINK</Text></View> ) : ( <Text style={s.docMetaText}>{formatFileSize(doc.file_size)}</Text> )}<Text style={s.docMetaDot}>•</Text><Text style={s.docMetaText}>{formatDate(doc.created_at)}</Text></View>{doc.uploaded_by_name && ( <Text style={s.docUploader}>by {doc.uploaded_by_name}</Text> )}</View><TouchableOpacity style={s.docActionBtn} onPress={() => onViewDoc(doc)} activeOpacity={0.7}><Ionicons name={isExternal ? 'open-outline' : (userRole === 'inspector' ? 'download-outline' : 'eye-outline')} size={18} color={isExternal ? COLORS.cyan : COLORS.primary} /></TouchableOpacity></TouchableOpacity> );
+                return ( <TouchableOpacity key={doc.id} style={[s.docItem, idx < job.documents.length - 1 && s.docItemBorder]} onPress={() => onViewDoc(doc)} activeOpacity={0.7}><View style={[s.docFileIcon, { backgroundColor: `${fileCfg.color}15` }]}><Ionicons name={fileCfg.icon} size={20} color={fileCfg.color} /></View><View style={s.docInfo}><Text style={s.docFileName} numberOfLines={1}>{doc.file_name}</Text><View style={s.docMetaRow}>{catCfg && ( <View style={[s.docCatBadge, { backgroundColor: catCfg.bg }]}><Text style={[s.docCatText, { color: catCfg.color }]}>{t(catCfg.label)}</Text></View> )}{isExternal ? ( <View style={[s.docCatBadge, { backgroundColor: COLORS.cyanBg }]}><Text style={[s.docCatText, { color: COLORS.cyan }]}>{t('EXTERNAL LINK')}</Text></View> ) : ( <Text style={s.docMetaText}>{formatFileSize(doc.file_size)}</Text> )}<Text style={s.docMetaDot}>•</Text><Text style={s.docMetaText}>{formatDate(doc.created_at)}</Text></View>{doc.uploaded_by_name && ( <Text style={s.docUploader}>{t('by')} {doc.uploaded_by_name}</Text> )}</View><TouchableOpacity style={s.docActionBtn} onPress={() => onViewDoc(doc)} activeOpacity={0.7}><Ionicons name={isExternal ? 'open-outline' : (userRole === 'inspector' ? 'download-outline' : 'eye-outline')} size={18} color={isExternal ? COLORS.cyan : COLORS.primary} /></TouchableOpacity></TouchableOpacity> );
               })}
             </View>
           )}
@@ -67,9 +69,12 @@ const CollapsibleProject: React.FC<{ job: JobWithDocs; userRole: UserRole; isExp
   );
 });
 
-const DocStats: React.FC<{ activeCount: number; archivedCount: number; totalDocs: number; }> = React.memo(({ activeCount, archivedCount, totalDocs }) => (
-  <View style={s.docStatsBanner}><LinearGradient colors={['rgba(124,58,237,0.12)', 'rgba(124,58,237,0.04)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} /><View style={s.docStatItem}><Text style={s.docStatValue}>{activeCount}</Text><Text style={s.docStatLabel}>Active</Text></View><View style={s.docStatDivider} /><View style={s.docStatItem}><Text style={s.docStatValue}>{archivedCount}</Text><Text style={s.docStatLabel}>Archived</Text></View><View style={s.docStatDivider} /><View style={s.docStatItem}><Text style={s.docStatValue}>{totalDocs}</Text><Text style={s.docStatLabel}>Documents</Text></View></View>
-));
+const DocStats: React.FC<{ activeCount: number; archivedCount: number; totalDocs: number; }> = React.memo(({ activeCount, archivedCount, totalDocs }) => {
+  const { t } = useLanguage();
+  return (
+  <View style={s.docStatsBanner}><LinearGradient colors={['rgba(124,58,237,0.12)', 'rgba(124,58,237,0.04)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} /><View style={s.docStatItem}><Text style={s.docStatValue}>{activeCount}</Text><Text style={s.docStatLabel}>{t('Active')}</Text></View><View style={s.docStatDivider} /><View style={s.docStatItem}><Text style={s.docStatValue}>{archivedCount}</Text><Text style={s.docStatLabel}>{t('Archived')}</Text></View><View style={s.docStatDivider} /><View style={s.docStatItem}><Text style={s.docStatValue}>{totalDocs}</Text><Text style={s.docStatLabel}>{t('Documents')}</Text></View></View>
+  );
+});
 
 type UploadMode = 'file' | 'link';
 
@@ -80,6 +85,7 @@ const UploadModal: React.FC<{
   onUploadLink: (category: ProjectDocument['category'], url: string) => void;
   uploading: boolean;
 }> = ({ visible, onClose, onUploadFile, onUploadLink, uploading }) => {
+  const { t } = useLanguage();
   const [mode, setMode] = useState<UploadMode>('file');
   const [linkUrl, setLinkUrl] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ProjectDocument['category'] | null>(null);
@@ -106,16 +112,16 @@ const UploadModal: React.FC<{
 
   const handleAttachLink = () => {
     if (!selectedCategory) {
-      Alert.alert('Pick a category', 'Tap one of the category chips above first.');
+      Alert.alert(t('Pick a category'), t('Tap one of the category chips above first.'));
       return;
     }
     const raw = linkUrl.trim();
     if (!raw) {
-      Alert.alert('Paste a URL', 'Enter a Google Drive / Dropbox / OneDrive link.');
+      Alert.alert(t('Paste a URL'), t('Enter a Google Drive / Dropbox / OneDrive link.'));
       return;
     }
     if (!/^https?:\/\//i.test(raw)) {
-      Alert.alert('Invalid link', 'The URL must start with http:// or https://.');
+      Alert.alert(t('Invalid link'), t('The URL must start with http:// or https://.'));
       return;
     }
     onUploadLink(selectedCategory, raw);
@@ -126,14 +132,14 @@ const UploadModal: React.FC<{
       <View style={s.modalOverlay}>
         <View style={s.modalContent}>
           <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Upload Document</Text>
+            <Text style={s.modalTitle}>{t('Upload Document')}</Text>
             <TouchableOpacity onPress={onClose} style={s.modalCloseBtn}>
               <Ionicons name="close" size={24} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
 
           {/* ★ Source toggle — File or External Link */}
-          <Text style={s.modalSubtitle}>Source</Text>
+          <Text style={s.modalSubtitle}>{t('Source')}</Text>
           <View style={s.modeToggleRow}>
             <TouchableOpacity
               style={[s.modeToggleBtn, mode === 'file' && s.modeToggleBtnOn]}
@@ -147,7 +153,7 @@ const UploadModal: React.FC<{
                 color={mode === 'file' ? COLORS.primary : COLORS.textMuted}
               />
               <Text style={[s.modeToggleText, mode === 'file' && { color: COLORS.primary }]}>
-                Pick File
+                {t('Pick File')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -162,13 +168,13 @@ const UploadModal: React.FC<{
                 color={mode === 'link' ? COLORS.primary : COLORS.textMuted}
               />
               <Text style={[s.modeToggleText, mode === 'link' && { color: COLORS.primary }]}>
-                External Link
+                {t('External Link')}
               </Text>
             </TouchableOpacity>
           </View>
 
           <Text style={[s.modalSubtitle, { marginTop: 14 }]}>
-            {mode === 'file' ? 'Select document category' : 'Select category, then paste URL'}
+            {mode === 'file' ? t('Select document category') : t('Select category, then paste URL')}
           </Text>
 
           <View style={s.categoryGrid}>
@@ -187,7 +193,7 @@ const UploadModal: React.FC<{
                   activeOpacity={0.8}
                 >
                   <Ionicons name={cat.icon} size={20} color={cat.color} />
-                  <Text style={[s.categoryLabel, { color: cat.color }]}>{cat.label}</Text>
+                  <Text style={[s.categoryLabel, { color: cat.color }]}>{t(cat.label)}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -196,7 +202,7 @@ const UploadModal: React.FC<{
           {/* ★ Link mode — URL input + Attach button */}
           {mode === 'link' && (
             <View style={s.linkBlock}>
-              <Text style={s.modalSubtitle}>External URL</Text>
+              <Text style={s.modalSubtitle}>{t('External URL')}</Text>
               <View style={s.linkInputWrap}>
                 <Ionicons name="link" size={14} color={COLORS.cyan} style={{ marginRight: 8 }} />
                 <TextInput
@@ -214,8 +220,7 @@ const UploadModal: React.FC<{
                 />
               </View>
               <Text style={s.linkHelp}>
-                For heavy files (large drawings, video, full DWG packages) use
-                Google Drive, Dropbox, or OneDrive share links.
+                {t('For heavy files (large drawings, video, full DWG packages) use Google Drive, Dropbox, or OneDrive share links.')}
               </Text>
               <TouchableOpacity
                 style={[
@@ -227,7 +232,7 @@ const UploadModal: React.FC<{
                 activeOpacity={0.85}
               >
                 <Ionicons name="add-circle-outline" size={18} color="#FFF" />
-                <Text style={s.linkAttachText}>Attach External Link</Text>
+                <Text style={s.linkAttachText}>{t('Attach External Link')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -236,13 +241,13 @@ const UploadModal: React.FC<{
             <View style={s.uploadingIndicator}>
               <ActivityIndicator size="small" color={COLORS.primary} />
               <Text style={s.uploadingText}>
-                {mode === 'file' ? 'Uploading document…' : 'Saving link…'}
+                {mode === 'file' ? t('Uploading document…') : t('Saving link…')}
               </Text>
             </View>
           )}
 
           <TouchableOpacity style={s.modalCancelBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={s.modalCancelText}>Cancel</Text>
+            <Text style={s.modalCancelText}>{t('Cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -252,6 +257,7 @@ const UploadModal: React.FC<{
 
 export default function ResourcesScreen() {
   const router = useRouter(); const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
   // ★ activeTab + library state removed — Project Docs is the only mode.
   const [userRole, setUserRole] = useState<UserRole>('inspector'); const [jobsWithDocs, setJobsWithDocs] = useState<JobWithDocs[]>([]); const [docsLoading, setDocsLoading] = useState(true); const [docsRefreshing, setDocsRefreshing] = useState(false); const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set()); const [activeExpanded, setActiveExpanded] = useState(true); const [archivedExpanded, setArchivedExpanded] = useState(false);
   const [uploadJobId, setUploadJobId] = useState<string | null>(null);
@@ -329,22 +335,22 @@ export default function ResourcesScreen() {
     //   ceremony. Works on iOS, Android, and web for any reachable URL.
     if (doc.document_url) {
       Alert.alert(
-        doc.file_name || 'External Link',
-        `Category: ${doc.category.toUpperCase()}\nSource: External Link\n\n${doc.document_url}\n\nOpen in browser?`,
+        doc.file_name || t('External Link'),
+        `${t('Category:')} ${doc.category.toUpperCase()}\n${t('Source: External Link')}\n\n${doc.document_url}\n\n${t('Open in browser?')}`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('Cancel'), style: 'cancel' },
           {
-            text: 'Open Link',
+            text: t('Open Link'),
             onPress: async () => {
               try {
                 const supported = await Linking.canOpenURL(doc.document_url!);
                 if (!supported) {
-                  Alert.alert('Cannot open link', 'This URL is not supported on this device.');
+                  Alert.alert(t('Cannot open link'), t('This URL is not supported on this device.'));
                   return;
                 }
                 await Linking.openURL(doc.document_url!);
               } catch (e: any) {
-                Alert.alert('Could not open link', e?.message ?? 'Unknown error.');
+                Alert.alert(t('Could not open link'), e?.message ?? t('Unknown error.'));
               }
             },
           },
@@ -361,11 +367,11 @@ export default function ResourcesScreen() {
     if (doc.file_url) {
       Alert.alert(
         doc.file_name,
-        `Category: ${doc.category.toUpperCase()}\nSize: ${formatFileSize(doc.file_size)}\n\nOpen this document?`,
+        `${t('Category:')} ${doc.category.toUpperCase()}\n${t('Size:')} ${formatFileSize(doc.file_size)}\n\n${t('Open this document?')}`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('Cancel'), style: 'cancel' },
           {
-            text: userRole === 'inspector' ? 'Download' : 'View',
+            text: userRole === 'inspector' ? t('Download') : t('View'),
             onPress: async () => {
               try {
                 let openUrl = doc.file_url;
@@ -382,24 +388,24 @@ export default function ResourcesScreen() {
                 if (supported) {
                   await Linking.openURL(openUrl);
                 } else {
-                  Alert.alert('Cannot open document', 'This URL is not supported on this device.');
+                  Alert.alert(t('Cannot open document'), t('This URL is not supported on this device.'));
                 }
               } catch (e: any) {
-                Alert.alert('Could not open', e?.message ?? 'Unknown error.');
+                Alert.alert(t('Could not open'), e?.message ?? t('Unknown error.'));
               }
             },
           },
         ],
       );
     } else {
-      Alert.alert('Unavailable', 'Document URL is not available.');
+      Alert.alert(t('Unavailable'), t('Document URL is not available.'));
     }
-  }, [userRole]);
+  }, [userRole, t]);
 
   const handleUploadDocument = useCallback(
     async (category: ProjectDocument['category']) => {
       if (!uploadJobId || !user?.id) {
-        Alert.alert('Error', 'Please select a project first.');
+        Alert.alert(t('Error'), t('Please select a project first.'));
         return;
       }
 
@@ -462,19 +468,19 @@ export default function ResourcesScreen() {
           throw dbError;
         }
 
-        Alert.alert('Success', 'Document uploaded successfully!');
+        Alert.alert(t('Success'), t('Document uploaded successfully!'));
         setShowUploadModal(false);
         setUploadJobId(null);
         // Force refresh the list after a successful upload
         await fetchJobsWithDocuments();
       } catch (err: any) {
         console.error('Upload error:', err);
-        Alert.alert('Upload Failed', err.message || 'An error occurred during upload.');
+        Alert.alert(t('Upload Failed'), err.message || t('An error occurred during upload.'));
       } finally {
         setUploading(false);
       }
     },
-    [uploadJobId, user?.id, fetchJobsWithDocuments],
+    [uploadJobId, user?.id, fetchJobsWithDocuments, t],
   );
 
   const handleUploadPress = useCallback((jobId: string) => {
@@ -490,7 +496,7 @@ export default function ResourcesScreen() {
   const handleUploadLink = useCallback(
     async (category: ProjectDocument['category'], url: string) => {
       if (!uploadJobId || !user?.id) {
-        Alert.alert('Error', 'Please select a project first.');
+        Alert.alert(t('Error'), t('Please select a project first.'));
         return;
       }
       setUploading(true);
@@ -522,34 +528,34 @@ export default function ResourcesScreen() {
           .insert(newDoc);
         if (dbError) throw dbError;
 
-        Alert.alert('Saved', 'External link attached.');
+        Alert.alert(t('Saved'), t('External link attached.'));
         setShowUploadModal(false);
         setUploadJobId(null);
         await fetchJobsWithDocuments();
       } catch (err: any) {
         console.error('Link save error:', err);
-        Alert.alert('Could not save link', err?.message ?? 'An error occurred.');
+        Alert.alert(t('Could not save link'), err?.message ?? t('An error occurred.'));
       } finally {
         setUploading(false);
       }
     },
-    [uploadJobId, user?.id, fetchJobsWithDocuments],
+    [uploadJobId, user?.id, fetchJobsWithDocuments, t],
   );
 
   const onDocsRefresh = useCallback(async () => { setDocsRefreshing(true); await fetchJobsWithDocuments(); setDocsRefreshing(false); }, [fetchJobsWithDocuments]);
 
   // ★ LibraryContent useMemo + onLibraryRefresh removed alongside the
   //   deprecated Library tab. Only DocsListHeader survives.
-  const DocsListHeader = useMemo( () => ( <View><View style={s.docsHeader}><View style={s.docsHeaderLeft}><View style={s.docsHeaderIcon}><Ionicons name="folder-open" size={20} color={COLORS.primary} /></View><View><Text style={s.docsHeaderTitle}>Project Documents</Text><Text style={s.docsHeaderSub}>{userRole === 'inspector' ? 'Documents for your assigned inspections' : 'Manage documents across your projects'}</Text></View></View></View><DocStats activeCount={activeProjects.length} archivedCount={archivedProjects.length} totalDocs={totalDocs} /></View> ), [userRole, activeProjects.length, archivedProjects.length, totalDocs], );
+  const DocsListHeader = useMemo( () => ( <View><View style={s.docsHeader}><View style={s.docsHeaderLeft}><View style={s.docsHeaderIcon}><Ionicons name="folder-open" size={20} color={COLORS.primary} /></View><View><Text style={s.docsHeaderTitle}>{t('Project Documents')}</Text><Text style={s.docsHeaderSub}>{userRole === 'inspector' ? t('Documents for your assigned inspections') : t('Manage documents across your projects')}</Text></View></View></View><DocStats activeCount={activeProjects.length} archivedCount={archivedProjects.length} totalDocs={totalDocs} /></View> ), [userRole, activeProjects.length, archivedProjects.length, totalDocs, t, language], );
 
   return (
     <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       <LinearGradient colors={[COLORS.background, COLORS.backgroundAlt, COLORS.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
       <SafeAreaView style={s.safeArea} edges={['top']}>
-        <View style={s.screenTopHeader}><Text style={s.screenTopTitle}>Documents</Text><TouchableOpacity style={s.screenTopBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
+        <View style={s.screenTopHeader}><Text style={s.screenTopTitle}>{t('Documents')}</Text><TouchableOpacity style={s.screenTopBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
         {/* ★ Library deprecated. Project Documents is the only mode now. */}
-        {docsLoading && !docsRefreshing ? ( <View style={s.loadingWrap}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>Loading documents…</Text></View> ) : ( <ScrollView style={{ flex: 1 }} contentContainerStyle={s.docsScrollContent} showsVerticalScrollIndicator={false} refreshControl={ <RefreshControl refreshing={docsRefreshing} onRefresh={onDocsRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>{DocsListHeader}<TouchableOpacity style={s.accordionHeader} onPress={toggleActiveSection} activeOpacity={0.7}><View style={s.accordionHeaderLeft}><View style={[s.accordionDot, { backgroundColor: COLORS.blue }]} /><Text style={s.accordionTitle}>Active Projects</Text><View style={[s.countBadge, { backgroundColor: COLORS.blueBg }]}><Text style={[s.countBadgeText, { color: COLORS.blue }]}>{activeProjects.length}</Text></View></View><Ionicons name={activeExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} /></TouchableOpacity>{activeExpanded && ( <View style={s.accordionContent}>{activeProjects.length === 0 ? ( <View style={s.emptySection}><Ionicons name="folder-open-outline" size={36} color={COLORS.textDark} /><Text style={s.emptySectionTitle}>No Active Projects</Text><Text style={s.emptySectionSub}>{userRole === 'inspector' ? 'Accept jobs from the Discover tab to see documents here.' : 'Post a job to start managing project documents.'}</Text></View> ) : ( activeProjects.map((job) => ( <CollapsibleProject key={job.id} job={job} userRole={userRole} isExpanded={expandedProjects.has(job.id)} onToggle={() => toggleProject(job.id)} onViewDoc={handleViewDoc} onUploadDoc={handleUploadPress} /> )) )}</View> )}<TouchableOpacity style={[s.accordionHeader, { marginTop: 8 }]} onPress={toggleArchivedSection} activeOpacity={0.7}><View style={s.accordionHeaderLeft}><View style={[s.accordionDot, { backgroundColor: COLORS.green }]} /><Text style={s.accordionTitle}>Archived Projects</Text><View style={[s.countBadge, { backgroundColor: COLORS.greenBg }]}><Text style={[s.countBadgeText, { color: COLORS.green }]}>{archivedProjects.length}</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="lock-closed-outline" size={12} color={COLORS.textDark} /><Ionicons name={archivedExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} /></View></TouchableOpacity>{archivedExpanded && ( <View style={s.accordionContent}>{archivedProjects.length === 0 ? ( <View style={s.emptySection}><Ionicons name="archive-outline" size={36} color={COLORS.textDark} /><Text style={s.emptySectionTitle}>No Archived Projects</Text><Text style={s.emptySectionSub}>Completed inspections and their documents will appear here for audit & legal reference.</Text></View> ) : ( archivedProjects.map((job) => ( <CollapsibleProject key={job.id} job={job} userRole={userRole} isExpanded={expandedProjects.has(job.id)} onToggle={() => toggleProject(job.id)} onViewDoc={handleViewDoc} onUploadDoc={handleUploadPress} /> )) )}{archivedProjects.length > 0 && ( <View style={s.archiveNotice}><Ionicons name="information-circle-outline" size={14} color={COLORS.textDark} /><Text style={s.archiveNoticeText}>Archived documents are retained for legal and audit compliance. They cannot be deleted.</Text></View> )}</View> )}<View style={{ height: 120 }} /></ScrollView> )}
+        {docsLoading && !docsRefreshing ? ( <View style={s.loadingWrap}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>{t('Loading documents…')}</Text></View> ) : ( <ScrollView style={{ flex: 1 }} contentContainerStyle={s.docsScrollContent} showsVerticalScrollIndicator={false} refreshControl={ <RefreshControl refreshing={docsRefreshing} onRefresh={onDocsRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>{DocsListHeader}<TouchableOpacity style={s.accordionHeader} onPress={toggleActiveSection} activeOpacity={0.7}><View style={s.accordionHeaderLeft}><View style={[s.accordionDot, { backgroundColor: COLORS.blue }]} /><Text style={s.accordionTitle}>{t('Active Projects')}</Text><View style={[s.countBadge, { backgroundColor: COLORS.blueBg }]}><Text style={[s.countBadgeText, { color: COLORS.blue }]}>{activeProjects.length}</Text></View></View><Ionicons name={activeExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} /></TouchableOpacity>{activeExpanded && ( <View style={s.accordionContent}>{activeProjects.length === 0 ? ( <View style={s.emptySection}><Ionicons name="folder-open-outline" size={36} color={COLORS.textDark} /><Text style={s.emptySectionTitle}>{t('No Active Projects')}</Text><Text style={s.emptySectionSub}>{userRole === 'inspector' ? t('Accept jobs from the Discover tab to see documents here.') : t('Post a job to start managing project documents.')}</Text></View> ) : ( activeProjects.map((job) => ( <CollapsibleProject key={job.id} job={job} userRole={userRole} isExpanded={expandedProjects.has(job.id)} onToggle={() => toggleProject(job.id)} onViewDoc={handleViewDoc} onUploadDoc={handleUploadPress} /> )) )}</View> )}<TouchableOpacity style={[s.accordionHeader, { marginTop: 8 }]} onPress={toggleArchivedSection} activeOpacity={0.7}><View style={s.accordionHeaderLeft}><View style={[s.accordionDot, { backgroundColor: COLORS.green }]} /><Text style={s.accordionTitle}>{t('Archived Projects')}</Text><View style={[s.countBadge, { backgroundColor: COLORS.greenBg }]}><Text style={[s.countBadgeText, { color: COLORS.green }]}>{archivedProjects.length}</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Ionicons name="lock-closed-outline" size={12} color={COLORS.textDark} /><Ionicons name={archivedExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.textMuted} /></View></TouchableOpacity>{archivedExpanded && ( <View style={s.accordionContent}>{archivedProjects.length === 0 ? ( <View style={s.emptySection}><Ionicons name="archive-outline" size={36} color={COLORS.textDark} /><Text style={s.emptySectionTitle}>{t('No Archived Projects')}</Text><Text style={s.emptySectionSub}>{t('Completed inspections and their documents will appear here for audit & legal reference.')}</Text></View> ) : ( archivedProjects.map((job) => ( <CollapsibleProject key={job.id} job={job} userRole={userRole} isExpanded={expandedProjects.has(job.id)} onToggle={() => toggleProject(job.id)} onViewDoc={handleViewDoc} onUploadDoc={handleUploadPress} /> )) )}{archivedProjects.length > 0 && ( <View style={s.archiveNotice}><Ionicons name="information-circle-outline" size={14} color={COLORS.textDark} /><Text style={s.archiveNoticeText}>{t('Archived documents are retained for legal and audit compliance. They cannot be deleted.')}</Text></View> )}</View> )}<View style={{ height: 120 }} /></ScrollView> )}
       </SafeAreaView>
 
       <UploadModal

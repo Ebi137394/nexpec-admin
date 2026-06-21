@@ -1,6 +1,6 @@
 // app/deals/[id]/sign.tsx — mobile Review & sign (parity with web /deals/[id]/sign)
 //   Signing executes the Client↔NEXPEC supply agreement and HOLDS the client
-//   price in escrow (contract-before-money), which dispatches the inspection.
+//   price secured (contract-before-money), which dispatches the inspection.
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,7 +64,7 @@ export default function DealSignScreen() {
           <View style={s.okCard}>
             <Ionicons name="checkmark-circle" size={22} color={T.colors.success} />
             <Text style={s.okTitle}>Signed and mobilized</Text>
-            <Text style={s.okBody}>Your 30% mobilization deposit is held in escrow against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection.</Text>
+            <Text style={s.okBody}>Your 30% mobilization deposit is held as Secured Funds against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection.</Text>
             <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace('/rfqs' as any)} activeOpacity={0.85}>
               <Text style={s.primaryBtnTxt}>Back to RFQs</Text>
             </TouchableOpacity>
@@ -90,16 +90,16 @@ export default function DealSignScreen() {
       ) : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <Text style={s.kicker}>SUPPLY AND INSPECTION AGREEMENT</Text>
-          <View style={s.escrowCard}>
+          <View style={s.securedCard}>
             <Ionicons name="lock-closed" size={16} color={T.colors.primaryLight} />
-            <Text style={s.escrowTxt}>On signature you fund the <Text style={s.escrowAmt}>30% mobilization deposit</Text> of the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (Schedule B).</Text>
+            <Text style={s.securedTxt}>On signature you fund the <Text style={s.securedAmt}>30% mobilization deposit</Text> of the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (Schedule B).</Text>
           </View>
           <View style={s.bodyCard}><Text style={s.bodyTxt}>{agr.body_md}</Text></View>
           <Text style={s.label}>Type your full legal name to sign</Text>
           <TextInput value={name} onChangeText={setName} placeholder="e.g. Jane A. Client" placeholderTextColor={T.colors.textMuted} style={s.input} />
           <TouchableOpacity style={s.checkRow} onPress={() => setAgreed((v) => !v)} activeOpacity={0.8}>
             <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={20} color={agreed ? T.colors.primary : T.colors.textMuted} />
-            <Text style={s.checkTxt}>I have read and agree, and authorise NEXPEC to hold the 30% mobilization deposit in escrow.</Text>
+            <Text style={s.checkTxt}>I have read and agree, and authorise NEXPEC to hold the 30% mobilization deposit as Secured Funds.</Text>
           </TouchableOpacity>
           {!!err && <Text style={s.err}>{err}</Text>}
           <TouchableOpacity style={[s.primaryBtn, (busy || !name.trim() || !agreed) && { opacity: 0.6 }]} disabled={busy || !name.trim() || !agreed} onPress={sign} activeOpacity={0.85}>
@@ -122,9 +122,9 @@ const s = StyleSheet.create({
   muted: { color: T.colors.textSecondary },
   content: { paddingHorizontal: T.spacing.lg, paddingBottom: 40 },
   kicker: { color: T.colors.primaryLight, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 10 },
-  escrowCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginBottom: 12 },
-  escrowTxt: { color: T.colors.textSecondary, fontSize: 13, flex: 1 },
-  escrowAmt: { color: T.colors.text, fontWeight: '800' },
+  securedCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginBottom: 12 },
+  securedTxt: { color: T.colors.textSecondary, fontSize: 13, flex: 1 },
+  securedAmt: { color: T.colors.text, fontWeight: '800' },
   bodyCard: { backgroundColor: T.colors.cardBackground, borderColor: T.colors.inputBorder, borderWidth: 1, borderRadius: T.borderRadius.lg, padding: T.spacing.md, marginBottom: 16 },
   bodyTxt: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 20 },
   label: { color: T.colors.textSecondary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 },
@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   okBody: { color: T.colors.textSecondary, fontSize: 13, lineHeight: 20 },
 });
 
-// ── Assigned-inspector trust panel: A/B/C dossier + D review gate + F identity escrow ──
+// ── Assigned-inspector trust panel: A/B/C dossier + D review gate + F identity protection ──
 const REVIEW_LABEL: Record<string, string> = {
   pending: 'Awaiting your review', approved: 'Approved by you',
   objected: 'Objection raised', auto_approved: 'Auto-approved',
@@ -253,7 +253,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           </>
         ) : (
           <>
-            <Text style={c.body}>Held in escrow. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
+            <Text style={c.body}>Held under identity protection. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
             <TouchableOpacity style={c.vipBtn} onPress={() => setVipOpen(true)} activeOpacity={0.85}>
               <Ionicons name="diamond" size={14} color="#fbbf24" />
               <Text style={c.vipBtnTxt}>Unlock named disclosure (VIP)</Text>

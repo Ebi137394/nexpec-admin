@@ -35,12 +35,12 @@ const COLORS = { background: '#020420', surface: '#0F172A', surfaceLight: '#1E29
 type UserRole = 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier';
 interface Transaction { id: string; type: 'earning' | 'withdrawal' | 'deposit' | 'escrow' | 'refund' | 'fee' | 'payout'; amount: number; description: string; status: 'completed' | 'pending' | 'failed' | 'processing'; created_at: string; reference_id?: string; metadata?: Record<string, any>; }
 interface PaymentMethod { id: string; type: 'bank_account' | 'card' | 'paypal' | 'wise' | 'payoneer' | 'stripe'; label: string; last4: string; is_default: boolean; brand?: string; bank_name?: string; status: 'active' | 'pending' | 'expired'; }
-interface WalletStats { availableBalance: number; totalEarned: number; pendingAmount: number; escrowAmount: number; totalSpent: number; totalVolume: number; agencyRevenue: number; pendingPayouts: number; }
+interface WalletStats { availableBalance: number; totalEarned: number; pendingAmount: number; totalSpent: number; totalVolume: number; agencyRevenue: number; pendingPayouts: number; }
 interface DbTransaction { id: string; type: string; amount: number; description: string; status: string; created_at: string; reference_id?: string; metadata?: any; }
 interface DbPaymentMethod { id: string; type: string; label: string; last_four: string; is_default: boolean; brand?: string; bank_name?: string; status: string; }
 interface PaymentProviderOption { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; color: string; description: string; targetRole: 'all' | 'inspector' | 'client'; }
 
-const DEFAULT_STATS: WalletStats = { availableBalance: 0, totalEarned: 0, pendingAmount: 0, escrowAmount: 0, totalSpent: 0, totalVolume: 0, agencyRevenue: 0, pendingPayouts: 0 };
+const DEFAULT_STATS: WalletStats = { availableBalance: 0, totalEarned: 0, pendingAmount: 0, totalSpent: 0, totalVolume: 0, agencyRevenue: 0, pendingPayouts: 0 };
 
 const PAYMENT_PROVIDERS: PaymentProviderOption[] = [
   { id: 'stripe', name: 'Credit / Debit Card', icon: 'card-outline', color: '#635BFF', description: 'Powered by Stripe', targetRole: 'client' },
@@ -122,9 +122,9 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
         </View>
       </View>
       {/* ★ FINANCE-FIELD-NAMING-001 — Render only the mini-stats backed
-          by real schema. Pre-strike the inspector row exposed an "In
-          Escrow" pill and the client/agency row exposed three pills
-          ("In Escrow", "Total Spent", "Volume"), all hardcoded to 0 in
+          by real schema. Pre-strike the inspector row exposed a "Secured
+          Funds" pill and the client/agency row exposed three pills
+          ("Secured Funds", "Total Spent", "Volume"), all hardcoded to 0 in
           fetchWalletStats because the underlying columns / tables do
           not exist in the live schema. Phantom zeros under suggestive
           labels mislead users into thinking the platform is tracking
@@ -132,7 +132,7 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
 
           Inspector path: keep `Pending` (backed by inspector_earnings.
           pending_halalas) and `Total Earned` (backed by inspector_
-          earnings.total_earned_halalas). Drop the unbacked "In Escrow".
+          earnings.total_earned_halalas). Drop the unbacked "Secured Funds".
 
           Client / Agency path: hide the row entirely — none of the
           three stats have backing schema. Once the broader wallet
@@ -370,7 +370,7 @@ export default function FinanceScreen() {
       //     • divide halalas by 100 at the boundary so the rest of the UI
       //       continues to operate in dollars.
       //
-      //   Fields not yet backed by schema (escrow, totalSpent, totalVolume,
+      //   Fields not yet backed by schema (secured-funds, totalSpent, totalVolume,
       //   agencyRevenue, pendingPayouts) are intentionally surfaced as 0
       //   until their backing tables/views land. BalanceHero will need a
       //   follow-up patch to hide the agency-only mini-stats when those
@@ -397,7 +397,6 @@ export default function FinanceScreen() {
         // Fields below have no backing schema yet — explicit 0 (not a
         // misleading garbage value). Re-evaluate in the next financial
         // strike that introduces the missing columns.
-        escrowAmount:    0,
         totalSpent:      0,
         totalVolume:     0,
         agencyRevenue:   0,

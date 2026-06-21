@@ -780,7 +780,7 @@ export default function JobContractSigningScreen() {
                           { color: role === 'client' ? C.gold : C.cyan },
                         ]}
                       >
-                        {role === 'client' ? 'SECURE ESCROW' : 'SECURE'}
+                        {role === 'client' ? 'SECURE FUNDING' : 'SECURE'}
                       </Text>
                     </View>
                   </View>

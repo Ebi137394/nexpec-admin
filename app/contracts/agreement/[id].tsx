@@ -18,7 +18,7 @@ const KIND_LABEL: Record<string, string> = {
   inspector_engagement: 'Inspector Engagement',
 };
 const AMOUNT_LABEL: Record<string, string> = {
-  client_supply: 'Total payable into escrow',
+  client_supply: 'Total payable into Secured Funds',
   supplier_supply: 'You will be paid on goods acceptance',
   inspector_engagement: 'Your payout on admin-confirmed report',
 };

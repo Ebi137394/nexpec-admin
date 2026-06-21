@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  ActivityIndicator, Image, RefreshControl, Modal, TextInput, Linking,
+  ActivityIndicator, RefreshControl, Modal, TextInput, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,14 +17,6 @@ import { jobFieldsForRole } from '@/lib/jobsProjection';
 //   diverged and still leaked real name/photo/CV).
 import { nxHandle } from '@/src/core/utils/handle';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
-// ★ NX-REPORT-PHOTO-001 — render-time signed-URL refresh. Post-Module-2
-//   lockdown the inspection-photos bucket is private; stored
-//   getPublicUrl() values silently 403 on the device.
-import {
-  parseSupabaseStorageUrl,
-  signedUrl,
-  SIGNED_URL_TTL,
-} from '@/src/core/storage/signedUrls';
 
 const COLORS = {
   background: '#020420', card: '#0A0D2C', cardBorder: '#1A1D3C',
@@ -79,28 +71,6 @@ export default function JobDetailScreen() {
   const [clientComment, setClientComment] = useState('');
   const [proposalToApprove, setProposalToApprove] = useState<any>(null);
   const [reportData, setReportData] = useState<any>(null);
-  const [viewerVisible, setViewerVisible] = useState(false);
-  // ★ NX-REPORT-PHOTO-001 — freshly-minted signed URL for the report photo,
-  //   refreshed each time the viewer opens.
-  const [reportPhotoUri, setReportPhotoUri] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!viewerVisible) return;
-    let cancelled = false;
-    (async () => {
-      const stored: string | undefined = reportData?.photo_url;
-      if (!stored) { setReportPhotoUri(null); return; }
-      const parsed = parseSupabaseStorageUrl(stored);
-      if (!parsed) { setReportPhotoUri(stored); return; }
-      const fresh = await signedUrl({
-        bucket: parsed.bucket,
-        path: parsed.path,
-        ttl: SIGNED_URL_TTL.VIEW,
-      });
-      if (!cancelled) setReportPhotoUri(fresh ?? stored);
-    })();
-    return () => { cancelled = true; };
-  }, [viewerVisible, reportData?.photo_url]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchJobDetails = useCallback(async () => {
@@ -230,7 +200,15 @@ export default function JobDetailScreen() {
     const fetchReport = async () => {
       if (!id) return;
       try {
-        const { data } = await supabase.from('inspection_reports').select('*').eq('job_id', id).single();
+        // Hardened: a job can accumulate multiple report rows; take the latest
+        // and never throw on 0/many (was .single(), which crashed on >1 row).
+        const { data } = await supabase
+          .from('inspection_reports')
+          .select('*')
+          .eq('job_id', id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
         if (data) setReportData(data);
       } catch (e) {
         // No report found - ignore
@@ -238,15 +216,6 @@ export default function JobDetailScreen() {
     };
     fetchReport();
   }, [id]);
-
-  const renderNotesWithLinks = (text: any) => {
-    if (!text) return 'No notes provided.';
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return text.split(urlRegex).map((part: string, i: number) => {
-      if (part.match(urlRegex)) return <Text key={i} style={{ color: '#3B82F6', textDecorationLine: 'underline' }} onPress={() => Linking.openURL(part)}>{part}</Text>;
-      return <Text key={i} selectable={true}>{part}</Text>;
-    });
-  };
 
   useFocusEffect(useCallback(() => { fetchJobDetails(); }, [fetchJobDetails]));
 
@@ -793,26 +762,6 @@ export default function JobDetailScreen() {
                   <Text style={styles.modalSubmitText}>Send to Admin</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
-        </Modal>
-
-        <Modal visible={viewerVisible} animationType="slide" transparent={true}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(2, 4, 32, 0.95)', justifyContent: 'center', padding: 20 }}>
-            <View style={{ backgroundColor: '#0A0D2C', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1A1D3C', maxHeight: '80%' }}>
-              <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Final Inspection Report</Text>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {reportPhotoUri && (
-                  <Image source={{ uri: reportPhotoUri }} style={{ width: '100%', height: 220, borderRadius: 8, marginBottom: 16, backgroundColor: '#1A1D3C' }} resizeMode="cover" />
-                )}
-                <Text style={{ color: '#10B981', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>Official Report Notes</Text>
-                <Text style={{ color: '#94A3B8', fontSize: 15, lineHeight: 24 }} selectable={true}>
-                  {renderNotesWithLinks(reportData?.notes)}
-                </Text>
-              </ScrollView>
-              <TouchableOpacity style={{ backgroundColor: '#10B981', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 }} onPress={() => setViewerVisible(false)}>
-                <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 16 }}>Close Report</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </Modal>

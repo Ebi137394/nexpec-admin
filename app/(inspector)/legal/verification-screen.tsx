@@ -16,8 +16,10 @@ import {
   ContractorWithCertificates,
   VerificationStatus,
 } from '../../../lib/adminService';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 export const VerificationScreen: React.FC = () => {
+  const { t, isRTL, language } = useLanguage();
   const [contractors, setContractors] = useState<ContractorWithCertificates[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,7 +35,7 @@ export const VerificationScreen: React.FC = () => {
       setContractors(data);
     } catch (error) {
       console.error('Error fetching verifications:', error);
-      Alert.alert('Error', 'Failed to load pending verifications');
+      Alert.alert(t('Error'), t('Failed to load pending verifications'));
     } finally {
       setLoading(false);
     }
@@ -58,20 +60,20 @@ export const VerificationScreen: React.FC = () => {
 
     if (validCerts.length === 0) {
       Alert.alert(
-        'Cannot Verify',
-        'This contractor has no valid, verified certificates. Please verify their certificates first.',
-        [{ text: 'OK' }]
+        t('Cannot Verify'),
+        t('This contractor has no valid, verified certificates. Please verify their certificates first.'),
+        [{ text: t('OK') }]
       );
       return;
     }
 
     Alert.alert(
-      'Confirm Verification',
-      `Are you sure you want to verify ${contractor.full_name}?`,
+      t('Confirm Verification'),
+      `${t('Are you sure you want to verify')} ${contractor.full_name}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: 'Verify',
+          text: t('Verify'),
           style: 'default',
           onPress: () => processVerification(contractor.id, 'verified'),
         },
@@ -89,7 +91,7 @@ export const VerificationScreen: React.FC = () => {
     if (!selectedContractor) return;
 
     if (!rejectionReason.trim()) {
-      Alert.alert('Error', 'Please provide a reason for rejection');
+      Alert.alert(t('Error'), t('Please provide a reason for rejection'));
       return;
     }
 
@@ -114,19 +116,19 @@ export const VerificationScreen: React.FC = () => {
 
       if (result.success) {
         Alert.alert(
-          'Success',
-          `Contractor has been ${status}. ${
+          t('Success'),
+          `${t('Contractor has been')} ${t(status)}. ${
             result.data?.notification.sent
-              ? 'Notification sent.'
-              : 'Notification not sent.'
+              ? t('Notification sent.')
+              : t('Notification not sent.')
           }`
         );
         fetchPendingVerifications();
       } else {
-        Alert.alert('Error', result.error || 'Failed to update verification status');
+        Alert.alert(t('Error'), result.error || t('Failed to update verification status'));
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+      Alert.alert(t('Error'), t('An unexpected error occurred'));
     } finally {
       setProcessing(false);
     }
@@ -140,7 +142,7 @@ export const VerificationScreen: React.FC = () => {
         <Text style={styles.certName}>{cert.certificate_name}</Text>
         <View style={styles.certMeta}>
           <Text style={[styles.certExpiry, isExpired && styles.expired]}>
-            Expires: {new Date(cert.expiry_date).toLocaleDateString()}
+            {t('Expires:')} {new Date(cert.expiry_date).toLocaleDateString()}
           </Text>
           <View
             style={[
@@ -149,7 +151,7 @@ export const VerificationScreen: React.FC = () => {
             ]}
           >
             <Text style={styles.badgeText}>
-              {cert.is_verified ? '✓ Verified' : 'Unverified'}
+              {cert.is_verified ? t('✓ Verified') : t('Unverified')}
             </Text>
           </View>
         </View>
@@ -168,18 +170,18 @@ export const VerificationScreen: React.FC = () => {
           <Text style={styles.name}>{item.full_name}</Text>
           <Text style={styles.email}>{item.email}</Text>
           <Text style={styles.date}>
-            Applied: {new Date(item.created_at).toLocaleDateString()}
+            {t('Applied:')} {new Date(item.created_at).toLocaleDateString()}
           </Text>
         </View>
 
         <View style={styles.certificatesSection}>
           <Text style={styles.sectionTitle}>
-            Certificates ({validCertsCount} valid)
+            {t('Certificates')} ({validCertsCount} {t('valid')})
           </Text>
           {item.certificates.length > 0 ? (
             item.certificates.map(renderCertificate)
           ) : (
-            <Text style={styles.noCerts}>No certificates uploaded</Text>
+            <Text style={styles.noCerts}>{t('No certificates uploaded')}</Text>
           )}
         </View>
 
@@ -189,7 +191,7 @@ export const VerificationScreen: React.FC = () => {
             onPress={() => handleReject(item)}
             disabled={processing}
           >
-            <Text style={styles.buttonText}>Reject</Text>
+            <Text style={styles.buttonText}>{t('Reject')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -200,7 +202,7 @@ export const VerificationScreen: React.FC = () => {
             onPress={() => handleVerify(item)}
             disabled={processing || validCertsCount === 0}
           >
-            <Text style={styles.buttonText}>Verify</Text>
+            <Text style={styles.buttonText}>{t('Verify')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -209,7 +211,7 @@ export const VerificationScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Pending Verifications</Text>
+      <Text style={styles.title}>{t('Pending Verifications')}</Text>
       
       <FlatList
         data={contractors}
@@ -221,7 +223,7 @@ export const VerificationScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
-              {loading ? 'Loading...' : 'No pending verifications'}
+              {loading ? t('Loading...') : t('No pending verifications')}
             </Text>
           </View>
         }
@@ -236,14 +238,14 @@ export const VerificationScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Reject Verification</Text>
+            <Text style={styles.modalTitle}>{t('Reject Verification')}</Text>
             <Text style={styles.modalSubtitle}>
-              Rejecting: {selectedContractor?.full_name}
+              {t('Rejecting:')} {selectedContractor?.full_name}
             </Text>
-            
+
             <TextInput
               style={styles.reasonInput}
-              placeholder="Reason for rejection..."
+              placeholder={t('Reason for rejection...')}
               value={rejectionReason}
               onChangeText={setRejectionReason}
               multiline
@@ -255,13 +257,13 @@ export const VerificationScreen: React.FC = () => {
                 style={[styles.button, styles.cancelButton]}
                 onPress={() => setShowRejectModal(false)}
               >
-                <Text style={styles.buttonText}>Cancel</Text>
+                <Text style={styles.buttonText}>{t('Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.rejectButton]}
                 onPress={submitRejection}
               >
-                <Text style={styles.buttonText}>Submit</Text>
+                <Text style={styles.buttonText}>{t('Submit')}</Text>
               </TouchableOpacity>
             </View>
           </View>

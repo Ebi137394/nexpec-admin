@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 // #QA — expenses route through the offline outbox (idempotent on the client PK).
 import { enqueueExpenseAdd, newClientId } from '@/lib/offline';
 
@@ -22,6 +23,7 @@ export default function ExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(); // Job ID
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
 
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function ExpensesScreen() {
 
   const handleAddExpense = async () => {
     if (!desc || !amount) {
-      return Alert.alert('Missing Info', 'Please enter a description and amount.');
+      return Alert.alert(t('Missing Info'), t('Please enter a description and amount.'));
     }
     setSubmitting(true);
 
@@ -108,10 +110,10 @@ export default function ExpensesScreen() {
       setDesc('');
       setAmount('');
       setReceipt(null);
-      Alert.alert('Success', 'Expense added.');
+      Alert.alert(t('Success'), t('Expense added.'));
 
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert(t('Error'), e.message);
     } finally {
       setSubmitting(false);
     }
@@ -139,7 +141,7 @@ export default function ExpensesScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="#FFF" /></TouchableOpacity>
-          <Text style={styles.headerTitle}>Job Expenses</Text>
+          <Text style={styles.headerTitle}>{t('Job Expenses')}</Text>
           <View style={{width: 24}}/>
         </View>
 
@@ -149,17 +151,17 @@ export default function ExpensesScreen() {
           renderItem={renderItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={!loading ? <Text style={styles.emptyText}>No expenses added yet.</Text> : null}
+          ListEmptyComponent={!loading ? <Text style={styles.emptyText}>{t('No expenses added yet.')}</Text> : null}
         />
 
         {/* Add Expense Form */}
         <View style={styles.formContainer}>
-          <Text style={styles.formTitle}>Add New Expense</Text>
+          <Text style={styles.formTitle}>{t('Add New Expense')}</Text>
 
           <View style={styles.row}>
             <TextInput
               style={[styles.input, {flex: 2}]}
-              placeholder="Description (e.g. Travel)"
+              placeholder={t('Description (e.g. Travel)')}
               placeholderTextColor={COLORS.textSec}
               value={desc} onChangeText={setDesc}
             />
@@ -175,7 +177,7 @@ export default function ExpensesScreen() {
           <View style={styles.row}>
             <TouchableOpacity style={styles.receiptBtn} onPress={pickReceipt}>
               <Ionicons name={receipt ? "checkmark-circle" : "camera-outline"} size={20} color={receipt ? COLORS.success : "#FFF"} />
-              <Text style={{color: '#FFF', marginLeft: 8}}>{receipt ? 'Receipt Selected' : 'Add Receipt'}</Text>
+              <Text style={{color: '#FFF', marginLeft: 8}}>{receipt ? t('Receipt Selected') : t('Add Receipt')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.submitBtn} onPress={handleAddExpense} disabled={submitting}>

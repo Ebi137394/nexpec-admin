@@ -8,6 +8,7 @@ import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { toCents, formatUsd } from '../../src/core/utils/money';
 import { useMyQuotes } from '../../src/hooks/useSupplierEcosystem';
 import { ensureJobConversation } from '../../src/hooks/useConversations';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const STATUS: Record<string, { label: string; color: string; bg: string; icon: any }> = {
   submitted: { label: 'Submitted', color: '#38BDF8', bg: 'rgba(56,189,248,0.16)', icon: 'time-outline' },
@@ -19,6 +20,7 @@ const STATUS: Record<string, { label: string; color: string; bg: string; icon: a
 type Tab = 'active' | 'won' | 'all';
 
 export default function SupplierBids() {
+  const { t, isRTL, language } = useLanguage();
   const router = useRouter();
   const { items, loading } = useMyQuotes();
   const [tab, setTab] = useState<Tab>('active');
@@ -49,7 +51,7 @@ export default function SupplierBids() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
-        <Text style={s.title}>My Bids</Text>
+        <Text style={s.title}>{t('My Bids')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -58,7 +60,7 @@ export default function SupplierBids() {
           const active = key === tab;
           return (
             <TouchableOpacity key={key} onPress={() => setTab(key)} activeOpacity={0.8} style={[s.tab, active && { backgroundColor: T.colors.primary, borderColor: T.colors.primary }]}>
-              <Text style={[s.tabTxt, active && { color: '#FFF' }]}>{label} ({n})</Text>
+              <Text style={[s.tabTxt, active && { color: '#FFF' }]}>{t(label)} ({n})</Text>
             </TouchableOpacity>
           );
         })}
@@ -69,8 +71,8 @@ export default function SupplierBids() {
       ) : list.length === 0 ? (
         <View style={s.empty}>
           <Ionicons name="document-text-outline" size={28} color={T.colors.textMuted} />
-          <Text style={s.emptyTxt}>{tab === 'won' ? 'No awards yet.' : tab === 'active' ? 'No active bids.' : 'No bids yet.'} Browse opportunities and submit a quote.</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/opportunities' as any)}><Text style={s.emptyBtnTxt}>Browse opportunities</Text></TouchableOpacity>
+          <Text style={s.emptyTxt}>{tab === 'won' ? t('No awards yet.') : tab === 'active' ? t('No active bids.') : t('No bids yet.')} {t('Browse opportunities and submit a quote.')}</Text>
+          <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/opportunities' as any)}><Text style={s.emptyBtnTxt}>{t('Browse opportunities')}</Text></TouchableOpacity>
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
@@ -81,10 +83,10 @@ export default function SupplierBids() {
               <TouchableOpacity key={q.id} style={s.card} activeOpacity={0.85} onPress={() => router.push(`/rfqs/${q.rfq_id}` as any)}>
                 <View style={[s.iconTile, { backgroundColor: st.bg }]}><Ionicons name={st.icon} size={20} color={st.color} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.cardTitle} numberOfLines={1}>{q.rfq_title || 'RFQ'}</Text>
-                  <Text style={s.cardSub}>{cents != null ? formatUsd(cents) : 'Quote on file'}, {new Date(q.created_at).toLocaleDateString()}{q.status === 'accepted' && q.spawned_job_id ? ', dispatched' : ''}</Text>
+                  <Text style={s.cardTitle} numberOfLines={1}>{q.rfq_title || t('RFQ')}</Text>
+                  <Text style={s.cardSub}>{cents != null ? formatUsd(cents) : t('Quote on file')}, {new Date(q.created_at).toLocaleDateString()}{q.status === 'accepted' && q.spawned_job_id ? t(', dispatched') : ''}</Text>
                 </View>
-                <View style={[s.chip, { backgroundColor: st.bg }]}><Text style={[s.chipTxt, { color: st.color }]}>{st.label}</Text></View>
+                <View style={[s.chip, { backgroundColor: st.bg }]}><Text style={[s.chipTxt, { color: st.color }]}>{t(st.label)}</Text></View>
                 {q.status === 'accepted' && !!q.spawned_job_id && (
                   <TouchableOpacity style={s.chatBtn} onPress={() => openProjectChat(q.spawned_job_id!)} disabled={chatBusy} hitSlop={6}>
                     <Ionicons name="chatbubble-ellipses-outline" size={18} color={T.colors.primaryLight} />

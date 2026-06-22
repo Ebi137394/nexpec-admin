@@ -40,6 +40,7 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { showAlert, showConfirm } from '@/lib/alert';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // ============================================================================
 // TYPES
@@ -120,8 +121,8 @@ const STORAGE_BUCKET = 'inspector-docs';
 // HELPER FUNCTIONS
 // ============================================================================
 
-const formatDate = (dateString: string | null): string => {
-  if (!dateString) return 'No expiry';
+const formatDate = (dateString: string | null, t?: (s: string) => string): string => {
+  if (!dateString) return t ? t('No expiry') : 'No expiry';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -167,7 +168,9 @@ interface HeaderProps {
   verificationProgress: number;
 }
 
-const Header: React.FC<HeaderProps> = ({ onBack, verificationProgress }) => (
+const Header: React.FC<HeaderProps> = ({ onBack, verificationProgress }) => {
+  const { t } = useLanguage();
+  return (
   <View style={styles.header}>
     <TouchableOpacity
       onPress={onBack}
@@ -176,32 +179,34 @@ const Header: React.FC<HeaderProps> = ({ onBack, verificationProgress }) => (
     >
       <ChevronLeft size={28} color="#0F172A" />
     </TouchableOpacity>
-    
+
     <View style={styles.headerCenter}>
-      <Text style={styles.headerTitle}>Verification</Text>
+      <Text style={styles.headerTitle}>{t('Verification')}</Text>
       <View style={styles.progressContainer}>
         <View style={styles.progressBar}>
           <View
             style={[styles.progressFill, { width: `${verificationProgress}%` }]}
           />
         </View>
-        <Text style={styles.progressText}>{verificationProgress}% Complete</Text>
+        <Text style={styles.progressText}>{verificationProgress}{t('% Complete')}</Text>
       </View>
     </View>
-    
+
     <View style={styles.headerPlaceholder} />
   </View>
-);
+  );
+};
 
 // Status Badge
 const StatusBadge: React.FC<{ status: DocumentStatus }> = ({ status }) => {
   const config = DOCUMENT_STATUS_CONFIG[status];
-  
+  const { t } = useLanguage();
+
   return (
     <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
       {config.icon}
       <Text style={[styles.statusText, { color: config.color }]}>
-        {config.label}
+        {t(config.label)}
       </Text>
     </View>
   );
@@ -215,6 +220,7 @@ interface DocumentCardProps {
 }
 
 const DocumentCard: React.FC<DocumentCardProps> = ({ document, onView, onDelete }) => {
+  const { t } = useLanguage();
   const expiringSoon = isExpiringSoon(document.expiry_date);
   const expired = isExpired(document.expiry_date);
   const effectiveStatus = expired && document.status === 'verified' ? 'expired' : document.status;
@@ -236,8 +242,8 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ document, onView, onDelete 
               expiringSoon && styles.expiryWarning,
               expired && styles.expiryExpired,
             ]}>
-              {expired ? 'Expired: ' : expiringSoon ? 'Expiring: ' : 'Expires: '}
-              {formatDate(document.expiry_date)}
+              {expired ? t('Expired: ') : expiringSoon ? t('Expiring: ') : t('Expires: ')}
+              {formatDate(document.expiry_date, t)}
             </Text>
           </View>
         </View>
@@ -258,11 +264,11 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ document, onView, onDelete 
           activeOpacity={0.7}
         >
           <Eye size={18} color="#3B82F6" />
-          <Text style={styles.documentActionText}>View</Text>
+          <Text style={styles.documentActionText}>{t('View')}</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.actionDivider} />
-        
+
         <TouchableOpacity
           style={styles.documentActionButton}
           onPress={() => onDelete(document)}
@@ -270,7 +276,7 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ document, onView, onDelete 
         >
           <Trash2 size={18} color="#EF4444" />
           <Text style={[styles.documentActionText, { color: '#EF4444' }]}>
-            Delete
+            {t('Delete')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -285,6 +291,7 @@ interface EquipmentCardProps {
 }
 
 const EquipmentCard: React.FC<EquipmentCardProps> = ({ equipment, onDelete }) => {
+  const { t } = useLanguage();
   const calibrationExpired = isExpired(equipment.calibration_expiry);
   const calibrationExpiringSoon = isExpiringSoon(equipment.calibration_expiry);
 
@@ -301,7 +308,7 @@ const EquipmentCard: React.FC<EquipmentCardProps> = ({ equipment, onDelete }) =>
           <View style={styles.equipmentDetail}>
             <Hash size={12} color="#64748B" />
             <Text style={styles.equipmentDetailText}>
-              SN: {equipment.serial_number}
+              {t('SN:')} {equipment.serial_number}
             </Text>
           </View>
           
@@ -312,7 +319,7 @@ const EquipmentCard: React.FC<EquipmentCardProps> = ({ equipment, onDelete }) =>
               calibrationExpired && styles.expiryExpired,
               calibrationExpiringSoon && styles.expiryWarning,
             ]}>
-              Calibration: {formatDate(equipment.calibration_expiry)}
+              {t('Calibration:')} {formatDate(equipment.calibration_expiry, t)}
             </Text>
           </View>
         </View>
@@ -336,14 +343,16 @@ interface DocTypePickerProps {
   onSelect: (type: { id: string; name: string }) => void;
 }
 
-const DocTypePicker: React.FC<DocTypePickerProps> = ({ visible, onClose, onSelect }) => (
+const DocTypePicker: React.FC<DocTypePickerProps> = ({ visible, onClose, onSelect }) => {
+  const { t } = useLanguage();
+  return (
   <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
     <SafeAreaView style={styles.modalContainer}>
       <View style={styles.modalHeader}>
         <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
           <X size={24} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.modalTitle}>Select Document Type</Text>
+        <Text style={styles.modalTitle}>{t('Select Document Type')}</Text>
         <View style={styles.modalHeaderPlaceholder} />
       </View>
 
@@ -360,7 +369,7 @@ const DocTypePicker: React.FC<DocTypePickerProps> = ({ visible, onClose, onSelec
               <View style={styles.docTypeIcon}>
                 <IconComponent size={24} color="#3B82F6" />
               </View>
-              <Text style={styles.docTypeName}>{type.name}</Text>
+              <Text style={styles.docTypeName}>{t(type.name)}</Text>
               <ChevronLeft
                 size={20}
                 color="#94A3B8"
@@ -372,7 +381,8 @@ const DocTypePicker: React.FC<DocTypePickerProps> = ({ visible, onClose, onSelec
       </ScrollView>
     </SafeAreaView>
   </Modal>
-);
+  );
+};
 
 // Add Equipment Modal
 interface AddEquipmentModalProps {
@@ -388,6 +398,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
   onSubmit,
   isSubmitting,
 }) => {
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const [calibrationExpiry, setCalibrationExpiry] = useState<Date | null>(null);
@@ -406,7 +417,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
 
   const handleSubmit = () => {
     if (!name.trim() || !serialNumber.trim()) {
-      showAlert('Error', 'Please fill in all required fields');
+      showAlert(t('Error'), t('Please fill in all required fields'));
       return;
     }
     onSubmit(name.trim(), serialNumber.trim(), calibrationExpiry);
@@ -431,7 +442,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
           >
             <X size={24} color={isSubmitting ? '#CBD5E1' : '#0F172A'} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Add Equipment</Text>
+          <Text style={styles.modalTitle}>{t('Add Equipment')}</Text>
           <View style={styles.modalHeaderPlaceholder} />
         </View>
 
@@ -448,11 +459,11 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
           {/* Name Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
-              Equipment Name <Text style={styles.required}>*</Text>
+              {t('Equipment Name')} <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g., Moisture Meter, Thermal Camera"
+              placeholder={t('e.g., Moisture Meter, Thermal Camera')}
               placeholderTextColor="#94A3B8"
               value={name}
               onChangeText={setName}
@@ -463,11 +474,11 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
           {/* Serial Number Input */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>
-              Serial Number <Text style={styles.required}>*</Text>
+              {t('Serial Number')} <Text style={styles.required}>*</Text>
             </Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g., SN-123456789"
+              placeholder={t('e.g., SN-123456789')}
               placeholderTextColor="#94A3B8"
               value={serialNumber}
               onChangeText={setSerialNumber}
@@ -478,7 +489,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
 
           {/* Calibration Expiry */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Calibration Expiry Date</Text>
+            <Text style={styles.inputLabel}>{t('Calibration Expiry Date')}</Text>
             <TouchableOpacity
               style={styles.datePickerButton}
               onPress={() => setShowDatePicker(true)}
@@ -496,7 +507,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
                       day: 'numeric',
                       year: 'numeric',
                     })
-                  : 'Select date (optional)'}
+                  : t('Select date (optional)')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -516,7 +527,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
               style={styles.datePickerDone}
               onPress={() => setShowDatePicker(false)}
             >
-              <Text style={styles.datePickerDoneText}>Done</Text>
+              <Text style={styles.datePickerDoneText}>{t('Done')}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -538,7 +549,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
             ) : (
               <>
                 <Plus size={20} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>Add Equipment</Text>
+                <Text style={styles.submitButtonText}>{t('Add Equipment')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -566,6 +577,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
   isUploading,
   uploadProgress,
 }) => {
+  const { t } = useLanguage();
   const [expiryDate, setExpiryDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -592,7 +604,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
           >
             <X size={24} color={isUploading ? '#CBD5E1' : '#0F172A'} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Upload Document</Text>
+          <Text style={styles.modalTitle}>{t('Upload Document')}</Text>
           <View style={styles.modalHeaderPlaceholder} />
         </View>
 
@@ -603,12 +615,12 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
           {/* Document Type Display */}
           <View style={styles.selectedDocType}>
             <FileCheck size={32} color="#3B82F6" />
-            <Text style={styles.selectedDocTypeName}>{docType?.name}</Text>
+            <Text style={styles.selectedDocTypeName}>{docType?.name ? t(docType.name) : ''}</Text>
           </View>
 
           {/* Expiry Date Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Document Expiry Date</Text>
+            <Text style={styles.inputLabel}>{t('Document Expiry Date')}</Text>
             <TouchableOpacity
               style={styles.datePickerButton}
               onPress={() => setShowDatePicker(true)}
@@ -626,7 +638,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
                       day: 'numeric',
                       year: 'numeric',
                     })
-                  : 'Select expiry date (optional)'}
+                  : t('Select expiry date (optional)')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -646,7 +658,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
               style={styles.datePickerDone}
               onPress={() => setShowDatePicker(false)}
             >
-              <Text style={styles.datePickerDoneText}>Done</Text>
+              <Text style={styles.datePickerDoneText}>{t('Done')}</Text>
             </TouchableOpacity>
           )}
 
@@ -662,7 +674,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
                 />
               </View>
               <Text style={styles.uploadProgressText}>
-                Uploading... {uploadProgress}%
+                {t('Uploading...')} {uploadProgress}%
               </Text>
             </View>
           )}
@@ -681,7 +693,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
             ) : (
               <>
                 <Upload size={20} color="#FFFFFF" />
-                <Text style={styles.uploadButtonText}>Select & Upload File</Text>
+                <Text style={styles.uploadButtonText}>{t('Select & Upload File')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -723,12 +735,15 @@ const EmptyState: React.FC<EmptyStateProps> = ({
 );
 
 // Loading Screen
-const LoadingScreen: React.FC = () => (
+const LoadingScreen: React.FC = () => {
+  const { t } = useLanguage();
+  return (
   <View style={styles.loadingContainer}>
     <ActivityIndicator size="large" color="#3B82F6" />
-    <Text style={styles.loadingText}>Loading verification data...</Text>
+    <Text style={styles.loadingText}>{t('Loading verification data...')}</Text>
   </View>
-);
+  );
+};
 
 // ============================================================================
 // MAIN COMPONENT
@@ -736,6 +751,7 @@ const LoadingScreen: React.FC = () => (
 
 export default function VerificationScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   // State
   const [documents, setDocuments] = useState<InspectorDocument[]>([]);
@@ -764,7 +780,7 @@ export default function VerificationScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        showAlert('Error', 'Please sign in to continue');
+        showAlert(t('Error'), t('Please sign in to continue'));
         router.back();
         return;
       }
@@ -792,12 +808,12 @@ export default function VerificationScreen() {
       setEquipment(equipResult.data || []);
     } catch (error) {
       console.error('Fetch error:', error);
-      showAlert('Error', 'Failed to load verification data');
+      showAlert(t('Error'), t('Failed to load verification data'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [router]);
+  }, [router, t]);
 
   useEffect(() => {
     fetchData();
@@ -885,10 +901,10 @@ export default function VerificationScreen() {
       // Close modal and show success
       setShowUploadModal(false);
       setSelectedDocType(null);
-      showAlert('Success', 'Document uploaded successfully! It will be reviewed shortly.');
+      showAlert(t('Success'), t('Document uploaded successfully! It will be reviewed shortly.'));
     } catch (error) {
       console.error('Upload error:', error);
-      showAlert('Error', 'Failed to upload document. Please try again.');
+      showAlert(t('Error'), t('Failed to upload document. Please try again.'));
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
@@ -897,14 +913,14 @@ export default function VerificationScreen() {
 
   const handleViewDocument = (doc: InspectorDocument) => {
     // Open document URL in browser or viewer
-    showAlert('View Document', `Opening: ${doc.doc_name}`);
+    showAlert(t('View Document'), `${t('Opening:')} ${doc.doc_name}`);
     // In production, use Linking.openURL(doc.file_url)
   };
 
   const handleDeleteDocument = (doc: InspectorDocument) => {
     showConfirm(
-      'Delete Document',
-      `Are you sure you want to delete "${doc.doc_name}"?`,
+      t('Delete Document'),
+      `${t('Are you sure you want to delete')} "${doc.doc_name}"?`,
       async () => {
         try {
           // Delete from database
@@ -922,10 +938,10 @@ export default function VerificationScreen() {
 
           // Update local state
           setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
-          showAlert('Success', 'Document deleted successfully');
+          showAlert(t('Success'), t('Document deleted successfully'));
         } catch (error) {
           console.error('Delete error:', error);
-          showAlert('Error', 'Failed to delete document');
+          showAlert(t('Error'), t('Failed to delete document'));
         }
       }
     );
@@ -960,10 +976,10 @@ export default function VerificationScreen() {
 
       setEquipment((prev) => [data, ...prev]);
       setShowEquipmentModal(false);
-      showAlert('Success', 'Equipment added successfully!');
+      showAlert(t('Success'), t('Equipment added successfully!'));
     } catch (error) {
       console.error('Add equipment error:', error);
-      showAlert('Error', 'Failed to add equipment. Please try again.');
+      showAlert(t('Error'), t('Failed to add equipment. Please try again.'));
     } finally {
       setIsSubmittingEquipment(false);
     }
@@ -971,8 +987,8 @@ export default function VerificationScreen() {
 
   const handleDeleteEquipment = (eq: Equipment) => {
     showConfirm(
-      'Delete Equipment',
-      `Are you sure you want to delete "${eq.name}"?`,
+      t('Delete Equipment'),
+      `${t('Are you sure you want to delete')} "${eq.name}"?`,
       async () => {
         try {
           const { error } = await supabase
@@ -983,10 +999,10 @@ export default function VerificationScreen() {
           if (error) throw error;
 
           setEquipment((prev) => prev.filter((e) => e.id !== eq.id));
-          showAlert('Success', 'Equipment deleted successfully');
+          showAlert(t('Success'), t('Equipment deleted successfully'));
         } catch (error) {
           console.error('Delete equipment error:', error);
-          showAlert('Error', 'Failed to delete equipment');
+          showAlert(t('Error'), t('Failed to delete equipment'));
         }
       }
     );
@@ -1037,26 +1053,25 @@ export default function VerificationScreen() {
         <View style={styles.statusCard}>
           <View style={styles.statusCardHeader}>
             <Shield size={24} color="#3B82F6" />
-            <Text style={styles.statusCardTitle}>Verification Status</Text>
+            <Text style={styles.statusCardTitle}>{t('Verification Status')}</Text>
           </View>
           <Text style={styles.statusCardDescription}>
-            Upload your professional documents and equipment details to get verified
-            and increase your visibility to clients.
+            {t('Upload your professional documents and equipment details to get verified and increase your visibility to clients.')}
           </Text>
           <View style={styles.statusStats}>
             <View style={styles.statusStat}>
               <Text style={styles.statusStatValue}>{documents.length}</Text>
-              <Text style={styles.statusStatLabel}>Documents</Text>
+              <Text style={styles.statusStatLabel}>{t('Documents')}</Text>
             </View>
             <View style={styles.statusStatDivider} />
             <View style={styles.statusStat}>
               <Text style={styles.statusStatValue}>{verifiedDocs.length}</Text>
-              <Text style={styles.statusStatLabel}>Verified</Text>
+              <Text style={styles.statusStatLabel}>{t('Verified')}</Text>
             </View>
             <View style={styles.statusStatDivider} />
             <View style={styles.statusStat}>
               <Text style={styles.statusStatValue}>{equipment.length}</Text>
-              <Text style={styles.statusStatLabel}>Equipment</Text>
+              <Text style={styles.statusStatLabel}>{t('Equipment')}</Text>
             </View>
           </View>
         </View>
@@ -1066,7 +1081,7 @@ export default function VerificationScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <FileText size={22} color="#0F172A" />
-              <Text style={styles.sectionTitle}>Professional Documents</Text>
+              <Text style={styles.sectionTitle}>{t('Professional Documents')}</Text>
             </View>
             <TouchableOpacity
               style={styles.addButton}
@@ -1074,16 +1089,16 @@ export default function VerificationScreen() {
               activeOpacity={0.8}
             >
               <Plus size={18} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Upload</Text>
+              <Text style={styles.addButtonText}>{t('Upload')}</Text>
             </TouchableOpacity>
           </View>
 
           {documents.length === 0 ? (
             <EmptyState
               icon={<FileText size={48} color="#CBD5E1" />}
-              title="No Documents Yet"
-              subtitle="Upload your licenses, certifications, and insurance documents"
-              actionLabel="Upload Document"
+              title={t('No Documents Yet')}
+              subtitle={t('Upload your licenses, certifications, and insurance documents')}
+              actionLabel={t('Upload Document')}
               onAction={() => setShowDocTypePicker(true)}
             />
           ) : (
@@ -1105,7 +1120,7 @@ export default function VerificationScreen() {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
               <Wrench size={22} color="#0F172A" />
-              <Text style={styles.sectionTitle}>Equipment & Tools</Text>
+              <Text style={styles.sectionTitle}>{t('Equipment & Tools')}</Text>
             </View>
             <TouchableOpacity
               style={[styles.addButton, styles.addButtonPurple]}
@@ -1113,16 +1128,16 @@ export default function VerificationScreen() {
               activeOpacity={0.8}
             >
               <Plus size={18} color="#FFFFFF" />
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text style={styles.addButtonText}>{t('Add')}</Text>
             </TouchableOpacity>
           </View>
 
           {equipment.length === 0 ? (
             <EmptyState
               icon={<Settings size={48} color="#CBD5E1" />}
-              title="No Equipment Listed"
-              subtitle="Add your inspection tools and equipment with calibration details"
-              actionLabel="Add Equipment"
+              title={t('No Equipment Listed')}
+              subtitle={t('Add your inspection tools and equipment with calibration details')}
+              actionLabel={t('Add Equipment')}
               onAction={() => setShowEquipmentModal(true)}
             />
           ) : (

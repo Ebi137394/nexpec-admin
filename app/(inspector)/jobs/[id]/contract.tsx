@@ -48,6 +48,7 @@ import {
   AlertCircle,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const COLORS = {
   background: '#020420',
@@ -72,6 +73,7 @@ type ResolverState =
 
 export default function JobContractResolver() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { id: jobId } = useLocalSearchParams<{ id: string }>();
   const [state, setState] = useState<ResolverState>({ kind: 'resolving' });
 
@@ -141,7 +143,7 @@ export default function JobContractResolver() {
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       <Stack.Screen
         options={{
-          title: 'Contract',
+          title: t('Contract'),
           headerStyle: { backgroundColor: COLORS.background },
           headerTintColor: COLORS.textPrimary,
           headerTitleStyle: { color: COLORS.textPrimary, fontWeight: '600' },
@@ -154,7 +156,7 @@ export default function JobContractResolver() {
                 pressed && { opacity: 0.6 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Go back"
+              accessibilityLabel={t('Go back')}
             >
               <ArrowLeft size={22} color={COLORS.textPrimary} />
             </Pressable>
@@ -166,7 +168,7 @@ export default function JobContractResolver() {
         {state.kind === 'resolving' && (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={styles.resolvingText}>Opening your contract…</Text>
+            <Text style={styles.resolvingText}>{t('Opening your contract…')}</Text>
           </View>
         )}
 
@@ -175,17 +177,14 @@ export default function JobContractResolver() {
             <View style={styles.iconCircle}>
               <Clock size={22} color={COLORS.warning} />
             </View>
-            <Text style={styles.cardTitle}>Contract pending</Text>
+            <Text style={styles.cardTitle}>{t('Contract pending')}</Text>
             <Text style={styles.cardBody}>
-              The NEXPEC admin team is still finalising the binding contract
-              for this job. You'll be notified, and this screen will open
-              automatically, once it's ready to sign.
+              {t("The NEXPEC admin team is still finalising the binding contract for this job. You'll be notified, and this screen will open automatically, once it's ready to sign.")}
             </Text>
             <View style={styles.helpRow}>
               <ShieldCheck size={14} color={COLORS.accent} />
               <Text style={styles.helpText}>
-                Contracts in NEXPEC are generated server-side and signed
-                with cryptographic chain-of-custody. No drafts on your end.
+                {t('Contracts in NEXPEC are generated server-side and signed with cryptographic chain-of-custody. No drafts on your end.')}
               </Text>
             </View>
             <Pressable
@@ -195,9 +194,9 @@ export default function JobContractResolver() {
                 pressed && { opacity: 0.88 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Back to job"
+              accessibilityLabel={t('Back to job')}
             >
-              <Text style={styles.primaryBtnText}>Back to job</Text>
+              <Text style={styles.primaryBtnText}>{t('Back to job')}</Text>
             </Pressable>
           </View>
         )}
@@ -207,10 +206,9 @@ export default function JobContractResolver() {
             <View style={styles.iconCircle}>
               <AlertCircle size={22} color={COLORS.danger} />
             </View>
-            <Text style={styles.cardTitle}>Job not found</Text>
+            <Text style={styles.cardTitle}>{t('Job not found')}</Text>
             <Text style={styles.cardBody}>
-              The job referenced in this link doesn't exist or you don't
-              have access to it.
+              {t("The job referenced in this link doesn't exist or you don't have access to it.")}
             </Text>
             <Pressable
               onPress={() => router.replace('/(tabs)/jobs' as any)}
@@ -219,9 +217,9 @@ export default function JobContractResolver() {
                 pressed && { opacity: 0.88 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Go to my jobs"
+              accessibilityLabel={t('Go to my jobs')}
             >
-              <Text style={styles.primaryBtnText}>Go to my jobs</Text>
+              <Text style={styles.primaryBtnText}>{t('Go to my jobs')}</Text>
             </Pressable>
           </View>
         )}
@@ -231,7 +229,7 @@ export default function JobContractResolver() {
             <View style={styles.iconCircle}>
               <AlertCircle size={22} color={COLORS.danger} />
             </View>
-            <Text style={styles.cardTitle}>Couldn't open the contract</Text>
+            <Text style={styles.cardTitle}>{t("Couldn't open the contract")}</Text>
             <Text style={styles.cardBody}>{state.message}</Text>
             <Pressable
               onPress={() => router.back()}
@@ -240,9 +238,9 @@ export default function JobContractResolver() {
                 pressed && { opacity: 0.88 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Go back"
+              accessibilityLabel={t('Go back')}
             >
-              <Text style={styles.primaryBtnText}>Back</Text>
+              <Text style={styles.primaryBtnText}>{t('Back')}</Text>
             </Pressable>
           </View>
         )}

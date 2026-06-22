@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420', card: '#0B1138',
@@ -36,6 +37,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 interface Line { jobId: string; title: string; paidAt: string | null; payoutCents: number; }
 
 export default function InspectorStatementScreen() {
+  const { t, language } = useLanguage();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [gran, setGran] = useState<Gran>('month');
@@ -45,7 +47,7 @@ export default function InspectorStatementScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
-  const [inspectorName, setInspectorName] = useState<string>('Inspector');
+  const [inspectorName, setInspectorName] = useState<string>(t('Inspector'));
   const [error, setError] = useState<string | null>(null);
 
   const range = useMemo(() => computeRange(year, gran, monthIdx, quarter), [year, gran, monthIdx, quarter]);
@@ -55,11 +57,11 @@ export default function InspectorStatementScreen() {
     setError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError('You must be signed in.'); return; }
+      if (!user) { setError(t('You must be signed in.')); return; }
 
       const profRes = await supabase.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle();
       const pr = profRes.data as { full_name?: string | null; email?: string | null } | null;
-      setInspectorName(pr?.full_name || pr?.email || 'Inspector');
+      setInspectorName(pr?.full_name || pr?.email || t('Inspector'));
 
       // GR2: inspector payout ONLY. Never select client_price_cents / spread.
       const { data, error: qErr } = await supabase
@@ -80,11 +82,11 @@ export default function InspectorStatementScreen() {
       })));
     } catch (e: unknown) {
       console.warn('[statement] load threw:', e);
-      setError((e as Error)?.message ?? 'Could not load your statement.');
+      setError((e as Error)?.message ?? t('Could not load your statement.'));
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => { setLoading(true); void load(range); }, [load, range]);
   const onRefresh = useCallback(() => { setRefreshing(true); void load(range); }, [load, range]);
@@ -93,18 +95,18 @@ export default function InspectorStatementScreen() {
 
   const shareStatement = useCallback(async () => {
     try {
-      const header = `NEXPEC, Payout statement\n${inspectorName}\nPeriod: ${periodLabel}\nTotal paid: ${formatCents(total)}, ${lines.length} job${lines.length === 1 ? '' : 's'}\n`;
+      const header = `NEXPEC, ${t('Payout statement')}\n${inspectorName}\n${t('Period:')} ${periodLabel}\n${t('Total paid:')} ${formatCents(total)}, ${lines.length} ${lines.length === 1 ? t('job') : t('jobs')}\n`;
       const body = lines.map((l) => `${l.paidAt ? formatDate(l.paidAt) : '—'}, ${l.title}, ${formatCents(l.payoutCents)}`).join('\n');
-      await Share.share({ title: `Payout statement ${periodLabel}`, message: `${header}\n${body || 'No paid jobs in this period.'}` });
+      await Share.share({ title: `${t('Payout statement')} ${periodLabel}`, message: `${header}\n${body || t('No paid jobs in this period.')}` });
     } catch (e: unknown) {
-      Alert.alert('Could not share', (e as Error)?.message ?? 'Unknown error.');
+      Alert.alert(t('Could not share'), (e as Error)?.message ?? t('Unknown error.'));
     }
-  }, [inspectorName, periodLabel, total, lines]);
+  }, [inspectorName, periodLabel, total, lines, language]);
 
   if (loading) {
     return (
       <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
-        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>Building statement…</Text></View>
+        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>{t('Building statement…')}</Text></View>
       </SafeAreaView>
     );
   }
@@ -114,7 +116,7 @@ export default function InspectorStatementScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}><Ionicons name="arrow-back" size={22} color={C.text} /></TouchableOpacity>
-        <Text style={s.headerTitle}>Statement</Text>
+        <Text style={s.headerTitle}>{t('Statement')}</Text>
         <TouchableOpacity onPress={shareStatement} hitSlop={10}><Ionicons name="share-outline" size={20} color={C.primary} /></TouchableOpacity>
       </View>
 
@@ -124,9 +126,9 @@ export default function InspectorStatementScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} colors={[C.primary]} />}
       >
         <Animated.View entering={FadeIn.duration(200)} style={s.heroWrap}>
-          <Text style={s.kicker}>INSPECTOR, EARNINGS</Text>
-          <Text style={s.title}>Payout statement</Text>
-          <Text style={s.subtitle}>Your settled payouts for the period, your admin-set inspector price only.</Text>
+          <Text style={s.kicker}>{t('INSPECTOR, EARNINGS')}</Text>
+          <Text style={s.title}>{t('Payout statement')}</Text>
+          <Text style={s.subtitle}>{t('Your settled payouts for the period, your admin-set inspector price only.')}</Text>
         </Animated.View>
 
         {/* Year + granularity */}
@@ -137,7 +139,7 @@ export default function InspectorStatementScreen() {
           <View style={{ flex: 1 }} />
           {(['month', 'quarter', 'year'] as Gran[]).map((g) => (
             <TouchableOpacity key={g} onPress={() => setGran(g)} style={[s.granChip, gran === g && s.granChipActive]} activeOpacity={0.7}>
-              <Text style={[s.granChipText, gran === g && s.granChipTextActive]}>{g[0].toUpperCase() + g.slice(1)}</Text>
+              <Text style={[s.granChipText, gran === g && s.granChipTextActive]}>{t(g[0].toUpperCase() + g.slice(1))}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -148,7 +150,7 @@ export default function InspectorStatementScreen() {
             {gran === 'month'
               ? MONTHS.map((m, i) => (
                   <TouchableOpacity key={m} onPress={() => setMonthIdx(i)} style={[s.chip, monthIdx === i && s.chipActive]} activeOpacity={0.7}>
-                    <Text style={[s.chipText, monthIdx === i && s.chipTextActive]}>{m}</Text>
+                    <Text style={[s.chipText, monthIdx === i && s.chipTextActive]}>{t(m)}</Text>
                   </TouchableOpacity>
                 ))
               : [1, 2, 3, 4].map((q) => (
@@ -163,14 +165,14 @@ export default function InspectorStatementScreen() {
 
         {/* Summary */}
         <Animated.View entering={FadeInDown.delay(60).duration(220)} style={s.summaryCard}>
-          <Text style={s.summaryLabel}>{periodLabel.toUpperCase()}, TOTAL PAID</Text>
+          <Text style={s.summaryLabel}>{periodLabel.toUpperCase()}, {t('TOTAL PAID')}</Text>
           <Text style={s.summaryTotal}>{formatCents(total)}</Text>
-          <Text style={s.summaryMeta}>{lines.length} settled job{lines.length === 1 ? '' : 's'}</Text>
+          <Text style={s.summaryMeta}>{lines.length} {lines.length === 1 ? t('settled job') : t('settled jobs')}</Text>
         </Animated.View>
 
         {/* Line items */}
         {lines.length === 0 ? (
-          <View style={s.emptyState}><Ionicons name="receipt-outline" size={30} color={C.textMute} /><Text style={s.emptyText}>No settled payouts in {periodLabel}.</Text></View>
+          <View style={s.emptyState}><Ionicons name="receipt-outline" size={30} color={C.textMute} /><Text style={s.emptyText}>{t('No settled payouts in')} {periodLabel}.</Text></View>
         ) : (
           <View style={{ gap: 8 }}>
             {lines.map((l) => (
@@ -178,7 +180,7 @@ export default function InspectorStatementScreen() {
                 <View style={s.lineIcon}><Ionicons name="checkmark-circle" size={15} color={C.green} /></View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={s.lineTitle} numberOfLines={1}>{l.title}</Text>
-                  <Text style={s.lineDate}>Paid {l.paidAt ? formatDate(l.paidAt) : '—'}</Text>
+                  <Text style={s.lineDate}>{t('Paid')} {l.paidAt ? formatDate(l.paidAt) : '—'}</Text>
                 </View>
                 <Text style={s.linePayout}>{formatCents(l.payoutCents)}</Text>
               </View>
@@ -187,10 +189,8 @@ export default function InspectorStatementScreen() {
         )}
 
         <TouchableOpacity style={s.shareBtn} onPress={shareStatement} activeOpacity={0.85}>
-          <Ionicons name="share-outline" size={16} color="#fff" /><Text style={s.shareBtnText}>Share statement</Text>
+          <Ionicons name="share-outline" size={16} color="#fff" /><Text style={s.shareBtnText}>{t('Share statement')}</Text>
         </TouchableOpacity>
-
-        <Text style={s.footnote}>Source, jobs (contractor_id = you, payout_status = paid), GR2: your admin-set payout only, never the client price.</Text>
       </ScrollView>
     </SafeAreaView>
   );

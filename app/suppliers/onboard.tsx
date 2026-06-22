@@ -7,8 +7,10 @@ import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { DocumentField } from '../../src/components/DynamicForm/fields/DocumentField';
 import { useCapabilityCatalog, onboardSupplier } from '../../src/hooks/useSupplierEcosystem';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 export default function SupplierOnboardScreen() {
+  const { t, isRTL, language } = useLanguage();
   const router = useRouter();
   const { items: caps, loading } = useCapabilityCatalog();
   const [legalName, setLegalName] = useState('');
@@ -31,14 +33,14 @@ export default function SupplierOnboardScreen() {
   const toggle = (k: string) => setSelected((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
   const submit = async () => {
-    if (legalName.trim() === '') { Alert.alert('Company name required'); return; }
-    if (selected.length === 0) { Alert.alert('Pick at least one capability'); return; }
+    if (legalName.trim() === '') { Alert.alert(t('Company name required')); return; }
+    if (selected.length === 0) { Alert.alert(t('Pick at least one capability')); return; }
     setBusy(true);
     try {
       const attributes = standards.trim() ? { standards: standards.split(',').map((x) => x.trim()).filter(Boolean) } : {};
       const { error } = await onboardSupplier({ legal_name: legalName.trim(), headline: headline.trim() || null, capabilities: selected, attributes, country: country.trim() || null });
-      if (error) { Alert.alert('Could not save', error.message); return; }
-      Alert.alert('You are listed', 'Your supplier profile is live in the directory.', [{ text: 'OK', onPress: () => router.replace('/suppliers' as any) }]);
+      if (error) { Alert.alert(t('Could not save'), error.message); return; }
+      Alert.alert(t('You are listed'), t('Your supplier profile is live in the directory.'), [{ text: t('OK'), onPress: () => router.replace('/suppliers' as any) }]);
     } finally { setBusy(false); }
   };
 
@@ -47,17 +49,17 @@ export default function SupplierOnboardScreen() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
-        <Text style={s.title}>Become a Supplier</Text>
+        <Text style={s.title}>{t('Become a Supplier')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
       {loading ? <View style={s.center}><ActivityIndicator size="large" color={T.colors.primary} /></View> : (
         <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <Field label="Company / legal name *"><TextInput value={legalName} onChangeText={setLegalName} placeholder="ACME Manufacturing GmbH" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
-          <Field label="Headline"><TextInput value={headline} onChangeText={setHeadline} placeholder="ISO 17025 calibration lab, GCC" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
-          <Field label="Country code"><TextInput value={country} onChangeText={(v) => setCountry(v.toUpperCase())} maxLength={2} autoCapitalize="characters" placeholder="AE" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
+          <Field label={t('Company / legal name *')}><TextInput value={legalName} onChangeText={setLegalName} placeholder={t('ACME Manufacturing GmbH')} placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
+          <Field label={t('Headline')}><TextInput value={headline} onChangeText={setHeadline} placeholder={t('ISO 17025 calibration lab, GCC')} placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
+          <Field label={t('Country code')}><TextInput value={country} onChangeText={(v) => setCountry(v.toUpperCase())} maxLength={2} autoCapitalize="characters" placeholder={t('AE')} placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
 
-          <Text style={s.section}>Capabilities *</Text>
+          <Text style={s.section}>{t('Capabilities *')}</Text>
           {Object.entries(grouped).map(([cat, list]) => (
             <View key={cat} style={{ marginBottom: T.spacing.sm }}>
               <Text style={s.catLabel}>{cat.toUpperCase()}</Text>
@@ -75,26 +77,26 @@ export default function SupplierOnboardScreen() {
             </View>
           ))}
 
-          <Field label="Standards served (comma-separated)"><TextInput value={standards} onChangeText={setStandards} placeholder="ASME, EN, ISO" placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
+          <Field label={t('Standards served (comma-separated)')}><TextInput value={standards} onChangeText={setStandards} placeholder={t('ASME, EN, ISO')} placeholderTextColor={T.colors.textMuted} style={s.input} /></Field>
 
-          <Text style={s.section}>Certifications & Documents</Text>
-          <Text style={s.docNote}>Optional now. Every file is cryptographically sealed and timestamped on upload, then reviewed for verification. You can add more anytime from your dashboard.</Text>
+          <Text style={s.section}>{t('Certifications & Documents')}</Text>
+          <Text style={s.docNote}>{t('Optional now. Every file is cryptographically sealed and timestamped on upload, then reviewed for verification. You can add more anytime from your dashboard.')}</Text>
           <DocumentField
-            field={{ name: 'iso_cert', label: 'ISO / Quality certificate', type: 'document', docType: 'iso_cert', helperText: 'e.g. ISO 9001 or ISO 17025' }}
+            field={{ name: 'iso_cert', label: t('ISO / Quality certificate'), type: 'document', docType: 'iso_cert', helperText: t('e.g. ISO 9001 or ISO 17025') }}
             value={isoCert} onChange={setIsoCert} onBlur={() => {}}
           />
           <DocumentField
-            field={{ name: 'accreditation', label: 'Accreditation certificate', type: 'document', docType: 'accreditation', helperText: 'Lab / inspection body accreditation' }}
+            field={{ name: 'accreditation', label: t('Accreditation certificate'), type: 'document', docType: 'accreditation', helperText: t('Lab / inspection body accreditation') }}
             value={accreditation} onChange={setAccreditation} onBlur={() => {}}
           />
           <DocumentField
-            field={{ name: 'insurance', label: 'Insurance (optional)', type: 'document', docType: 'insurance', helperText: 'Liability / professional indemnity' }}
+            field={{ name: 'insurance', label: t('Insurance (optional)'), type: 'document', docType: 'insurance', helperText: t('Liability / professional indemnity') }}
             value={insurance} onChange={setInsurance} onBlur={() => {}}
           />
 
           <TouchableOpacity style={[s.submit, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy} activeOpacity={0.85}>
             {busy ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="storefront-outline" size={18} color="#fff" />}
-            <Text style={s.submitTxt}>{busy ? 'Saving…' : 'List my company'}</Text>
+            <Text style={s.submitTxt}>{busy ? t('Saving…') : t('List my company')}</Text>
           </TouchableOpacity>
           <View style={{ height: 24 }} />
         </ScrollView>

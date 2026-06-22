@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 // ★ Consolidation: canonical supabase client @/lib/supabase.
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 
 // --- Secure Chat Components ---
@@ -17,6 +18,7 @@ import SOSButton from '../../src/components/shared/SOSButton';
 import JobCard from '../../src/components/inspector/JobCard';
 
 export default function SuperDashboard() {
+  const { t, isRTL, language } = useLanguage();
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -110,8 +112,8 @@ export default function SuperDashboard() {
             {/* 1. Header Row */}
             <View style={styles.header}>
               <View>
-                <Text style={styles.greeting}>Good afternoon,</Text>
-                <Text style={styles.userName}>Inspector 👋</Text>
+                <Text style={styles.greeting}>{t('Good afternoon,')}</Text>
+                <Text style={styles.userName}>{t('Inspector')} 👋</Text>
               </View>
               <View style={styles.notifButton}>
                 <Ionicons name="notifications-outline" size={24} color="#FFF" />
@@ -126,21 +128,21 @@ export default function SuperDashboard() {
 
             {/* 3. Hero Earnings Card */}
             <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.earningsCard}>
-               <Text style={styles.earnLabel}>Total Earnings</Text>
+               <Text style={styles.earnLabel}>{t('Total Earnings')}</Text>
                <Text style={styles.earnValue}>$0</Text>
-               <Text style={styles.earnSub}>From your work</Text>
+               <Text style={styles.earnSub}>{t('From your work')}</Text>
             </LinearGradient>
 
             {/* 4. Quick Actions */}
             <View style={styles.sectionHeader}>
                <Ionicons name="flash" size={18} color="#7C3AED" />
-               <Text style={styles.sectionTitle}>Quick Actions</Text>
+               <Text style={styles.sectionTitle}>{t('Quick Actions')}</Text>
             </View>
             <View style={styles.quickActions}>
                {/* Messages button leads to chat list */}
-               <ActionItem icon="search" label="Find Jobs" color="#7C3AED" />
-               <ActionItem icon="briefcase" label="Contracts" color="#06B6D4" />
-               <ActionItem icon="chatbubble-outline" label="Messages" color="#10B981" />
+               <ActionItem icon="search" label={t('Find Jobs')} color="#7C3AED" />
+               <ActionItem icon="briefcase" label={t('Contracts')} color="#06B6D4" />
+               <ActionItem icon="chatbubble-outline" label={t('Messages')} color="#10B981" />
             </View>
           </>
         }

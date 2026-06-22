@@ -48,6 +48,7 @@ import {
 } from '@/src/hooks/useSupplierContracts';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { formatUsd } from '@/src/core/utils/money';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420',
@@ -86,6 +87,7 @@ const STATUS_META: Record<
 export default function SupplierContractSignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { contract, loading, refetch } = useSupplierContract(id);
   const [refreshing, setRefreshing] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -117,29 +119,29 @@ export default function SupplierContractSignScreen() {
     if (!contract) return;
     const trimmed = typedName.trim();
     if (trimmed.length < 2) {
-      Alert.alert('Type your full name', 'Enter your full legal name to sign.');
+      Alert.alert(t('Type your full name'), t('Enter your full legal name to sign.'));
       return;
     }
     setSigning(true);
     const res = await signSupplierContract(contract.id, trimmed);
     setSigning(false);
     if (!res.ok) {
-      Alert.alert('Could not sign', res.error ?? 'The server refused the signature.');
+      Alert.alert(t('Could not sign'), res.error ?? t('The server refused the signature.'));
       return;
     }
     setTypedName('');
     await refetch();
-    Alert.alert('Signed', 'You signed. NEXPEC will counter-sign to execute the agreement.');
-  }, [contract, typedName, refetch]);
+    Alert.alert(t('Signed'), t('You signed. NEXPEC will counter-sign to execute the agreement.'));
+  }, [contract, typedName, refetch, t]);
 
   const handleOpenDocument = useCallback(async () => {
     if (!contract?.custom_contract_url) return;
     try {
       await Linking.openURL(contract.custom_contract_url);
     } catch {
-      Alert.alert('Cannot open', 'The agreement URL is not reachable from this device.');
+      Alert.alert(t('Cannot open'), t('The agreement URL is not reachable from this device.'));
     }
-  }, [contract?.custom_contract_url]);
+  }, [contract?.custom_contract_url, t]);
 
   if (loading) {
     return (
@@ -148,7 +150,7 @@ export default function SupplierContractSignScreen() {
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           <View style={s.center}>
             <ActivityIndicator size="large" color={C.primary} />
-            <Text style={s.loadingText}>OPENING AGREEMENT…</Text>
+            <Text style={s.loadingText}>{t('OPENING AGREEMENT…')}</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -163,9 +165,9 @@ export default function SupplierContractSignScreen() {
           <Header onBack={() => router.back()} status={null} />
           <View style={s.errorWrap}>
             <Lock size={26} color={C.danger} strokeWidth={1.6} />
-            <Text style={s.errorTitle}>Agreement not accessible</Text>
+            <Text style={s.errorTitle}>{t('Agreement not accessible')}</Text>
             <Text style={s.errorBody}>
-              This agreement no longer exists or you don&apos;t have permission to view it.
+              {t('This agreement no longer exists or you don\'t have permission to view it.')}
             </Text>
           </View>
         </SafeAreaView>
@@ -204,22 +206,22 @@ export default function SupplierContractSignScreen() {
                 <FileSignature size={18} color={C.primary} strokeWidth={1.8} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.titleKicker}>NEXPEC SUPPLIER AGREEMENT</Text>
+                <Text style={s.titleKicker}>{t('NEXPEC SUPPLIER AGREEMENT')}</Text>
                 <Text style={s.titleText} numberOfLines={2}>
-                  {contract.rfq_title ?? 'Supplier agreement'}
+                  {contract.rfq_title ?? t('Supplier agreement')}
                 </Text>
-                <Text style={s.titleSub}>Counterparty: NEXPEC (Broker of record)</Text>
+                <Text style={s.titleSub}>{t('Counterparty: NEXPEC (Broker of record)')}</Text>
               </View>
             </Animated.View>
 
             {/* Timeline */}
-            <SectionHeader icon={<Clock size={14} color={C.primary} />} kicker="STATE MACHINE" title="Signature timeline" tint={C.primary} />
+            <SectionHeader icon={<Clock size={14} color={C.primary} />} kicker={t('STATE MACHINE')} title={t('Signature timeline')} tint={C.primary} />
             <Animated.View entering={FadeInDown.delay(80)} style={s.timelineCard}>
-              <Step n={1} label="Issued" done at={contract.created_at} />
+              <Step n={1} label={t('Issued')} done at={contract.created_at} />
               <Connector done={!!contract.supplier_signed_at || isExecuted} />
               <Step
                 n={2}
-                label="You sign"
+                label={t('You sign')}
                 done={!!contract.supplier_signed_at}
                 active={canSign}
                 at={contract.supplier_signed_at}
@@ -228,7 +230,7 @@ export default function SupplierContractSignScreen() {
               <Connector done={isExecuted} />
               <Step
                 n={3}
-                label="Executed"
+                label={t('Executed')}
                 done={isExecuted}
                 active={!!contract.supplier_signed_at && !isExecuted}
                 at={contract.admin_signed_at}
@@ -237,7 +239,7 @@ export default function SupplierContractSignScreen() {
             </Animated.View>
 
             {/* Awarded value — supplier's OWN number */}
-            <SectionHeader icon={<Lock size={14} color={C.primary} />} kicker="YOUR PAYOUT" title="Awarded value" tint={C.primary} />
+            <SectionHeader icon={<Lock size={14} color={C.primary} />} kicker={t('YOUR PAYOUT')} title={t('Awarded value')} tint={C.primary} />
             <Animated.View entering={FadeInDown.delay(140)} style={s.priceCard}>
               <LinearGradient
                 colors={['rgba(124,58,237,0.10)', 'rgba(124,58,237,0.02)']}
@@ -247,22 +249,21 @@ export default function SupplierContractSignScreen() {
               />
               <Text style={s.priceValue}>{formatUsd(contract.amount_cents)}</Text>
               <Text style={s.priceCaption}>
-                Administered by NEXPEC and released to your connected payout account against
-                verified milestones. This is your awarded quote value.
+                {t('Administered by NEXPEC and released to your connected payout account against verified milestones. This is your awarded quote value.')}
               </Text>
             </Animated.View>
 
             {/* Document */}
             <SectionHeader
               icon={<FileText size={14} color={C.cyan} />}
-              kicker="THE DOCUMENT"
-              title="Agreement terms"
+              kicker={t('THE DOCUMENT')}
+              title={t('Agreement terms')}
               tint={C.cyan}
               right={
                 contract.custom_contract_url ? (
                   <Pressable onPress={handleOpenDocument} style={s.docCta}>
                     <ExternalLink size={11} color={C.cyan} strokeWidth={2} />
-                    <Text style={s.docCtaText}>Open PDF</Text>
+                    <Text style={s.docCtaText}>{t('Open PDF')}</Text>
                   </Pressable>
                 ) : null
               }
@@ -276,7 +277,7 @@ export default function SupplierContractSignScreen() {
                 <View style={s.docEmpty}>
                   <FileText size={20} color={C.textMuted} strokeWidth={1.5} />
                   <Text style={s.docEmptyText}>
-                    Terms are attached as a PDF. Tap &quot;Open PDF&quot; above to review.
+                    {t('Terms are attached as a PDF. Tap "Open PDF" above to review.')}
                   </Text>
                 </View>
               )}
@@ -287,10 +288,10 @@ export default function SupplierContractSignScreen() {
               <Animated.View entering={FadeIn.delay(220)} style={s.sealCard}>
                 <View style={s.sealHeader}>
                   <Fingerprint size={15} color={C.ok} strokeWidth={1.8} />
-                  <Text style={s.sealTitle}>Tamper-evident execution seal</Text>
+                  <Text style={s.sealTitle}>{t('Tamper-evident execution seal')}</Text>
                 </View>
                 <Text style={s.sealBody}>
-                  Signed by {contract.supplier_signed_name ?? 'you'} and counter-signed by NEXPEC
+                  {t('Signed by')} {contract.supplier_signed_name ?? t('you')} {t('and counter-signed by NEXPEC')}
                   {contract.admin_signed_name ? ` (${contract.admin_signed_name})` : ''}.
                 </Text>
                 <Text style={s.sealHash}>sha256:{contract.content_sha256}</Text>
@@ -300,12 +301,12 @@ export default function SupplierContractSignScreen() {
             {/* Sign panel */}
             {canSign ? (
               <>
-                <SectionHeader icon={<PenLine size={14} color={C.warn} />} kicker="YOUR SIGNATURE" title="Sign to proceed" tint={C.warn} />
+                <SectionHeader icon={<PenLine size={14} color={C.warn} />} kicker={t('YOUR SIGNATURE')} title={t('Sign to proceed')} tint={C.warn} />
                 <Animated.View entering={FadeIn.delay(260)} style={s.signCard}>
-                  <Text style={s.signLabel}>Type your full legal name</Text>
+                  <Text style={s.signLabel}>{t('Type your full legal name')}</Text>
                   <TextInput
                     style={s.signInput}
-                    placeholder="e.g. Jane Q. Public"
+                    placeholder={t('e.g. Jane Q. Public')}
                     placeholderTextColor={C.textDim}
                     value={typedName}
                     onChangeText={setTypedName}
@@ -334,11 +335,10 @@ export default function SupplierContractSignScreen() {
                     ) : (
                       <PenLine size={15} color="#FFFFFF" strokeWidth={2} />
                     )}
-                    <Text style={s.signCtaText}>{signing ? 'Recording…' : 'Sign agreement'}</Text>
+                    <Text style={s.signCtaText}>{signing ? t('Recording…') : t('Sign agreement')}</Text>
                   </Pressable>
                   <Text style={s.signFootnote}>
-                    Your typed name, timestamp, IP, and device user-agent are stored as evidence.
-                    Equivalent to a typed e-signature.
+                    {t('Your typed name, timestamp, IP, and device user-agent are stored as evidence. Equivalent to a typed e-signature.')}
                   </Text>
                 </Animated.View>
               </>
@@ -349,10 +349,10 @@ export default function SupplierContractSignScreen() {
               <Animated.View entering={FadeIn.delay(260)} style={s.waitCard}>
                 <Hourglass size={18} color={C.warn} strokeWidth={2} />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.waitTitle}>Waiting on NEXPEC</Text>
+                  <Text style={s.waitTitle}>{t('Waiting on NEXPEC')}</Text>
                   <Text style={s.waitBody}>
-                    You signed{contract.supplier_signed_at ? ` on ${new Date(contract.supplier_signed_at).toLocaleString()}` : ''}.
-                    NEXPEC will counter-sign to execute.
+                    {t('You signed')}{contract.supplier_signed_at ? ` ${t('on')} ${new Date(contract.supplier_signed_at).toLocaleString()}` : ''}.
+                    {' '}{t('NEXPEC will counter-sign to execute.')}
                   </Text>
                 </View>
               </Animated.View>
@@ -364,10 +364,9 @@ export default function SupplierContractSignScreen() {
                 <View style={s.executedIcon}>
                   <CheckCircle2 size={24} color={C.ok} strokeWidth={2} />
                 </View>
-                <Text style={s.executedTitle}>Agreement executed</Text>
+                <Text style={s.executedTitle}>{t('Agreement executed')}</Text>
                 <Text style={s.executedBody}>
-                  Both parties have signed. Brokered milestone payouts can now be released to your
-                  wallet for this engagement.
+                  {t('Both parties have signed. Brokered milestone payouts can now be released to your wallet for this engagement.')}
                 </Text>
               </Animated.View>
             ) : null}
@@ -375,7 +374,7 @@ export default function SupplierContractSignScreen() {
             <View style={s.trustRow}>
               <ShieldCheck size={11} color={C.textMuted} />
               <Text style={s.trustText}>
-                Signing is authenticated by your account. All transitions are audited on the server.
+                {t('Signing is authenticated by your account. All transitions are audited on the server.')}
               </Text>
             </View>
           </ScrollView>
@@ -389,6 +388,7 @@ const Header: React.FC<{
   onBack: () => void;
   status: { label: string; tone: string; toneDim: string; icon: any } | null;
 }> = ({ onBack, status }) => {
+  const { t } = useLanguage();
   const Icon = status?.icon ?? ShieldCheck;
   return (
     <View style={s.header}>
@@ -396,13 +396,13 @@ const Header: React.FC<{
         <ArrowLeft size={18} color={C.text} />
       </Pressable>
       <View style={s.headerCenter}>
-        <Text style={s.headerKicker}>BINDING &amp; BROKERED</Text>
-        <Text style={s.headerTitle}>Agreement</Text>
+        <Text style={s.headerKicker}>{t('BINDING & BROKERED')}</Text>
+        <Text style={s.headerTitle}>{t('Agreement')}</Text>
       </View>
       {status ? (
         <View style={[s.headerStatus, { backgroundColor: status.toneDim, borderColor: status.tone + '55' }]}>
           <Icon size={11} color={status.tone} strokeWidth={2} />
-          <Text style={[s.headerStatusText, { color: status.tone }]}>{status.label.toUpperCase()}</Text>
+          <Text style={[s.headerStatusText, { color: status.tone }]}>{t(status.label).toUpperCase()}</Text>
         </View>
       ) : (
         <View style={{ width: 38 }} />
@@ -437,6 +437,7 @@ const Step: React.FC<{
   name?: string | null;
   isTerminal?: boolean;
 }> = ({ n, label, done, active, at, name, isTerminal }) => {
+  const { t } = useLanguage();
   const tone = done ? C.ok : active ? C.warn : C.textMuted;
   const ring = done ? C.ok : active ? C.warn : 'rgba(255,255,255,0.10)';
   return (
@@ -457,7 +458,7 @@ const Step: React.FC<{
           {new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </Text>
       ) : active ? (
-        <Text style={[s.tlMeta, { color: C.warn }]}>Awaiting</Text>
+        <Text style={[s.tlMeta, { color: C.warn }]}>{t('Awaiting')}</Text>
       ) : (
         <Text style={s.tlMeta}>—</Text>
       )}

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420',
@@ -52,6 +53,7 @@ function idLabel(code: string, form: string): string {
 }
 
 export default function TaxCenterScreen() {
+  const { t, isRTL, language } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [cleared, setCleared] = useState(false);
   const [exempt, setExempt] = useState(false);
@@ -96,14 +98,14 @@ export default function TaxCenterScreen() {
       });
       const errMsg = error?.message || (data as { error?: string } | null)?.error;
       if (errMsg) {
-        Alert.alert('Could not submit', errMsg);
+        Alert.alert(t('Could not submit'), errMsg);
       } else {
-        Alert.alert('Submitted', 'Your tax information is encrypted and awaiting verification.', [
-          { text: 'OK', onPress: () => router.back() },
+        Alert.alert(t('Submitted'), t('Your tax information is encrypted and awaiting verification.'), [
+          { text: t('OK'), onPress: () => router.back() },
         ]);
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to submit tax information.');
+      Alert.alert(t('Error'), e?.message || t('Failed to submit tax information.'));
     } finally {
       setSubmitting(false);
     }
@@ -116,7 +118,7 @@ export default function TaxCenterScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={C.text} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Tax Center</Text>
+        <Text style={s.headerTitle}>{t('Tax Center')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -126,47 +128,47 @@ export default function TaxCenterScreen() {
         <View style={s.body}>
           <View style={[s.card, { borderColor: 'rgba(52,211,153,0.3)', backgroundColor: 'rgba(52,211,153,0.06)' }]}>
             <Ionicons name="shield-checkmark" size={26} color={C.green} />
-            <Text style={s.clearedTitle}>{exempt ? 'Tax-exempt (admin override)' : 'Tax information verified'}</Text>
+            <Text style={s.clearedTitle}>{exempt ? t('Tax-exempt (admin override)') : t('Tax information verified')}</Text>
             <Text style={s.muted}>
               {exempt
-                ? 'An administrator exempted your account. Payouts are unlocked.'
-                : 'Your tax information is on file. Payouts are unlocked.'}
+                ? t('An administrator exempted your account. Payouts are unlocked.')
+                : t('Your tax information is on file. Payouts are unlocked.')}
             </Text>
             <TouchableOpacity style={s.primaryBtn} onPress={() => router.replace('/(inspector)/wallet/withdraw')}>
-              <Text style={s.primaryBtnText}>Continue to payout</Text>
+              <Text style={s.primaryBtnText}>{t('Continue to payout')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
           <Text style={s.intro}>
-            We collect tax details once, before your first payout, as legally required. Your full identifier is encrypted; only the last 4 digits are ever shown.
+            {t('We collect tax details once, before your first payout, as legally required. Your full identifier is encrypted; only the last 4 digits are ever shown.')}
           </Text>
           {status === 'needs_update' && (
             <View style={[s.note, { borderColor: 'rgba(239,68,68,0.3)' }]}>
-              <Text style={{ color: '#FCA5A5', fontSize: 12 }}>Your tax information needs an update, please re-submit.</Text>
+              <Text style={{ color: '#FCA5A5', fontSize: 12 }}>{t('Your tax information needs an update, please re-submit.')}</Text>
             </View>
           )}
 
-          <Text style={s.label}>Tax residency</Text>
+          <Text style={s.label}>{t('Tax residency')}</Text>
           <View style={s.chipRow}>
             {COUNTRIES.map((c) => (
-              <Chip key={c.code} active={country === c.code} label={c.label} onPress={() => setCountry(c.code)} />
+              <Chip key={c.code} active={country === c.code} label={t(c.label)} onPress={() => setCountry(c.code)} />
             ))}
           </View>
 
-          <Text style={s.label}>Tax form</Text>
+          <Text style={s.label}>{t('Tax form')}</Text>
           <View style={s.chipRow}>
             {forms.map((f) => (
-              <Chip key={f} active={effForm === f} label={FORM_LABELS[f] ?? f} onPress={() => setFormType(f)} />
+              <Chip key={f} active={effForm === f} label={t(FORM_LABELS[f] ?? f)} onPress={() => setFormType(f)} />
             ))}
           </View>
 
-          <Text style={s.label}>{idLabel(country, effForm)}</Text>
+          <Text style={s.label}>{t(idLabel(country, effForm))}</Text>
           <TextInput
             value={taxId}
             onChangeText={setTaxId}
-            placeholder="Enter your tax identifier"
+            placeholder={t('Enter your tax identifier')}
             placeholderTextColor="#475569"
             keyboardType="number-pad"
             autoComplete="off"
@@ -176,7 +178,7 @@ export default function TaxCenterScreen() {
           <TouchableOpacity style={s.certifyRow} onPress={() => setCertified((v) => !v)} activeOpacity={0.7}>
             <Ionicons name={certified ? 'checkbox' : 'square-outline'} size={20} color={certified ? C.primary : C.muted} />
             <Text style={s.certifyText}>
-              Under penalties of perjury, I certify that the information provided is true, correct, and complete.
+              {t('Under penalties of perjury, I certify that the information provided is true, correct, and complete.')}
             </Text>
           </TouchableOpacity>
 
@@ -185,7 +187,7 @@ export default function TaxCenterScreen() {
             onPress={onSubmit}
             disabled={!certified || taxId.trim().length < 4 || submitting}
           >
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>Submit tax information</Text>}
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>{t('Submit tax information')}</Text>}
           </TouchableOpacity>
         </ScrollView>
       )}

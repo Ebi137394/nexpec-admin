@@ -34,6 +34,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420',
@@ -100,6 +101,7 @@ interface EligibleJob {
 export default function InspectorDisputesScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
 
   const [items, setItems] = useState<DisputeRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,13 +183,13 @@ export default function InspectorDisputesScreen() {
 
   const handleFile = useCallback(async () => {
     if (!selectedJobId) {
-      Alert.alert('Pick a job', 'Select a job before filing a dispute.');
+      Alert.alert(t('Pick a job'), t('Select a job before filing a dispute.'));
       return;
     }
     if (body.trim().length < 20) {
       Alert.alert(
-        'Describe the issue',
-        'At least 20 characters so admin can understand the situation.',
+        t('Describe the issue'),
+        t('At least 20 characters so admin can understand the situation.'),
       );
       return;
     }
@@ -200,27 +202,27 @@ export default function InspectorDisputesScreen() {
       });
       if (error) throw error;
       Alert.alert(
-        'Dispute filed',
-        'Secured Funds on this job are now frozen and admin has been notified. You\'ll get a notification when there\'s a resolution.',
+        t('Dispute filed'),
+        t('Secured Funds on this job are now frozen and admin has been notified. You\'ll get a notification when there\'s a resolution.'),
       );
       setFilerOpen(false);
       await fetchDisputes();
     } catch (err: any) {
       const msg = err?.message ?? '';
       if (msg.includes('already')) {
-        Alert.alert('Already filed', 'A dispute on this job is already on file.');
+        Alert.alert(t('Already filed'), t('A dispute on this job is already on file.'));
       } else if (msg.includes('not a party') || msg.includes('only parties')) {
         Alert.alert(
-          'Not allowed',
-          'You can only file a dispute on jobs you\'re assigned to as the contractor.',
+          t('Not allowed'),
+          t('You can only file a dispute on jobs you\'re assigned to as the contractor.'),
         );
       } else {
-        Alert.alert('Could not file dispute', msg || 'Please try again in a moment.');
+        Alert.alert(t('Could not file dispute'), msg || t('Please try again in a moment.'));
       }
     } finally {
       setFiling(false);
     }
-  }, [selectedJobId, category, body, fetchDisputes]);
+  }, [selectedJobId, category, body, fetchDisputes, t, language]);
 
   const counts = useMemo(
     () => ({
@@ -245,15 +247,15 @@ export default function InspectorDisputesScreen() {
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.kicker}>INSPECTOR PORTAL</Text>
-            <Text style={s.headerTitle}>Disputes</Text>
+            <Text style={s.kicker}>{t('INSPECTOR PORTAL')}</Text>
+            <Text style={s.headerTitle}>{t('Disputes')}</Text>
           </View>
           <Pressable
             onPress={openFiler}
             style={({ pressed }) => [s.filePill, pressed && { transform: [{ scale: 0.95 }] }]}
           >
             <Ionicons name="add" size={14} color="#FFF" />
-            <Text style={s.filePillText}>File</Text>
+            <Text style={s.filePillText}>{t('File')}</Text>
           </Pressable>
         </View>
 
@@ -274,41 +276,40 @@ export default function InspectorDisputesScreen() {
           <View style={s.statStrip}>
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.amber }]}>{counts.open}</Text>
-              <Text style={s.statLabel}>Open</Text>
+              <Text style={s.statLabel}>{t('Open')}</Text>
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.ok }]}>{counts.resolved}</Text>
-              <Text style={s.statLabel}>Resolved</Text>
+              <Text style={s.statLabel}>{t('Resolved')}</Text>
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
               <Text style={[s.statValue, { color: C.textMuted }]}>{counts.other}</Text>
-              <Text style={s.statLabel}>Closed</Text>
+              <Text style={s.statLabel}>{t('Closed')}</Text>
             </View>
           </View>
 
           {loading ? (
             <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
               <ActivityIndicator size="large" color={C.primary} />
-              <Text style={s.loadingText}>LOADING DISPUTES…</Text>
+              <Text style={s.loadingText}>{t('LOADING DISPUTES…')}</Text>
             </View>
           ) : items.length === 0 ? (
             <View style={s.empty}>
               <View style={s.emptyIcon}>
                 <Ionicons name="shield-checkmark" size={22} color={C.primary} />
               </View>
-              <Text style={s.emptyTitle}>No disputes, clean record</Text>
+              <Text style={s.emptyTitle}>{t('No disputes, clean record')}</Text>
               <Text style={s.emptySub}>
-                If a client is late on payment or you have a scope disagreement,
-                file a dispute here. Admin freezes the Secured Funds and mediates.
+                {t('If a client is late on payment or you have a scope disagreement, file a dispute here. Admin freezes the Secured Funds and mediates.')}
               </Text>
               <Pressable
                 onPress={openFiler}
                 style={({ pressed }) => [s.emptyCta, pressed && { transform: [{ scale: 0.97 }] }]}
               >
                 <Ionicons name="alert-circle" size={14} color="#FFF" />
-                <Text style={s.emptyCtaText}>File a dispute</Text>
+                <Text style={s.emptyCtaText}>{t('File a dispute')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -325,7 +326,7 @@ export default function InspectorDisputesScreen() {
                     <View style={s.card}>
                       <View style={s.cardTopRow}>
                         <Text style={s.cardJobTitle} numberOfLines={1}>
-                          {item.job_title ?? 'Untitled job'}
+                          {item.job_title ?? t('Untitled job')}
                         </Text>
                         <View
                           style={[
@@ -334,13 +335,13 @@ export default function InspectorDisputesScreen() {
                           ]}
                         >
                           <Text style={[s.statusPillText, { color: meta.tone }]}>
-                            {meta.label}
+                            {t(meta.label)}
                           </Text>
                         </View>
                       </View>
                       <View style={s.catRow}>
                         <Ionicons name="pricetag" size={10} color={C.textMuted} />
-                        <Text style={s.catText}>{cat}</Text>
+                        <Text style={s.catText}>{t(cat)}</Text>
                         <Text style={s.timeText}>
                           {new Date(item.created_at).toLocaleDateString()}
                         </Text>
@@ -350,7 +351,7 @@ export default function InspectorDisputesScreen() {
                       </Text>
                       {item.resolution ? (
                         <View style={s.resolutionBox}>
-                          <Text style={s.resolutionLabel}>RESOLUTION</Text>
+                          <Text style={s.resolutionLabel}>{t('RESOLUTION')}</Text>
                           <Text style={s.resolutionText}>{item.resolution}</Text>
                         </View>
                       ) : null}
@@ -372,8 +373,8 @@ export default function InspectorDisputesScreen() {
                 <Ionicons name="alert-circle" size={18} color={C.amber} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.sheetKicker}>FILE A DISPUTE</Text>
-                <Text style={s.sheetTitle}>Freeze Secured Funds + alert admin</Text>
+                <Text style={s.sheetKicker}>{t('FILE A DISPUTE')}</Text>
+                <Text style={s.sheetTitle}>{t('Freeze Secured Funds + alert admin')}</Text>
               </View>
               <Pressable onPress={() => setFilerOpen(false)} hitSlop={10}>
                 <Ionicons name="close" size={22} color={C.textSec} />
@@ -381,19 +382,17 @@ export default function InspectorDisputesScreen() {
             </View>
 
             <Text style={s.sheetExplain}>
-              Filing freezes payouts on this job and brings admin in as
-              mediator. Late payment, unresponsive client, scope creep,
-              be specific.
+              {t('Filing freezes payouts on this job and brings admin in as mediator. Late payment, unresponsive client, scope creep, be specific.')}
             </Text>
 
-            <Text style={s.sheetLabel}>JOB</Text>
+            <Text style={s.sheetLabel}>{t('JOB')}</Text>
             {eligibleLoading ? (
               <View style={{ paddingVertical: 14, alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={C.primary} />
               </View>
             ) : eligibleJobs.length === 0 ? (
               <Text style={s.sheetEmptyText}>
-                You don't have any active jobs that can be disputed right now.
+                {t('You don\'t have any active jobs that can be disputed right now.')}
               </Text>
             ) : (
               <ScrollView style={{ maxHeight: 140 }} showsVerticalScrollIndicator={false}>
@@ -423,7 +422,7 @@ export default function InspectorDisputesScreen() {
                           {sel ? <Ionicons name="checkmark" size={11} color="#FFF" /> : null}
                         </View>
                         <Text style={s.jobOptTitle} numberOfLines={1}>
-                          {j.title ?? 'Untitled job'}
+                          {j.title ?? t('Untitled job')}
                         </Text>
                         <Text style={s.jobOptStatus}>{j.status}</Text>
                       </Pressable>
@@ -433,7 +432,7 @@ export default function InspectorDisputesScreen() {
               </ScrollView>
             )}
 
-            <Text style={[s.sheetLabel, { marginTop: 12 }]}>CATEGORY</Text>
+            <Text style={[s.sheetLabel, { marginTop: 12 }]}>{t('CATEGORY')}</Text>
             <View style={s.catGrid}>
               {CATEGORIES.map((c) => {
                 const sel = category === c.value;
@@ -449,18 +448,18 @@ export default function InspectorDisputesScreen() {
                     ]}
                   >
                     <Text style={[s.catChipText, { color: sel ? C.amber : C.textSec }]}>
-                      {c.label}
+                      {t(c.label)}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
 
-            <Text style={[s.sheetLabel, { marginTop: 12 }]}>DETAILS</Text>
+            <Text style={[s.sheetLabel, { marginTop: 12 }]}>{t('DETAILS')}</Text>
             <TextInput
               value={body}
               onChangeText={setBody}
-              placeholder="Be specific, dates, expectations, evidence references…"
+              placeholder={t('Be specific, dates, expectations, evidence references…')}
               placeholderTextColor={C.textDim}
               multiline
               maxLength={8000}
@@ -484,7 +483,7 @@ export default function InspectorDisputesScreen() {
                 <Ionicons name="alert-circle" size={14} color="#1F1300" />
               )}
               <Text style={s.submitBtnText}>
-                {filing ? 'Filing…' : 'File dispute, freeze funds'}
+                {filing ? t('Filing…') : t('File dispute, freeze funds')}
               </Text>
             </Pressable>
           </View>

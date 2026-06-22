@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { useOpenOpportunities } from '../../src/hooks/useSupplierEcosystem';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 type Filter = 'all' | 'matched' | 'inspection' | 'procurement';
 const FILTERS: { key: Filter; label: string }[] = [
@@ -14,6 +15,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 export default function SupplierOpportunities() {
+  const { t, isRTL, language } = useLanguage();
   const router = useRouter();
   const { items, loading } = useOpenOpportunities();
   const [q, setQ] = useState('');
@@ -34,13 +36,13 @@ export default function SupplierOpportunities() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
-        <Text style={s.title}>Opportunities</Text>
+        <Text style={s.title}>{t('Opportunities')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <View style={s.searchWrap}>
         <Ionicons name="search" size={18} color={T.colors.textMuted} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Search opportunities…" placeholderTextColor={T.colors.textMuted} style={s.search} returnKeyType="search" />
+        <TextInput value={q} onChangeText={setQ} placeholder={t('Search opportunities…')} placeholderTextColor={T.colors.textMuted} style={s.search} returnKeyType="search" />
       </View>
 
       <View>
@@ -49,7 +51,7 @@ export default function SupplierOpportunities() {
             const active = f.key === filter;
             return (
               <TouchableOpacity key={f.key} onPress={() => setFilter(f.key)} activeOpacity={0.8} style={[s.chip, active && { backgroundColor: T.colors.primary, borderColor: T.colors.primary }]}>
-                <Text style={[s.chipTxt, active && { color: '#FFF' }]}>{f.label}</Text>
+                <Text style={[s.chipTxt, active && { color: '#FFF' }]}>{t(f.label)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -61,8 +63,8 @@ export default function SupplierOpportunities() {
       ) : list.length === 0 ? (
         <View style={s.empty}>
           <Ionicons name="megaphone-outline" size={28} color={T.colors.textMuted} />
-          <Text style={s.emptyTxt}>No matching opportunities. Make sure your capabilities are listed so we can match you to new RFQs.</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/onboard' as any)}><Text style={s.emptyBtnTxt}>Update capabilities</Text></TouchableOpacity>
+          <Text style={s.emptyTxt}>{t('No matching opportunities. Make sure your capabilities are listed so we can match you to new RFQs.')}</Text>
+          <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/onboard' as any)}><Text style={s.emptyBtnTxt}>{t('Update capabilities')}</Text></TouchableOpacity>
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
@@ -74,10 +76,10 @@ export default function SupplierOpportunities() {
               <View style={{ flex: 1 }}>
                 <View style={s.titleRow}>
                   <Text style={s.cardTitle} numberOfLines={1}>{o.title}</Text>
-                  {o.matched && <View style={s.matchPill}><Text style={s.matchTxt}>MATCH</Text></View>}
-                  {o.alreadyQuoted && <View style={s.bidPill}><Text style={s.bidTxt}>YOU BID</Text></View>}
+                  {o.matched && <View style={s.matchPill}><Text style={s.matchTxt}>{t('MATCH')}</Text></View>}
+                  {o.alreadyQuoted && <View style={s.bidPill}><Text style={s.bidTxt}>{t('YOU BID')}</Text></View>}
                 </View>
-                <Text style={s.cardSub}>{o.requires_source_inspection ? 'Source / FAT inspection' : 'Procurement only'}, {new Date(o.created_at).toLocaleDateString()}</Text>
+                <Text style={s.cardSub}>{o.requires_source_inspection ? t('Source / FAT inspection') : t('Procurement only')}, {new Date(o.created_at).toLocaleDateString()}</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={T.colors.textMuted} />
             </TouchableOpacity>

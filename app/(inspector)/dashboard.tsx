@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { useInspectorData } from '../../hooks/useInspectorData';
 import { formatHalalas } from '../../src/utils/formatCurrency';
 import {
@@ -55,6 +56,7 @@ interface TabProps {
 
 const ProfileTab = React.memo(({ data }: TabProps) => {
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
   const { activeJobsCount, completedJobsCount, totalEarned, isRefreshing, refresh } = data;
 
   if (!user) return <ProfileSkeleton />;
@@ -74,8 +76,8 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       {/* Sprint 13.M1 — onboarding checklist (self-suppresses for admins,
           dismissed-when-complete users, and rows with no derivable steps). */}
       <OnboardingChecklist
-        kicker="Inspector Onboarding"
-        title="Finish setting up your inspector profile"
+        kicker={t('Inspector Onboarding')}
+        title={t('Finish setting up your inspector profile')}
       />
 
       {/* Avatar */}
@@ -99,17 +101,17 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{activeJobsCount}</Text>
-          <Text style={styles.statLabel}>Active{'\n'}Jobs</Text>
+          <Text style={styles.statLabel}>{t('Active')}{'\n'}{t('Jobs')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue}>{completedJobsCount}</Text>
-          <Text style={styles.statLabel}>Completed{'\n'}Jobs</Text>
+          <Text style={styles.statLabel}>{t('Completed')}{'\n'}{t('Jobs')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
             {formatHalalas(totalEarned, true)}
           </Text>
-          <Text style={styles.statLabel}>Total{'\n'}Earned</Text>
+          <Text style={styles.statLabel}>{t('Total')}{'\n'}{t('Earned')}</Text>
         </View>
       </View>
 
@@ -117,11 +119,11 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       <View style={styles.certCard}>
         <Ionicons name="shield-checkmark-outline" size={20} color="#10B981" />
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.certLabel}>Inspector ID</Text>
+          <Text style={styles.certLabel}>{t('Inspector ID')}</Text>
           <Text style={styles.certValue}>{user.id.slice(0, 8).toUpperCase()}</Text>
         </View>
         <View style={styles.verifiedBadge}>
-          <Text style={styles.verifiedText}>Verified</Text>
+          <Text style={styles.verifiedText}>{t('Verified')}</Text>
         </View>
       </View>
 
@@ -133,8 +135,8 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       >
         <Ionicons name="swap-horizontal-outline" size={20} color="#F59E0B" />
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.certLabel}>Negotiations Inbox</Text>
-          <Text style={styles.certValue}>Counter-offers awaiting your response</Text>
+          <Text style={styles.certLabel}>{t('Negotiations Inbox')}</Text>
+          <Text style={styles.certValue}>{t('Counter-offers awaiting your response')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
       </TouchableOpacity>
@@ -147,8 +149,8 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       >
         <Ionicons name="briefcase-outline" size={20} color="#00FFFF" />
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.certLabel}>Assignments</Text>
-          <Text style={styles.certValue}>Your active jobs by stage</Text>
+          <Text style={styles.certLabel}>{t('Assignments')}</Text>
+          <Text style={styles.certValue}>{t('Your active jobs by stage')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#00FFFF" />
       </TouchableOpacity>
@@ -161,8 +163,8 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
       >
         <Ionicons name="calendar-outline" size={20} color="#7C3AED" />
         <View style={{ marginLeft: 12, flex: 1 }}>
-          <Text style={styles.certLabel}>Calendar</Text>
-          <Text style={styles.certValue}>Your scheduled inspections</Text>
+          <Text style={styles.certLabel}>{t('Calendar')}</Text>
+          <Text style={styles.certValue}>{t('Your scheduled inspections')}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
       </TouchableOpacity>
@@ -173,6 +175,7 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
 // ─── Earnings Tab ─────────────────────────────────────────────────────────────
 
 const EarningsTab = React.memo(({ data }: TabProps) => {
+  const { t, isRTL, language } = useLanguage();
   const {
     earnings,
     isLoadingEarnings,
@@ -202,18 +205,18 @@ const EarningsTab = React.memo(({ data }: TabProps) => {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.earningsHeroLabel}>Total Earned</Text>
+        <Text style={styles.earningsHeroLabel}>{t('Total Earned')}</Text>
         {/* SAR formatted — replaces "$450" */}
         <Text style={styles.earningsHeroAmount}>{formatHalalas(totalEarned)}</Text>
 
         <View style={styles.earningsDividerRow}>
           <View style={styles.earningsSubItem}>
-            <Text style={styles.earningsSubLabel}>This Month</Text>
+            <Text style={styles.earningsSubLabel}>{t('This Month')}</Text>
             <Text style={styles.earningsSubValue}>{formatHalalas(monthlyEarned)}</Text>
           </View>
           <View style={styles.earningsVertDivider} />
           <View style={styles.earningsSubItem}>
-            <Text style={styles.earningsSubLabel}>Pending</Text>
+            <Text style={styles.earningsSubLabel}>{t('Pending')}</Text>
             <Text style={[styles.earningsSubValue, { color: '#F59E0B' }]}>
               {formatHalalas(pendingAmount)}
             </Text>
@@ -225,11 +228,11 @@ const EarningsTab = React.memo(({ data }: TabProps) => {
       <View style={styles.referralCard}>
         <View style={styles.referralTop}>
           <Ionicons name="gift-outline" size={20} color="#10B981" />
-          <Text style={styles.referralTitle}>Referral Code</Text>
+          <Text style={styles.referralTitle}>{t('Referral Code')}</Text>
         </View>
         <Text style={styles.referralCode}>{referralCode}</Text>
         <Text style={styles.referralHint}>
-          Share your code to earn bonuses on new referrals
+          {t('Share your code to earn bonuses on new referrals')}
         </Text>
       </View>
 
@@ -238,9 +241,9 @@ const EarningsTab = React.memo(({ data }: TabProps) => {
         <View style={styles.infoCard}>
           <Ionicons name="checkmark-done-circle-outline" size={24} color="#3B82F6" />
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.infoLabel}>Completed Jobs</Text>
+            <Text style={styles.infoLabel}>{t('Completed Jobs')}</Text>
             <Text style={styles.infoValue}>
-              {earnings?.completed_jobs_count ?? completedJobsCount} inspections
+              {earnings?.completed_jobs_count ?? completedJobsCount} {t('inspections')}
             </Text>
           </View>
         </View>
@@ -306,6 +309,7 @@ const JobCard = React.memo(({ item }: { item: MappedInspectorJob }) => {
 // ─── Jobs Tab ─────────────────────────────────────────────────────────────────
 
 const JobsTab = React.memo(({ data }: TabProps) => {
+  const { t, isRTL, language } = useLanguage();
   const {
     jobs,
     isLoadingJobs,
@@ -344,18 +348,17 @@ const JobsTab = React.memo(({ data }: TabProps) => {
           <View style={styles.alertBanner}>
             <Ionicons name="warning-outline" size={15} color="#EF4444" />
             <Text style={styles.alertText}>
-              {criticalJobsCount} critical job{criticalJobsCount !== 1 ? 's' : ''} need
-              immediate attention
+              {criticalJobsCount} {t('critical job')}{criticalJobsCount !== 1 ? 's' : ''} {t('need immediate attention')}
             </Text>
           </View>
         )}
         <Text style={styles.jobsSubtitle}>
-          {activeJobsCount} active, {jobs.length} total assignment
+          {activeJobsCount} {t('active')}, {jobs.length} {t('total assignment')}
           {jobs.length !== 1 ? 's' : ''}
         </Text>
       </View>
     ),
-    [criticalJobsCount, activeJobsCount, jobs.length]
+    [criticalJobsCount, activeJobsCount, jobs.length, language]
   );
 
   return (
@@ -372,8 +375,8 @@ const JobsTab = React.memo(({ data }: TabProps) => {
       ListEmptyComponent={
         <View style={styles.centered}>
           <Ionicons name="briefcase-outline" size={64} color="#475569" />
-          <Text style={styles.emptyTitle}>No jobs assigned yet</Text>
-          <Text style={styles.emptySubtitle}>New assignments will appear here instantly</Text>
+          <Text style={styles.emptyTitle}>{t('No jobs assigned yet')}</Text>
+          <Text style={styles.emptySubtitle}>{t('New assignments will appear here instantly')}</Text>
         </View>
       }
     />
@@ -384,6 +387,7 @@ const JobsTab = React.memo(({ data }: TabProps) => {
 
 export default function InspectorDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
+  const { t, isRTL, language } = useLanguage();
 
   // ↓ Called ONCE. All tabs consume from this single instance.
   const inspectorData = useInspectorData();
@@ -408,7 +412,7 @@ export default function InspectorDashboard() {
         {/* ── App Header ──────────────────────────────────────────── */}
         <View style={styles.appHeader}>
           <View>
-            <Text style={styles.appHeaderLabel}>Inspector Portal</Text>
+            <Text style={styles.appHeaderLabel}>{t('Inspector Portal')}</Text>
             {/* Real name from profiles table — replaces "Sarah Mitchell" */}
             <Text style={styles.appHeaderName}>
               {user?.email ?? '...'}
@@ -441,7 +445,7 @@ export default function InspectorDashboard() {
                   color={isActive ? '#3B82F6' : '#64748B'}
                 />
                 <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-                  {tab.label}
+                  {t(tab.label)}
                 </Text>
               </TouchableOpacity>
             );

@@ -60,6 +60,7 @@ import Constants from 'expo-constants';
 
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import {
   AGREEMENT_TEXT,
   CONSENTS,
@@ -121,6 +122,7 @@ const COUNTRIES = ['AE','SA','EG','QA','KW','BH','OM','JO','LB','TR','PK','IN','
 export default function CciApplicationScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
   const insideRef = useRef<ScrollView>(null);
 
   // ─── Data ───────────────────────────────────────────────
@@ -180,7 +182,7 @@ export default function CciApplicationScreen() {
   const pickGovId = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo access to attach your ID.');
+      Alert.alert(t('Permission needed'), t('Allow photo access to attach your ID.'));
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -315,11 +317,11 @@ export default function CciApplicationScreen() {
 
       if (insErr) throw insErr;
 
-      Alert.alert('Submitted', 'Your application is under review. We will notify you once an admin has decided.');
+      Alert.alert(t('Submitted'), t('Your application is under review. We will notify you once an admin has decided.'));
       fetchExisting();
     } catch (e: any) {
       console.error('[cci-application] submit failed:', e);
-      Alert.alert('Error', e?.message ?? 'Submission failed. Please try again.');
+      Alert.alert(t('Error'), e?.message ?? t('Submission failed. Please try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -344,8 +346,8 @@ export default function CciApplicationScreen() {
           <ChevronLeft size={22} color={C.text} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle}>CCI Credential</Text>
-          <Text style={s.headerSub}>Compliance-Certified Inspector application</Text>
+          <Text style={s.headerTitle}>{t('CCI Credential')}</Text>
+          <Text style={s.headerSub}>{t('Compliance-Certified Inspector application')}</Text>
         </View>
         <View style={s.shieldWrap}>
           <Shield size={18} color={C.primarySoft} />
@@ -360,34 +362,32 @@ export default function CciApplicationScreen() {
             {/* Intro */}
             <View style={s.introCard}>
               <ShieldCheck size={20} color={C.primarySoft} />
-              <Text style={s.introTitle}>Apply to become a Compliance-Certified Inspector</Text>
+              <Text style={s.introTitle}>{t('Apply to become a Compliance-Certified Inspector')}</Text>
               <Text style={s.introBody}>
-                CCIs are the only inspectors allowed to take regulator-grade compliance jobs on NEXPEC.
-                Your credential is reviewed by a NEXPEC admin and, once approved, unlocks compliance
-                inspections at your tier.
+                {t('CCIs are the only inspectors allowed to take regulator-grade compliance jobs on NEXPEC. Your credential is reviewed by a NEXPEC admin and, once approved, unlocks compliance inspections at your tier.')}
               </Text>
             </View>
 
             {/* SECTION 1: Tier */}
-            <Section title="1, Select Tier" icon={FileBadge}>
-              {TIER_CARDS.map((t) => (
+            <Section title={t('1, Select Tier')} icon={FileBadge}>
+              {TIER_CARDS.map((card) => (
                 <Pressable
-                  key={t.tier}
-                  onPress={() => setTier(t.tier)}
-                  style={[s.tierCard, tier === t.tier && s.tierCardOn]}
+                  key={card.tier}
+                  onPress={() => setTier(card.tier)}
+                  style={[s.tierCard, tier === card.tier && s.tierCardOn]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={s.tierTitle}>{t.title}</Text>
-                    <Text style={s.tierSub}>{t.sub}</Text>
+                    <Text style={s.tierTitle}>{t(card.title)}</Text>
+                    <Text style={s.tierSub}>{t(card.sub)}</Text>
                   </View>
-                  {tier === t.tier && <CheckCircle2 size={20} color={C.primarySoft} />}
+                  {tier === card.tier && <CheckCircle2 size={20} color={C.primarySoft} />}
                 </Pressable>
               ))}
             </Section>
 
             {/* SECTION 2: Government ID */}
-            <Section title="2, Government-Issued ID" icon={IdCard}>
-              <Text style={s.fieldLabel}>Issuing country</Text>
+            <Section title={t('2, Government-Issued ID')} icon={IdCard}>
+              <Text style={s.fieldLabel}>{t('Issuing country')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
                 {COUNTRIES.map((c) => (
                   <Pressable key={c} onPress={() => setCountry(c)} style={[s.countryChip, country === c && s.countryChipOn]}>
@@ -396,25 +396,25 @@ export default function CciApplicationScreen() {
                 ))}
               </ScrollView>
 
-              <Text style={[s.fieldLabel, { marginTop: 14 }]}>ID image</Text>
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>{t('ID image')}</Text>
               {govIdLocalUri ? (
                 <View style={s.thumbWrap}>
                   <Image source={{ uri: govIdLocalUri }} style={s.thumb} />
                   <Pressable onPress={pickGovId} style={s.thumbReplace}>
-                    <Text style={s.thumbReplaceText}>Replace</Text>
+                    <Text style={s.thumbReplaceText}>{t('Replace')}</Text>
                   </Pressable>
                 </View>
               ) : (
                 <Pressable onPress={pickGovId} style={s.uploadBtn}>
                   <Upload size={16} color={C.primarySoft} />
-                  <Text style={s.uploadBtnText}>Upload ID (front)</Text>
+                  <Text style={s.uploadBtnText}>{t('Upload ID (front)')}</Text>
                 </Pressable>
               )}
             </Section>
 
             {/* SECTION 3: Experience */}
-            <Section title="3, Documented Experience" icon={Clock}>
-              <Text style={s.fieldLabel}>Years of relevant experience (min 2)</Text>
+            <Section title={t('3, Documented Experience')} icon={Clock}>
+              <Text style={s.fieldLabel}>{t('Years of relevant experience (min 2)')}</Text>
               <TextInput
                 value={experienceYears}
                 onChangeText={setExperienceYears}
@@ -423,7 +423,7 @@ export default function CciApplicationScreen() {
                 placeholder="2.0"
                 placeholderTextColor={C.textDim}
               />
-              <Text style={[s.fieldLabel, { marginTop: 14 }]}>Evidence (CV, certificates, reference letters, up to 6)</Text>
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>{t('Evidence (CV, certificates, reference letters, up to 6)')}</Text>
               {experienceLocalUris.length > 0 && (
                 <View style={s.expGrid}>
                   {experienceLocalUris.map((u, i) => (
@@ -434,15 +434,15 @@ export default function CciApplicationScreen() {
               <Pressable onPress={pickExperience} style={s.uploadBtn}>
                 <Upload size={16} color={C.primarySoft} />
                 <Text style={s.uploadBtnText}>
-                  {experienceLocalUris.length ? `Replace evidence (${experienceLocalUris.length} selected)` : 'Upload evidence'}
+                  {experienceLocalUris.length ? `${t('Replace evidence')} (${experienceLocalUris.length} ${t('selected')})` : t('Upload evidence')}
                 </Text>
               </Pressable>
             </Section>
 
             {/* SECTION 4: Strict-Liability Agreement */}
-            <Section title="4, Strict-Liability Agreement" icon={Lock} accent>
+            <Section title={t('4, Strict-Liability Agreement')} icon={Lock} accent>
               <Text style={s.agreementMeta}>
-                Version {AGREEMENT_VERSION}, sha256 {agreementSha ? agreementSha.slice(0, 10) + '…' : 'computing…'}
+                {t('Version')} {AGREEMENT_VERSION}, sha256 {agreementSha ? agreementSha.slice(0, 10) + '…' : t('computing…')}
               </Text>
               <View style={s.agreementBox}>
                 <ScrollView onScroll={onAgreementScroll} scrollEventThrottle={120} nestedScrollEnabled>
@@ -451,8 +451,8 @@ export default function CciApplicationScreen() {
               </View>
               <View style={s.scrollGate}>
                 {scrolledToBottomAt
-                  ? <Text style={s.scrollGateOk}>✓ You have read the agreement in full</Text>
-                  : <Text style={s.scrollGateBad}>Scroll to the bottom of the agreement to continue</Text>}
+                  ? <Text style={s.scrollGateOk}>{t('✓ You have read the agreement in full')}</Text>
+                  : <Text style={s.scrollGateBad}>{t('Scroll to the bottom of the agreement to continue')}</Text>}
               </View>
 
               {/* Consents */}
@@ -474,12 +474,12 @@ export default function CciApplicationScreen() {
               })}
 
               {/* Legal name */}
-              <Text style={[s.fieldLabel, { marginTop: 14 }]}>Full legal name (as it appears on your government ID)</Text>
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>{t('Full legal name (as it appears on your government ID)')}</Text>
               <TextInput
                 value={legalName}
                 onChangeText={setLegalName}
                 style={s.input}
-                placeholder="e.g., Aisha Khalid Al-Mansoori"
+                placeholder={t('e.g., Aisha Khalid Al-Mansoori')}
                 placeholderTextColor={C.textDim}
                 editable={allConsentsTicked && !!scrolledToBottomAt}
               />
@@ -492,12 +492,12 @@ export default function CciApplicationScreen() {
               >
                 {submitting
                   ? <ActivityIndicator color="#FFF" />
-                  : <Text style={s.submitText}>Sign & Submit Application</Text>}
+                  : <Text style={s.submitText}>{t('Sign & Submit Application')}</Text>}
               </Pressable>
 
               {!canSubmit && (
                 <Text style={s.submitHint}>
-                  Complete every section, scroll the agreement, tick all six consents, and type your full legal name.
+                  {t('Complete every section, scroll the agreement, tick all six consents, and type your full legal name.')}
                 </Text>
               )}
             </Section>
@@ -522,24 +522,28 @@ const Section: React.FC<{ title: string; icon: any; accent?: boolean; children: 
     </View>
   );
 
-const PendingPanel: React.FC<{ existing: CredentialRow }> = ({ existing }) => (
+const PendingPanel: React.FC<{ existing: CredentialRow }> = ({ existing }) => {
+  const { t, language } = useLanguage();
+  return (
   <View style={s.statusWrap}>
     <View style={[s.statusCircle, { backgroundColor: 'rgba(245,158,11,0.16)', borderColor: C.warn }]}>
       <Clock size={36} color={C.warn} />
     </View>
-    <Text style={s.statusTitle}>Under review</Text>
+    <Text style={s.statusTitle}>{t('Under review')}</Text>
     <Text style={s.statusSub}>
-      Your {tierLabel(existing.tier)} application was submitted on {fmtDate(existing.applied_at)}.
-      A NEXPEC admin will decide within 3 business days.
+      {t('Your')} {t(tierLabel(existing.tier))} {t('application was submitted on')} {fmtDate(existing.applied_at)}.
+      {' '}{t('A NEXPEC admin will decide within 3 business days.')}
     </Text>
     <View style={s.statusKv}>
-      <Text style={s.statusKvLabel}>Signature anchor</Text>
+      <Text style={s.statusKvLabel}>{t('Signature anchor')}</Text>
       <Text style={s.statusKvVal}>{(existing.strict_liability_signature_sha256 || '').slice(0, 16)}…</Text>
     </View>
   </View>
-);
+  );
+};
 
 const DecidedPanel: React.FC<{ existing: CredentialRow }> = ({ existing }) => {
+  const { t, language } = useLanguage();
   const ok = existing.status === 'approved';
   return (
     <View style={s.statusWrap}>
@@ -550,15 +554,15 @@ const DecidedPanel: React.FC<{ existing: CredentialRow }> = ({ existing }) => {
       ]}>
         <ShieldCheck size={36} color={ok ? C.ok : C.danger} />
       </View>
-      <Text style={s.statusTitle}>{ok ? `${tierLabel(existing.tier)}, Approved` : 'Suspended'}</Text>
+      <Text style={s.statusTitle}>{ok ? `${t(tierLabel(existing.tier))}, ${t('Approved')}` : t('Suspended')}</Text>
       <Text style={s.statusSub}>
         {ok
-          ? `You may now accept compliance jobs at the ${tierLabel(existing.tier)} tier.`
-          : 'Your credential is currently suspended. Contact NEXPEC support for details.'}
+          ? `${t('You may now accept compliance jobs at the')} ${t(tierLabel(existing.tier))} ${t('tier.')}`
+          : t('Your credential is currently suspended. Contact NEXPEC support for details.')}
       </Text>
       {existing.expires_at && (
         <View style={s.statusKv}>
-          <Text style={s.statusKvLabel}>Expires</Text>
+          <Text style={s.statusKvLabel}>{t('Expires')}</Text>
           <Text style={s.statusKvVal}>{fmtDate(existing.expires_at)}</Text>
         </View>
       )}

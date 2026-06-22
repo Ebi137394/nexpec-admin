@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // Types
 interface LegalDoc {
@@ -18,6 +19,7 @@ interface LegalDoc {
 export default function LegalScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
   const [documents, setDocuments] = useState<LegalDoc[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<LegalDoc | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -73,11 +75,11 @@ export default function LegalScreen() {
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Document signed successfully.');
+      Alert.alert(t('Success'), t('Document signed successfully.'));
       setModalVisible(false);
       fetchDocuments(); // Refresh list
     } catch (error) {
-      Alert.alert('Error', 'Failed to sign document.');
+      Alert.alert(t('Error'), t('Failed to sign document.'));
     }
   };
 
@@ -97,11 +99,11 @@ export default function LegalScreen() {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.subtitle}>Version {item.version}</Text>
+        <Text style={styles.subtitle}>{t('Version')} {item.version}</Text>
       </View>
       <View style={[styles.badge, { backgroundColor: item.signed_at ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
         <Text style={{ color: item.signed_at ? '#10B981' : '#F59E0B', fontSize: 12, fontWeight: 'bold' }}>
-          {item.signed_at ? 'SIGNED' : 'PENDING'}
+          {item.signed_at ? t('SIGNED') : t('PENDING')}
         </Text>
       </View>
     </TouchableOpacity>
@@ -111,7 +113,7 @@ export default function LegalScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="#FFF" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Legal & Compliance</Text>
+        <Text style={styles.headerTitle}>{t('Legal & Compliance')}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -139,11 +141,11 @@ export default function LegalScreen() {
             {selectedDoc?.signed_at ? (
               <View style={styles.disabledBtn}>
                 <Ionicons name="checkmark" size={20} color="#FFF" />
-                <Text style={styles.btnText}>Already Signed on {new Date(selectedDoc.signed_at).toLocaleDateString()}</Text>
+                <Text style={styles.btnText}>{t('Already Signed on')} {new Date(selectedDoc.signed_at).toLocaleDateString()}</Text>
               </View>
             ) : (
               <TouchableOpacity style={styles.signBtn} onPress={handleSign}>
-                <Text style={styles.btnText}>I Agree & Sign</Text>
+                <Text style={styles.btnText}>{t('I Agree & Sign')}</Text>
               </TouchableOpacity>
             )}
           </View>

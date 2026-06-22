@@ -34,6 +34,7 @@ import {
 } from '@/src/hooks/useSupplierContracts';
 import { fetchMyNativeSpineContracts, type NativeSpineContract } from '@/src/hooks/useSupplierEcosystem';
 import { formatUsd } from '@/src/core/utils/money';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const C = {
   bg: '#020420',
@@ -73,6 +74,7 @@ const STATUS_META: Record<
 
 export default function SupplierContractsListScreen() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { items, loading, refetch } = useMySupplierContracts();
   const [refreshing, setRefreshing] = React.useState(false);
   const [spine, setSpine] = useState<NativeSpineContract[]>([]);
@@ -110,8 +112,8 @@ export default function SupplierContractsListScreen() {
             <ArrowLeft size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>
-            <Text style={s.headerKicker}>SUPPLIER &amp; LEGAL</Text>
-            <Text style={s.headerTitle}>Agreements</Text>
+            <Text style={s.headerKicker}>{t('SUPPLIER & LEGAL')}</Text>
+            <Text style={s.headerTitle}>{t('Agreements')}</Text>
           </View>
           <View style={{ width: 38 }} />
         </View>
@@ -119,7 +121,7 @@ export default function SupplierContractsListScreen() {
         {loading ? (
           <View style={s.center}>
             <ActivityIndicator size="large" color={C.primary} />
-            <Text style={s.loadingText}>LOADING AGREEMENTS…</Text>
+            <Text style={s.loadingText}>{t('LOADING AGREEMENTS…')}</Text>
           </View>
         ) : (
           <ScrollView
@@ -135,18 +137,15 @@ export default function SupplierContractsListScreen() {
             }
           >
             <Text style={s.lede}>
-              When you win a bid, NEXPEC issues a formal agreement here. E-sign it
-              and we counter-sign to execute. A signed agreement is required
-              before funds are released.
+              {t('When you win a bid, NEXPEC issues a formal agreement here. E-sign it and we counter-sign to execute. A signed agreement is required before funds are released.')}
             </Text>
 
             {items.length === 0 && spine.length === 0 ? (
               <View style={s.empty}>
                 <FileSignature size={26} color={C.primary} strokeWidth={1.5} />
-                <Text style={s.emptyTitle}>No agreements yet</Text>
+                <Text style={s.emptyTitle}>{t('No agreements yet')}</Text>
                 <Text style={s.emptyBody}>
-                  When your quote is awarded on an RFQ, NEXPEC issues a supplier
-                  agreement and it appears here ready to sign.
+                  {t('When your quote is awarded on an RFQ, NEXPEC issues a supplier agreement and it appears here ready to sign.')}
                 </Text>
               </View>
             ) : (
@@ -154,7 +153,7 @@ export default function SupplierContractsListScreen() {
                 {spine.length > 0 && (
                   <Section
                     icon={<FileSignature size={13} color={C.primary} />}
-                    label="Turnkey supply agreements"
+                    label={t('Turnkey supply agreements')}
                     tint={C.primary}
                   >
                     {spine.map((sp) => (
@@ -165,7 +164,7 @@ export default function SupplierContractsListScreen() {
                 {actionNeeded.length > 0 && (
                   <Section
                     icon={<PenLine size={13} color={C.primary} />}
-                    label="Awaiting your signature"
+                    label={t('Awaiting your signature')}
                     tint={C.primary}
                   >
                     {actionNeeded.map((c) => (
@@ -176,7 +175,7 @@ export default function SupplierContractsListScreen() {
                 {inFlight.length > 0 && (
                   <Section
                     icon={<Clock size={13} color={C.warn} />}
-                    label="In progress"
+                    label={t('In progress')}
                     tint={C.warn}
                   >
                     {inFlight.map((c) => (
@@ -187,7 +186,7 @@ export default function SupplierContractsListScreen() {
                 {executed.length > 0 && (
                   <Section
                     icon={<ShieldCheck size={13} color={C.ok} />}
-                    label="Executed"
+                    label={t('Executed')}
                     tint={C.ok}
                   >
                     {executed.map((c) => (
@@ -233,6 +232,7 @@ function ContractRow({
   c: SupplierContract;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useLanguage();
   const meta = STATUS_META[c.status];
   return (
     <Pressable
@@ -244,15 +244,15 @@ function ContractRow({
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.rowTitle} numberOfLines={1}>
-          {c.rfq_title ?? 'Awarded agreement'}
+          {c.rfq_title ?? t('Awarded agreement')}
         </Text>
         <Text style={s.rowMeta} numberOfLines={1}>
-          {formatUsd(c.amount_cents)}, issued{' '}
+          {formatUsd(c.amount_cents)}, {t('issued')}{' '}
           {new Date(c.created_at).toLocaleDateString()}
         </Text>
       </View>
       <View style={[s.badge, { backgroundColor: meta.toneDim }]}>
-        <Text style={[s.badgeText, { color: meta.tone }]}>{meta.label}</Text>
+        <Text style={[s.badgeText, { color: meta.tone }]}>{t(meta.label)}</Text>
       </View>
       <ChevronRight size={16} color={C.textMuted} />
     </Pressable>
@@ -266,9 +266,10 @@ function SpineRow({
   sp: NativeSpineContract;
   router: ReturnType<typeof useRouter>;
 }) {
+  const { t } = useLanguage();
   const tone = sp.signable ? C.primary : sp.status === 'executed' ? C.ok : C.warn;
   const toneDim = sp.signable ? C.primaryGlow : sp.status === 'executed' ? C.okGlow : C.warnDim;
-  const label = sp.signable ? 'SIGN NOW' : sp.status === 'executed' ? 'EXECUTED' : sp.status.toUpperCase();
+  const label = sp.signable ? t('SIGN NOW') : sp.status === 'executed' ? t('EXECUTED') : sp.status.toUpperCase();
   return (
     <Pressable
       onPress={() => router.push(`/contracts/agreement/${sp.contractId}` as any)}
@@ -278,9 +279,9 @@ function SpineRow({
         <FileSignature size={17} color={C.primary} strokeWidth={1.8} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={s.rowTitle} numberOfLines={1}>Supplier Supply Agreement</Text>
+        <Text style={s.rowTitle} numberOfLines={1}>{t('Supplier Supply Agreement')}</Text>
         <Text style={s.rowMeta} numberOfLines={1}>
-          {formatUsd(sp.amountCents)}, issued {new Date(sp.createdAt).toLocaleDateString()}
+          {formatUsd(sp.amountCents)}, {t('issued')} {new Date(sp.createdAt).toLocaleDateString()}
         </Text>
       </View>
       <View style={[s.badge, { backgroundColor: toneDim }]}>

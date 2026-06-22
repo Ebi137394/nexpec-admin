@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 // ★ Consolidation: canonical supabase client @/lib/supabase.
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 /** ─────────────────────────────────────────────────────────
  *  BRAND TOKENS — locked palette for NEXPEC
@@ -161,6 +162,7 @@ const kindOf = (n: NotificationRow): string | null | undefined => n.kind ?? n.ty
  *  ────────────────────────────────────────────────────── */
 export default function InspectorNotificationsScreen() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
 
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -390,18 +392,18 @@ export default function InspectorNotificationsScreen() {
           </Pressable>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Notifications</Text>
+            <Text style={styles.headerTitle}>{t('Notifications')}</Text>
             <View style={styles.headerSubRow}>
               {unreadCount > 0 ? (
                 <>
                   <View style={styles.headerDot} />
                   <Text style={styles.headerSub}>
-                    {unreadCount} unread
+                    {unreadCount} {t('unread')}
                   </Text>
                 </>
               ) : (
                 <Text style={[styles.headerSub, { color: BRAND.textMuted }]}>
-                  All caught up
+                  {t('All caught up')}
                 </Text>
               )}
             </View>
@@ -453,13 +455,13 @@ export default function InspectorNotificationsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.bannerTitle}>
                 {unreadCount > 0
-                  ? `${unreadCount} new notification${unreadCount === 1 ? '' : 's'}`
-                  : 'You are all caught up'}
+                  ? `${unreadCount} ${unreadCount === 1 ? t('new notification') : t('new notifications')}`
+                  : t('You are all caught up')}
               </Text>
               <Text style={styles.bannerSub}>
                 {unreadCount > 0
-                  ? 'Tap any item below to mark it as read'
-                  : 'New activity will land here'}
+                  ? t('Tap any item below to mark it as read')
+                  : t('New activity will land here')}
               </Text>
             </View>
             {unreadCount > 0 ? (
@@ -476,7 +478,7 @@ export default function InspectorNotificationsScreen() {
                   size={14}
                   color={BRAND.textPrimary}
                 />
-                <Text style={styles.bannerCtaText}>Read all</Text>
+                <Text style={styles.bannerCtaText}>{t('Read all')}</Text>
               </Pressable>
             ) : null}
           </LinearGradient>
@@ -485,13 +487,13 @@ export default function InspectorNotificationsScreen() {
         {/* ───── FILTERS ───── */}
         <View style={styles.filterRow}>
           <FilterChip
-            label="All"
+            label={t('All')}
             count={notifications.length}
             active={filter === 'all'}
             onPress={() => setFilter('all')}
           />
           <FilterChip
-            label="Unread"
+            label={t('Unread')}
             count={unreadCount}
             active={filter === 'unread'}
             onPress={() => setFilter('unread')}
@@ -535,11 +537,11 @@ export default function InspectorNotificationsScreen() {
                 </View>
                 <Text style={styles.emptyTitle}>
                   {filter === 'unread'
-                    ? 'No unread notifications'
-                    : 'No notifications yet'}
+                    ? t('No unread notifications')
+                    : t('No notifications yet')}
                 </Text>
                 <Text style={styles.emptySub}>
-                  We will let you know when something needs your attention.
+                  {t('We will let you know when something needs your attention.')}
                 </Text>
               </View>
             ) : null
@@ -560,6 +562,7 @@ const NotificationCard = ({
   notification: NotificationRow;
   onPress: () => void;
 }) => {
+  const { t } = useLanguage();
   // v3: prefer `kind`; fall back to legacy `type` only if a straggler row
   // from a pre-migration trigger ever lands in this list.
   const meta = getNotificationMeta(kindOf(notification));
@@ -593,12 +596,12 @@ const NotificationCard = ({
       <View style={styles.cardContent}>
         <View style={styles.cardTopRow}>
           <Text style={[styles.cardTypeLabel, { color: meta.color }]}>
-            {meta.label.toUpperCase()}
+            {t(meta.label).toUpperCase()}
           </Text>
           {timeAgo ? <Text style={styles.cardTime}>{timeAgo}</Text> : null}
         </View>
         <Text style={styles.cardTitle} numberOfLines={2}>
-          {notification.title || 'Notification'}
+          {notification.title || t('Notification')}
         </Text>
         {body ? (
           <Text style={styles.cardBody} numberOfLines={2}>

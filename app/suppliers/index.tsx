@@ -7,8 +7,10 @@ import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { useSupplierDirectory, useCapabilityCatalog } from '../../src/hooks/useSupplierEcosystem';
 import { nxHandle } from '../../src/core/utils/handle';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 export default function SupplierDirectoryScreen() {
+  const { t, isRTL, language } = useLanguage();
   const router = useRouter();
   const { items, loading, error } = useSupplierDirectory();
   const { items: caps } = useCapabilityCatalog();
@@ -31,17 +33,17 @@ export default function SupplierDirectoryScreen() {
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={s.title}>Find Suppliers</Text>
-          <Text style={s.sub}>Source equipment, labs and materials across any discipline</Text>
+          <Text style={s.title}>{t('Find Suppliers')}</Text>
+          <Text style={s.sub}>{t('Source equipment, labs and materials across any discipline')}</Text>
         </View>
         <TouchableOpacity onPress={() => router.push('/rfqs/new' as any)} style={s.cta} activeOpacity={0.85}>
-          <Ionicons name="add" size={16} color="#fff" /><Text style={s.ctaText}>RFQ</Text>
+          <Ionicons name="add" size={16} color="#fff" /><Text style={s.ctaText}>{t('RFQ')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={s.searchWrap}>
         <Ionicons name="search" size={18} color={T.colors.textMuted} />
-        <TextInput value={q} onChangeText={setQ} placeholder="Search suppliers…" placeholderTextColor={T.colors.textMuted} style={s.search} />
+        <TextInput value={q} onChangeText={setQ} placeholder={t('Search suppliers…')} placeholderTextColor={T.colors.textMuted} style={s.search} />
       </View>
 
       <View>
@@ -50,7 +52,7 @@ export default function SupplierDirectoryScreen() {
             const active = c === cap;
             return (
               <TouchableOpacity key={c} onPress={() => setCap(c)} activeOpacity={0.8} style={[s.chip, active && { backgroundColor: T.colors.primary, borderColor: T.colors.primary }]}>
-                <Text style={[s.chipText, active && { color: '#fff' }]}>{c === 'all' ? 'All' : (capLabel[c] ?? c)}</Text>
+                <Text style={[s.chipText, active && { color: '#fff' }]}>{c === 'all' ? t('All') : (capLabel[c] ?? c)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -81,17 +83,17 @@ export default function SupplierDirectoryScreen() {
                 </View>
               </View>
               <TouchableOpacity style={s.quoteBtn} activeOpacity={0.85} onPress={() => router.push('/rfqs/new' as any)}>
-                <Text style={s.quoteBtnTxt}>Request</Text>
+                <Text style={s.quoteBtnTxt}>{t('Request')}</Text>
               </TouchableOpacity>
             </View>
           ))}
           {list.length === 0 && (
             <View style={s.emptyWrap}>
               <Ionicons name="cube-outline" size={32} color={T.colors.textMuted} />
-              <Text style={s.empty}>No suppliers yet.</Text>
+              <Text style={s.empty}>{t('No suppliers yet.')}</Text>
               <TouchableOpacity style={s.onboardBtn} onPress={() => router.push('/suppliers/onboard' as any)} activeOpacity={0.85}>
                 <Ionicons name="storefront-outline" size={16} color={T.colors.primary} />
-                <Text style={s.onboardTxt}>Become a supplier</Text>
+                <Text style={s.onboardTxt}>{t('Become a supplier')}</Text>
               </TouchableOpacity>
             </View>
           )}

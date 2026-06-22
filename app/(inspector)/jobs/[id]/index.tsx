@@ -26,6 +26,7 @@ import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // =============================================================================
 // TYPES
@@ -112,6 +113,7 @@ const COLORS = {
 // =============================================================================
 
 export default function InspectorJobDetailScreen() {
+  const { t, isRTL, language } = useLanguage();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -202,7 +204,7 @@ export default function InspectorJobDetailScreen() {
       }
     } catch (error) {
       console.error('Error initializing:', error);
-      Alert.alert('Error', 'Failed to load job details');
+      Alert.alert(t('Error'), t('Failed to load job details'));
     } finally {
       setLoading(false);
     }
@@ -317,10 +319,10 @@ const fetchApplication = async (uid: string) => {
         .update({ is_published: true })
         .eq('job_id', id);
       
-      Alert.alert('Success', 'Report has been published to client');
+      Alert.alert(t('Success'), t('Report has been published to client'));
       fetchReportStatus();
     } catch (error) {
-      Alert.alert('Error', 'Failed to publish report');
+      Alert.alert(t('Error'), t('Failed to publish report'));
     }
   };
 
@@ -336,7 +338,7 @@ const fetchApplication = async (uid: string) => {
 
   const handleSaveJob = async () => {
     if (!userId) {
-      Alert.alert('Login Required', 'Please log in to save jobs');
+      Alert.alert(t('Login Required'), t('Please log in to save jobs'));
       return;
     }
 
@@ -364,7 +366,7 @@ const fetchApplication = async (uid: string) => {
     try {
       await Share.share({
         title: job.title,
-        message: `Check out this job: ${job.title} in ${job.location}`,
+        message: `${t('Check out this job:')} ${job.title} ${t('in')} ${job.location}`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -393,16 +395,16 @@ const fetchApplication = async (uid: string) => {
       if (!application?.id || counterSubmitting) return;
       const promptLabel =
         decision === 'accepted'
-          ? 'Accept counter offer?'
-          : 'Decline counter offer?';
+          ? t('Accept counter offer?')
+          : t('Decline counter offer?');
       const promptBody =
         decision === 'accepted'
-          ? 'Your bid will be replaced with the admin\'s counter amount. This is binding.'
-          : 'The job will return to its open state and the admin can offer a new counter.';
+          ? t('Your bid will be replaced with the admin\'s counter amount. This is binding.')
+          : t('The job will return to its open state and the admin can offer a new counter.');
       Alert.alert(promptLabel, promptBody, [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: decision === 'accepted' ? 'Accept' : 'Decline',
+          text: decision === 'accepted' ? t('Accept') : t('Decline'),
           style: decision === 'accepted' ? 'default' : 'destructive',
           onPress: async () => {
             setCounterSubmitting(true);
@@ -423,8 +425,8 @@ const fetchApplication = async (uid: string) => {
               if (u?.id) await fetchApplication(u.id);
             } catch (err: any) {
               Alert.alert(
-                'Could not record decision',
-                err?.message ?? 'Please try again in a moment.',
+                t('Could not record decision'),
+                err?.message ?? t('Please try again in a moment.'),
               );
             } finally {
               setCounterSubmitting(false);
@@ -433,7 +435,7 @@ const fetchApplication = async (uid: string) => {
         },
       ]);
     },
-    [application?.id, counterSubmitting],
+    [application?.id, counterSubmitting, language],
   );
 
   const navigateToExpenses = () => {
@@ -463,7 +465,7 @@ const fetchApplication = async (uid: string) => {
       ? Math.round(parseFloat(trimmedAmount) * 100)
       : null;
     if (trimmedAmount && (!Number.isFinite(cents) || (cents ?? 0) < 0)) {
-      Alert.alert('Invalid amount', 'Enter a non-negative dollar amount, or leave blank to request the full milestone.');
+      Alert.alert(t('Invalid amount'), t('Enter a non-negative dollar amount, or leave blank to request the full milestone.'));
       return;
     }
     setMilestoneSubmitting(true);
@@ -478,25 +480,25 @@ const fetchApplication = async (uid: string) => {
       setMilestoneAmount('');
       setMilestoneNote('');
       Alert.alert(
-        'Request sent',
-        'Admin has been notified and will review the milestone release. You\'ll get a notification when they respond.',
+        t('Request sent'),
+        t('Admin has been notified and will review the milestone release. You\'ll get a notification when they respond.'),
       );
     } catch (err: any) {
       const msg = err?.message ?? '';
       // Surface known server-side guards with friendly copy.
       if (msg.includes('already pending')) {
-        Alert.alert('Already pending', 'You already submitted a request in the last 10 minutes. Please wait before retrying.');
+        Alert.alert(t('Already pending'), t('You already submitted a request in the last 10 minutes. Please wait before retrying.'));
       } else if (msg.includes('only the assigned inspector')) {
-        Alert.alert('Not allowed', 'Only the assigned inspector can request a milestone release on this job.');
+        Alert.alert(t('Not allowed'), t('Only the assigned inspector can request a milestone release on this job.'));
       } else if (msg.includes('must be in_progress')) {
-        Alert.alert('Job not active', 'You can only request a milestone release on a job that\'s in progress or completed.');
+        Alert.alert(t('Job not active'), t('You can only request a milestone release on a job that\'s in progress or completed.'));
       } else {
-        Alert.alert('Could not send request', msg || 'Please try again in a moment.');
+        Alert.alert(t('Could not send request'), msg || t('Please try again in a moment.'));
       }
     } finally {
       setMilestoneSubmitting(false);
     }
-  }, [id, milestoneAmount, milestoneNote, milestoneSubmitting]);
+  }, [id, milestoneAmount, milestoneNote, milestoneSubmitting, language]);
 
   // ── NX-JOB-002 closure ───────────────────────────────────────────────
   // Tapping "Start Inspection" is the canonical user-facing moment the
@@ -551,12 +553,12 @@ const fetchApplication = async (uid: string) => {
           typeof msg === 'string' &&
           msg.toLowerCase().includes('not in assigned state');
         if (!benignAlreadyStarted) {
-          Alert.alert('Cannot start inspection', msg ?? 'Unknown error.');
+          Alert.alert(t('Cannot start inspection'), msg ?? t('Unknown error.'));
           return;
         }
       }
     } catch (e: any) {
-      Alert.alert('Cannot start inspection', e?.message ?? 'Unknown error.');
+      Alert.alert(t('Cannot start inspection'), e?.message ?? t('Unknown error.'));
       return;
     }
 
@@ -581,15 +583,15 @@ const fetchApplication = async (uid: string) => {
     // Inspector sees payout_amount as "Payout" or "Project Price"
     if (payoutAmount) {
       const typeLabel = rateType === 'hourly' ? '/hr' : rateType === 'daily' ? '/day' : ' fixed';
-      return `${formatCurrency(payoutAmount)} Payout`;
+      return `${formatCurrency(payoutAmount)} ${t('Payout')}`;
     }
-    return 'Price TBD';
+    return t('Price TBD');
   };
 
   const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'TBD';
+    if (!dateString) return t('TBD');
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'TBD';
+    if (isNaN(date.getTime())) return t('TBD');
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -600,14 +602,14 @@ const fetchApplication = async (uid: string) => {
   const getJobStatusConfig = (status: string) => {
     switch (status) {
       case 'closed':
-        return { label: 'Closed', color: COLORS.danger };
+        return { label: t('Closed'), color: COLORS.danger };
       case 'in_progress':
       case 'assigned':
-        return { label: 'In Progress', color: COLORS.warning };
+        return { label: t('In Progress'), color: COLORS.warning };
       case 'completed':
-        return { label: 'Completed', color: COLORS.success };
+        return { label: t('Completed'), color: COLORS.success };
       default:
-        return { label: 'Open', color: COLORS.success };
+        return { label: t('Open'), color: COLORS.success };
     }
   };
 
@@ -647,7 +649,7 @@ const fetchApplication = async (uid: string) => {
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.manualHeaderTitle}>Job Details</Text>
+        <Text style={styles.manualHeaderTitle}>{t('Job Details')}</Text>
         <View style={styles.headerActionsRight}>
           <TouchableOpacity onPress={handleSaveJob} style={styles.headerButton}>
             <Ionicons
@@ -679,9 +681,9 @@ const fetchApplication = async (uid: string) => {
           >
             <Ionicons name="alert-circle" size={20} color="#EF4444" />
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 }}>Report overdue</Text>
+              <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 14 }}>{t('Report overdue')}</Text>
               <Text style={{ color: '#FCA5A5', fontSize: 12, marginTop: 2 }}>
-                Past the scheduled date by {Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000))} day{Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000)) > 1 ? 's' : ''}. Tap to submit your report.
+                {t('Past the scheduled date by')} {Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000))} {Math.max(1, Math.floor((Date.now() - new Date(job.scheduled_date).getTime()) / 86400000)) > 1 ? t('days') : t('day')}. {t('Tap to submit your report.')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#EF4444" />
@@ -695,7 +697,7 @@ const fetchApplication = async (uid: string) => {
           </View>
           
           <Text style={styles.jobTitle}>{job.title}</Text>
-          <Text style={styles.companyName}>{job.company_name || 'Private Client'}</Text>
+          <Text style={styles.companyName}>{job.company_name || t('Private Client')}</Text>
 
           {/* ★ Layer 1+4 — passive domain badge. requireLaunched=true means
                 it renders only for slugs in launchedDomains AND not
@@ -715,7 +717,7 @@ const fetchApplication = async (uid: string) => {
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="briefcase-outline" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.metaText}>{job.job_type || 'On-site'}</Text>
+              <Text style={styles.metaText}>{job.job_type || t('On-site')}</Text>
             </View>
           </View>
 
@@ -735,19 +737,19 @@ const fetchApplication = async (uid: string) => {
         {/* --- REPORT STATUS CARD --- */}
         {reportData && !reportData.is_published && userRole === 'admin' && (
           <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#F59E0B', borderWidth: 1, padding: 16, borderRadius: 12, marginBottom: 24 }}>
-            <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Report Pending Review</Text>
+            <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>{t('Report Pending Review')}</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 12, borderWidth: 1, borderColor: '#7C3AED', borderRadius: 8, alignItems: 'center' }}
-                onPress={() => Alert.alert('View Draft', 'Report viewer coming soon')}
+                onPress={() => Alert.alert(t('View Draft'), t('Report viewer coming soon'))}
               >
-                <Text style={{ color: '#7C3AED', fontWeight: '600' }}>View Draft</Text>
+                <Text style={{ color: '#7C3AED', fontWeight: '600' }}>{t('View Draft')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 12, backgroundColor: '#7C3AED', borderRadius: 8, alignItems: 'center' }}
                 onPress={publishReport}
               >
-                <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>Publish</Text>
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{t('Publish')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -755,18 +757,18 @@ const fetchApplication = async (uid: string) => {
 
         {reportData && !reportData.is_published && (userRole === 'client' || userRole === 'agency') && (
           <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#1A1D3C' }}>
-            <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center' }}>Report is currently under Admin review.</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center' }}>{t('Report is currently under Admin review.')}</Text>
           </View>
         )}
 
         {reportData && reportData.is_published && (
           <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981', borderWidth: 1, padding: 16, borderRadius: 12, marginBottom: 24 }}>
-            <Text style={{ color: '#10B981', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>Final Report Published</Text>
+            <Text style={{ color: '#10B981', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>{t('Final Report Published')}</Text>
             <TouchableOpacity
               style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }}
               onPress={() => setReportViewerVisible(true)}
             >
-              <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Report</Text>
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{t('View Report')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -776,8 +778,8 @@ const fetchApplication = async (uid: string) => {
         {/* TOOLS: Contract, Expenses, Inspection Buttons */}
         {/* ONLY SHOW IF HIRED OR CLIENT */}
         {/* ================================================================ */}
-         {/* X-RAY DEBUGGER */}
-         {debugError && (
+         {/* X-RAY DEBUGGER — dev only; never expose raw DB errors in production */}
+         {__DEV__ && debugError && (
            <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
              <Text style={{ color: 'white', fontWeight: 'bold' }}>⚠️ DB ERROR:</Text>
              <Text style={{ color: 'white' }}>{debugError}</Text>
@@ -787,14 +789,14 @@ const fetchApplication = async (uid: string) => {
          {/* INSPECTOR VIEW: CLIENT APPROVAL BANNER */}
          {approvalData?.is_client_approved && (
            <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 12, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#10B981' }}>
-             <Text style={{ color: '#10B981', fontWeight: 'bold', fontSize: 16 }}>✅ Final Approval Received</Text>
-             <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 4 }}>The client has reviewed and officially closed this job. Payout will be processed shortly.</Text>
+             <Text style={{ color: '#10B981', fontWeight: 'bold', fontSize: 16 }}>{t('✅ Final Approval Received')}</Text>
+             <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 4 }}>{t('The client has reviewed and officially closed this job. Payout will be processed shortly.')}</Text>
            </View>
          )}
 
          {(isHired || isClient) && (
            <View style={styles.toolsContainer}>
-             <Text style={styles.toolsSectionTitle}>Job Tools</Text>
+             <Text style={styles.toolsSectionTitle}>{t('Job Tools')}</Text>
             
             <TouchableOpacity
               style={styles.toolButton}
@@ -805,8 +807,8 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="document-text" size={24} color={COLORS.purple} />
               </View>
               <View style={styles.toolButtonInfo}>
-                <Text style={styles.toolButtonTitle}>Contract</Text>
-                <Text style={styles.toolButtonSubtitle}>View & sign agreement</Text>
+                <Text style={styles.toolButtonTitle}>{t('Contract')}</Text>
+                <Text style={styles.toolButtonSubtitle}>{t('View & sign agreement')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -821,8 +823,8 @@ const fetchApplication = async (uid: string) => {
                   <Ionicons name="git-network" size={24} color={COLORS.purple} />
                 </View>
                 <View style={styles.toolButtonInfo}>
-                  <Text style={styles.toolButtonTitle}>Coordinate with Vendor</Text>
-                  <Text style={styles.toolButtonSubtitle}>Schedule, site access & documents</Text>
+                  <Text style={styles.toolButtonTitle}>{t('Coordinate with Vendor')}</Text>
+                  <Text style={styles.toolButtonSubtitle}>{t('Schedule, site access & documents')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
@@ -837,8 +839,8 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="receipt" size={24} color={COLORS.success} />
               </View>
               <View style={styles.toolButtonInfo}>
-                <Text style={styles.toolButtonTitle}>Expenses</Text>
-                <Text style={styles.toolButtonSubtitle}>Track job expenses</Text>
+                <Text style={styles.toolButtonTitle}>{t('Expenses')}</Text>
+                <Text style={styles.toolButtonSubtitle}>{t('Track job expenses')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -853,8 +855,8 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="camera" size={24} color={COLORS.orange} />
               </View>
               <View style={styles.toolButtonInfo}>
-                <Text style={styles.toolButtonTitle}>Start Inspection</Text>
-                 <Text style={styles.toolButtonSubtitle}>Safety check & reporting</Text>
+                <Text style={styles.toolButtonTitle}>{t('Start Inspection')}</Text>
+                 <Text style={styles.toolButtonSubtitle}>{t('Safety check & reporting')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -876,9 +878,9 @@ const fetchApplication = async (uid: string) => {
                   <Ionicons name="cash-outline" size={24} color="#F4C430" />
                 </View>
                 <View style={styles.toolButtonInfo}>
-                  <Text style={styles.toolButtonTitle}>Request Milestone Release</Text>
+                  <Text style={styles.toolButtonTitle}>{t('Request Milestone Release')}</Text>
                   <Text style={styles.toolButtonSubtitle}>
-                    Ask admin to release a milestone payout
+                    {t('Ask admin to release a milestone payout')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
@@ -890,7 +892,7 @@ const fetchApplication = async (uid: string) => {
                style={styles.toolButton}
                onPress={() => {
                  if (!id) {
-                   Alert.alert("Error", "Job ID is missing!");
+                   Alert.alert(t("Error"), t("Job ID is missing!"));
                    return;
                  }
   console.log("Attempting to route to ADMIN CHAT with ID:", id);
@@ -903,7 +905,7 @@ const fetchApplication = async (uid: string) => {
                       }
                     });
                   } catch (e) {
-                    Alert.alert("Routing Error", (e as Error).message);
+                    Alert.alert(t("Routing Error"), (e as Error).message);
                   }
                }}
                activeOpacity={0.7}
@@ -912,8 +914,8 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="chatbubbles-outline" size={24} color="#7C3AED" />
               </View>
               <View style={styles.toolButtonInfo}>
-                <Text style={styles.toolButtonTitle}>Chat with Admin</Text>
-                <Text style={styles.toolButtonSubtitle}>Internal support conversation</Text>
+                <Text style={styles.toolButtonTitle}>{t('Chat with Admin')}</Text>
+                <Text style={styles.toolButtonSubtitle}>{t('Internal support conversation')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -930,8 +932,8 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="warning-outline" size={24} color="#EF4444" />
               </View>
               <View style={styles.toolButtonInfo}>
-                <Text style={styles.toolButtonTitle}>Flash Reports</Text>
-                <Text style={styles.toolButtonSubtitle}>Raise an NCR / mid-job concern</Text>
+                <Text style={styles.toolButtonTitle}>{t('Flash Reports')}</Text>
+                <Text style={styles.toolButtonSubtitle}>{t('Raise an NCR / mid-job concern')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
@@ -951,8 +953,8 @@ const fetchApplication = async (uid: string) => {
                   <Ionicons name="shield-checkmark-outline" size={24} color="#7C3AED" />
                 </View>
                 <View style={styles.toolButtonInfo}>
-                  <Text style={styles.toolButtonTitle}>Compliance Capture</Text>
-                  <Text style={styles.toolButtonSubtitle}>Walk the scope evidence checklist, camera-only, GPS-anchored</Text>
+                  <Text style={styles.toolButtonTitle}>{t('Compliance Capture')}</Text>
+                  <Text style={styles.toolButtonSubtitle}>{t('Walk the scope evidence checklist, camera-only, GPS-anchored')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
@@ -966,12 +968,12 @@ const fetchApplication = async (uid: string) => {
             null/invalid input, so a job that hasn't been scheduled or
             isn't yet completed still renders cleanly. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Duration</Text>
+          <Text style={styles.sectionTitle}>{t('Duration')}</Text>
           <View style={styles.durationCard}>
             <View style={styles.durationItem}>
               <Ionicons name="calendar-outline" size={20} color={COLORS.success} />
               <View style={styles.durationInfo}>
-                <Text style={styles.durationLabel}>Start Date</Text>
+                <Text style={styles.durationLabel}>{t('Start Date')}</Text>
                 <Text style={styles.durationValue}>{formatDate(job.scheduled_date)}</Text>
               </View>
             </View>
@@ -979,7 +981,7 @@ const fetchApplication = async (uid: string) => {
             <View style={styles.durationItem}>
               <Ionicons name="flag-outline" size={20} color={COLORS.danger} />
               <View style={styles.durationInfo}>
-                <Text style={styles.durationLabel}>End Date</Text>
+                <Text style={styles.durationLabel}>{t('End Date')}</Text>
                 <Text style={styles.durationValue}>{formatDate(job.completed_at)}</Text>
               </View>
             </View>
@@ -988,7 +990,7 @@ const fetchApplication = async (uid: string) => {
 
         {/* Description Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.sectionTitle}>{t('Description')}</Text>
           <View style={styles.card}>
             <Text style={styles.descriptionText}>{job.description}</Text>
           </View>
@@ -997,7 +999,7 @@ const fetchApplication = async (uid: string) => {
         {/* Requirements Section */}
         {job.requirements && job.requirements.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Requirements</Text>
+            <Text style={styles.sectionTitle}>{t('Requirements')}</Text>
             <View style={styles.card}>
               {job.requirements.map((req, index) => (
                 <View key={index} style={styles.listItem}>
@@ -1013,7 +1015,7 @@ const fetchApplication = async (uid: string) => {
         <View style={styles.postedSection}>
           <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
           <Text style={styles.postedText}>
-            Posted on {formatDate(job.created_at)}
+            {t('Posted on')} {formatDate(job.created_at)}
           </Text>
         </View>
 
@@ -1030,9 +1032,9 @@ const fetchApplication = async (uid: string) => {
               <Ionicons name="star" size={20} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={inspReviewCta.title}>Review the Client</Text>
+              <Text style={inspReviewCta.title}>{t('Review the Client')}</Text>
               <Text style={inspReviewCta.sub}>
-                Help other inspectors. Rate punctuality, payment, and clarity of scope.
+                {t('Help other inspectors. Rate punctuality, payment, and clarity of scope.')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
@@ -1048,14 +1050,14 @@ const fetchApplication = async (uid: string) => {
               <Ionicons name="shield-checkmark" size={18} color="#7C3AED" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={inspAuditStyle.title}>Activity Log</Text>
+              <Text style={inspAuditStyle.title}>{t('Activity Log')}</Text>
               <Text style={inspAuditStyle.sub}>
-                Status, pricing, and schedule changes on this job
+                {t('Status, pricing, and schedule changes on this job')}
               </Text>
             </View>
           </View>
           {/* Brokered War Room — meetings on this job (list + launch + schedule) */}
-          <MeetingsPanel jobId={String(id)} parties={job.client_id ? [{ id: job.client_id, label: 'Client', role: 'client' }] : []} />
+          <MeetingsPanel jobId={String(id)} parties={job.client_id ? [{ id: job.client_id, label: t('Client'), role: 'client' }] : []} />
 
           <AuditTimeline
             jobId={String(id)}
@@ -1079,7 +1081,7 @@ const fetchApplication = async (uid: string) => {
             activeOpacity={0.8}
           >
             <Ionicons name="send" size={20} color="#fff" />
-            <Text style={styles.applyButtonText}>Apply for Job</Text>
+            <Text style={styles.applyButtonText}>{t('Apply for Job')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1109,7 +1111,7 @@ const fetchApplication = async (uid: string) => {
               fontWeight: '800',
               letterSpacing: 1.4,
             }}>
-              ADMIN COUNTER OFFER
+              {t('ADMIN COUNTER OFFER')}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
@@ -1152,7 +1154,7 @@ const fetchApplication = async (uid: string) => {
               marginTop: 10,
               fontStyle: 'italic',
             }}>
-              Sent {new Date(application.admin_countered_at).toLocaleString()}
+              {t('Sent')} {new Date(application.admin_countered_at).toLocaleString()}
             </Text>
           ) : null}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
@@ -1174,7 +1176,7 @@ const fetchApplication = async (uid: string) => {
               onPress={() => handleCounterResponse('rejected')}
             >
               <Ionicons name="close-circle-outline" size={15} color="#FCA5A5" />
-              <Text style={{ color: '#FCA5A5', fontSize: 13, fontWeight: '700' }}>Decline</Text>
+              <Text style={{ color: '#FCA5A5', fontSize: 13, fontWeight: '700' }}>{t('Decline')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={{
@@ -1202,7 +1204,7 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="checkmark-circle" size={16} color="#1F1300" />
               )}
               <Text style={{ color: '#1F1300', fontSize: 13, fontWeight: '800', letterSpacing: 0.3 }}>
-                Accept Counter
+                {t('Accept Counter')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1226,7 +1228,7 @@ const fetchApplication = async (uid: string) => {
         }}>
           <Ionicons name="checkmark-circle" size={18} color="#10F995" />
           <Text style={{ flex: 1, color: '#10F995', fontSize: 12.5, fontWeight: '700' }}>
-            Counter accepted, awaiting dispatch confirmation
+            {t('Counter accepted, awaiting dispatch confirmation')}
           </Text>
         </View>
       )}
@@ -1245,7 +1247,7 @@ const fetchApplication = async (uid: string) => {
         }}>
           <Ionicons name="time-outline" size={18} color="#94A3B8" />
           <Text style={{ flex: 1, color: '#94A3B8', fontSize: 12.5, fontWeight: '700' }}>
-            Counter declined, admin may revise
+            {t('Counter declined, admin may revise')}
           </Text>
         </View>
       )}
@@ -1254,7 +1256,7 @@ const fetchApplication = async (uid: string) => {
       {application && !isHired && (
         <View style={styles.actionBar}>
            <View style={[styles.applyButton, { backgroundColor: COLORS.cardBorder }]}>
-             <Text style={styles.applyButtonText}>Status: {application.status.toUpperCase()}</Text>
+             <Text style={styles.applyButtonText}>{t('Status:')} {application.status.toUpperCase()}</Text>
            </View>
         </View>
       )}
@@ -1306,12 +1308,12 @@ const fetchApplication = async (uid: string) => {
                 <Text style={{
                   color: '#F4C430', fontSize: 10, fontWeight: '800', letterSpacing: 1.4,
                 }}>
-                  MILESTONE RELEASE
+                  {t('MILESTONE RELEASE')}
                 </Text>
                 <Text style={{
                   color: '#FFF', fontSize: 16, fontWeight: '800', marginTop: 1,
                 }}>
-                  Request a payout
+                  {t('Request a payout')}
                 </Text>
               </View>
               <TouchableOpacity
@@ -1325,20 +1327,18 @@ const fetchApplication = async (uid: string) => {
             <Text style={{
               color: '#94A3B8', fontSize: 12, lineHeight: 17, marginTop: 6, marginBottom: 18,
             }}>
-              Admin will be notified and will review the request against
-              your job's milestone schedule. Payouts continue to flow
-              through Stripe, this just signals admin to release.
+              {t('Admin will be notified and will review the request against your job\'s milestone schedule. Payouts continue to flow through Stripe, this just signals admin to release.')}
             </Text>
 
             <Text style={{
               color: '#F4C430', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
             }}>
-              AMOUNT (USD), optional
+              {t('AMOUNT (USD), optional')}
             </Text>
             <TextInput
               value={milestoneAmount}
               onChangeText={setMilestoneAmount}
-              placeholder="e.g. 1500.00, leave blank for full milestone"
+              placeholder={t('e.g. 1500.00, leave blank for full milestone')}
               placeholderTextColor="#475569"
               keyboardType="decimal-pad"
               editable={!milestoneSubmitting}
@@ -1354,12 +1354,12 @@ const fetchApplication = async (uid: string) => {
             <Text style={{
               color: '#94A3B8', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6,
             }}>
-              NOTE FOR ADMIN, optional
+              {t('NOTE FOR ADMIN, optional')}
             </Text>
             <TextInput
               value={milestoneNote}
               onChangeText={setMilestoneNote}
-              placeholder="e.g. Milestone 1 of 3 complete; on-site report uploaded."
+              placeholder={t('e.g. Milestone 1 of 3 complete; on-site report uploaded.')}
               placeholderTextColor="#475569"
               multiline
               numberOfLines={3}
@@ -1403,15 +1403,14 @@ const fetchApplication = async (uid: string) => {
               <Text style={{
                 color: '#1F1300', fontSize: 14, fontWeight: '800', letterSpacing: 0.3,
               }}>
-                {milestoneSubmitting ? 'Sending…' : 'Send request to admin'}
+                {milestoneSubmitting ? t('Sending…') : t('Send request to admin')}
               </Text>
             </TouchableOpacity>
 
             <Text style={{
               color: '#475569', fontSize: 10, lineHeight: 14, textAlign: 'center', marginTop: 12,
             }}>
-              Your request will be visible to admin in the audit log.
-              You can submit one request every 10 minutes.
+              {t('Your request will be visible to admin in the audit log. You can submit one request every 10 minutes.')}
             </Text>
           </View>
         </View>
@@ -1430,10 +1429,10 @@ const fetchApplication = async (uid: string) => {
         <View style={{ flex: 1, backgroundColor: 'rgba(2, 4, 32, 0.95)', justifyContent: 'center', padding: 20 }}>
           <View style={{ backgroundColor: '#0A0D2C', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1A1D3C', maxHeight: '85%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold' }}>Inspection Report</Text>
+              <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold' }}>{t('Inspection Report')}</Text>
               {reportData?.is_client_approved ? (
                 <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>CLIENT APPROVED</Text>
+                  <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>{t('CLIENT APPROVED')}</Text>
                 </View>
               ) : null}
             </View>
@@ -1449,7 +1448,7 @@ const fetchApplication = async (uid: string) => {
               {reportData?.findings ? (
                 <>
                   <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>
-                    Findings
+                    {t('Findings')}
                   </Text>
                   <Text style={{ color: '#E2E8F0', fontSize: 15, lineHeight: 22, marginBottom: 16 }} selectable>
                     {reportData.findings}
@@ -1460,7 +1459,7 @@ const fetchApplication = async (uid: string) => {
               {reportData?.recommendations ? (
                 <>
                   <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>
-                    Recommendations
+                    {t('Recommendations')}
                   </Text>
                   <Text style={{ color: '#E2E8F0', fontSize: 15, lineHeight: 22, marginBottom: 16 }} selectable>
                     {reportData.recommendations}
@@ -1471,7 +1470,7 @@ const fetchApplication = async (uid: string) => {
               {reportData?.notes && !reportData?.findings ? (
                 <>
                   <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>
-                    Inspector Notes
+                    {t('Inspector Notes')}
                   </Text>
                   <Text style={{ color: '#E2E8F0', fontSize: 15, lineHeight: 22, marginBottom: 16 }} selectable>
                     {reportData.notes}
@@ -1482,7 +1481,7 @@ const fetchApplication = async (uid: string) => {
               {reportData?.external_link ? (
                 <>
                   <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>
-                    External Link
+                    {t('External Link')}
                   </Text>
                   <Text style={{ color: '#3B82F6', fontSize: 13, marginBottom: 16 }} selectable>
                     {reportData.external_link}
@@ -1493,7 +1492,7 @@ const fetchApplication = async (uid: string) => {
               {reportData?.signed_by ? (
                 <>
                   <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginBottom: 4, textTransform: 'uppercase' }}>
-                    Signed By
+                    {t('Signed By')}
                   </Text>
                   <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '600', marginBottom: 16 }}>
                     {reportData.signed_by}
@@ -1503,7 +1502,7 @@ const fetchApplication = async (uid: string) => {
 
               {reportData?.created_at ? (
                 <Text style={{ color: '#64748B', fontSize: 12 }}>
-                  Submitted: {new Date(reportData.created_at).toLocaleString()}
+                  {t('Submitted:')} {new Date(reportData.created_at).toLocaleString()}
                 </Text>
               ) : null}
             </ScrollView>
@@ -1512,7 +1511,7 @@ const fetchApplication = async (uid: string) => {
               style={{ marginTop: 16, backgroundColor: '#7C3AED', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
               onPress={() => setReportViewerVisible(false)}
             >
-              <Text style={{ color: '#FFF', fontWeight: 'bold' }}>Close</Text>
+              <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{t('Close')}</Text>
             </TouchableOpacity>
           </View>
         </View>

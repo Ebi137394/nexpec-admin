@@ -12,6 +12,7 @@ import Svg, { Rect, Line, Text as SvgText } from 'react-native-svg';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { formatUsd } from '../../src/core/utils/money';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import {
   useSupplierFinance, useSupplierWallet, startSupplierConnectOnboarding, supplierWithdraw, type FinanceMonth,
 } from '../../src/hooks/useSupplierEcosystem';
@@ -23,12 +24,14 @@ const SCREEN_W = Dimensions.get('window').width;
 
 export default function SupplierFinance() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { data, loading, refetch } = useSupplierFinance();
   const { data: wallet, refetch: refetchWallet } = useSupplierWallet();
   const [refreshing, setRefreshing] = useState(false);
   const [amount, setAmount] = useState('');
   const [wBusy, setWBusy] = useState(false);
   const [wMsg, setWMsg] = useState<string | null>(null);
+  const [wOk, setWOk] = useState(false);
 
   useFocusEffect(useCallback(() => { refetch(); refetchWallet(); }, [refetch, refetchWallet]));
   const onRefresh = async () => { setRefreshing(true); await Promise.all([refetch(), refetchWallet()]); setRefreshing(false); };
@@ -37,24 +40,24 @@ export default function SupplierFinance() {
   const verified = !!wallet && wallet.connectStatus === 'verified' && wallet.payoutsEnabled;
   const availableCents = wallet?.availableCents ?? 0;
   const onboard = async () => {
-    setWBusy(true); setWMsg(null);
+    setWBusy(true); setWMsg(null); setWOk(false);
     try {
       const url = await startSupplierConnectOnboarding();
       if (url) await WebBrowser.openBrowserAsync(url);
-      else setWMsg('Could not start onboarding. Try again shortly.');
+      else setWMsg(t('Could not start onboarding. Try again shortly.'));
       await refetchWallet();
     } finally { setWBusy(false); }
   };
   const doWithdraw = async () => {
-    setWMsg(null);
+    setWMsg(null); setWOk(false);
     const cents = Math.round((parseFloat(amount) || 0) * 100);
-    if (cents < 5000) { setWMsg('Minimum withdrawal is $50.00.'); return; }
-    if (cents > availableCents) { setWMsg('Amount exceeds your available balance.'); return; }
+    if (cents < 5000) { setWMsg(t('Minimum withdrawal is $50.00.')); return; }
+    if (cents > availableCents) { setWMsg(t('Amount exceeds your available balance.')); return; }
     setWBusy(true);
     try {
       const res = await supplierWithdraw(cents);
-      if (!res.ok) { setWMsg(res.error ?? 'Payout failed.'); return; }
-      setAmount(''); setWMsg('Payout initiated. Funds arrive in 1–2 business days.');
+      if (!res.ok) { setWMsg(res.error ?? t('Payout failed.')); return; }
+      setAmount(''); setWOk(true); setWMsg(t('Payout initiated. Funds arrive in 1–2 business days.'));
       await refetchWallet();
     } finally { setWBusy(false); }
   };
@@ -67,7 +70,7 @@ export default function SupplierFinance() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
-        <Text style={s.title}>Finance</Text>
+        <Text style={s.title}>{t('Finance')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -80,110 +83,110 @@ export default function SupplierFinance() {
           {/* Hero — contracted value */}
           <View style={s.hero}>
             <LinearGradient colors={['rgba(124,58,237,0.20)', 'rgba(124,58,237,0.05)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-            <Text style={s.heroKicker}>CONTRACTED VALUE OF AWARDED WORK</Text>
+            <Text style={s.heroKicker}>{t('CONTRACTED VALUE OF AWARDED WORK')}</Text>
             <Text style={s.heroValue}>{formatUsd(f?.contractedCents ?? 0)}</Text>
             <View style={s.subRow}>
-              <Sub label="Settled" value={formatUsd(f?.receivedCents ?? 0)} color={T.colors.success} />
-              <Sub label="Outstanding" value={formatUsd(f?.outstandingCents ?? 0)} color="#F59E0B" />
-              <Sub label="In-bid" value={formatUsd(f?.inBidCents ?? 0)} color="#38BDF8" />
+              <Sub label={t('Settled')} value={formatUsd(f?.receivedCents ?? 0)} color={T.colors.success} />
+              <Sub label={t('Outstanding')} value={formatUsd(f?.outstandingCents ?? 0)} color="#F59E0B" />
+              <Sub label={t('In-bid')} value={formatUsd(f?.inBidCents ?? 0)} color="#38BDF8" />
             </View>
           </View>
 
           {/* Withdrawable balance + Stripe Connect (mirror inspector wallet) */}
           <View style={s.wCard}>
             <View style={s.wHead}>
-              <Text style={s.wTitle}>Withdrawable balance</Text>
+              <Text style={s.wTitle}>{t('Withdrawable balance')}</Text>
               <View style={[s.wPill, { backgroundColor: verified ? 'rgba(16,185,129,0.16)' : 'rgba(245,158,11,0.16)' }]}>
                 <Ionicons name="shield-checkmark" size={12} color={verified ? T.colors.success : '#F59E0B'} />
-                <Text style={[s.wPillTxt, { color: verified ? T.colors.success : '#F59E0B' }]}>{verified ? 'Verified' : 'Setup needed'}</Text>
+                <Text style={[s.wPillTxt, { color: verified ? T.colors.success : '#F59E0B' }]}>{verified ? t('Verified') : t('Setup needed')}</Text>
               </View>
             </View>
             <Text style={s.wValue}>{formatUsd(availableCents)}</Text>
             {!verified ? (
               <TouchableOpacity style={s.wBtn} activeOpacity={0.85} onPress={onboard} disabled={wBusy}>
                 {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="card-outline" size={16} color="#FFF" />}
-                <Text style={s.wBtnTxt}>Set up payouts</Text>
+                <Text style={s.wBtnTxt}>{t('Set up payouts')}</Text>
               </TouchableOpacity>
             ) : (
               <View style={s.wInputRow}>
                 <View style={s.wInputWrap}>
                   <Text style={s.wDollar}>$</Text>
-                  <TextInput value={amount} onChangeText={setAmount} placeholder="Min $50" placeholderTextColor={T.colors.textMuted} keyboardType="decimal-pad" style={s.wInput} />
+                  <TextInput value={amount} onChangeText={setAmount} placeholder={t('Min $50')} placeholderTextColor={T.colors.textMuted} keyboardType="decimal-pad" style={s.wInput} />
                 </View>
                 <TouchableOpacity style={[s.wBtn, s.wBtnInline]} activeOpacity={0.85} onPress={doWithdraw} disabled={wBusy || availableCents < 5000}>
                   {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="arrow-up-circle-outline" size={16} color="#FFF" />}
-                  <Text style={s.wBtnTxt}>Withdraw</Text>
+                  <Text style={s.wBtnTxt}>{t('Withdraw')}</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {!!wMsg && <Text style={[s.wMsg, { color: wMsg.startsWith('Payout initiated') ? T.colors.success : T.colors.error }]}>{wMsg}</Text>}
+            {!!wMsg && <Text style={[s.wMsg, { color: wOk ? T.colors.success : T.colors.error }]}>{wMsg}</Text>}
           </View>
 
           {/* Brokered explainer */}
           <TouchableOpacity style={s.broker} activeOpacity={0.85} onPress={() => router.push('/inbox' as any)}>
             <Ionicons name="business-outline" size={18} color={T.colors.primaryLight} />
-            <Text style={s.brokerTxt}>Payouts are admin-brokered. NEXPEC releases funds as milestones clear. Tap to reach the team.</Text>
+            <Text style={s.brokerTxt}>{t('Payouts are admin-brokered. NEXPEC releases funds as milestones clear. Tap to reach the team.')}</Text>
           </TouchableOpacity>
 
           {/* KPI grid */}
           <View style={s.kpiGrid}>
-            <Kpi icon="trophy-outline" color="#10B981" value={f?.winRate == null ? '—' : `${f.winRate}%`} label="Win rate" />
-            <Kpi icon="cash-outline" color="#8B5CF6" value={f?.avgAwardCents == null ? '—' : formatUsd(f.avgAwardCents)} label="Avg. award" />
-            <Kpi icon="send-outline" color="#38BDF8" value={String(f?.activeCount ?? 0)} label="Active bids" />
-            <Kpi icon="time-outline" color="#F59E0B" value={formatUsd(f?.pendingCents ?? 0)} label="Pending" />
+            <Kpi icon="trophy-outline" color="#10B981" value={f?.winRate == null ? '—' : `${f.winRate}%`} label={t('Win rate')} />
+            <Kpi icon="cash-outline" color="#8B5CF6" value={f?.avgAwardCents == null ? '—' : formatUsd(f.avgAwardCents)} label={t('Avg. award')} />
+            <Kpi icon="send-outline" color="#38BDF8" value={String(f?.activeCount ?? 0)} label={t('Active bids')} />
+            <Kpi icon="time-outline" color="#F59E0B" value={formatUsd(f?.pendingCents ?? 0)} label={t('Pending')} />
           </View>
 
           {!hasActivity ? (
             <View style={s.empty}>
               <Ionicons name="wallet-outline" size={28} color={T.colors.textMuted} />
-              <Text style={s.emptyTxt}>No financial activity yet. Win your first contract and your earnings analytics, payout timeline and settlement tracking populate here.</Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/opportunities' as any)}><Text style={s.emptyBtnTxt}>Browse opportunities</Text></TouchableOpacity>
+              <Text style={s.emptyTxt}>{t('No financial activity yet. Win your first contract and your earnings analytics, payout timeline and settlement tracking populate here.')}</Text>
+              <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/suppliers/opportunities' as any)}><Text style={s.emptyBtnTxt}>{t('Browse opportunities')}</Text></TouchableOpacity>
             </View>
           ) : (
             <>
               {/* Trend */}
-              <View style={s.sectionHead}><Text style={s.sectionTitle}>Earnings trend</Text>
-                <View style={s.legend}><View style={[s.dot, { backgroundColor: T.colors.primary }]} /><Text style={s.legendTxt}>Awarded</Text><View style={[s.dot, { backgroundColor: T.colors.success, marginLeft: 10 }]} /><Text style={s.legendTxt}>Settled</Text></View>
+              <View style={s.sectionHead}><Text style={s.sectionTitle}>{t('Earnings trend')}</Text>
+                <View style={s.legend}><View style={[s.dot, { backgroundColor: T.colors.primary }]} /><Text style={s.legendTxt}>{t('Awarded')}</Text><View style={[s.dot, { backgroundColor: T.colors.success, marginLeft: 10 }]} /><Text style={s.legendTxt}>{t('Settled')}</Text></View>
               </View>
-              <View style={s.card}><TrendChart months={f!.months} /></View>
+              <View style={s.card}><TrendChart months={f!.months} t={t} /></View>
 
               {/* Funnel */}
-              <Text style={s.sectionTitle}>Bid funnel</Text>
+              <Text style={s.sectionTitle}>{t('Bid funnel')}</Text>
               <View style={s.card}>
-                <FunnelRow label="Submitted" n={f!.funnel.submitted} max={f!.funnel.submitted} color="#38BDF8" />
-                <FunnelRow label="Shortlisted" n={f!.funnel.shortlisted} max={f!.funnel.submitted} color="#F59E0B" />
-                <FunnelRow label="Awarded" n={f!.funnel.awarded} max={f!.funnel.submitted} color="#10B981" />
+                <FunnelRow label={t('Submitted')} n={f!.funnel.submitted} max={f!.funnel.submitted} color="#38BDF8" />
+                <FunnelRow label={t('Shortlisted')} n={f!.funnel.shortlisted} max={f!.funnel.submitted} color="#F59E0B" />
+                <FunnelRow label={t('Awarded')} n={f!.funnel.awarded} max={f!.funnel.submitted} color="#10B981" />
               </View>
 
               {/* Contracted work */}
-              <Text style={s.sectionTitle}>Contracted work</Text>
+              <Text style={s.sectionTitle}>{t('Contracted work')}</Text>
               {f!.awardedContracts.length === 0 ? (
-                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>No awarded contracts yet.</Text></View>
+                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>{t('No awarded contracts yet.')}</Text></View>
               ) : f!.awardedContracts.map((c) => (
                 <TouchableOpacity key={c.id} style={s.row} activeOpacity={0.85} onPress={() => router.push(`/rfqs/${c.rfq_id}` as any)}>
                   <View style={[s.iconTile, { backgroundColor: 'rgba(16,185,129,0.14)' }]}><Ionicons name="trophy-outline" size={18} color={T.colors.success} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.rowTitle} numberOfLines={1}>{c.title}</Text>
-                    <Text style={s.rowSub}>Awarded {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? ', in delivery' : ', mobilising'}</Text>
+                    <Text style={s.rowSub}>{t('Awarded')} {new Date(c.created_at).toLocaleDateString()}{c.dispatched ? `, ${t('in delivery')}` : `, ${t('mobilising')}`}</Text>
                   </View>
                   <Text style={s.rowAmount}>{formatUsd(c.amountCents)}</Text>
                 </TouchableOpacity>
               ))}
 
               {/* Ledger */}
-              <Text style={s.sectionTitle}>Settlement history</Text>
+              <Text style={s.sectionTitle}>{t('Settlement history')}</Text>
               {f!.transactions.length === 0 ? (
-                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>No settlements yet. Brokered payouts appear here.</Text></View>
-              ) : f!.transactions.map((t) => {
-                const positive = POSITIVE.has(t.type);
+                <View style={s.miniEmpty}><Text style={s.miniEmptyTxt}>{t('No settlements yet. Brokered payouts appear here.')}</Text></View>
+              ) : f!.transactions.map((tx) => {
+                const positive = POSITIVE.has(tx.type);
                 return (
-                  <View key={t.id} style={s.row}>
+                  <View key={tx.id} style={s.row}>
                     <View style={[s.iconTile, { backgroundColor: T.colors.inputBackground }]}><Ionicons name={positive ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={18} color={positive ? T.colors.success : T.colors.textSecondary} /></View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.rowTitle} numberOfLines={1}>{t.description || t.type}</Text>
-                      <Text style={s.rowSub}><Text style={{ textTransform: 'capitalize' }}>{t.type}</Text>, <Text style={{ color: STATUS_COLOR[t.status] ?? T.colors.textMuted, fontWeight: '700', textTransform: 'capitalize' }}>{t.status}</Text>, {new Date(t.created_at).toLocaleDateString()}</Text>
+                      <Text style={s.rowTitle} numberOfLines={1}>{tx.description || tx.type}</Text>
+                      <Text style={s.rowSub}><Text style={{ textTransform: 'capitalize' }}>{tx.type}</Text>, <Text style={{ color: STATUS_COLOR[tx.status] ?? T.colors.textMuted, fontWeight: '700', textTransform: 'capitalize' }}>{tx.status}</Text>, {new Date(tx.created_at).toLocaleDateString()}</Text>
                     </View>
-                    <Text style={[s.rowAmount, { color: positive ? T.colors.success : T.colors.text }]}>{positive ? '+' : '−'}{formatUsd(Math.round(Math.abs(t.amount) * 100))}</Text>
+                    <Text style={[s.rowAmount, { color: positive ? T.colors.success : T.colors.text }]}>{positive ? '+' : '−'}{formatUsd(Math.round(Math.abs(tx.amount) * 100))}</Text>
                   </View>
                 );
               })}
@@ -212,8 +215,8 @@ function FunnelRow({ label, n, max, color }: { label: string; n: number; max: nu
   );
 }
 
-function TrendChart({ months }: { months: FinanceMonth[] }) {
-  if (!months.length) return <Text style={s.miniEmptyTxt}>Not enough history yet.</Text>;
+function TrendChart({ months, t }: { months: FinanceMonth[]; t: (s: string) => string }) {
+  if (!months.length) return <Text style={s.miniEmptyTxt}>{t('Not enough history yet.')}</Text>;
   const W = safeNum(SCREEN_W - 64, 300), H = 150, padB = 24, padT = 8;
   const max = Math.max(1, ...months.map((m) => Math.max(safeNum(m.awardedCents), safeNum(m.receivedCents))));
   const groupW = W / months.length;

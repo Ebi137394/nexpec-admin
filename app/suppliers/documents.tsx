@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { NEXPEC_THEME as T } from '../../src/components/DynamicForm/theme';
 import { DocumentField } from '../../src/components/DynamicForm/fields/DocumentField';
 import { useMyVendorDocuments, signVendorDocument } from '../../src/hooks/useSupplierEcosystem';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const DOC_LABEL: Record<string, string> = {
   iso_cert: 'ISO / Quality', accreditation: 'Accreditation', insurance: 'Insurance', financial: 'Financial',
@@ -17,6 +18,7 @@ const DOC_TYPES = Object.keys(DOC_LABEL);
 const bytes = (n: number | null) => (!n ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
 export default function SupplierDocuments() {
+  const { t, isRTL, language } = useLanguage();
   const router = useRouter();
   const { items, loading, refetch } = useMyVendorDocuments();
   const [docType, setDocType] = useState('iso_cert');
@@ -37,55 +39,55 @@ export default function SupplierDocuments() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
         <TouchableOpacity onPress={goBack} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
-        <Text style={s.title}>Document Vault</Text>
+        <Text style={s.title}>{t('Document Vault')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Summary */}
         <View style={s.statRow}>
-          <Stat icon="folder-open-outline" color="#8B5CF6" value={String(items.length)} label="Sealed" />
-          <Stat icon="logo-bitcoin" color="#F59E0B" value={String(verified)} label="Anchored" />
-          <Stat icon="time-outline" color="#38BDF8" value={String(items.length - verified)} label="Pending" />
+          <Stat icon="folder-open-outline" color="#8B5CF6" value={String(items.length)} label={t('Sealed')} />
+          <Stat icon="logo-bitcoin" color="#F59E0B" value={String(verified)} label={t('Anchored')} />
+          <Stat icon="time-outline" color="#38BDF8" value={String(items.length - verified)} label={t('Pending')} />
         </View>
 
         {/* Upload */}
-        <Text style={s.sectionTitle}>Seal a new document</Text>
+        <Text style={s.sectionTitle}>{t('Seal a new document')}</Text>
         <View style={s.uploadCard}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-            {DOC_TYPES.map((t) => {
-              const active = t === docType;
+            {DOC_TYPES.map((dt) => {
+              const active = dt === docType;
               return (
-                <TouchableOpacity key={t} onPress={() => setDocType(t)} activeOpacity={0.8} style={[s.chip, active && { backgroundColor: T.colors.primary, borderColor: T.colors.primary }]}>
-                  <Text style={[s.chipTxt, active && { color: '#FFF' }]}>{DOC_LABEL[t]}</Text>
+                <TouchableOpacity key={dt} onPress={() => setDocType(dt)} activeOpacity={0.8} style={[s.chip, active && { backgroundColor: T.colors.primary, borderColor: T.colors.primary }]}>
+                  <Text style={[s.chipTxt, active && { color: '#FFF' }]}>{t(DOC_LABEL[dt])}</Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-          <DocumentField key={docType} field={{ name: 'doc', label: 'File', type: 'document', docType } as any} value={val} onChange={onSealed} onBlur={() => {}} />
+          <DocumentField key={docType} field={{ name: 'doc', label: t('File'), type: 'document', docType } as any} value={val} onChange={onSealed} onBlur={() => {}} />
         </View>
 
         {/* Registry */}
-        <Text style={s.sectionTitle}>Sealed registry</Text>
+        <Text style={s.sectionTitle}>{t('Sealed registry')}</Text>
         {loading ? (
           <View style={s.center}><ActivityIndicator size="large" color={T.colors.primary} /></View>
         ) : items.length === 0 ? (
           <View style={s.empty}>
             <Ionicons name="lock-closed-outline" size={26} color={T.colors.textMuted} />
-            <Text style={s.emptyTxt}>No documents sealed yet. Upload ISO, accreditation or insurance certificates, each is hashed, sealed into the Trust Spine and anchored to Bitcoin.</Text>
+            <Text style={s.emptyTxt}>{t('No documents sealed yet. Upload ISO, accreditation or insurance certificates, each is hashed, sealed into the Trust Spine and anchored to Bitcoin.')}</Text>
           </View>
         ) : items.map((d) => (
           <View key={d.id} style={s.docCard}>
             <View style={[s.iconTile, { backgroundColor: 'rgba(124,58,237,0.14)' }]}><Ionicons name="document-text-outline" size={20} color={T.colors.primaryLight} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.docTitle} numberOfLines={1}>{d.title || 'Document'}</Text>
+              <Text style={s.docTitle} numberOfLines={1}>{d.title || t('Document')}</Text>
               <View style={s.docMeta}>
                 <Ionicons name="shield-checkmark" size={12} color={T.colors.success} />
-                <Text style={[s.metaTxt, { color: T.colors.success }]}>Sealed</Text>
+                <Text style={[s.metaTxt, { color: T.colors.success }]}>{t('Sealed')}</Text>
                 {d.ots_status === 'bitcoin_confirmed'
-                  ? <><Ionicons name="logo-bitcoin" size={12} color="#F59E0B" /><Text style={[s.metaTxt, { color: '#F59E0B' }]}>Anchored</Text></>
-                  : <><Ionicons name="time-outline" size={12} color="#38BDF8" /><Text style={[s.metaTxt, { color: '#38BDF8' }]}>Pending</Text></>}
-                <Text style={s.metaMuted}>{DOC_LABEL[d.doc_type] ?? d.doc_type}</Text>{d.byte_size ? <Text style={s.metaMuted}>{bytes(d.byte_size)}</Text> : null}
+                  ? <><Ionicons name="logo-bitcoin" size={12} color="#F59E0B" /><Text style={[s.metaTxt, { color: '#F59E0B' }]}>{t('Anchored')}</Text></>
+                  : <><Ionicons name="time-outline" size={12} color="#38BDF8" /><Text style={[s.metaTxt, { color: '#38BDF8' }]}>{t('Pending')}</Text></>}
+                <Text style={s.metaMuted}>{t(DOC_LABEL[d.doc_type]) ?? d.doc_type}</Text>{d.byte_size ? <Text style={s.metaMuted}>{bytes(d.byte_size)}</Text> : null}
               </View>
             </View>
             <TouchableOpacity style={s.viewBtn} onPress={() => open(d.storage_path, d.id)} disabled={opening === d.id}>

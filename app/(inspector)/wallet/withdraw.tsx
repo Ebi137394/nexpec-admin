@@ -35,6 +35,7 @@ import { enqueueWithdrawalRequest, isOnline, flushQueue, getOpStatus } from '@/l
 import { supabase } from '@/lib/supabase';
 // #QA — canonical USD/cents money formatter (single source of truth, mirrors web).
 import { formatUsd, toCents } from '@/src/core/utils/money';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -64,6 +65,7 @@ interface FormErrors {
 
 export default function WithdrawScreen() {
   const { wallet } = useWallet();
+  const { t, language } = useLanguage();
 
   // Form state
   const [amount, setAmount] = useState('');
@@ -102,40 +104,40 @@ export default function WithdrawScreen() {
     // Validate amount
     const numAmount = parseFloat(amount);
     if (!amount || isNaN(numAmount)) {
-      newErrors.amount = 'Please enter a valid amount';
+      newErrors.amount = t('Please enter a valid amount');
     } else if (numAmount <= 0) {
-      newErrors.amount = 'Amount must be greater than 0';
+      newErrors.amount = t('Amount must be greater than 0');
     } else if (numAmount > (wallet?.available_balance || 0)) {
-      newErrors.amount = 'Amount exceeds available balance';
+      newErrors.amount = t('Amount exceeds available balance');
     } else if (numAmount < 25) {
-      newErrors.amount = 'Minimum withdrawal amount is $25';
+      newErrors.amount = t('Minimum withdrawal amount is $25');
     }
 
     // Validate Bank Details
     if (!bankName.trim()) {
-      newErrors.bankName = 'Bank name is required';
+      newErrors.bankName = t('Bank name is required');
     }
     if (!accountHolderName.trim()) {
-      newErrors.accountHolderName = 'Account holder name is required';
+      newErrors.accountHolderName = t('Account holder name is required');
     }
 
     if (!accountNumber.trim()) {
-      newErrors.accountNumber = 'Account number is required';
+      newErrors.accountNumber = t('Account number is required');
     } else if (!/^\d{7,12}$/.test(accountNumber.replace(/\s/g, ''))) {
-      newErrors.accountNumber = 'Invalid account number (7-12 digits)';
+      newErrors.accountNumber = t('Invalid account number (7-12 digits)');
     }
 
     if (!transitNumber.trim()) {
-      newErrors.transitNumber = 'Transit number is required';
+      newErrors.transitNumber = t('Transit number is required');
     } else if (!/^\d{5}$/.test(transitNumber.replace(/\s/g, ''))) {
-      newErrors.transitNumber = 'Transit number must be 5 digits';
+      newErrors.transitNumber = t('Transit number must be 5 digits');
     }
 
     // 👈 اعتبارسنجی کد 3 رقمی موسسه
     if (!institutionNumber.trim()) {
-      newErrors.institutionNumber = 'Institution number is required';
+      newErrors.institutionNumber = t('Institution number is required');
     } else if (!/^\d{3}$/.test(institutionNumber.replace(/\s/g, ''))) {
-      newErrors.institutionNumber = 'Institution must be 3 digits';
+      newErrors.institutionNumber = t('Institution must be 3 digits');
     }
 
     setErrors(newErrors);
@@ -148,6 +150,7 @@ export default function WithdrawScreen() {
     transitNumber,
     institutionNumber,
     accountHolderName,
+    language,
   ]);
 
   const handleWithdraw = async () => {
@@ -218,26 +221,26 @@ export default function WithdrawScreen() {
           (wallet as any).refresh();
         }
         Alert.alert(
-          'Withdrawal Successful! 🎉',
-          `Your request to withdraw $${amount} has been submitted successfully.`,
-          [{ text: 'Awesome', onPress: () => router.back() }],
+          t('Withdrawal Successful! 🎉'),
+          `${t('Your request to withdraw')} $${amount} ${t('has been submitted successfully.')}`,
+          [{ text: t('Awesome'), onPress: () => router.back() }],
         );
       } else if (status === 'abandoned' || status === 'conflict') {
         // Server rejected it (e.g. insufficient funds) — deterministic, not retried.
         Alert.alert(
-          'Withdrawal not completed',
-          'We couldn’t process this withdrawal. Please check your available balance and try again.',
+          t('Withdrawal not completed'),
+          t('We couldn’t process this withdrawal. Please check your available balance and try again.'),
         );
       } else {
         // pending / in_flight / failed → offline or transient; it will retry.
         Alert.alert(
-          'Withdrawal queued',
-          'You appear to be offline. Your withdrawal is queued and will be submitted automatically when you reconnect.',
-          [{ text: 'OK', onPress: () => router.back() }],
+          t('Withdrawal queued'),
+          t('You appear to be offline. Your withdrawal is queued and will be submitted automatically when you reconnect.'),
+          [{ text: t('OK'), onPress: () => router.back() }],
         );
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to process withdrawal');
+      Alert.alert(t('Error'), error.message || t('Failed to process withdrawal'));
     } finally {
       setIsSubmitting(false);
     }
@@ -267,7 +270,7 @@ export default function WithdrawScreen() {
             <Pressable style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </Pressable>
-            <Text style={styles.headerTitle}>Withdraw Funds</Text>
+            <Text style={styles.headerTitle}>{t('Withdraw Funds')}</Text>
             <View style={{ width: 44 }} />
           </View>
 
@@ -283,7 +286,7 @@ export default function WithdrawScreen() {
                 colors={['#1E3A5F', '#0D1B2A']}
                 style={styles.balanceCard}
               >
-                <Text style={styles.balanceLabel}>Available Balance</Text>
+                <Text style={styles.balanceLabel}>{t('Available Balance')}</Text>
                 <Text style={styles.balanceAmount}>
                   {formatCurrency(wallet?.balance || 0)}
                 </Text>
@@ -295,7 +298,7 @@ export default function WithdrawScreen() {
               entering={FadeInDown.delay(100).springify()}
               style={styles.section}
             >
-              <Text style={styles.sectionTitle}>Amount to Withdraw</Text>
+              <Text style={styles.sectionTitle}>{t('Amount to Withdraw')}</Text>
               <View
                 style={[
                   styles.amountInputContainer,
@@ -352,12 +355,12 @@ export default function WithdrawScreen() {
               entering={FadeInDown.delay(200).springify()}
               style={styles.section}
             >
-              <Text style={styles.sectionTitle}>Direct Deposit Details</Text>
+              <Text style={styles.sectionTitle}>{t('Direct Deposit Details')}</Text>
 
               <View style={styles.formContainer}>
                 {/* Account Holder */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Account Holder Name</Text>
+                  <Text style={styles.inputLabel}>{t('Account Holder Name')}</Text>
                   <View style={styles.inputContainer}>
                     <Ionicons
                       name="person-outline"
@@ -369,7 +372,7 @@ export default function WithdrawScreen() {
                       style={styles.textInput}
                       value={accountHolderName}
                       onChangeText={setAccountHolderName}
-                      placeholder="Full Name on Account"
+                      placeholder={t('Full Name on Account')}
                       placeholderTextColor="#4B5563"
                     />
                   </View>
@@ -377,7 +380,7 @@ export default function WithdrawScreen() {
 
                 {/* Bank Name */}
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Bank Name</Text>
+                  <Text style={styles.inputLabel}>{t('Bank Name')}</Text>
                   <View
                     style={[
                       styles.inputContainer,
@@ -394,7 +397,7 @@ export default function WithdrawScreen() {
                       style={styles.textInput}
                       value={bankName}
                       onChangeText={setBankName}
-                      placeholder="e.g. TD, RBC, Scotiabank"
+                      placeholder={t('e.g. TD, RBC, Scotiabank')}
                       placeholderTextColor="#4B5563"
                     />
                   </View>
@@ -407,7 +410,7 @@ export default function WithdrawScreen() {
                 <View style={styles.row}>
                   {/* Transit (5 digits) */}
                   <View style={[styles.inputGroup, { flex: 1.1, marginRight: 8 }]}>
-                    <Text style={styles.inputLabel}>Transit(5)</Text>
+                    <Text style={styles.inputLabel}>{t('Transit(5)')}</Text>
                     <View
                       style={[
                         styles.inputContainer,
@@ -429,7 +432,7 @@ export default function WithdrawScreen() {
 
                   {/* Institution (3 digits) */}
                   <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                    <Text style={styles.inputLabel}>Inst(3)</Text>
+                    <Text style={styles.inputLabel}>{t('Inst(3)')}</Text>
                     <View
                       style={[
                         styles.inputContainer,
@@ -451,7 +454,7 @@ export default function WithdrawScreen() {
 
                   {/* Account Number */}
                   <View style={[styles.inputGroup, { flex: 1.8 }]}>
-                    <Text style={styles.inputLabel}>Account Number</Text>
+                    <Text style={styles.inputLabel}>{t('Account Number')}</Text>
                     <View
                       style={[
                         styles.inputContainer,
@@ -473,7 +476,7 @@ export default function WithdrawScreen() {
                 </View>
                 {(errors.transitNumber || errors.accountNumber || errors.institutionNumber) && (
                   <Text style={styles.errorText}>
-                    Invalid Transit, Institution, or Account Number
+                    {t('Invalid Transit, Institution, or Account Number')}
                   </Text>
                 )}
               </View>
@@ -486,9 +489,9 @@ export default function WithdrawScreen() {
             >
               <Ionicons name="information-circle" size={24} color="#3B82F6" />
               <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>Processing Time</Text>
+                <Text style={styles.infoTitle}>{t('Processing Time')}</Text>
                 <Text style={styles.infoText}>
-                  Withdrawals are typically processed within 10-20 business days.
+                  {t('Withdrawals are typically processed within 10-20 business days.')}
                 </Text>
               </View>
             </Animated.View>
@@ -516,8 +519,8 @@ export default function WithdrawScreen() {
                   <Ionicons name="wallet-outline" size={22} color="#FFFFFF" />
                   <Text style={styles.submitButtonText}>
                     {isSubmitting
-                      ? 'Processing...'
-                      : `Withdraw ${
+                      ? t('Processing...')
+                      : `${t('Withdraw')} ${
                           amount ? formatCurrency(parseFloat(amount) || 0) : ''
                         }`}
                   </Text>
@@ -527,11 +530,11 @@ export default function WithdrawScreen() {
           </View>
         </KeyboardAvoidingView>
 
-        <LoadingOverlay visible={isSubmitting} message="Processing withdrawal..." />
+        <LoadingOverlay visible={isSubmitting} message={t('Processing withdrawal...')} />
         <SuccessAnimation
           visible={showSuccess}
-          title="Request Sent"
-          message="Your funds are on the way!"
+          title={t('Request Sent')}
+          message={t('Your funds are on the way!')}
           onComplete={handleSuccessComplete}
         />
       </SafeAreaView>

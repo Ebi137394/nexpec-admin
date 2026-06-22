@@ -31,14 +31,14 @@ interface Certification {
 }
 
 // NEW_STR: Function to determine certification status based on expiry date
-const getCertStatus = (expiryDate: string) => {
+const getCertStatus = (expiryDate: string, t: (s: string) => string) => {
   const today = new Date();
   const expiry = new Date(expiryDate);
   const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) return { label: 'EXPIRED', color: '#EF4444' };
-  if (diffDays <= 30) return { label: `EXPIRING IN ${diffDays} DAYS`, color: '#F59E0B' };
-  return { label: 'VALID', color: '#10B981' };
+  if (diffDays < 0) return { label: t('EXPIRED'), color: '#EF4444' };
+  if (diffDays <= 30) return { label: `${t('EXPIRING IN')} ${diffDays} ${t('DAYS')}`, color: '#F59E0B' };
+  return { label: t('VALID'), color: '#10B981' };
 };
 
 export default function CertWalletScreen() {
@@ -117,7 +117,7 @@ export default function CertWalletScreen() {
       const publicUrl = urlData?.publicUrl;
 
       if (!publicUrl) {
-        throw new Error('Failed to get public URL');
+        throw new Error(t('Failed to get public URL'));
       }
 
       return publicUrl;
@@ -156,7 +156,7 @@ export default function CertWalletScreen() {
       fetchCerts();
       Alert.alert(t('Success'), t('Certification added!')); // Fixed generic string
     } catch (error: any) {
-      Alert.alert(t('Error'), error.message || 'Failed to save');
+      Alert.alert(t('Error'), error.message || t('Failed to save'));
     } finally {
       setSaving(false);
     }
@@ -177,7 +177,7 @@ export default function CertWalletScreen() {
   };
 
   const renderItem = ({ item }: { item: Certification }) => {
-    const status = getCertStatus(item.expiry_date);
+    const status = getCertStatus(item.expiry_date, t);
     
     return (
       <View style={[styles.card, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
@@ -190,7 +190,7 @@ export default function CertWalletScreen() {
           {item.expiry_date && (
             <View style={[styles.dateRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               <Calendar size={14} color="#64748b" />
-              <Text style={styles.cardDate}> Exp: {item.expiry_date}</Text>
+              <Text style={styles.cardDate}> {t('Exp:')} {item.expiry_date}</Text>
             </View>
           )}
           <View style={[styles.statusContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>

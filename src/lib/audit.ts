@@ -419,13 +419,20 @@ export function redactSensitivePricing(event: AuditEvent): AuditEvent | null {
   const a = stripFlat(event.delta?.after);
   const removed = b.removed + a.removed;
 
-  // If stripping emptied the diff, this was a pricing-only event → hide it.
-  if (removed > 0) {
-    const remaining = new Set<string>([
-      ...Object.keys(b.cleaned ?? {}),
-      ...Object.keys(a.cleaned ?? {}),
-    ]);
-    if (remaining.size === 0) return null;
+  // Hide an event whose entire visible diff is empty when it was (or is) a
+  // pricing change. `removed > 0` covers client-side stripping; the pricing
+  // category check covers the case where the DB view (audit_events_public)
+  // ALREADY stripped the fields server-side — so no blank "Pricing updated"
+  // rows render on either path.
+  const remaining = new Set<string>([
+    ...Object.keys(b.cleaned ?? {}),
+    ...Object.keys(a.cleaned ?? {}),
+  ]);
+  if (
+    remaining.size === 0 &&
+    (removed > 0 || getEventTypeMeta(event.event_type).category === 'pricing')
+  ) {
+    return null;
   }
 
   return {

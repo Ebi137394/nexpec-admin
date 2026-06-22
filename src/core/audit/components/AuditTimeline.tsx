@@ -467,7 +467,10 @@ const AuditTimeline: React.FC<AuditTimelineProps> = ({
         ItemSeparatorComponent={ItemSep}
       />
 
-      <EventDetailSheet event={selected} onClose={handleCloseSheet} />
+      {/* asAdmin gates the raw payload + sensitive diff fields in the sheet.
+          Non-admin timelines (client/agency/enterprise/supplier/inspector)
+          are price-blind by construction. */}
+      <EventDetailSheet event={selected} onClose={handleCloseSheet} privileged={asAdmin} />
     </View>
   );
 };

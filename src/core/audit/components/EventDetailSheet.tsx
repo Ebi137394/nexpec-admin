@@ -31,6 +31,7 @@ import {
   formatFieldValue,
   getEventTypeMeta,
   getSeverityMeta,
+  isSensitivePricingField,
 } from '@/src/lib/audit';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +69,12 @@ export interface EventDetailSheetProps {
   /** Event to display. `null` means the sheet is closed. */
   event: AuditEvent | null;
   onClose: () => void;
+  /**
+   * Admin/privileged viewer. When false (default — every buyer, supplier and
+   * inspector surface), sensitive pricing fields are filtered out of the diff
+   * and the raw-payload section is hidden entirely. Price-blindness guard.
+   */
+  privileged?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -109,7 +116,7 @@ const DiffRow: React.FC<{
 // ═══════════════════════════════════════════════════════════════════════════
 //  COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) => {
+const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, privileged = false }) => {
   const [showRaw, setShowRaw] = useState(false);
 
   // Compute the union of keys across delta.before + delta.after so we
@@ -119,7 +126,11 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) =
     if (!event) return [];
     const before = event.delta?.before ?? {};
     const after  = event.delta?.after  ?? {};
-    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+    let keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+    // ★ PRICE-BLINDNESS — never render inspector payout or platform spread/margin
+    //   to a non-privileged viewer, even if an unredacted event somehow reaches
+    //   this sheet (the fetch layer already strips them; this is defense in depth).
+    if (!privileged) keys = keys.filter((k) => !isSensitivePricingField(k));
     // Show summary-critical fields first
     const PRIORITY = [
       'status', 'contractor_id', 'client_id', 'agency_id',
@@ -136,7 +147,7 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) =
       return a.localeCompare(b);
     });
     return keys.map((k) => ({ key: k, before: before[k], after: after[k] }));
-  }, [event]);
+  }, [event, privileged]);
 
   if (!event) {
     // Render an inert Modal so animation state doesn't get stuck.
@@ -266,34 +277,41 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose }) =
               </View>
             )}
 
-            {/* ─── Raw payload (collapsible) ─────────────────── */}
-            <TouchableOpacity
-              style={s.rawToggle}
-              onPress={() => setShowRaw((v) => !v)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={showRaw ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={C.textSecondary}
-              />
-              <Text style={s.rawToggleText}>
-                {showRaw ? 'Hide raw payload' : 'Show raw payload'}
-              </Text>
-            </TouchableOpacity>
-            {showRaw && (
-              <View style={s.rawCard}>
-                <Text style={s.rawCode} selectable>
-                  {JSON.stringify(
-                    {
-                      delta: event.delta,
-                      metadata: event.metadata,
-                    },
-                    null,
-                    2,
-                  )}
-                </Text>
-              </View>
+            {/* ─── Raw payload (collapsible) — ADMIN ONLY ─────── */}
+            {/* The raw JSON dumps the full delta + metadata. For any non-admin
+                viewer this is hidden entirely so internal pricing can never
+                leak through the raw view (price-blindness / anti-poaching). */}
+            {privileged && (
+              <>
+                <TouchableOpacity
+                  style={s.rawToggle}
+                  onPress={() => setShowRaw((v) => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showRaw ? 'chevron-up' : 'chevron-down'}
+                    size={14}
+                    color={C.textSecondary}
+                  />
+                  <Text style={s.rawToggleText}>
+                    {showRaw ? 'Hide raw payload' : 'Show raw payload'}
+                  </Text>
+                </TouchableOpacity>
+                {showRaw && (
+                  <View style={s.rawCard}>
+                    <Text style={s.rawCode} selectable>
+                      {JSON.stringify(
+                        {
+                          delta: event.delta,
+                          metadata: event.metadata,
+                        },
+                        null,
+                        2,
+                      )}
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
 
             <View style={{ height: 12 }} />

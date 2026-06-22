@@ -334,6 +334,107 @@ export async function callAuditedRpc<T = any>(
   return supabase.rpc(rpcName, finalParams) as any;
 }
 
+// ─── PRICE-BLINDNESS REDACTION (anti-poaching) ────────────────────────────
+// NEXPEC golden rule: a buyer (client / agency / enterprise) or supplier — and
+// even an inspector — must NEVER see the inspector's payout or the platform's
+// spread / margin in the audit trail. Audit events diff raw column changes, so
+// a `job.price_updated` event would otherwise leak `platform_spread_cents` /
+// `inspector_payout_cents` straight to the client, both in the visual diff AND
+// in the raw JSON payload. We strip these fields from every event served to a
+// non-admin surface and DROP any event that, after stripping, carried only a
+// sensitive pricing change. Admin callers (asAdmin) are exempt — they need full
+// visibility.
+//
+// NOTE: this is the client-side guard the UI relies on today. The durable fix
+// is to also redact these columns inside the `audit_events_public` DB view so
+// the bytes never reach the device at all — tracked as a server-side follow-up.
+const SENSITIVE_PRICING_FIELDS = new Set<string>([
+  'platform_spread_cents',
+  'platform_spread',
+  'platform_fee_cents',
+  'platform_margin_cents',
+  'spread_cents',
+  'margin_cents',
+  'commission_cents',
+  'inspector_payout_cents',
+  'inspector_payout',
+  'contractor_payout_amount_cents',
+  'contractor_payout_cents',
+  'contractor_payout',
+  'payout_amount_cents',
+  'payout_cents',
+]);
+
+/**
+ * True when a column / field name reveals inspector pay or platform margin.
+ * Pattern-guarded so future column aliases (e.g. `*_spread_cents`,
+ * `inspector_payout_*`) are caught without a code change. Client-facing price
+ * fields (client_price_cents, budget_cents, total_amount_cents, …) are NOT
+ * matched, so the buyer still sees what THEY pay.
+ */
+export function isSensitivePricingField(key: string): boolean {
+  if (SENSITIVE_PRICING_FIELDS.has(key)) return true;
+  if (/(_spread|_margin|commission)/i.test(key)) return true;
+  if (/(inspector|contractor)_payout/i.test(key)) return true;
+  return false;
+}
+
+/** Recursively strip sensitive pricing keys (and field-name strings) from any value. */
+function deepStripSensitivePricing(value: any): any {
+  if (Array.isArray(value)) {
+    return value
+      .filter((v) => !(typeof v === 'string' && isSensitivePricingField(v)))
+      .map(deepStripSensitivePricing);
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const k of Object.keys(value)) {
+      if (isSensitivePricingField(k)) continue;
+      out[k] = deepStripSensitivePricing(value[k]);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Returns a price-blind copy of an audit event, or `null` when the event ONLY
+ * carried sensitive pricing changes (caller should then hide it entirely).
+ * Strips both the structured diff (delta.before / delta.after) and the raw
+ * metadata payload. Admin callers must NOT route through this.
+ */
+export function redactSensitivePricing(event: AuditEvent): AuditEvent | null {
+  const stripFlat = (obj?: Record<string, any>) => {
+    if (!obj || typeof obj !== 'object') return { cleaned: obj, removed: 0 };
+    let removed = 0;
+    const out: Record<string, any> = {};
+    for (const k of Object.keys(obj)) {
+      if (isSensitivePricingField(k)) { removed++; continue; }
+      out[k] = obj[k];
+    }
+    return { cleaned: out, removed };
+  };
+
+  const b = stripFlat(event.delta?.before);
+  const a = stripFlat(event.delta?.after);
+  const removed = b.removed + a.removed;
+
+  // If stripping emptied the diff, this was a pricing-only event → hide it.
+  if (removed > 0) {
+    const remaining = new Set<string>([
+      ...Object.keys(b.cleaned ?? {}),
+      ...Object.keys(a.cleaned ?? {}),
+    ]);
+    if (remaining.size === 0) return null;
+  }
+
+  return {
+    ...event,
+    delta: { before: b.cleaned, after: a.cleaned },
+    metadata: deepStripSensitivePricing(event.metadata) as AuditMetadata,
+  };
+}
+
 // ─── FETCHING ─────────────────────────────────────────────────────────────
 
 export interface FetchAuditOptions {
@@ -391,6 +492,17 @@ export async function fetchAuditEvents(
   // column server-side later; for v1, client-side is fast enough.)
   if (opts.category && opts.category !== 'all') {
     rows = rows.filter((r) => getEventTypeMeta(r.event_type).category === opts.category);
+  }
+
+  // ★ PRICE-BLINDNESS (anti-poaching) — every non-admin surface
+  //   (client / agency / enterprise / supplier / inspector) is served a
+  //   price-blind view: inspector payout + platform spread/margin are stripped
+  //   from the diff AND the raw payload, and pricing-only events are dropped.
+  //   Admin (asAdmin → audit_events) keeps full visibility.
+  if (!opts.asAdmin) {
+    rows = rows
+      .map((r) => redactSensitivePricing(r))
+      .filter((r): r is AuditEvent => r !== null);
   }
 
   return rows;

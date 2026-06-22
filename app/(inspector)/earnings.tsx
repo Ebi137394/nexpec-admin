@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useEarnings } from '@/hooks/useEarnings';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { formatHalalas, formatDuration, TAX_ESTIMATE_RATE } from '@/utils/currency';
 import type { DailyEarning, EarningsTransaction, IncomeBreakdown } from '@/types/earnings';
 
@@ -81,7 +82,9 @@ const WalletHero = React.memo(({
   pendingCents,
   totalEarnedCents,
   balanceProgressPct,
-}: WalletHeroProps) => (
+}: WalletHeroProps) => {
+  const { t } = useLanguage();
+  return (
   <LinearGradient
     colors={['rgba(16,185,129,0.2)', 'rgba(59,130,246,0.15)']}
     style={styles.walletCard}
@@ -90,7 +93,7 @@ const WalletHero = React.memo(({
   >
     <View style={styles.walletRow}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.walletLabel}>Available Balance</Text>
+        <Text style={styles.walletLabel}>{t('Available Balance')}</Text>
         {/* Replaces hardcoded "$450 Total Earned" */}
         <Text style={styles.walletAmount}>
           {formatHalalas(availableBalanceCents)}
@@ -98,14 +101,14 @@ const WalletHero = React.memo(({
         <View style={styles.walletMetaRow}>
           <View style={styles.walletMetaItem}>
             <View style={[styles.metaDot, { backgroundColor: '#F59E0B' }]} />
-            <Text style={styles.walletMetaLabel}>Pending</Text>
+            <Text style={styles.walletMetaLabel}>{t('Pending')}</Text>
             <Text style={styles.walletMetaValue}>
               {formatHalalas(pendingCents)}
             </Text>
           </View>
           <View style={styles.walletMetaItem}>
             <View style={[styles.metaDot, { backgroundColor: '#3B82F6' }]} />
-            <Text style={styles.walletMetaLabel}>All Time</Text>
+            <Text style={styles.walletMetaLabel}>{t('All Time')}</Text>
             <Text style={styles.walletMetaValue}>
               {formatHalalas(totalEarnedCents, true)}
             </Text>
@@ -116,15 +119,17 @@ const WalletHero = React.memo(({
       {/* Circular chart: available balance as % of total earned */}
       <CircularProgress percentage={balanceProgressPct} size={110} color="#10B981">
         <Text style={styles.circlePercent}>{balanceProgressPct}%</Text>
-        <Text style={styles.circleLabel}>Balance</Text>
+        <Text style={styles.circleLabel}>{t('Balance')}</Text>
       </CircularProgress>
     </View>
   </LinearGradient>
-));
+  );
+});
 
 // ─── Income Breakdown ─────────────────────────────────────────────────────────
 
 const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakdown }) => {
+  const { t } = useLanguage();
   const feeBarPct = useMemo(() => {
     if (!breakdown.gross_cents) return 0;
     return Math.round((breakdown.platform_fee_cents / breakdown.gross_cents) * 100);
@@ -132,11 +137,11 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Income Breakdown</Text>
-      <Text style={styles.cardSubtitle}>Current month, paid transactions</Text>
+      <Text style={styles.cardTitle}>{t('Income Breakdown')}</Text>
+      <Text style={styles.cardSubtitle}>{t('Current month, paid transactions')}</Text>
 
       <View style={styles.breakdownRow}>
-        <Text style={styles.breakdownLabel}>Gross Earnings</Text>
+        <Text style={styles.breakdownLabel}>{t('Gross Earnings')}</Text>
         <Text style={styles.breakdownValueGreen}>
           {formatHalalas(breakdown.gross_cents)}
         </Text>
@@ -145,7 +150,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
       <View style={styles.breakdownRow}>
         <View style={{ flex: 1 }}>
           <View style={styles.breakdownLabelRow}>
-            <Text style={styles.breakdownLabel}>Platform Fee</Text>
+            <Text style={styles.breakdownLabel}>{t('Platform Fee')}</Text>
             <Text style={styles.breakdownPct}>
               {Math.round(breakdown.fee_rate * 100)}%
             </Text>
@@ -164,7 +169,7 @@ const IncomeBreakdownCard = React.memo(({ breakdown }: { breakdown: IncomeBreakd
 
       <View style={styles.breakdownRow}>
         <Text style={[styles.breakdownLabel, { color: '#FFFFFF', fontWeight: '700' }]}>
-          Net Payout
+          {t('Net Payout')}
         </Text>
         <Text style={[styles.breakdownValueGreen, { fontSize: 17, fontWeight: '800' }]}>
           {formatHalalas(breakdown.net_cents)}
@@ -189,17 +194,18 @@ const WeeklyBarChart = React.memo(({
   maxWeeklyCents,
   weeklyTotalCents,
 }: WeeklyBarChartProps) => {
+  const { t } = useLanguage();
   const today = new Date().getDay();
 
   return (
     <View style={styles.card}>
       <View style={styles.chartHeader}>
-        <Text style={styles.cardTitle}>Weekly Earnings</Text>
+        <Text style={styles.cardTitle}>{t('Weekly Earnings')}</Text>
         <Text style={styles.chartTotal}>
           {formatHalalas(weeklyTotalCents, true)}
         </Text>
       </View>
-      <Text style={styles.cardSubtitle}>Net payout, this week</Text>
+      <Text style={styles.cardSubtitle}>{t('Net payout, this week')}</Text>
 
       <View style={styles.barsContainer}>
         {weeklyEarnings.map((day, idx) => {
@@ -241,6 +247,7 @@ interface TaxEstimateProps {
 }
 
 const TaxEstimateCard = React.memo(({ ytdGrossCents, taxEstimateCents }: TaxEstimateProps) => {
+  const { t } = useLanguage();
   const taxPct = Math.round(TAX_ESTIMATE_RATE * 100);
   const taxProgressPct = useMemo(() => {
     if (!ytdGrossCents) return 0;
@@ -251,8 +258,8 @@ const TaxEstimateCard = React.memo(({ ytdGrossCents, taxEstimateCents }: TaxEsti
     <View style={[styles.card, styles.taxCard]}>
       <View style={styles.taxHeader}>
         <View>
-          <Text style={styles.cardTitle}>Tax Estimate</Text>
-          <Text style={styles.cardSubtitle}>YTD gross × {taxPct}% estimated rate</Text>
+          <Text style={styles.cardTitle}>{t('Tax Estimate')}</Text>
+          <Text style={styles.cardSubtitle}>{t('YTD gross ×')} {taxPct}% {t('estimated rate')}</Text>
         </View>
         <CircularProgress
           percentage={taxProgressPct}
@@ -266,12 +273,12 @@ const TaxEstimateCard = React.memo(({ ytdGrossCents, taxEstimateCents }: TaxEsti
 
       <View style={styles.taxRow}>
         <View style={styles.taxItem}>
-          <Text style={styles.taxItemLabel}>YTD Gross</Text>
+          <Text style={styles.taxItemLabel}>{t('YTD Gross')}</Text>
           <Text style={styles.taxItemValue}>{formatHalalas(ytdGrossCents)}</Text>
         </View>
         <Ionicons name="arrow-forward" size={16} color="#475569" />
         <View style={styles.taxItem}>
-          <Text style={styles.taxItemLabel}>Est. Tax</Text>
+          <Text style={styles.taxItemLabel}>{t('Est. Tax')}</Text>
           <Text style={[styles.taxItemValue, { color: '#F59E0B' }]}>
             {formatHalalas(taxEstimateCents)}
           </Text>
@@ -281,7 +288,7 @@ const TaxEstimateCard = React.memo(({ ytdGrossCents, taxEstimateCents }: TaxEsti
       <View style={styles.taxWarning}>
         <Ionicons name="information-circle-outline" size={13} color="#94A3B8" />
         <Text style={styles.taxWarningText}>
-          This is a guide only. Consult a certified tax advisor.
+          {t('This is a guide only. Consult a certified tax advisor.')}
         </Text>
       </View>
     </View>
@@ -300,11 +307,13 @@ interface WorkTimerProps {
 
 const WorkTimerCard = React.memo(({
   isActive, elapsedSeconds, effectiveHourlyRateCents, onStart, onStop,
-}: WorkTimerProps) => (
+}: WorkTimerProps) => {
+  const { t } = useLanguage();
+  return (
   <View style={styles.card}>
-    <Text style={styles.cardTitle}>Work Timer</Text>
+    <Text style={styles.cardTitle}>{t('Work Timer')}</Text>
     <Text style={styles.cardSubtitle}>
-      {isActive ? 'Session in progress' : 'Start to track billable hours'}
+      {isActive ? t('Session in progress') : t('Start to track billable hours')}
     </Text>
 
     <View style={styles.timerRow}>
@@ -314,13 +323,13 @@ const WorkTimerCard = React.memo(({
           {formatDuration(elapsedSeconds)}
         </Text>
         <Text style={styles.timerSubLabel}>
-          {isActive ? 'elapsed' : 'ready'}
+          {isActive ? t('elapsed') : t('ready')}
         </Text>
       </View>
 
       {/* Effective rate */}
       <View style={styles.timerRateBox}>
-        <Text style={styles.timerRateLabel}>Effective Rate</Text>
+        <Text style={styles.timerRateLabel}>{t('Effective Rate')}</Text>
         <Text style={styles.timerRateValue}>
           {effectiveHourlyRateCents > 0
             ? `${formatHalalas(effectiveHourlyRateCents)}/hr`
@@ -340,11 +349,12 @@ const WorkTimerCard = React.memo(({
         color="white"
       />
       <Text style={styles.timerButtonText}>
-        {isActive ? 'Stop Work' : 'Start Work'}
+        {isActive ? t('Stop Work') : t('Start Work')}
       </Text>
     </Pressable>
   </View>
-));
+  );
+});
 
 // ─── Transaction Item ─────────────────────────────────────────────────────────
 
@@ -356,10 +366,11 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
 };
 
 const TransactionItem = React.memo(({ item }: { item: EarningsTransaction }) => {
+  const { t } = useLanguage();
   const statusStyle = STATUS_STYLE[item.status] ?? STATUS_STYLE.pending;
 
   // Client name from DB — replaces hardcoded "Sarah Mitchell"
-  const clientName  = item.job?.client?.full_name ?? item.description ?? 'Direct Payment';
+  const clientName  = item.job?.client?.full_name ?? item.description ?? t('Direct Payment');
   const jobTitle    = item.job?.title ?? '—';
   const jobCode     = item.job?.job_code;
 
@@ -390,7 +401,7 @@ const TransactionItem = React.memo(({ item }: { item: EarningsTransaction }) => 
         <Text style={styles.txAmount}>{formatHalalas(item.net_amount_cents)}</Text>
         <View style={[styles.txBadge, { backgroundColor: statusStyle.bg }]}>
           <Text style={[styles.txBadgeText, { color: statusStyle.color }]}>
-            {statusStyle.label}
+            {t(statusStyle.label)}
           </Text>
         </View>
       </View>
@@ -403,6 +414,7 @@ const TransactionItem = React.memo(({ item }: { item: EarningsTransaction }) => 
 // ============================================================================
 
 export default function EarningsScreen() {
+  const { t } = useLanguage();
   const data = useEarnings();
 
   const handleStart = useCallback(() => data.startWork(), [data]);
@@ -412,7 +424,7 @@ export default function EarningsScreen() {
     return (
       <LinearGradient colors={['#0D1B2A', '#1B2838']} style={styles.loadingWrapper}>
         <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Loading earnings…</Text>
+        <Text style={styles.loadingText}>{t('Loading earnings…')}</Text>
       </LinearGradient>
     );
   }
@@ -423,8 +435,8 @@ export default function EarningsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Earnings</Text>
-          <Text style={styles.headerSubtitle}>Financial dashboard</Text>
+          <Text style={styles.headerTitle}>{t('Earnings')}</Text>
+          <Text style={styles.headerSubtitle}>{t('Financial dashboard')}</Text>
         </View>
 
         {/* Error Banner */}
@@ -481,16 +493,16 @@ export default function EarningsScreen() {
 
           {/* ⑥ Transaction History */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Transaction History</Text>
+            <Text style={styles.cardTitle}>{t('Transaction History')}</Text>
             <Text style={styles.cardSubtitle}>
-              {data.transactions.length} recent transaction
-              {data.transactions.length !== 1 ? 's' : ''}
+              {data.transactions.length}{' '}
+              {data.transactions.length !== 1 ? t('recent transactions') : t('recent transaction')}
             </Text>
 
             {data.transactions.length === 0 ? (
               <View style={styles.txEmpty}>
                 <Ionicons name="receipt-outline" size={40} color="#475569" />
-                <Text style={styles.txEmptyText}>No transactions yet</Text>
+                <Text style={styles.txEmptyText}>{t('No transactions yet')}</Text>
               </View>
             ) : (
               data.transactions.map((tx) => (

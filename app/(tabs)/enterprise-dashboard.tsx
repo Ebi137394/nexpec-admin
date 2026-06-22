@@ -98,6 +98,7 @@ import { supabase } from '../../lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BRAND — Enterprise tier
@@ -350,6 +351,7 @@ const spark = StyleSheet.create({
 export default function EnterpriseDashboard() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t, isRTL, language } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -586,7 +588,7 @@ export default function EnterpriseDashboard() {
     profile?.company_name?.trim() ||
     profile?.full_name?.trim() ||
     profile?.contact_person_name?.trim() ||
-    'Enterprise';
+    t('Enterprise');
 
   const firstName = (profile?.full_name?.trim() || '').split(' ')[0] || '';
 
@@ -656,14 +658,14 @@ export default function EnterpriseDashboard() {
                 <View style={s.kickerRow}>
                   <View style={s.tierBadge}>
                     <Crown size={11} color={C.gold} strokeWidth={2} />
-                    <Text style={s.tierBadgeText}>ENTERPRISE</Text>
+                    <Text style={s.tierBadgeText}>{t('ENTERPRISE')}</Text>
                   </View>
                   <View style={s.commandPill}>
-                    <Text style={s.commandPillText}>COMMAND BRIDGE</Text>
+                    <Text style={s.commandPillText}>{t('COMMAND BRIDGE')}</Text>
                   </View>
                 </View>
                 <Text style={s.heroGreeting} numberOfLines={1}>
-                  {firstName ? `Welcome, ${firstName}` : 'Welcome'}
+                  {firstName ? `${t('Welcome')}, ${firstName}` : t('Welcome')}
                 </Text>
                 <Text style={s.heroSub} numberOfLines={1}>
                   {userLabel}
@@ -712,7 +714,7 @@ export default function EnterpriseDashboard() {
                     style={StyleSheet.absoluteFill}
                   />
                   <Plus size={14} color="#FFFFFF" strokeWidth={2.4} />
-                  <Text style={s.heroCtaText}>Post Job</Text>
+                  <Text style={s.heroCtaText}>{t('Post Job')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -725,8 +727,8 @@ export default function EnterpriseDashboard() {
               />
               <Text style={s.heroStatusText}>
                 {metrics.overdueCount > 0
-                  ? `${metrics.overdueCount} engagement${metrics.overdueCount === 1 ? '' : 's'} past SLA, review needed`
-                  : `All systems normal, ${metrics.inFlight.length} in flight`}
+                  ? `${metrics.overdueCount} ${metrics.overdueCount === 1 ? t('engagement past SLA, review needed') : t('engagements past SLA, review needed')}`
+                  : `${t('All systems normal')}, ${metrics.inFlight.length} ${t('in flight')}`}
               </Text>
             </View>
           </Animated.View>
@@ -738,11 +740,12 @@ export default function EnterpriseDashboard() {
                 <AlertTriangle size={16} color={C.warn} strokeWidth={2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.riskTitle}>SLA Watch</Text>
+                <Text style={s.riskTitle}>{t('SLA Watch')}</Text>
                 <Text style={s.riskSub}>
-                  {metrics.overdueCount} in-flight engagement
-                  {metrics.overdueCount === 1 ? '' : 's'} exceeded the scheduled
-                  completion window. Open Operations to triage.
+                  {metrics.overdueCount}{' '}
+                  {metrics.overdueCount === 1
+                    ? t('in-flight engagement exceeded the scheduled completion window. Open Operations to triage.')
+                    : t('in-flight engagements exceeded the scheduled completion window. Open Operations to triage.')}
                 </Text>
               </View>
               <Pressable
@@ -769,32 +772,32 @@ export default function EnterpriseDashboard() {
               entering={FadeInDown.delay(80)}
               icon={<Briefcase size={14} color={C.primary} />}
               tint={C.primary}
-              label="Active Engagements"
+              label={t('Active Engagements')}
               value={`${metrics.activeEngagements}`}
-              sub={`${metrics.inFlight.length} in flight`}
+              sub={`${metrics.inFlight.length} ${t('in flight')}`}
             />
             <KpiCard
               entering={FadeInDown.delay(140)}
               icon={<Wallet size={14} color={C.gold} />}
               tint={C.gold}
-              label="Quarter Spend"
+              label={t('Quarter Spend')}
               value={dollarsCompact(metrics.qtdSpendCents)}
-              sub={`YTD ${dollarsCompact(metrics.ytdSpendCents)}`}
+              sub={`${t('YTD')} ${dollarsCompact(metrics.ytdSpendCents)}`}
               isGold
             />
             <KpiCard
               entering={FadeInDown.delay(200)}
               icon={<FileSignature size={14} color={C.warn} />}
               tint={C.warn}
-              label="Pending Signatures"
+              label={t('Pending Signatures')}
               value={`${metrics.pendingMyClient.length}`}
-              sub={`${metrics.pendingInspector.length} on inspector`}
+              sub={`${metrics.pendingInspector.length} ${t('on inspector')}`}
             />
             <KpiCard
               entering={FadeInDown.delay(260)}
               icon={<Clock size={14} color={C.cyan} />}
               tint={C.cyan}
-              label="Time to Dispatch"
+              label={t('Time to Dispatch')}
               value={
                 metrics.medianTtdHours == null
                   ? '—'
@@ -802,40 +805,40 @@ export default function EnterpriseDashboard() {
                     ? `${metrics.medianTtdHours.toFixed(1)}h`
                     : `${(metrics.medianTtdHours / 24).toFixed(1)}d`
               }
-              sub="median, last 30d"
+              sub={t('median, last 30d')}
             />
           </View>
 
           {/* ── 4) COMPLIANCE & AUDIT RAIL ─────────────────────────────── */}
           <SectionHeader
             icon={<ShieldCheck size={14} color={C.gold} />}
-            title="Compliance & Audit"
-            kicker="ENTERPRISE GOVERNANCE"
+            title={t('Compliance & Audit')}
+            kicker={t('ENTERPRISE GOVERNANCE')}
             tint={C.gold}
           />
           <Animated.View entering={FadeInDown.delay(320)} style={s.govRail}>
             <GovChip
               icon={<ScrollText size={14} color={C.text} />}
-              label="Audit Log"
-              caption="Export"
+              label={t('Audit Log')}
+              caption={t('Export')}
               onPress={() => router.push('/(tabs)/finance' as any)}
             />
             <GovChip
               icon={<FileSignature size={14} color={C.text} />}
-              label="Master MSA"
-              caption="View"
+              label={t('Master MSA')}
+              caption={t('View')}
               onPress={() => router.push('/contracts' as any)}
             />
             <GovChip
               icon={<Lock size={14} color={C.text} />}
-              label="DPA"
-              caption="On file"
+              label={t('DPA')}
+              caption={t('On file')}
               onPress={() => router.push('/profile/legal' as any)}
             />
             <GovChip
               icon={<ShieldCheck size={14} color={C.text} />}
-              label="Insurance"
-              caption="Certs"
+              label={t('Insurance')}
+              caption={t('Certs')}
               onPress={() => router.push('/profile/legal' as any)}
             />
           </Animated.View>
@@ -843,8 +846,8 @@ export default function EnterpriseDashboard() {
           {/* ── 5) LIVE OPERATIONS ─────────────────────────────────────── */}
           <SectionHeader
             icon={<Activity size={14} color={C.cyan} />}
-            title="Live Operations"
-            kicker="REAL-TIME"
+            title={t('Live Operations')}
+            kicker={t('REAL-TIME')}
             tint={C.cyan}
             right={
               metrics.inFlight.length > 0 ? (
@@ -852,7 +855,7 @@ export default function EnterpriseDashboard() {
                   onPress={() => router.push('/(tabs)/jobs' as any)}
                   style={s.linkPill}
                 >
-                  <Text style={s.linkPillText}>View all</Text>
+                  <Text style={s.linkPillText}>{t('View all')}</Text>
                   <ChevronRight size={12} color={C.textSecondary} />
                 </Pressable>
               ) : null
@@ -861,8 +864,8 @@ export default function EnterpriseDashboard() {
           {metrics.inFlight.length === 0 ? (
             <EmptyState
               icon={<Globe2 size={20} color={C.primary} />}
-              title="No active operations"
-              sub="When inspectors begin on-site work, you'll see live status here."
+              title={t('No active operations')}
+              sub={t("When inspectors begin on-site work, you'll see live status here.")}
             />
           ) : (
             <ScrollView
@@ -884,15 +887,15 @@ export default function EnterpriseDashboard() {
           {/* ── 6) CONTRACTS PIPELINE ──────────────────────────────────── */}
           <SectionHeader
             icon={<FileSignature size={14} color={C.primary} />}
-            title="Contracts Pipeline"
-            kicker="V3 STATE MACHINE"
+            title={t('Contracts Pipeline')}
+            kicker={t('V3 STATE MACHINE')}
             tint={C.primary}
             right={
               <Pressable
                 onPress={() => router.push('/contracts' as any)}
                 style={s.linkPill}
               >
-                <Text style={s.linkPillText}>Hub</Text>
+                <Text style={s.linkPillText}>{t('Hub')}</Text>
                 <ChevronRight size={12} color={C.textSecondary} />
               </Pressable>
             }
@@ -922,8 +925,8 @@ export default function EnterpriseDashboard() {
           {/* ── 7) SPEND TRAJECTORY ────────────────────────────────────── */}
           <SectionHeader
             icon={<TrendingUp size={14} color={C.gold} />}
-            title="Spend Trajectory"
-            kicker="12-WEEK ROLLING"
+            title={t('Spend Trajectory')}
+            kicker={t('12-WEEK ROLLING')}
             tint={C.gold}
           />
           <Animated.View entering={FadeInDown.delay(420)} style={s.spendCard}>
@@ -935,7 +938,7 @@ export default function EnterpriseDashboard() {
             />
             <View style={s.spendTopRow}>
               <View>
-                <Text style={s.spendKicker}>QUARTER TO DATE</Text>
+                <Text style={s.spendKicker}>{t('QUARTER TO DATE')}</Text>
                 <Text style={s.spendValue}>
                   {dollars(metrics.qtdSpendCents)}
                 </Text>
@@ -943,45 +946,43 @@ export default function EnterpriseDashboard() {
               <View style={s.spendChip}>
                 <ArrowUpRight size={11} color={C.gold} />
                 <Text style={s.spendChipText}>
-                  YTD {dollarsCompact(metrics.ytdSpendCents)}
+                  {t('YTD')} {dollarsCompact(metrics.ytdSpendCents)}
                 </Text>
               </View>
             </View>
             <Sparkline values={metrics.sparkBuckets} tint={C.gold} height={42} />
             <Text style={s.spendCaption}>
-              Bar height reflects total committed engagement value per week.
-              GR2 blind pricing in effect, values shown are your client-side
-              price only.
+              {t('Bar height reflects total committed engagement value per week. GR2 blind pricing in effect, values shown are your client-side price only.')}
             </Text>
           </Animated.View>
 
           {/* ── 8) ENTERPRISE PRIVILEGES ───────────────────────────────── */}
           <SectionHeader
             icon={<Sparkles size={14} color={C.gold} />}
-            title="Enterprise Privileges"
-            kicker="VIP TIER"
+            title={t('Enterprise Privileges')}
+            kicker={t('VIP TIER')}
             tint={C.gold}
           />
           <View style={s.privilegeGrid}>
             <PrivilegeChip
               icon={<Zap size={13} color={C.gold} />}
-              label="Priority Dispatch"
-              caption="Bumped to top of moderation queue"
+              label={t('Priority Dispatch')}
+              caption={t('Bumped to top of moderation queue')}
             />
             <PrivilegeChip
               icon={<FileSignature size={13} color={C.gold} />}
-              label="Custom MSA"
-              caption="Your contract template"
+              label={t('Custom MSA')}
+              caption={t('Your contract template')}
             />
             <PrivilegeChip
               icon={<Phone size={13} color={C.gold} />}
-              label="24/7 Hotline"
-              caption="Operator-on-call"
+              label={t('24/7 Hotline')}
+              caption={t('Operator-on-call')}
             />
             <PrivilegeChip
               icon={<ShieldCheck size={13} color={C.gold} />}
-              label="Audit-ready"
-              caption="SOC 2 + DPA defaults"
+              label={t('Audit-ready')}
+              caption={t('SOC 2 + DPA defaults')}
             />
           </View>
 
@@ -997,17 +998,16 @@ export default function EnterpriseDashboard() {
               <Crown size={18} color={C.gold} strokeWidth={1.8} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.csmKicker}>YOUR CUSTOMER SUCCESS MANAGER</Text>
-              <Text style={s.csmName}>NEXPEC Enterprise Desk</Text>
+              <Text style={s.csmKicker}>{t('YOUR CUSTOMER SUCCESS MANAGER')}</Text>
+              <Text style={s.csmName}>{t('NEXPEC Enterprise Desk')}</Text>
               <Text style={s.csmSub}>
-                Direct line for procurement escalations, custom workflows, and
-                quarterly business reviews.
+                {t('Direct line for procurement escalations, custom workflows, and quarterly business reviews.')}
               </Text>
             </View>
             <Pressable
               onPress={() =>
                 Linking.openURL('mailto:enterprise@nexpecapp.com').catch(() =>
-                  Alert.alert('Cannot open', 'Email client unavailable.'),
+                  Alert.alert(t('Cannot open'), t('Email client unavailable.')),
                 )
               }
               style={({ pressed }) => [
@@ -1101,6 +1101,7 @@ const LiveOpCard: React.FC<{
   entering: any;
   onPress: () => void;
 }> = ({ job, entering, onPress }) => {
+  const { t } = useLanguage();
   const status = statusOf(job.status);
   return (
     <Animated.View entering={entering}>
@@ -1114,11 +1115,11 @@ const LiveOpCard: React.FC<{
         <View style={s.liveTopRow}>
           <LivePulse color={status.color} size={7} />
           <Text style={[s.liveStatus, { color: status.color }]} numberOfLines={1}>
-            {status.label}
+            {t(status.label)}
           </Text>
         </View>
         <Text style={s.liveTitle} numberOfLines={2}>
-          {job.title ?? 'Untitled engagement'}
+          {job.title ?? t('Untitled engagement')}
         </Text>
         {job.location ? (
           <View style={s.liveLocRow}>
@@ -1146,24 +1147,27 @@ const ContractPipelineStrip: React.FC<{
   pendingClient: number;
   pendingInspector: number;
   executed: number;
-}> = ({ pendingClient, pendingInspector, executed }) => (
-  <View style={s.pipelineRow}>
-    <PipelineDot
-      count={pendingClient}
-      label="Your sig"
-      color={C.warn}
-      urgent={pendingClient > 0}
-    />
-    <View style={s.pipelineLine} />
-    <PipelineDot
-      count={pendingInspector}
-      label="Inspector"
-      color={C.info}
-    />
-    <View style={s.pipelineLine} />
-    <PipelineDot count={executed} label="Executed" color={C.ok} />
-  </View>
-);
+}> = ({ pendingClient, pendingInspector, executed }) => {
+  const { t } = useLanguage();
+  return (
+    <View style={s.pipelineRow}>
+      <PipelineDot
+        count={pendingClient}
+        label={t('Your sig')}
+        color={C.warn}
+        urgent={pendingClient > 0}
+      />
+      <View style={s.pipelineLine} />
+      <PipelineDot
+        count={pendingInspector}
+        label={t('Inspector')}
+        color={C.info}
+      />
+      <View style={s.pipelineLine} />
+      <PipelineDot count={executed} label={t('Executed')} color={C.ok} />
+    </View>
+  );
+};
 
 const PipelineDot: React.FC<{
   count: number;
@@ -1190,6 +1194,7 @@ const ContractRowCard: React.FC<{
   entering: any;
   onPress: () => void;
 }> = ({ contract, jobTitle, entering, onPress }) => {
+  const { t } = useLanguage();
   const meta = CONTRACT_STATUS_META[contract.status] ?? {
     label: contract.status,
     color: C.textMuted,
@@ -1208,7 +1213,7 @@ const ContractRowCard: React.FC<{
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={s.contractTitle} numberOfLines={1}>
-            {jobTitle ?? 'Per-job agreement'}
+            {jobTitle ?? t('Per-job agreement')}
           </Text>
           <Text style={s.contractSub} numberOfLines={1}>
             {dollars(contract.client_price_cents)},{' '}
@@ -1225,7 +1230,7 @@ const ContractRowCard: React.FC<{
           ]}
         >
           <Text style={[s.contractStatusText, { color: meta.color }]}>
-            {meta.label}
+            {t(meta.label)}
           </Text>
         </View>
         <ChevronRight size={14} color={C.textMuted} />

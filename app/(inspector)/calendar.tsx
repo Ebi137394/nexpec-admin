@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { syncJobToCalendar } from '@/src/services/CalendarSync';
 
 const C = {
@@ -41,6 +42,7 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 export default function InspectorCalendarScreen() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [anchor, setAnchor] = useState(() => startOfMonth(new Date()));
@@ -55,7 +57,7 @@ export default function InspectorCalendarScreen() {
     setError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError('You must be signed in.'); return; }
+      if (!user) { setError(t('You must be signed in.')); return; }
       const days = gridDays(monthAnchor);
       const from = days[0]; const to = addDays(days[days.length - 1], 1);
       const { data, error: qErr } = await supabase
@@ -72,7 +74,7 @@ export default function InspectorCalendarScreen() {
       const evs: Evt[] = ((data ?? []) as Array<Record<string, unknown>>).map((r) => {
         const start = new Date(String(r.scheduled_date));
         return {
-          id: String(r.id), title: String(r.title ?? 'Untitled job'),
+          id: String(r.id), title: String(r.title ?? t('Untitled job')),
           status: String(r.status ?? 'unknown'), domain: (r.domain as string | null) ?? null,
           start, end: new Date(start.getTime() + DUR_MIN * 60000),
           location: (r.location as string | null) || (r.location_city as string | null) || null,
@@ -88,11 +90,11 @@ export default function InspectorCalendarScreen() {
       setEvents(evs);
     } catch (e: unknown) {
       console.warn('[calendar] load threw:', e);
-      setError((e as Error)?.message ?? 'Could not load the calendar.');
+      setError((e as Error)?.message ?? t('Could not load the calendar.'));
     } finally {
       setLoading(false); setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(anchor); }, [load, anchor]);
   const onRefresh = useCallback(() => { setRefreshing(true); void load(anchor); }, [load, anchor]);
@@ -114,17 +116,17 @@ export default function InspectorCalendarScreen() {
     try {
       await syncJobToCalendar({
         id: e.id, title: e.title,
-        clientName: e.domain ? domainLabel(e.domain) : 'NEXPEC inspection',
+        clientName: e.domain ? domainLabel(e.domain) : t('NEXPEC inspection'),
         location: e.location ?? '—',
         scheduledDate: e.start, estimatedDurationMinutes: DUR_MIN,
       });
     } finally { setSyncing(null); }
-  }, []);
+  }, [t]);
 
   if (loading) {
     return (
       <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor={C.bg} />
-        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>Loading calendar…</Text></View>
+        <View style={s.center}><ActivityIndicator size="large" color={C.primary} /><Text style={s.centerText}>{t('Loading calendar…')}</Text></View>
       </SafeAreaView>
     );
   }
@@ -137,7 +139,7 @@ export default function InspectorCalendarScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}><Ionicons name="arrow-back" size={22} color={C.text} /></TouchableOpacity>
-        <Text style={s.headerTitle}>Calendar</Text>
+        <Text style={s.headerTitle}>{t('Calendar')}</Text>
         <View style={{ width: 22 }} />
       </View>
 
@@ -151,7 +153,7 @@ export default function InspectorCalendarScreen() {
           <TouchableOpacity onPress={() => setAnchor(addMonths(anchor, -1))} hitSlop={10} style={s.navBtn}><Ionicons name="chevron-back" size={18} color={C.textSec} /></TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={s.monthTitle}>{fmtMonthYear(anchor)}</Text>
-            <TouchableOpacity onPress={() => { const t = new Date(); setAnchor(startOfMonth(t)); setSelected(startOfDay(t)); }}><Text style={s.todayLink}>Today</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => { const now = new Date(); setAnchor(startOfMonth(now)); setSelected(startOfDay(now)); }}><Text style={s.todayLink}>{t('Today')}</Text></TouchableOpacity>
           </View>
           <TouchableOpacity onPress={() => setAnchor(addMonths(anchor, 1))} hitSlop={10} style={s.navBtn}><Ionicons name="chevron-forward" size={18} color={C.textSec} /></TouchableOpacity>
         </Animated.View>
@@ -159,7 +161,7 @@ export default function InspectorCalendarScreen() {
         {error ? (<View style={s.errorBanner}><Ionicons name="alert-circle" size={16} color={C.red} /><Text style={s.errorText}>{error}</Text></View>) : null}
 
         {totalConflicts > 0 && (
-          <View style={s.conflictChip}><Ionicons name="warning-outline" size={13} color={C.amber} /><Text style={s.conflictChipText}>{totalConflicts} job{totalConflicts === 1 ? '' : 's'} with a scheduling overlap this month</Text></View>
+          <View style={s.conflictChip}><Ionicons name="warning-outline" size={13} color={C.amber} /><Text style={s.conflictChipText}>{totalConflicts} {totalConflicts === 1 ? t('job with a scheduling overlap this month') : t('jobs with a scheduling overlap this month')}</Text></View>
         )}
 
         {/* Grid */}
@@ -187,11 +189,11 @@ export default function InspectorCalendarScreen() {
         {/* Agenda for selected day */}
         <View style={s.agendaHead}>
           <Text style={s.agendaTitle}>{fmtFullDate(selected)}</Text>
-          <Text style={s.agendaCount}>{dayEvents.length} job{dayEvents.length === 1 ? '' : 's'}</Text>
+          <Text style={s.agendaCount}>{dayEvents.length} {dayEvents.length === 1 ? t('job') : t('jobs')}</Text>
         </View>
 
         {dayEvents.length === 0 ? (
-          <View style={s.emptyState}><Ionicons name="calendar-clear-outline" size={28} color={C.textMute} /><Text style={s.emptyText}>No scheduled jobs on this day.</Text></View>
+          <View style={s.emptyState}><Ionicons name="calendar-clear-outline" size={28} color={C.textMute} /><Text style={s.emptyText}>{t('No scheduled jobs on this day.')}</Text></View>
         ) : (
           <View style={{ gap: 10 }}>
             {dayEvents.map((e) => {
@@ -210,7 +212,7 @@ export default function InspectorCalendarScreen() {
                     </View>
                     {e.location && <View style={s.evtMeta}><Ionicons name="location-outline" size={11} color={C.textMute} /><Text style={s.evtMetaText} numberOfLines={1}>{e.location}</Text></View>}
                     {e.domain && <View style={s.evtMeta}><Ionicons name="pricetag-outline" size={11} color={C.textMute} /><Text style={s.evtMetaText}>{domainLabel(e.domain)}</Text></View>}
-                    {e.conflicts > 0 && <View style={s.evtMeta}><Ionicons name="warning-outline" size={11} color={C.amber} /><Text style={[s.evtMetaText, { color: C.amber }]}>{e.conflicts} overlap{e.conflicts === 1 ? '' : 's'}</Text></View>}
+                    {e.conflicts > 0 && <View style={s.evtMeta}><Ionicons name="warning-outline" size={11} color={C.amber} /><Text style={[s.evtMetaText, { color: C.amber }]}>{e.conflicts} {e.conflicts === 1 ? t('overlap') : t('overlaps')}</Text></View>}
                   </TouchableOpacity>
                   <TouchableOpacity style={s.calBtn} onPress={() => addToCalendar(e)} disabled={syncing === e.id} hitSlop={6}>
                     {syncing === e.id ? <ActivityIndicator size="small" color={C.primary} /> : <Ionicons name="calendar-outline" size={18} color={C.primary} />}
@@ -220,8 +222,6 @@ export default function InspectorCalendarScreen() {
             })}
           </View>
         )}
-
-        <Text style={s.footnote}>Source, jobs assigned to you (contractor_id), scheduled_date, RLS-gated, tap the calendar icon to add to your device.</Text>
       </ScrollView>
     </SafeAreaView>
   );

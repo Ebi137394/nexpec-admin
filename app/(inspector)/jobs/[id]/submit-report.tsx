@@ -13,6 +13,7 @@ import * as Sharing from 'expo-sharing'; // ✅ Required for opening downloaded 
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 // ★ Phase 3 / Task 2 — offline-first outbox.
 //   The report row + evidence photo go through enqueue* helpers so
 //   the submission survives network drops mid-flight. Document upload
@@ -34,6 +35,7 @@ const COLORS = {
 };
 
 export default function SubmitReportScreen() {
+  const { t, isRTL, language } = useLanguage();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const router = useRouter();
   const { user } = useAuth();
@@ -79,10 +81,10 @@ export default function SubmitReportScreen() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri);
       } else {
-        Alert.alert('Saved', 'File saved to: ' + uri);
+        Alert.alert(t('Saved'), t('File saved to:') + ' ' + uri);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to download template');
+      Alert.alert(t('Error'), t('Failed to download template'));
     } finally {
       setDownloading(false);
     }
@@ -99,7 +101,7 @@ export default function SubmitReportScreen() {
       if (result.assets && result.assets.length > 0) {
         // Limit file size to 100MB to be safe
         if (result.assets[0].size && result.assets[0].size > 100 * 1024 * 1024) {
-          Alert.alert('File too large', 'Please upload a file smaller than 100MB.');
+          Alert.alert(t('File too large'), t('Please upload a file smaller than 100MB.'));
           return;
         }
         setDocument(result.assets[0]);
@@ -157,12 +159,12 @@ export default function SubmitReportScreen() {
   // ── Submit handler (updated with signature) ───────────────
   const handleSubmit = async () => {
     if (!notes.trim()) {
-      Alert.alert('Validation Error', 'Notes cannot be empty');
+      Alert.alert(t('Validation Error'), t('Notes cannot be empty'));
       return;
     }
 
     if (!signature) {
-      Alert.alert('Signature Required', 'Please sign the report before submitting.');
+      Alert.alert(t('Signature Required'), t('Please sign the report before submitting.'));
       return;
     }
 
@@ -227,15 +229,12 @@ export default function SubmitReportScreen() {
       //    submitting a report does not change jobs.status; the report
       //    row's existence is the "client review pending" signal and
       //    payment success drives final completion.
-      Alert.alert('Success', 'Report submitted successfully!', [
-        { text: 'OK', onPress: () => router.replace('/my-jobs') }
+      Alert.alert(t('Success'), t('Report submitted successfully!'), [
+        { text: t('OK'), onPress: () => router.replace('/my-jobs') }
       ]);
     } catch (err: any) {
-      const errorMessage = err.message || 'Unknown error occurred';
-      Alert.alert(
-        'Submission Failed',
-        `Message: ${errorMessage}\n\nEnsure the 'signature' column (TEXT) exists on the reports table.`
-      );
+      const errorMessage = err.message || t('Unknown error occurred');
+      Alert.alert(t('Submission Failed'), errorMessage);
       console.error('Supabase Insert Error:', err);
     } finally {
       setLoading(false);
@@ -247,7 +246,7 @@ export default function SubmitReportScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}><Ionicons name="chevron-back" size={24} color="#FFF" /></TouchableOpacity>
-          <Text style={styles.headerTitle}>Submit Report</Text>
+          <Text style={styles.headerTitle}>{t('Submit Report')}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
@@ -259,15 +258,15 @@ export default function SubmitReportScreen() {
                 {downloading ? <ActivityIndicator color="#FFF" /> : <Ionicons name="cloud-download-outline" size={24} color="#FFF" />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Client Template Available</Text>
-                <Text style={styles.cardSub}>Download the required Word format</Text>
+                <Text style={styles.cardTitle}>{t('Client Template Available')}</Text>
+                <Text style={styles.cardSub}>{t('Download the required Word format')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
 
           {/* ✅ SECTION B: UPLOAD COMPLETED DOC */}
-          <Text style={styles.sectionLabel}>1. Upload Completed Report (Word/PDF)</Text>
+          <Text style={styles.sectionLabel}>{t('1. Upload Completed Report (Word/PDF)')}</Text>
           <TouchableOpacity style={styles.uploadBox} onPress={pickDocument}>
             {document ? (
               <View style={styles.filePreview}>
@@ -278,27 +277,27 @@ export default function SubmitReportScreen() {
             ) : (
               <>
                 <Ionicons name="cloud-upload-outline" size={32} color={COLORS.textSecondary} />
-                <Text style={styles.uploadText}>Tap to upload .docx or .pdf</Text>
+                <Text style={styles.uploadText}>{t('Tap to upload .docx or .pdf')}</Text>
               </>
             )}
           </TouchableOpacity>
 
           {/* SECTION C: EVIDENCE PHOTO */}
-          <Text style={styles.sectionLabel}>2. Evidence Photo (Optional)</Text>
+          <Text style={styles.sectionLabel}>{t('2. Evidence Photo (Optional)')}</Text>
           <TouchableOpacity style={styles.photoBox} onPress={pickImage}>
             {image ? <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} /> : (
               <View style={{ alignItems: 'center' }}>
                 <Ionicons name="camera-outline" size={32} color={COLORS.textSecondary} />
-                <Text style={styles.uploadText}>Tap to take photo</Text>
+                <Text style={styles.uploadText}>{t('Tap to take photo')}</Text>
               </View>
             )}
           </TouchableOpacity>
 
           {/* NOTES */}
-          <Text style={styles.sectionLabel}>3. Additional Notes</Text>
+          <Text style={styles.sectionLabel}>{t('3. Additional Notes')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="Any extra comments..."
+            placeholder={t('Any extra comments...')}
             placeholderTextColor={COLORS.textSecondary}
             multiline
             value={notes}
@@ -306,7 +305,7 @@ export default function SubmitReportScreen() {
           />
 
           {/* ── NEW: Inspector Signature ────────────────────── */}
-          <Text style={styles.sectionLabel}>4. Inspector Signature</Text>
+          <Text style={styles.sectionLabel}>{t('4. Inspector Signature')}</Text>
           
           {/* Signature Canvas Container */}
           <View style={styles.signatureContainer}>
@@ -335,7 +334,7 @@ export default function SubmitReportScreen() {
                 <View style={styles.signatureHintOverlay} pointerEvents="none">
                   <Ionicons name="pencil-outline" size={24} color="#CBD5E1" />
                   <Text style={styles.signatureHintText}>
-                    Sign here with your finger
+                    {t('Sign here with your finger')}
                   </Text>
                 </View>
               )}
@@ -348,14 +347,14 @@ export default function SubmitReportScreen() {
               activeOpacity={0.7}
             >
               <Ionicons name="trash-outline" size={18} color="#EF4444" />
-              <Text style={styles.clearSignatureText}>Clear</Text>
+              <Text style={styles.clearSignatureText}>{t('Clear')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Signature Preview (after signing) */}
           {signature && (
             <View style={styles.signaturePreviewContainer}>
-              <Text style={styles.signaturePreviewLabel}>Preview</Text>
+              <Text style={styles.signaturePreviewLabel}>{t('Preview')}</Text>
               <View style={styles.signaturePreviewBox}>
                 <Image
                   source={{ uri: signature }}
@@ -375,16 +374,16 @@ export default function SubmitReportScreen() {
             onPress={handleSubmit}
             disabled={loading || !isFormValid}
           >
-            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>Submit Report</Text>}
+            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>{t('Submit Report')}</Text>}
           </TouchableOpacity>
 
           {/* Validation hint */}
           {!isFormValid && (
             <Text style={styles.validationHint}>
               {!notes.trim()
-                ? '⚠ Notes are required'
+                ? t('⚠ Notes are required')
                 : !signature
-                ? '⚠ Signature is required to submit'
+                ? t('⚠ Signature is required to submit')
                 : ''}
             </Text>
           )}

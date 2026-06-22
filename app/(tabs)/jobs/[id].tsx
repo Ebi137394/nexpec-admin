@@ -17,6 +17,7 @@ import { jobFieldsForRole } from '@/lib/jobsProjection';
 //   diverged and still leaked real name/photo/CV).
 import { nxHandle } from '@/src/core/utils/handle';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const COLORS = {
   background: '#020420', card: '#0A0D2C', cardBorder: '#1A1D3C',
@@ -59,6 +60,7 @@ const resolveApplicantId = (app: any): string | null => {
 };
 
 export default function JobDetailScreen() {
+  const { t, isRTL, language } = useLanguage();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [job, setJob] = useState<any>(null);
@@ -233,8 +235,8 @@ export default function JobDetailScreen() {
     const trimmed = (clientComment ?? '').trim();
     if (!trimmed) {
       Alert.alert(
-        'Comment required',
-        'Please tell the admin why you chose this inspector.'
+        t('Comment required'),
+        t('Please tell the admin why you chose this inspector.')
       );
       return;
     }
@@ -263,12 +265,12 @@ export default function JobDetailScreen() {
         throw error;
       }
       Alert.alert(
-        'Sent to Admin! 🎉',
-        'Your selection and comment have been sent to the admin for final Confirm & Dispatch.'
+        t('Sent to Admin! 🎉'),
+        t('Your selection and comment have been sent to the admin for final Confirm & Dispatch.')
       );
       fetchJobDetails();
     } catch (error: any) {
-      Alert.alert('Error', error?.message ?? 'Failed to notify admin.');
+      Alert.alert(t('Error'), error?.message ?? t('Failed to notify admin.'));
     } finally {
       setHiringId(null);
       setProposalToApprove(null);
@@ -276,15 +278,15 @@ export default function JobDetailScreen() {
   };
 
   const handleReject = (proposalId: string) => {
-    Alert.alert('Decline Proposal', 'Are you sure you want to decline this proposal?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Decline', style: 'destructive', onPress: async () => {
+    Alert.alert(t('Decline Proposal'), t('Are you sure you want to decline this proposal?'), [
+      { text: t('Cancel'), style: 'cancel' },
+      { text: t('Decline'), style: 'destructive', onPress: async () => {
           try {
             setHiringId(proposalId);
             const { error } = await supabase.from('applications').update({ status: 'rejected' }).eq('id', proposalId);
             if (error) throw error;
             fetchJobDetails();
-          } catch (error) { Alert.alert('Error', 'Failed to reject'); }
+          } catch (error) { Alert.alert(t('Error'), t('Failed to reject')); }
           finally { setHiringId(null); }
         }
       }
@@ -293,15 +295,15 @@ export default function JobDetailScreen() {
 
   const openCV = async (url: string) => {
     if (!url) {
-      Alert.alert('No CV', 'This inspector has not uploaded a CV yet.');
+      Alert.alert(t('No CV'), t('This inspector has not uploaded a CV yet.'));
       return;
     }
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) await Linking.openURL(url);
-      else Alert.alert('Error', 'Cannot open this link format.');
+      else Alert.alert(t('Error'), t('Cannot open this link format.'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to open document.');
+      Alert.alert(t('Error'), t('Failed to open document.'));
     }
   };
 
@@ -313,12 +315,12 @@ export default function JobDetailScreen() {
     
     if (action === 'approve') {
       Alert.alert(
-        "Approve Report",
-        "Are you sure you want to approve this inspection report? This will finalize the job.",
+        t("Approve Report"),
+        t("Are you sure you want to approve this inspection report? This will finalize the job."),
         [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Approve", 
+          { text: t("Cancel"), style: "cancel" },
+          {
+            text: t("Approve"),
             onPress: async () => {
               setIsSubmitting(true);
               try {
@@ -340,10 +342,10 @@ export default function JobDetailScreen() {
 
                 // 3. Update local state
                 setReportData((prev: any) => ({ ...prev, is_client_approved: true }));
-                Alert.alert("Success!", "Report approved. Job has been finalized.");
+                Alert.alert(t("Success!"), t("Report approved. Job has been finalized."));
               } catch (err: any) {
                 console.error("Save Error:", err);
-                Alert.alert("Failed to Save", err.message || "Could not update the database.");
+                Alert.alert(t("Failed to Save"), err.message || t("Could not update the database."));
               } finally {
                 setIsSubmitting(false);
               }
@@ -369,9 +371,9 @@ export default function JobDetailScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
           <AlertTriangle size={48} color={COLORS.error} />
-          <Text style={styles.errorText}>Job not found</Text>
+          <Text style={styles.errorText}>{t('Job not found')}</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+            <Text style={styles.backButtonText}>{t('Go Back')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -401,7 +403,7 @@ export default function JobDetailScreen() {
           headerShown: true,
           headerStyle: { backgroundColor: COLORS.background },
           headerTintColor: COLORS.text,
-          headerTitle: 'Job Details',
+          headerTitle: t('Job Details'),
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ padding: 8 }}>
               <ArrowLeft size={24} color={COLORS.text} />
@@ -440,7 +442,7 @@ export default function JobDetailScreen() {
                 <DollarSign size={18} color={COLORS.success} />
                 <Text style={[styles.detailText, { color: COLORS.success, fontWeight: '600' }]}>
                   {/* ★ Task 4: integer cents → dollars for display */}
-                  ${(((job as any).client_price_cents || (job as any).price_cents || (job as any).budget_cents || 0) / 100).toLocaleString()} Budget
+                  ${(((job as any).client_price_cents || (job as any).price_cents || (job as any).budget_cents || 0) / 100).toLocaleString()} {t('Budget')}
                 </Text>
               </View>
             </View>
@@ -450,7 +452,7 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <CheckCircle size={22} color={COLORS.success} />
-                <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
+                <Text style={styles.sectionHeaderTitle}>{t('Hired Inspector')}</Text>
               </View>
               {/* ANTI-POACHING: tappable card → anonymized Trust Card; pseudonymous
                   sigil + NX handle only, never the real photo/name pre-reveal. */}
@@ -467,7 +469,7 @@ export default function JobDetailScreen() {
                 </View>
                 <View style={styles.hiredInfo}>
                   <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant?.id)}</Text>
-                  <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.professional_title || 'Inspector'}</Text>
+                  <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.professional_title || t('Inspector')}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
                       <Star size={14} color={COLORS.warning} />
@@ -475,7 +477,7 @@ export default function JobDetailScreen() {
                     </View>
                     <View style={styles.stat}>
                       <FileCheck size={14} color={COLORS.textSecondary} />
-                      <Text style={styles.statText}>{acceptedProposal.applicant?.completed_jobs_count || 0} Jobs</Text>
+                      <Text style={styles.statText}>{acceptedProposal.applicant?.completed_jobs_count || 0} {t('Jobs')}</Text>
                     </View>
                   </View>
                 </View>
@@ -485,7 +487,7 @@ export default function JobDetailScreen() {
               {(acceptedProposal.admin_feedback || acceptedProposal.admin_attachment) && (
                 <View style={{ backgroundColor: '#020420', padding: 16, borderRadius: 12, marginTop: 12, borderWidth: 1, borderColor: COLORS.cardBorder }}>
                   <Text style={{ color: COLORS.primary, fontWeight: '700', marginBottom: 8, fontSize: 13, textTransform: 'uppercase' }}>
-                    Message from NEXPEC Admin
+                    {t('Message from NEXPEC Admin')}
                   </Text>
                   
                   {acceptedProposal.admin_feedback ? (
@@ -500,7 +502,7 @@ export default function JobDetailScreen() {
                       onPress={() => openCV(acceptedProposal.admin_attachment as string)}
                     >
                       <FileText size={16} color={COLORS.primary} style={{ marginRight: 8 }} />
-                      <Text style={{ color: COLORS.primary, fontWeight: '600' }}>View Attached Document</Text>
+                      <Text style={{ color: COLORS.primary, fontWeight: '600' }}>{t('View Attached Document')}</Text>
                     </TouchableOpacity>
                   ) : null}
                 </View>
@@ -515,7 +517,7 @@ export default function JobDetailScreen() {
             {reportData && (
               <View style={{ backgroundColor: reportData.is_published ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', borderColor: reportData.is_published ? '#10B981' : '#F59E0B', borderWidth: 1, padding: 16, borderRadius: 12, marginBottom: 16 }}>
                 <Text style={{ color: reportData.is_published ? '#10B981' : '#F59E0B', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>
-                  {reportData.is_published ? 'Final Inspection Report Ready' : 'Report Pending Admin Review'}
+                  {reportData.is_published ? t('Final Inspection Report Ready') : t('Report Pending Admin Review')}
                 </Text>
                 {reportData.is_published && (
                   /* Symptom 3 fix — open the dedicated full report viewer (multi-photo,
@@ -523,21 +525,21 @@ export default function JobDetailScreen() {
                      matching /(client)/jobs/[id] + web, instead of the minimal
                      single-photo in-screen modal. */
                   <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${id}/review-report` as any)}>
-                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Full Report</Text>
+                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{t('View Full Report')}</Text>
                   </TouchableOpacity>
                 )}
 
                 {/* CLIENT DECISION BOX */}
                 {reportData.is_published && !reportData.is_client_approved && (
                   <View style={{ marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(16, 185, 129, 0.2)' }}>
-                    <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '600', marginBottom: 12 }}>Does this report meet your requirements?</Text>
+                    <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '600', marginBottom: 12 }}>{t('Does this report meet your requirements?')}</Text>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                       <TouchableOpacity 
                         style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 8, alignItems: 'center', opacity: isSubmitting ? 0.5 : 1 }}
                         onPress={() => handleReportAction('approve')}
                         disabled={isSubmitting}
                       >
-                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{isSubmitting ? 'Saving...' : 'Approve & Close'}</Text>
+                        <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{isSubmitting ? t('Saving...') : t('Approve & Close')}</Text>
                       </TouchableOpacity>
                       
                       <TouchableOpacity 
@@ -545,7 +547,7 @@ export default function JobDetailScreen() {
                         onPress={() => handleReportAction('revision')}
                         disabled={isSubmitting}
                       >
-                        <Text style={{ color: '#EF4444', fontWeight: 'bold' }}>Request Revision</Text>
+                        <Text style={{ color: '#EF4444', fontWeight: 'bold' }}>{t('Request Revision')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -555,7 +557,7 @@ export default function JobDetailScreen() {
                 {reportData.is_client_approved && (
                   <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 12, borderRadius: 8 }}>
                     <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                    <Text style={{ color: '#10B981', marginLeft: 8, fontWeight: 'bold' }}>You approved this report. Job Finalized.</Text>
+                    <Text style={{ color: '#10B981', marginLeft: 8, fontWeight: 'bold' }}>{t('You approved this report. Job Finalized.')}</Text>
                   </View>
                 )}
               </View>
@@ -569,8 +571,8 @@ export default function JobDetailScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <MessageSquare size={24} color="#7C3AED" style={{ marginRight: 12 }} />
                 <View>
-                  <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' }}>Chat with Admin</Text>
-                  <Text style={{ color: '#94A3B8', fontSize: 12 }}>External support conversation</Text>
+                  <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' }}>{t('Chat with Admin')}</Text>
+                  <Text style={{ color: '#94A3B8', fontSize: 12 }}>{t('External support conversation')}</Text>
                 </View>
               </View>
               <ArrowLeft size={20} color="#7C3AED" style={{ transform: [{ rotate: '180deg' }] }} />
@@ -579,7 +581,7 @@ export default function JobDetailScreen() {
           {/* ----------------------------------- */}
 
           <View style={styles.section}>
-            <Text style={styles.sectionHeaderTitle}>Proposals ({pendingProposals.length})</Text>
+            <Text style={styles.sectionHeaderTitle}>{t('Proposals')} ({pendingProposals.length})</Text>
             {pendingProposals.map((proposal) => (
               <View key={proposal.id} style={styles.proposalCard}>
                 <View style={styles.proposalHeader}>
@@ -589,7 +591,7 @@ export default function JobDetailScreen() {
                   </View>
                   <View style={styles.proposalInfo}>
                     <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
-                    <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || 'Inspector'}</Text>
+                    <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || t('Inspector')}</Text>
                   </View>
                 </View>
 
@@ -599,7 +601,7 @@ export default function JobDetailScreen() {
 
                 {proposal.cover_letter ? (
                   <View style={styles.coverLetter}>
-                    <Text style={styles.coverLetterLabel}>Cover Letter</Text>
+                    <Text style={styles.coverLetterLabel}>{t('Cover Letter')}</Text>
                     <Text style={styles.coverLetterText} numberOfLines={3}>{proposal.cover_letter}</Text>
                   </View>
                 ) : null}
@@ -615,7 +617,7 @@ export default function JobDetailScreen() {
                     <View style={styles.pendingAdminBanner}>
                       <Clock size={16} color={COLORS.warning} />
                       <Text style={styles.pendingAdminText}>
-                        Sent to Admin, Awaiting Confirm & Dispatch
+                        {t('Sent to Admin, Awaiting Confirm & Dispatch')}
                       </Text>
                     </View>
 
@@ -644,7 +646,7 @@ export default function JobDetailScreen() {
                             letterSpacing: 0.4,
                           }}
                         >
-                          Message from NEXPEC Admin
+                          {t('Message from NEXPEC Admin')}
                         </Text>
                         {proposal.admin_feedback ? (
                           <Text
@@ -673,7 +675,7 @@ export default function JobDetailScreen() {
                           >
                             <FileText size={14} color="#F59E0B" style={{ marginRight: 6 }} />
                             <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 13 }}>
-                              View Attached Document
+                              {t('View Attached Document')}
                             </Text>
                           </TouchableOpacity>
                         ) : null}
@@ -684,26 +686,26 @@ export default function JobDetailScreen() {
                   <View style={[styles.pendingAdminBanner, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
                     <Clock size={16} color="#10B981" />
                     <Text style={[styles.pendingAdminText, { color: '#10B981' }]}>
-                      Hired, Inspector Dispatched
+                      {t('Hired, Inspector Dispatched')}
                     </Text>
                   </View>
                 ) : proposal.status === 'rejected' || proposal.status === 'withdrawn' ? (
                   <View style={[styles.pendingAdminBanner, { backgroundColor: 'rgba(100, 116, 139, 0.12)' }]}>
                     <Clock size={16} color={COLORS.textSecondary} />
                     <Text style={[styles.pendingAdminText, { color: COLORS.textSecondary }]}>
-                      {proposal.status === 'rejected' ? 'Declined' : 'Withdrawn'}
+                      {proposal.status === 'rejected' ? t('Declined') : t('Withdrawn')}
                     </Text>
                   </View>
                 ) : (
                   <View style={styles.proposalActions}>
                     <TouchableOpacity style={styles.rejectButton} onPress={() => handleReject(proposal.id)} disabled={hiringId === proposal.id}>
-                      <Text style={styles.rejectButtonText}>Decline</Text>
+                      <Text style={styles.rejectButtonText}>{t('Decline')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.hireButton} onPress={() => openApprovalModal(proposal)} disabled={hiringId === proposal.id}>
                       {hiringId === proposal.id ? (
                         <ActivityIndicator color="#FFF" />
                       ) : (
-                        <Text style={styles.hireButtonText}>Select & Notify Admin</Text>
+                        <Text style={styles.hireButtonText}>{t('Select & Notify Admin')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -712,7 +714,7 @@ export default function JobDetailScreen() {
             ))}
             {pendingProposals.length === 0 && !acceptedProposal && (
               <View style={styles.emptyProposals}>
-                <Text style={styles.emptySubtitle}>No pending proposals yet.</Text>
+                <Text style={styles.emptySubtitle}>{t('No pending proposals yet.')}</Text>
               </View>
             )}
           </View>
@@ -725,9 +727,9 @@ export default function JobDetailScreen() {
                 <Ionicons name="shield-checkmark" size={18} color="#7C3AED" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={clientAuditStyles.title}>Activity & Audit Trail</Text>
+                <Text style={clientAuditStyles.title}>{t('Activity & Audit Trail')}</Text>
                 <Text style={clientAuditStyles.sub}>
-                  Every status change, pricing update, and hiring decision on this job
+                  {t('Every status change, pricing update, and hiring decision on this job')}
                 </Text>
               </View>
             </View>
@@ -744,11 +746,11 @@ export default function JobDetailScreen() {
         <Modal visible={commentModalVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.commentModalCard}>
-              <Text style={styles.modalTitle}>Notify Admin</Text>
-              <Text style={styles.modalSubtitle}>Leave a comment or specific requirements for this inspector. The NEXPEC admin will review this and finalize the hire.</Text>
+              <Text style={styles.modalTitle}>{t('Notify Admin')}</Text>
+              <Text style={styles.modalSubtitle}>{t('Leave a comment or specific requirements for this inspector. The NEXPEC admin will review this and finalize the hire.')}</Text>
               <TextInput
                 style={styles.commentInput}
-                placeholder="e.g. Please ask them to bring a specific tool..."
+                placeholder={t('e.g. Please ask them to bring a specific tool...')}
                 placeholderTextColor="#64748B"
                 multiline
                 value={clientComment}
@@ -756,10 +758,10 @@ export default function JobDetailScreen() {
               />
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setCommentModalVisible(false)}>
-                  <Text style={styles.modalCancelText}>Cancel</Text>
+                  <Text style={styles.modalCancelText}>{t('Cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalSubmitBtn} onPress={submitToAdmin}>
-                  <Text style={styles.modalSubmitText}>Send to Admin</Text>
+                  <Text style={styles.modalSubmitText}>{t('Send to Admin')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

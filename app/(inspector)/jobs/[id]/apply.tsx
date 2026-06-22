@@ -26,6 +26,7 @@ import { useJobs } from '@/hooks/useJobs';
 import { useAuth } from '@/src/contexts/AuthContext';
 import type { Job } from '@/types/core';
 import { LoadingOverlay, SuccessAnimation, GradientCard } from '@/components';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { supabase } from '@/lib/supabase'; // 🔴 اضافه شد: ارتباط مستقیم با دیتابیس
 import { toCents } from '@/lib/money';
 import { enqueueApplicationSubmit } from '@/lib/offline';
@@ -56,6 +57,7 @@ interface FormErrors {
 // ============================================================================
 
 export default function SubmitProposalScreen() {
+  const { t, isRTL, language } = useLanguage();
   const { id } = useLocalSearchParams<{ id: string }>();
   const jobIdString = id ? (Array.isArray(id) ? id[0] : id) : null;
   const { user } = useAuth();
@@ -92,9 +94,9 @@ export default function SubmitProposalScreen() {
       // Check if already applied
       if (hasAppliedToJob(jobIdString)) {
         Alert.alert(
-          'Already Applied',
-          'You have already applied to this job.',
-          [{ text: 'OK', onPress: () => router.back() }]
+          t('Already Applied'),
+          t('You have already applied to this job.'),
+          [{ text: t('OK'), onPress: () => router.back() }]
         );
       }
     };
@@ -118,11 +120,11 @@ export default function SubmitProposalScreen() {
     // see consistent message length limits regardless of where the bid
     // was submitted from.
     if (!coverLetter.trim()) {
-      newErrors.coverLetter = 'Please write a cover letter';
+      newErrors.coverLetter = t('Please write a cover letter');
     } else if (coverLetter.trim().length < 50) {
-      newErrors.coverLetter = 'Cover letter must be at least 50 characters';
+      newErrors.coverLetter = t('Cover letter must be at least 50 characters');
     } else if (coverLetter.trim().length > 4000) {
-      newErrors.coverLetter = 'Cover letter must be less than 4000 characters';
+      newErrors.coverLetter = t('Cover letter must be less than 4000 characters');
     }
 
     setErrors(newErrors);
@@ -131,7 +133,7 @@ export default function SubmitProposalScreen() {
 
   const handleSubmit = async () => {
     if (!coverLetter.trim()) {
-      Alert.alert('Error', 'Please write a cover note.');
+      Alert.alert(t('Error'), t('Please write a cover note.'));
       return;
     }
 
@@ -165,9 +167,9 @@ export default function SubmitProposalScreen() {
       // موفقیت واقعی! 🎉
       console.log('Application enqueued for submission');
       Alert.alert(
-        'Success! 🎉',
-        'Your application has been submitted successfully.',
-        [{ text: 'OK', onPress: () => router.back() }]
+        t('Success! 🎉'),
+        t('Your application has been submitted successfully.'),
+        [{ text: t('OK'), onPress: () => router.back() }]
       );
 
     } catch (error: any) {
@@ -175,12 +177,12 @@ export default function SubmitProposalScreen() {
       
       // اگر خطای تکراری بودن بده:
       if (error?.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('already applied')) {
-        Alert.alert('Already Applied', 'You have already applied to this job.', [
-          { text: 'OK', onPress: () => router.back() },
+        Alert.alert(t('Already Applied'), t('You have already applied to this job.'), [
+          { text: t('OK'), onPress: () => router.back() },
         ]);
       } else {
         // خطاهای امنیتی (RLS) رو اینجا روی صفحه نشون میده
-        Alert.alert('Submission Failed', `Database rejected the application: ${error.message}`);
+        Alert.alert(t('Submission Failed'), `${t('Database rejected the application:')} ${error.message}`);
       }
     } finally {
       setIsSubmitting(false);
@@ -203,7 +205,7 @@ export default function SubmitProposalScreen() {
       <LinearGradient colors={['#0D1B2A', '#1B2838']} style={styles.container}>
         <SafeAreaView style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading job details...</Text>
+          <Text style={styles.loadingText}>{t('Loading job details...')}</Text>
         </SafeAreaView>
       </LinearGradient>
     );
@@ -214,15 +216,15 @@ export default function SubmitProposalScreen() {
       <LinearGradient colors={['#0D1B2A', '#1B2838']} style={styles.container}>
         <SafeAreaView style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color="#EF4444" />
-          <Text style={styles.errorTitle}>Job Not Found</Text>
+          <Text style={styles.errorTitle}>{t('Job Not Found')}</Text>
           <Text style={styles.errorMessage}>
-            This job may have been removed or is no longer available.
+            {t('This job may have been removed or is no longer available.')}
           </Text>
           <Pressable
             style={styles.backButtonAlt}
             onPress={() => router.back()}
           >
-            <Text style={styles.backButtonAltText}>Go Back</Text>
+            <Text style={styles.backButtonAltText}>{t('Go Back')}</Text>
           </Pressable>
         </SafeAreaView>
       </LinearGradient>
@@ -241,7 +243,7 @@ export default function SubmitProposalScreen() {
             <Pressable style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </Pressable>
-            <Text style={styles.headerTitle}>Apply for Job</Text>
+            <Text style={styles.headerTitle}>{t('Apply for Job')}</Text>
             <View style={{ width: 44 }} />
           </View>
 
@@ -264,9 +266,9 @@ export default function SubmitProposalScreen() {
                   </View>
                 </View>
                 <View style={styles.budgetRow}>
-                  <Text style={styles.budgetLabel}>Fixed Payout Offered:</Text>
+                  <Text style={styles.budgetLabel}>{t('Fixed Payout Offered:')}</Text>
                   <Text style={styles.budgetValue}>
-                    {(job as any).payout_amount_cents && (job as any).payout_amount_cents > 0 ? formatCurrency((job as any).payout_amount_cents) : 'TBD'}
+                    {(job as any).payout_amount_cents && (job as any).payout_amount_cents > 0 ? formatCurrency((job as any).payout_amount_cents) : t('TBD')}
                   </Text>
                 </View>
               </GradientCard>
@@ -279,7 +281,7 @@ export default function SubmitProposalScreen() {
             >
               <Ionicons name="information-circle" size={20} color="#3B82F6" />
               <Text style={styles.infoBannerText}>
-                This is a fixed-price contract. By applying, you agree to complete the inspection for {(job as any).payout_amount_cents && (job as any).payout_amount_cents > 0 ? formatCurrency((job as any).payout_amount_cents) : 'the agreed payout (TBD)'}.
+                {t('This is a fixed-price contract. By applying, you agree to complete the inspection for')} {(job as any).payout_amount_cents && (job as any).payout_amount_cents > 0 ? formatCurrency((job as any).payout_amount_cents) : t('the agreed payout (TBD)')}.
               </Text>
             </Animated.View>
 
@@ -289,7 +291,7 @@ export default function SubmitProposalScreen() {
               style={styles.section}
             >
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Cover Letter</Text>
+                <Text style={styles.sectionTitle}>{t('Cover Letter')}</Text>
                 <Text
                   style={[
                     styles.characterCount,
@@ -300,7 +302,7 @@ export default function SubmitProposalScreen() {
                 </Text>
               </View>
               <Text style={styles.sectionSubtitle}>
-                Introduce yourself and explain why you're the best fit for this job
+                {t("Introduce yourself and explain why you're the best fit for this job")}
               </Text>
               <View
                 style={[
@@ -312,7 +314,7 @@ export default function SubmitProposalScreen() {
                   style={styles.textArea}
                   value={coverLetter}
                   onChangeText={handleCoverLetterChange}
-                  placeholder="Write your cover letter here..."
+                  placeholder={t('Write your cover letter here...')}
                   placeholderTextColor="#4B5563"
                   multiline
                   numberOfLines={8}
@@ -331,19 +333,19 @@ export default function SubmitProposalScreen() {
             >
               <View style={styles.tipsHeader}>
                 <Ionicons name="bulb" size={20} color="#F59E0B" />
-                <Text style={styles.tipsTitle}>Tips for a Great Application</Text>
+                <Text style={styles.tipsTitle}>{t('Tips for a Great Application')}</Text>
               </View>
               <View style={styles.tipsList}>
                 <View style={styles.tipItem}>
                   <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                   <Text style={styles.tipText}>
-                    Be specific about your experience with this job type
+                    {t('Be specific about your experience with this job type')}
                   </Text>
                 </View>
                 <View style={styles.tipItem}>
                   <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                   <Text style={styles.tipText}>
-                    Mention any certifications relevant to the inspection
+                    {t('Mention any certifications relevant to the inspection')}
                   </Text>
                 </View>
               </View>
@@ -369,7 +371,7 @@ export default function SubmitProposalScreen() {
                 >
                   <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
                   <Text style={styles.submitButtonText}>
-                    {isSubmitting ? 'Submitting...' : 'Accept & Apply'}
+                    {isSubmitting ? t('Submitting...') : t('Accept & Apply')}
                   </Text>
                 </LinearGradient>
               </Pressable>
@@ -379,12 +381,12 @@ export default function SubmitProposalScreen() {
 
         <LoadingOverlay
           visible={isSubmitting}
-          message="Submitting your application..."
+          message={t('Submitting your application...')}
         />
         <SuccessAnimation
           visible={showSuccess}
-          title="Application Submitted!"
-          message="Your application has been sent to NEXPEC Administration."
+          title={t('Application Submitted!')}
+          message={t('Your application has been sent to NEXPEC Administration.')}
           onComplete={handleSuccessComplete}
         />
       </SafeAreaView>

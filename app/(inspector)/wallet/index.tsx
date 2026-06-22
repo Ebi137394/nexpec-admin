@@ -21,6 +21,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useWallet } from '@/hooks/useWallet';
 import type { Transaction } from '@/types/core';
 import { GradientCard } from '@/components';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 // #QA — canonical USD/cents money formatter (single source of truth, mirrors web).
 import { formatUsd, toCents } from '@/src/core/utils/money';
 
@@ -151,12 +152,13 @@ function BalanceCard({
   wallet: any;
   isLoading: boolean;
 }) {
+  const { t, isRTL, language } = useLanguage();
   return (
     <Animated.View entering={FadeInUp.springify()}>
       {/* ✅ FIX: Used GradientCard variant="primary" for consistency */}
       <GradientCard variant="primary" style={styles.balanceCard}>
         <View style={styles.balanceHeader}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
+          <Text style={styles.balanceLabel}>{t('Available Balance')}</Text>
           <View style={styles.currencyBadge}>
             <Text style={styles.currencyText}>{wallet?.currency || 'CAD'}</Text>
           </View>
@@ -174,12 +176,12 @@ function BalanceCard({
           </Text>
         )}
         <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
-          Cleared funds, ready to withdraw
+          {t('Cleared funds, ready to withdraw')}
         </Text>
 
         <View style={styles.balanceStats}>
           <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatLabel}>Pending</Text>
+            <Text style={styles.balanceStatLabel}>{t('Pending')}</Text>
             {/* Accrued on net-terms jobs; clears when the client settles. */}
             <Text style={styles.balanceStatValue}>
               {formatCurrency(wallet?.pending_amount || 0)}
@@ -187,7 +189,7 @@ function BalanceCard({
           </View>
           <View style={styles.balanceStatDivider} />
           <View style={styles.balanceStat}>
-            <Text style={styles.balanceStatLabel}>Total Earned</Text>
+            <Text style={styles.balanceStatLabel}>{t('Total Earned')}</Text>
             <Text style={styles.balanceStatValue}>
               {formatCurrency(wallet?.total_earned || 0)}
             </Text>
@@ -205,7 +207,7 @@ function BalanceCard({
               style={styles.withdrawButtonGradient}
             >
               <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-              <Text style={styles.withdrawButtonText}>Withdraw Funds</Text>
+              <Text style={styles.withdrawButtonText}>{t('Withdraw Funds')}</Text>
             </LinearGradient>
           </Pressable>
         </View>
@@ -215,14 +217,15 @@ function BalanceCard({
 }
 
 function EmptyTransactions() {
+  const { t, isRTL, language } = useLanguage();
   return (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
         <Ionicons name="receipt-outline" size={48} color="#3B82F6" />
       </View>
-      <Text style={styles.emptyTitle}>No Transactions Yet</Text>
+      <Text style={styles.emptyTitle}>{t('No Transactions Yet')}</Text>
       <Text style={styles.emptySubtitle}>
-        Your transaction history will appear here once you start earning.
+        {t('Your transaction history will appear here once you start earning.')}
       </Text>
     </View>
   );
@@ -233,16 +236,17 @@ function EmptyTransactions() {
 // ============================================================================
 
 export default function WalletScreen() {
+  const { t, isRTL, language } = useLanguage();
   const { wallet, transactions, isLoading, isRefreshing, refetch } = useWallet();
 
   return (
     <LinearGradient colors={['#0D1B2A', '#1B2838']} style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
-          <Text style={styles.headerTitle}>Wallet</Text>
+          <Text style={styles.headerTitle}>{t('Wallet')}</Text>
           <Pressable onPress={() => router.push('/(inspector)/wallet/statement' as any)} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Ionicons name="receipt-outline" size={16} color="#A78BFA" />
-            <Text style={{ color: '#A78BFA', fontSize: 13, fontWeight: '700' }}>Statement</Text>
+            <Text style={{ color: '#A78BFA', fontSize: 13, fontWeight: '700' }}>{t('Statement')}</Text>
           </Pressable>
         </View>
 
@@ -254,7 +258,7 @@ export default function WalletScreen() {
               <BalanceCard wallet={wallet} isLoading={isLoading} />
               {transactions.length > 0 && (
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                  <Text style={styles.sectionTitle}>{t('Recent Transactions')}</Text>
                 </View>
               )}
             </>

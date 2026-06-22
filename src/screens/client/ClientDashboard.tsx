@@ -57,6 +57,7 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 
 // ─────────────────────────────────────────────────────────────
@@ -243,6 +244,7 @@ const formatTimeAgo = (iso?: string | null): string => {
 // ─────────────────────────────────────────────────────────────
 export default function ClientDashboardScreen() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { user } = useAuth() as any;
   const userId: string | null = user?.id ?? null;
 
@@ -288,7 +290,7 @@ export default function ClientDashboardScreen() {
   // ── Data fetch ──
   const fetchAll = useCallback(async () => {
     if (!userId) {
-      setError('Not signed in');
+      setError(t('Not signed in'));
       return;
     }
     try {
@@ -361,7 +363,7 @@ export default function ClientDashboardScreen() {
       setJobs((recent ?? []) as Job[]);
     } catch (err: any) {
       console.log('client-dashboard load error:', err);
-      setError(err?.message ?? 'Failed to load dashboard');
+      setError(err?.message ?? t('Failed to load dashboard'));
     }
   }, [userId]);
 
@@ -389,8 +391,8 @@ export default function ClientDashboardScreen() {
 
   const firstName = useMemo(() => {
     const n = profile?.full_name?.trim();
-    return n ? n.split(' ')[0] : 'Operator';
-  }, [profile]);
+    return n ? n.split(' ')[0] : t('Operator');
+  }, [profile, language]);
 
   const focusJob = useMemo(() => {
     return (
@@ -475,7 +477,7 @@ export default function ClientDashboardScreen() {
         <SafeAreaView style={s.flex1} edges={['top']}>
           <View style={s.loadingCenter}>
             <ActivityIndicator size="large" color={C.primary} />
-            <Text style={s.loadingText}>BOOTING OPERATIONS CENTER…</Text>
+            <Text style={s.loadingText}>{t('BOOTING OPERATIONS CENTER…')}</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -513,14 +515,14 @@ export default function ClientDashboardScreen() {
           >
             <View style={s.headerLeft}>
               <Text style={s.dateLabel}>{today.toUpperCase()}</Text>
-              <Text style={s.greeting}>{greeting},</Text>
+              <Text style={s.greeting}>{t(greeting)},</Text>
               <View style={s.nameRow}>
                 <Text style={s.userName} numberOfLines={1}>
                   {firstName}
                 </Text>
                 <View style={s.commandBadge}>
                   <ShieldCheck size={10} color={C.cyan} />
-                  <Text style={s.commandBadgeText}>OPS</Text>
+                  <Text style={s.commandBadgeText}>{t('OPS')}</Text>
                 </View>
               </View>
               {profile?.company_name ? (
@@ -560,7 +562,7 @@ export default function ClientDashboardScreen() {
             <RNAnimated.View entering={FadeIn} style={s.errorBanner}>
               <Text style={s.errorText}>{error}</Text>
               <Pressable onPress={onRefresh} hitSlop={6}>
-                <Text style={s.errorRetry}>RETRY</Text>
+                <Text style={s.errorRetry}>{t('RETRY')}</Text>
               </Pressable>
             </RNAnimated.View>
           ) : null}
@@ -581,10 +583,10 @@ export default function ClientDashboardScreen() {
                   />
                   <View style={s.pulseDot} />
                 </View>
-                <Text style={s.statusBarLabel}>SYSTEMS OPERATIONAL</Text>
+                <Text style={s.statusBarLabel}>{t('SYSTEMS OPERATIONAL')}</Text>
               </View>
               <Text style={s.statusBarMeta}>
-                {stats.active} live • {stats.open} open
+                {stats.active} {t('live')} • {stats.open} {t('open')}
               </Text>
             </View>
           </RNAnimated.View>
@@ -618,10 +620,10 @@ export default function ClientDashboardScreen() {
                       <View style={s.heroBadgeDot} />
                       <Text style={s.heroBadgeText}>
                         {focusJob.status === 'in_progress'
-                          ? 'MISSION ACTIVE'
+                          ? t('MISSION ACTIVE')
                           : focusJob.status === 'assigned'
-                          ? 'AWAITING KICK-OFF'
-                          : 'TENDER OPEN'}
+                          ? t('AWAITING KICK-OFF')
+                          : t('TENDER OPEN')}
                       </Text>
                     </View>
                     <View style={s.heroArrow}>
@@ -629,9 +631,9 @@ export default function ClientDashboardScreen() {
                     </View>
                   </View>
 
-                  <Text style={s.heroKicker}>YOUR PRIORITY MISSION</Text>
+                  <Text style={s.heroKicker}>{t('YOUR PRIORITY MISSION')}</Text>
                   <Text style={s.heroTitle} numberOfLines={2}>
-                    {focusJob.title || 'Untitled engagement'}
+                    {focusJob.title || t('Untitled engagement')}
                   </Text>
 
                   <View style={s.heroMetaRow}>
@@ -642,14 +644,14 @@ export default function ClientDashboardScreen() {
                       />
                       <Text style={s.heroMetaText} numberOfLines={1}>
                         {resolveContractorName(focusJob) ||
-                          'Inspector pending'}
+                          t('Inspector pending')}
                       </Text>
                     </View>
                     <View style={s.heroMetaDivider} />
                     <View style={s.heroMetaItem}>
                       <MapPin size={13} color="rgba(255,255,255,0.85)" />
                       <Text style={s.heroMetaText} numberOfLines={1}>
-                        {focusJob.location || 'On-site'}
+                        {focusJob.location || t('On-site')}
                       </Text>
                     </View>
                   </View>
@@ -662,7 +664,7 @@ export default function ClientDashboardScreen() {
                       </Text>
                     </View>
                     <Text style={s.heroAge}>
-                      Posted {formatTimeAgo(focusJob.created_at)} ago
+                      {t('Posted')} {formatTimeAgo(focusJob.created_at)} {t('ago')}
                     </Text>
                   </View>
                 </LinearGradient>
@@ -679,9 +681,9 @@ export default function ClientDashboardScreen() {
                 <View style={s.heroEmptyIcon}>
                   <Sparkles size={20} color={C.primary} />
                 </View>
-                <Text style={s.heroEmptyTitle}>Operations standby</Text>
+                <Text style={s.heroEmptyTitle}>{t('Operations standby')}</Text>
                 <Text style={s.heroEmptySub}>
-                  Post your first inspection mission to activate command.
+                  {t('Post your first inspection mission to activate command.')}
                 </Text>
                 <Pressable
                   onPress={onPostJob}
@@ -691,7 +693,7 @@ export default function ClientDashboardScreen() {
                   ]}
                 >
                   <Plus size={14} color="#04130B" />
-                  <Text style={s.heroEmptyCtaText}>Post a Mission</Text>
+                  <Text style={s.heroEmptyCtaText}>{t('Post a Mission')}</Text>
                 </Pressable>
               </View>
             )}
@@ -702,7 +704,7 @@ export default function ClientDashboardScreen() {
             <View style={s.sectionHeader}>
               <View style={s.sectionTitleWrap}>
                 <View style={s.sectionAccent} />
-                <Text style={s.sectionTitle}>Quick Actions</Text>
+                <Text style={s.sectionTitle}>{t('Quick Actions')}</Text>
               </View>
               <View style={s.qaPulse} />
             </View>
@@ -713,31 +715,31 @@ export default function ClientDashboardScreen() {
                   breaking the row's visual rhythm. */}
               <ActionCard
                 icon={<PlusCircle size={22} color={C.primary} strokeWidth={2.4} />}
-                label="Post Mission"
+                label={t('Post Mission')}
                 onPress={onPostJob}
                 color={C.primary}
               />
               <ActionCard
                 icon={<Users size={22} color={C.cyan} strokeWidth={2.2} />}
-                label="Inspectors"
+                label={t('Inspectors')}
                 onPress={onInspectors}
                 color={C.cyan}
               />
               <ActionCard
                 icon={<FileText size={22} color={C.primaryBright} strokeWidth={2.2} />}
-                label="Contracts"
+                label={t('Contracts')}
                 onPress={onContracts}
                 color={C.primaryBright}
               />
               <ActionCard
                 icon={<ShieldCheck size={22} color={C.success} strokeWidth={2.2} />}
-                label="Documents"
+                label={t('Documents')}
                 onPress={() => safeNav('/(client)/vault')}
                 color={C.success}
               />
               <ActionCard
                 icon={<Headphones size={22} color={C.pink} strokeWidth={2.2} />}
-                label="Support"
+                label={t('Support')}
                 onPress={onSupport}
                 color={C.pink}
               />
@@ -750,25 +752,25 @@ export default function ClientDashboardScreen() {
               <KpiCard
                 icon={<Activity size={14} color={C.cyan} />}
                 value={String(stats.active)}
-                label="Live Operations"
+                label={t('Live Operations')}
                 accent={C.cyan}
               />
               <KpiCard
                 icon={<Hourglass size={14} color={C.primary} />}
                 value={String(stats.open)}
-                label="Open Tenders"
+                label={t('Open Tenders')}
                 accent={C.primary}
               />
               <KpiCard
                 icon={<CheckCircle2 size={14} color={C.success} />}
                 value={String(stats.completed)}
-                label="Completed"
+                label={t('Completed')}
                 accent={C.success}
               />
               <KpiCard
                 icon={<TrendingUp size={14} color={C.pink} />}
                 value={formatMoney(stats.totalInvestment)}
-                label="Total Invested"
+                label={t('Total Invested')}
                 accent={C.pink}
               />
             </View>
@@ -788,14 +790,14 @@ export default function ClientDashboardScreen() {
             >
               <View style={s.sectionTitleWrap}>
                 <View style={s.sectionAccent} />
-                <Text style={s.sectionTitle}>Live Operations</Text>
+                <Text style={s.sectionTitle}>{t('Live Operations')}</Text>
                 <View style={s.opsCountBadge}>
                   <Text style={s.opsCountBadgeText}>{jobs.length}</Text>
                 </View>
               </View>
               <View style={s.opsHeaderActions}>
                 <Pressable onPress={onViewAllJobs} hitSlop={6}>
-                  <Text style={s.viewAllText}>View all</Text>
+                  <Text style={s.viewAllText}>{t('View all')}</Text>
                 </Pressable>
                 <View style={s.opsChevronWrap}>
                   {opsExpanded ? (
@@ -812,25 +814,25 @@ export default function ClientDashboardScreen() {
               <RNAnimated.View entering={FadeInDown.duration(220)}>
                 <View style={s.filterRow}>
                   <Chip
-                    label="All"
+                    label={t('All')}
                     count={jobs.length}
                     active={filter === 'all'}
                     onPress={() => setFilter('all')}
                   />
                   <Chip
-                    label="Live"
+                    label={t('Live')}
                     count={stats.active}
                     active={filter === 'live'}
                     onPress={() => setFilter('live')}
                   />
                   <Chip
-                    label="Open"
+                    label={t('Open')}
                     count={stats.open}
                     active={filter === 'open'}
                     onPress={() => setFilter('open')}
                   />
                   <Chip
-                    label="Done"
+                    label={t('Done')}
                     count={stats.completed}
                     active={filter === 'done'}
                     onPress={() => setFilter('done')}
@@ -844,13 +846,13 @@ export default function ClientDashboardScreen() {
                     </View>
                     <Text style={s.emptyJobsTitle}>
                       {filter === 'all'
-                        ? 'No missions yet'
-                        : 'Nothing in this lane'}
+                        ? t('No missions yet')
+                        : t('Nothing in this lane')}
                     </Text>
                     <Text style={s.emptyJobsSub}>
                       {filter === 'all'
-                        ? 'Post your first inspection mission to bring this radar online.'
-                        : 'Switch filters or post a new mission to populate this view.'}
+                        ? t('Post your first inspection mission to bring this radar online.')
+                        : t('Switch filters or post a new mission to populate this view.')}
                     </Text>
                     {filter === 'all' && (
                       <Pressable
@@ -861,7 +863,7 @@ export default function ClientDashboardScreen() {
                         ]}
                       >
                         <Plus size={14} color="#FFFFFF" />
-                        <Text style={s.emptyJobsCtaText}>Post a Mission</Text>
+                        <Text style={s.emptyJobsCtaText}>{t('Post a Mission')}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -889,11 +891,11 @@ export default function ClientDashboardScreen() {
             <View style={[s.sectionHeader, { marginTop: 24 }]}>
               <View style={s.sectionTitleWrap}>
                 <View style={s.sectionAccent} />
-                <Text style={s.sectionTitle}>Financial Pulse</Text>
+                <Text style={s.sectionTitle}>{t('Financial Pulse')}</Text>
               </View>
               <Pressable onPress={onOpenLedger} hitSlop={6}>
                 <View style={s.viewAllRow}>
-                  <Text style={s.viewAllText}>Open ledger</Text>
+                  <Text style={s.viewAllText}>{t('Open ledger')}</Text>
                   <ChevronRight size={14} color={C.primary} />
                 </View>
               </Pressable>
@@ -911,7 +913,7 @@ export default function ClientDashboardScreen() {
               />
               <View style={s.finRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.finKicker}>LIFETIME INVESTMENT</Text>
+                  <Text style={s.finKicker}>{t('LIFETIME INVESTMENT')}</Text>
                   <Text
                     style={s.finBig}
                     numberOfLines={1}
@@ -921,7 +923,7 @@ export default function ClientDashboardScreen() {
                     {formatMoney(stats.totalInvestment)}
                   </Text>
                   <Text style={s.finSub}>
-                    Across {stats.completed} completed operations
+                    {t('Across')} {stats.completed} {t('completed operations')}
                   </Text>
                 </View>
                 <View style={s.finIcon}>
@@ -931,7 +933,7 @@ export default function ClientDashboardScreen() {
 
               <View style={s.finBreakdown}>
                 <FinPiece
-                  label="Avg / mission"
+                  label={t('Avg / mission')}
                   value={
                     stats.completed > 0
                       ? formatMoney(stats.totalInvestment / stats.completed)
@@ -940,13 +942,13 @@ export default function ClientDashboardScreen() {
                 />
                 <View style={s.finBreakdownDivider} />
                 <FinPiece
-                  label="Active commits"
+                  label={t('Active commits')}
                   value={String(stats.active)}
                   accent={C.cyan}
                 />
                 <View style={s.finBreakdownDivider} />
                 <FinPiece
-                  label="Awaiting bids"
+                  label={t('Awaiting bids')}
                   value={String(stats.open)}
                   accent={C.primary}
                 />
@@ -1126,6 +1128,7 @@ const JobRow = ({
   index: number;
   onPress: () => void;
 }) => {
+  const { t } = useLanguage();
   const meta = statusMeta(job.status);
   const contractorName = resolveContractorName(job);
   const contractorAvatar = resolveContractorAvatar(job);
@@ -1167,7 +1170,7 @@ const JobRow = ({
               numberOfLines={2}
               ellipsizeMode="tail"
             >
-              {job.title || 'Untitled mission'}
+              {job.title || t('Untitled mission')}
             </Text>
           </View>
           <Text
@@ -1196,7 +1199,7 @@ const JobRow = ({
               style={[s.jobCardStatusText, { color: meta.color }]}
               numberOfLines={1}
             >
-              {meta.label}
+              {t(meta.label)}
             </Text>
           </View>
           {job.location ? (
@@ -1216,7 +1219,7 @@ const JobRow = ({
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {contractorName || 'Inspector pending'}
+              {contractorName || t('Inspector pending')}
             </Text>
           )}
         </View>

@@ -69,6 +69,7 @@ import {
 
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 // ★ LANE-B-PHASE-5.2 — extracted agency components.
 import { AgencyHero } from '@/src/roles/agency/components/AgencyHero';
@@ -393,6 +394,7 @@ const rail = StyleSheet.create({
 export default function AgencyDashboard() {
   const { user } = useAuth();
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
 
   // ── State (data layer — unchanged) ────────────────────────
   const [profile, setProfile] = useState<ProfileLite | null>(null);
@@ -684,7 +686,7 @@ export default function AgencyDashboard() {
     profile?.company_name?.trim() ||
     profile?.full_name?.trim() ||
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() ||
-    'Agency Partner';
+    t('Agency Partner');
   const initials =
     (displayName
       .split(/\s+/)
@@ -709,8 +711,8 @@ export default function AgencyDashboard() {
         id: 'await-dispatch',
         icon: ShieldCheck,
         tint: C.primary,
-        title: `${m.awaitingDispatch} pending Confirm & Dispatch`,
-        sub: 'You selected an inspector, admin finalizes the hire',
+        title: `${m.awaitingDispatch} ${t('pending Confirm & Dispatch')}`,
+        sub: t('You selected an inspector, admin finalizes the hire'),
         onPress: () => router.push('/(tabs)/jobs' as any),
         urgent: true,
       });
@@ -720,8 +722,8 @@ export default function AgencyDashboard() {
         id: 'pending-apps',
         icon: Users,
         tint: C.warn,
-        title: `${m.pendingApps} new applicant${m.pendingApps === 1 ? '' : 's'} to review`,
-        sub: 'Tap to evaluate inspectors and select one',
+        title: `${m.pendingApps} ${m.pendingApps === 1 ? t('new applicant to review') : t('new applicants to review')}`,
+        sub: t('Tap to evaluate inspectors and select one'),
         onPress: () => router.push('/(tabs)/jobs' as any),
         urgent: true,
       });
@@ -731,8 +733,8 @@ export default function AgencyDashboard() {
         id: 'pending-mod',
         icon: Hourglass,
         tint: C.cyan,
-        title: `${m.pendingApprovalCount} job${m.pendingApprovalCount === 1 ? '' : 's'} pending admin pricing`,
-        sub: 'NEXPEC admin will set spread and publish to inspectors',
+        title: `${m.pendingApprovalCount} ${m.pendingApprovalCount === 1 ? t('job pending admin pricing') : t('jobs pending admin pricing')}`,
+        sub: t('NEXPEC admin will set spread and publish to inspectors'),
         onPress: () => router.push('/(tabs)/jobs' as any),
       });
     }
@@ -741,14 +743,14 @@ export default function AgencyDashboard() {
         id: 'pending-reports',
         icon: FileSignature,
         tint: C.info,
-        title: `${pendingReports} report${pendingReports === 1 ? '' : 's'} awaiting your approval`,
-        sub: 'Review findings and close the inspection',
+        title: `${pendingReports} ${pendingReports === 1 ? t('report awaiting your approval') : t('reports awaiting your approval')}`,
+        sub: t('Review findings and close the inspection'),
         onPress: () => router.push('/(tabs)/jobs' as any),
         urgent: true,
       });
     }
     return items;
-  }, [m, pendingReports, router]);
+  }, [m, pendingReports, router, language]);
 
   // ── Activity items (pre-built for AgencyActivityTimeline) ─
   //   LANE-B-PHASE-5.2 #8 — Resolves `toneColor` via the dashboard's
@@ -764,25 +766,25 @@ export default function AgencyDashboard() {
       const applicantName =
         applicant?.full_name?.trim() ||
         [applicant?.first_name, applicant?.last_name].filter(Boolean).join(' ').trim() ||
-        'Inspector';
+        t('Inspector');
       const tone = meta(a.status === 'CLIENT_SELECTED' ? 'in_progress' : a.status);
-      let label = 'Applied';
-      if (a.status === 'CLIENT_SELECTED') label = 'Selected by you';
-      else if (a.status === 'hired') label = 'Hired';
-      else if (a.status === 'rejected') label = 'Rejected';
-      else if (a.status === 'shortlisted') label = 'Shortlisted';
+      let label = t('Applied');
+      if (a.status === 'CLIENT_SELECTED') label = t('Selected by you');
+      else if (a.status === 'hired') label = t('Hired');
+      else if (a.status === 'rejected') label = t('Rejected');
+      else if (a.status === 'shortlisted') label = t('Shortlisted');
       return {
         id: a.id,
         applicantName,
         applicantAvatar: applicant?.avatar_url ?? null,
-        jobTitle: job?.title ?? 'Untitled job',
+        jobTitle: job?.title ?? t('Untitled job'),
         when: ago(a.updated_at || a.created_at),
         label,
         toneColor: tone.color,
         onPress: () => router.push(`/applicant/${a.applicant_id}` as any),
       };
     });
-  }, [apps, jobs, applicantProfiles, router]);
+  }, [apps, jobs, applicantProfiles, router, language]);
 
   // ── Inspector bench (unchanged) ───────────────────────────
   const inspectorBench = useMemo(() => {
@@ -803,19 +805,19 @@ export default function AgencyDashboard() {
         const name =
           p?.full_name?.trim() ||
           [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() ||
-          'Inspector';
+          t('Inspector');
         list.push({
           id: cid,
           name,
           avatar: p?.avatar_url ?? null,
-          jobTitle: j.title ?? 'Inspection',
+          jobTitle: j.title ?? t('Inspection'),
           jobId: j.id,
           status: j.status,
         });
       }
     });
     return list.slice(0, 8);
-  }, [m.liveJobs, contractorProfiles]);
+  }, [m.liveJobs, contractorProfiles, language]);
 
   // ── Bench items (pre-built for AgencyInspectorBench) ──────
   //   LANE-B-PHASE-5.2 #6 — Resolves `statusMeta` via the dashboard's
@@ -853,7 +855,7 @@ export default function AgencyDashboard() {
     () =>
       livePreview.map((j) => ({
         id: j.id,
-        title: j.title || 'Untitled inspection',
+        title: j.title || t('Untitled inspection'),
         location: j.location,
         agoLabel: ago(j.created_at),
         priceFormatted: usdFull(j.client_price_cents),
@@ -865,7 +867,7 @@ export default function AgencyDashboard() {
             params: { id: j.id },
           } as any),
       })),
-    [livePreview, router],
+    [livePreview, router, language],
   );
 
   // ─────────────────────────────────────────────────────────
@@ -889,7 +891,7 @@ export default function AgencyDashboard() {
           <Shimmer style={{ height: 220, marginTop: 18, borderRadius: 18 }} />
           <View style={s.loadingPin}>
             <ActivityIndicator size="small" color={C.primary} />
-            <Text style={s.loadingPinText}>Building command center…</Text>
+            <Text style={s.loadingPinText}>{t('Building command center…')}</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -929,7 +931,7 @@ export default function AgencyDashboard() {
         <AgencyHero
           avatarUrl={profile?.avatar_url ?? null}
           initials={initials}
-          greetingText={greetingFor()}
+          greetingText={t(greetingFor())}
           displayName={displayName}
           unreadNotifs={unreadNotifs}
           liveCount={m.liveCount}
@@ -950,7 +952,7 @@ export default function AgencyDashboard() {
               id: 'jobs',
               icon: Briefcase,
               tint: C.info,
-              label: 'My Jobs',
+              label: t('My Jobs'),
               gradient: ['rgba(59,130,246,0.32)', 'rgba(59,130,246,0.06)'],
               onPress: () => router.push('/(tabs)/jobs' as any),
             },
@@ -958,7 +960,7 @@ export default function AgencyDashboard() {
               id: 'inspectors',
               icon: Compass,
               tint: C.primary,
-              label: 'Inspectors',
+              label: t('Inspectors'),
               gradient: ['rgba(124,58,237,0.32)', 'rgba(124,58,237,0.06)'],
               // Routes to the new Inspector Directory (2026-05-20) — verified
               // inspectors with search/filter + invite-to-job. The legacy
@@ -969,7 +971,7 @@ export default function AgencyDashboard() {
               id: 'messages',
               icon: MessageCircle,
               tint: C.ok,
-              label: 'Messages',
+              label: t('Messages'),
               gradient: ['rgba(16,185,129,0.32)', 'rgba(16,185,129,0.06)'],
               onPress: () => router.push('/inbox' as any),
             },
@@ -977,7 +979,7 @@ export default function AgencyDashboard() {
               id: 'contracts',
               icon: FileSignature,
               tint: C.cyan,
-              label: 'Contracts',
+              label: t('Contracts'),
               gradient: ['rgba(6,182,212,0.32)', 'rgba(6,182,212,0.06)'],
               onPress: () => router.push('/contracts/' as any),
             },
@@ -1104,7 +1106,7 @@ export default function AgencyDashboard() {
             and Android. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Post a new job"
+        accessibilityLabel={t('Post a new job')}
         onPress={() => router.push('/post-new-job' as any)}
         hitSlop={10}
         className="absolute bottom-6 right-6 z-50 flex-row items-center justify-center rounded-full bg-[#7C3AED] px-5 py-4"
@@ -1117,7 +1119,7 @@ export default function AgencyDashboard() {
         }}
       >
         <Text className="text-white font-bold text-lg mr-2">+</Text>
-        <Text className="text-white font-bold text-base">Post Job</Text>
+        <Text className="text-white font-bold text-base">{t('Post Job')}</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -1211,6 +1213,7 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
   onOpen,
   onViewAll,
 }) => {
+  const { t, isRTL, language } = useLanguage();
   const pendingClient = contracts.filter(
     (c) => c.status === 'pending_client_signature',
   );
@@ -1229,8 +1232,8 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
           <FileSignature size={14} color={C.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={contractsSec.kicker}>V3, STATE MACHINE</Text>
-          <Text style={contractsSec.title}>Contracts Pipeline</Text>
+          <Text style={contractsSec.kicker}>{t('V3, STATE MACHINE')}</Text>
+          <Text style={contractsSec.title}>{t('Contracts Pipeline')}</Text>
         </View>
         <Pressable
           onPress={onViewAll}
@@ -1240,7 +1243,7 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
           ]}
           hitSlop={6}
         >
-          <Text style={contractsSec.viewAllText}>View all</Text>
+          <Text style={contractsSec.viewAllText}>{t('View all')}</Text>
           <ChevronRight size={12} color={C.textSec} />
         </Pressable>
       </View>
@@ -1249,20 +1252,20 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
       <View style={contractsSec.pipelineRow}>
         <ContractsPipelineDot
           count={pendingClient.length}
-          label="Your sig"
+          label={t('Your sig')}
           color={C.warn}
           urgent={pendingClient.length > 0}
         />
         <View style={contractsSec.pipelineConnector} />
         <ContractsPipelineDot
           count={pendingInspector.length}
-          label="Inspector"
+          label={t('Inspector')}
           color={C.info}
         />
         <View style={contractsSec.pipelineConnector} />
         <ContractsPipelineDot
           count={executed.length}
-          label="Executed"
+          label={t('Executed')}
           color={C.ok}
         />
       </View>
@@ -1284,7 +1287,7 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={contractsSec.rowTitle} numberOfLines={1}>
-                  {jobTitles[c.job_id ?? ''] ?? 'Per-job agreement'}
+                  {jobTitles[c.job_id ?? ''] ?? t('Per-job agreement')}
                 </Text>
                 <Text style={contractsSec.rowSub} numberOfLines={1}>
                   {c.client_price_cents != null
@@ -1294,11 +1297,11 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
                         maximumFractionDigits: 0,
                       }).format(c.client_price_cents / 100)
                     : '—'}{' '}
-                  awaiting your signature
+                  {t('awaiting your signature')}
                 </Text>
               </View>
               <View style={contractsSec.rowPill}>
-                <Text style={contractsSec.rowPillText}>SIGN</Text>
+                <Text style={contractsSec.rowPillText}>{t('SIGN')}</Text>
               </View>
               <ChevronRight size={14} color={C.textMuted} />
             </Pressable>
@@ -1308,15 +1311,14 @@ const AgencyContractsSection: React.FC<AgencyContractsSectionProps> = ({
         <View style={contractsSec.empty}>
           <CheckCircle2 size={18} color={C.textMuted} strokeWidth={1.75} />
           <Text style={contractsSec.emptyText}>
-            No contracts yet. They appear here once admin issues the
-            per-job agreement for your accepted inspectors.
+            {t('No contracts yet. They appear here once admin issues the per-job agreement for your accepted inspectors.')}
           </Text>
         </View>
       ) : (
         <View style={contractsSec.calm}>
           <CheckCircle2 size={16} color={C.ok} strokeWidth={2} />
           <Text style={contractsSec.calmText}>
-            Nothing waiting on you. {executed.length > 0 ? `${executed.length} executed.` : ''}
+            {t('Nothing waiting on you.')} {executed.length > 0 ? `${executed.length} ${t('executed.')}` : ''}
           </Text>
         </View>
       )}

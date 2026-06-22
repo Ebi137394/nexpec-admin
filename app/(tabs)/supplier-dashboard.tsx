@@ -14,6 +14,7 @@ import {
   useOpenOpportunities, useMyQuotes, useMyVendorProfile, useCapabilityCatalog,
   fetchPendingAgreementCount,
 } from '../../src/hooks/useSupplierEcosystem';
+import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 const QUOTE_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   submitted:   { label: 'Submitted',  color: '#38BDF8', bg: 'rgba(56,189,248,0.16)' },
@@ -25,6 +26,7 @@ const QUOTE_STATUS: Record<string, { label: string; color: string; bg: string }>
 
 export default function SupplierDashboard() {
   const router = useRouter();
+  const { t, isRTL, language } = useLanguage();
   const { items: opportunities, loading: oppLoading, refetch: refetchOpp } = useOpenOpportunities();
   const { items: myQuotes, loading: quotesLoading, refetch: refetchQuotes } = useMyQuotes();
   const { profile, loading: profLoading, refetch: refetchProfile } = useMyVendorProfile();
@@ -47,11 +49,11 @@ export default function SupplierDashboard() {
 
   // ── Qualification completeness ──
   const checklist = useMemo(() => ([
-    { label: 'Profile created', done: !!profile },
-    { label: 'Capabilities listed', done: (profile?.capabilities?.length ?? 0) > 0 },
-    { label: 'Headline added', done: !!profile?.headline },
-    { label: 'Verified', done: !!profile?.verified },
-  ]), [profile]);
+    { label: t('Profile created'), done: !!profile },
+    { label: t('Capabilities listed'), done: (profile?.capabilities?.length ?? 0) > 0 },
+    { label: t('Headline added'), done: !!profile?.headline },
+    { label: t('Verified'), done: !!profile?.verified },
+  ]), [profile, language]);
   const completeness = checklist.filter((c) => c.done).length;
 
   const initialLoading = oppLoading && quotesLoading && profLoading && !profile && opportunities.length === 0;
@@ -63,9 +65,9 @@ export default function SupplierDashboard() {
       {/* Header */}
       <View style={s.header}>
         <View style={{ flex: 1 }}>
-          <Text style={s.kicker}>SUPPLIER WORKSPACE</Text>
+          <Text style={s.kicker}>{t('SUPPLIER WORKSPACE')}</Text>
           <View style={s.titleRow}>
-            <Text style={s.title} numberOfLines={1}>{profile?.legal_name || 'Welcome'}</Text>
+            <Text style={s.title} numberOfLines={1}>{profile?.legal_name || t('Welcome')}</Text>
             {profile?.verified && <Ionicons name="shield-checkmark" size={18} color={T.colors.success} />}
           </View>
         </View>
@@ -80,20 +82,20 @@ export default function SupplierDashboard() {
 
           {/* KPI strip */}
           <View style={s.kpiGrid}>
-            <Kpi icon="megaphone-outline" color="#8B5CF6" value={String(opportunities.length)} label="Open Opportunities" />
-            <Kpi icon="send-outline" color="#38BDF8" value={String(activeBids)} label="Active Bids" />
-            <Kpi icon="trophy-outline" color="#10B981" value={winRate == null ? '—' : `${winRate}%`} label="Win Rate" />
-            <Kpi icon="star-outline" color="#F59E0B" value={profile ? Number(profile.rating_avg ?? 0).toFixed(1) : '—'} label="Rating" />
+            <Kpi icon="megaphone-outline" color="#8B5CF6" value={String(opportunities.length)} label={t('Open Opportunities')} />
+            <Kpi icon="send-outline" color="#38BDF8" value={String(activeBids)} label={t('Active Bids')} />
+            <Kpi icon="trophy-outline" color="#10B981" value={winRate == null ? '—' : `${winRate}%`} label={t('Win Rate')} />
+            <Kpi icon="star-outline" color="#F59E0B" value={profile ? Number(profile.rating_avg ?? 0).toFixed(1) : '—'} label={t('Rating')} />
           </View>
 
           {/* ── Qualification Status ── */}
-          <Text style={s.sectionTitle}>Qualification</Text>
+          <Text style={s.sectionTitle}>{t('Qualification')}</Text>
           {!profile ? (
             <TouchableOpacity style={s.qualCardEmpty} activeOpacity={0.85} onPress={() => router.push('/suppliers/onboard' as any)}>
               <Ionicons name="storefront-outline" size={22} color={T.colors.primaryLight} />
               <View style={{ flex: 1 }}>
-                <Text style={s.qualEmptyTitle}>Complete your vendor profile</Text>
-                <Text style={s.qualEmptySub}>List your capabilities to appear in the directory and bid on RFQs.</Text>
+                <Text style={s.qualEmptyTitle}>{t('Complete your vendor profile')}</Text>
+                <Text style={s.qualEmptySub}>{t('List your capabilities to appear in the directory and bid on RFQs.')}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={T.colors.textMuted} />
             </TouchableOpacity>
@@ -102,9 +104,9 @@ export default function SupplierDashboard() {
               <View style={s.qualTop}>
                 <View style={[s.verPill, { backgroundColor: profile.verified ? 'rgba(16,185,129,0.16)' : 'rgba(245,158,11,0.16)' }]}>
                   <Ionicons name={profile.verified ? 'shield-checkmark' : 'time-outline'} size={13} color={profile.verified ? T.colors.success : '#F59E0B'} />
-                  <Text style={[s.verPillTxt, { color: profile.verified ? T.colors.success : '#F59E0B' }]}>{profile.verified ? 'Verified Vendor' : 'Pending verification'}</Text>
+                  <Text style={[s.verPillTxt, { color: profile.verified ? T.colors.success : '#F59E0B' }]}>{profile.verified ? t('Verified Vendor') : t('Pending verification')}</Text>
                 </View>
-                <Text style={s.completeTxt}>{completeness}/4 complete</Text>
+                <Text style={s.completeTxt}>{completeness}/4 {t('complete')}</Text>
               </View>
 
               {/* completeness bar */}
@@ -131,30 +133,30 @@ export default function SupplierDashboard() {
 
               <TouchableOpacity style={s.manageBtn} activeOpacity={0.85} onPress={() => router.push('/suppliers/onboard' as any)}>
                 <Ionicons name="create-outline" size={15} color={T.colors.primary} />
-                <Text style={s.manageTxt}>Manage listing & certifications</Text>
+                <Text style={s.manageTxt}>{t('Manage listing & certifications')}</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {/* ── Active Opportunities ── */}
           <View style={s.sectionHead}>
-            <Text style={s.sectionTitle}>Active Opportunities</Text>
-            <TouchableOpacity onPress={() => router.push('/suppliers/opportunities' as any)} hitSlop={8}><Text style={s.link}>Browse all</Text></TouchableOpacity>
+            <Text style={s.sectionTitle}>{t('Active Opportunities')}</Text>
+            <TouchableOpacity onPress={() => router.push('/suppliers/opportunities' as any)} hitSlop={8}><Text style={s.link}>{t('Browse all')}</Text></TouchableOpacity>
           </View>
           {opportunities.length === 0 ? (
-            <Empty icon="megaphone-outline" text="No open opportunities right now." />
+            <Empty icon="megaphone-outline" text={t('No open opportunities right now.')} />
           ) : opportunities.slice(0, 6).map((o) => (
             <TouchableOpacity key={o.id} style={s.oppCard} activeOpacity={0.85} onPress={() => router.push(`/rfqs/${o.id}` as any)}>
               <View style={{ flex: 1 }}>
                 <View style={s.oppTitleRow}>
                   <Text style={s.oppTitle} numberOfLines={1}>{o.title}</Text>
-                  {o.matched && <View style={s.matchPill}><Ionicons name="sparkles" size={10} color="#8B5CF6" /><Text style={s.matchTxt}>Match</Text></View>}
+                  {o.matched && <View style={s.matchPill}><Ionicons name="sparkles" size={10} color="#8B5CF6" /><Text style={s.matchTxt}>{t('Match')}</Text></View>}
                 </View>
                 <View style={s.oppMeta}>
                   {o.requires_source_inspection
-                    ? <View style={s.tag}><Ionicons name="shield-checkmark-outline" size={10} color={T.colors.primaryLight} /><Text style={s.tagTxt}>Source / FAT</Text></View>
-                    : <View style={s.tag}><Ionicons name="cube-outline" size={10} color={T.colors.textMuted} /><Text style={s.tagTxt}>Procurement</Text></View>}
-                  {o.alreadyQuoted && <View style={[s.tag, { borderColor: '#38BDF8' }]}><Text style={[s.tagTxt, { color: '#38BDF8' }]}>You bid</Text></View>}
+                    ? <View style={s.tag}><Ionicons name="shield-checkmark-outline" size={10} color={T.colors.primaryLight} /><Text style={s.tagTxt}>{t('Source / FAT')}</Text></View>
+                    : <View style={s.tag}><Ionicons name="cube-outline" size={10} color={T.colors.textMuted} /><Text style={s.tagTxt}>{t('Procurement')}</Text></View>}
+                  {o.alreadyQuoted && <View style={[s.tag, { borderColor: '#38BDF8' }]}><Text style={[s.tagTxt, { color: '#38BDF8' }]}>{t('You bid')}</Text></View>}
                   <Text style={s.oppDate}>{new Date(o.created_at).toLocaleDateString()}</Text>
                 </View>
               </View>
@@ -164,38 +166,38 @@ export default function SupplierDashboard() {
 
           {/* ── My Bids ── */}
           <View style={[s.sectionHead, { marginTop: T.spacing.xl }]}>
-            <Text style={s.sectionTitle}>My Bids</Text>
-            <TouchableOpacity onPress={() => router.push('/suppliers/bids' as any)} hitSlop={8}><Text style={s.link}>View all</Text></TouchableOpacity>
+            <Text style={s.sectionTitle}>{t('My Bids')}</Text>
+            <TouchableOpacity onPress={() => router.push('/suppliers/bids' as any)} hitSlop={8}><Text style={s.link}>{t('View all')}</Text></TouchableOpacity>
           </View>
           {myQuotes.length === 0 ? (
-            <Empty icon="document-text-outline" text="You haven't bid yet, browse opportunities above." />
+            <Empty icon="document-text-outline" text={t("You haven't bid yet, browse opportunities above.")} />
           ) : myQuotes.slice(0, 8).map((q) => {
             const st = QUOTE_STATUS[q.status] ?? QUOTE_STATUS.submitted;
             return (
               <TouchableOpacity key={q.id} style={s.bidCard} activeOpacity={0.85} onPress={() => router.push(`/rfqs/${q.rfq_id}` as any)}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.bidTitle} numberOfLines={1}>{q.rfq_title || 'RFQ'}</Text>
+                  <Text style={s.bidTitle} numberOfLines={1}>{q.rfq_title || t('RFQ')}</Text>
                   <View style={s.bidMeta}>
                     <Text style={s.bidAmount}>{q.quote?.amount_cents != null ? formatUsd(q.quote.amount_cents) : (q.quote?.amount != null ? formatUsd(toCents(q.quote.amount)) : '—')}</Text>
                     {!!q.quote?.lead_time && <Text style={s.bidLead}>{q.quote.lead_time}</Text>}
-                    {q.status === 'accepted' && !!q.spawned_job_id && <Text style={s.dispatched}>Inspection dispatched</Text>}
+                    {q.status === 'accepted' && !!q.spawned_job_id && <Text style={s.dispatched}>{t('Inspection dispatched')}</Text>}
                   </View>
                 </View>
-                <View style={[s.statusChip, { backgroundColor: st.bg }]}><Text style={[s.statusChipTxt, { color: st.color }]}>{st.label}</Text></View>
+                <View style={[s.statusChip, { backgroundColor: st.bg }]}><Text style={[s.statusChipTxt, { color: st.color }]}>{t(st.label)}</Text></View>
               </TouchableOpacity>
             );
           })}
 
           {/* ── My Workspace ── */}
-          <Text style={[s.sectionTitle, { marginTop: T.spacing.xl }]}>My Workspace</Text>
+          <Text style={[s.sectionTitle, { marginTop: T.spacing.xl }]}>{t('My Workspace')}</Text>
           <View style={s.actionsRow}>
-            <Action icon="megaphone-outline" label="Opportunities" onPress={() => router.push('/suppliers/opportunities' as any)} />
-            <Action icon="send-outline" label="My Bids" onPress={() => router.push('/suppliers/bids' as any)} />
-            <Action icon="document-text-outline" label="Contracts" badge={pendingAgreements} onPress={() => router.push('/suppliers/contracts' as any)} />
-            <Action icon="wallet-outline" label="Finance" onPress={() => router.push('/suppliers/finance' as any)} />
-            <Action icon="shield-checkmark-outline" label="Documents" onPress={() => router.push('/suppliers/documents' as any)} />
-            <Action icon="chatbubbles-outline" label="Messages" onPress={() => router.push('/inbox' as any)} />
-            <Action icon="construct-outline" label="Tools" onPress={() => router.push('/tools' as any)} />
+            <Action icon="megaphone-outline" label={t('Opportunities')} onPress={() => router.push('/suppliers/opportunities' as any)} />
+            <Action icon="send-outline" label={t('My Bids')} onPress={() => router.push('/suppliers/bids' as any)} />
+            <Action icon="document-text-outline" label={t('Contracts')} badge={pendingAgreements} onPress={() => router.push('/suppliers/contracts' as any)} />
+            <Action icon="wallet-outline" label={t('Finance')} onPress={() => router.push('/suppliers/finance' as any)} />
+            <Action icon="shield-checkmark-outline" label={t('Documents')} onPress={() => router.push('/suppliers/documents' as any)} />
+            <Action icon="chatbubbles-outline" label={t('Messages')} onPress={() => router.push('/inbox' as any)} />
+            <Action icon="construct-outline" label={t('Tools')} onPress={() => router.push('/tools' as any)} />
           </View>
 
           <View style={{ height: 28 }} />

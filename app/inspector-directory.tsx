@@ -173,13 +173,16 @@ export default function InspectorDirectoryScreen() {
           .from('profiles')
           .select(
             // ★ ANTI-POACHING: pseudonymous projection only. NO full_name /
-            //   company_name / avatar_url / location_city — those identify the
-            //   inspector and let a buyer poach off-platform, bypassing the
-            //   Named-Disclosure paywall. The card renders the NX- handle
-            //   (nxHandle) derived from the id instead.
+            //   company_name / avatar_url — those identify the inspector and let
+            //   a buyer poach off-platform, bypassing the Named-Disclosure
+            //   paywall. The card renders the NX- handle (nxHandle) from the id.
+            //   location_city IS kept: physical proximity is a legitimate hiring
+            //   factor (travel feasibility / mobilization) and a city without
+            //   the name is not identifying.
             [
               'id',
               'headline',
+              'location_city',
               'location_province',
               'country_of_residence',
               'years_of_experience',
@@ -615,7 +618,7 @@ function InspectorCard({
 }) {
   const initials = formatInitials(row);
   const name = formatName(row);
-  const loc = [row.location_province, row.country_of_residence]
+  const loc = [row.location_city, row.location_province, row.country_of_residence]
     .filter(Boolean)
     .slice(0, 2)
     .join(', ');

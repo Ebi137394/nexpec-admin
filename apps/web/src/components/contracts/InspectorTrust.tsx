@@ -6,6 +6,7 @@
 //     E    VipDisclosureGate     — Named-Disclosure premium upsell modal
 import { useState } from 'react';
 import { ShieldCheck, Lock, BadgeCheck, Crown, Sparkles, Fingerprint, Check, X, ArrowRight } from 'lucide-react';
+import { DisclosureFeePayment } from './DisclosureFeePayment';
 
 export interface CertData {
   handle: string;
@@ -118,15 +119,17 @@ export function NeutralityBadge({ statement, supplierHandle }: { statement?: str
 // ── E — Named-Disclosure VIP gate: offer → sign sealed amendment → unlocked ─────
 type RequestResult = { agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | { error: string };
 export function VipDisclosureGate({
-  open, onClose, tier, handle, onRequest, onSign, onUnlocked,
+  open, onClose, tier, handle, onRequest, onSign, onPay, onUnlocked,
 }: {
   open: boolean; onClose: () => void; tier: string; handle: string;
   onRequest?: () => Promise<RequestResult>;
   onSign?: (agreementId: string, name: string) => Promise<{ error?: { message: string } | null }>;
+  onPay?: (agreementId: string) => Promise<{ clientSecret?: string; error?: string }>;
   onUnlocked?: () => void;
 }) {
-  const [phase, setPhase] = useState<'offer' | 'sign' | 'done'>('offer');
+  const [phase, setPhase] = useState<'offer' | 'sign' | 'pay' | 'done'>('offer');
   const [amend, setAmend] = useState<{ agreementId: string; feeCents: number; currency: string; bodyMd: string | null; tier?: string } | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -139,7 +142,7 @@ export function VipDisclosureGate({
     'Extended 36-month non-circumvention + liquidated damages',
     'Sealed amendment to your MSA (SHA-256 + OpenTimestamps)',
   ];
-  const close = () => { setPhase('offer'); setAmend(null); setName(''); setAgreed(false); setErr(null); setBusy(false); onClose(); };
+  const close = () => { setPhase('offer'); setAmend(null); setClientSecret(null); setName(''); setAgreed(false); setErr(null); setBusy(false); onClose(); };
   const proceed = async () => {
     if (!onRequest) return;
     setBusy(true); setErr(null);
@@ -152,9 +155,16 @@ export function VipDisclosureGate({
     if (!onSign || !amend || !name.trim() || !agreed) return;
     setBusy(true); setErr(null);
     const { error } = await onSign(amend.agreementId, name.trim());
-    setBusy(false);
-    if (error) { setErr(error.message); return; }
-    setPhase('done'); onUnlocked?.();
+    if (error) { setBusy(false); setErr(error.message); return; }
+    // Rider executed (contract-before-money). Now collect the fee via Stripe;
+    // identity reveal is granted server-side only once the charge confirms.
+    if (onPay) {
+      const res = await onPay(amend.agreementId);
+      setBusy(false);
+      if (res.error || !res.clientSecret) { setErr(res.error ?? 'Could not start the payment.'); return; }
+      setClientSecret(res.clientSecret); setPhase('pay'); return;
+    }
+    setBusy(false); setPhase('done'); onUnlocked?.();
   };
   const feeLabel = amend ? `${(amend.feeCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${amend.currency}` : '';
   return (
@@ -167,12 +177,22 @@ export function VipDisclosureGate({
 
           {phase === 'done' ? (
             <>
-              <h2 className="mt-3 font-display text-xl font-bold text-white">Named disclosure unlocked</h2>
+              <h2 className="mt-3 font-display text-xl font-bold text-white">Payment confirmed</h2>
               <div className="mt-4 rounded-xl border border-accent-green/30 bg-accent-green/[0.07] p-4 text-sm text-zinc-200">
-                <p className="flex items-center gap-2 font-semibold text-accent-green"><Check className="h-4 w-4" /> Sealed amendment executed</p>
-                <p className="mt-1 text-zinc-400">The inspector&apos;s legal name and verified credentials are now revealed below. Your sealed amendment is verifiable at /passport.</p>
+                <p className="flex items-center gap-2 font-semibold text-accent-green"><Check className="h-4 w-4" /> Sealed amendment executed &amp; fee paid</p>
+                <p className="mt-1 text-zinc-400">The inspector&apos;s legal name and verified credentials will appear below within a few moments, once the payment settles. Your sealed amendment is verifiable at /passport.</p>
               </div>
               <button onClick={close} className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-violet py-3 font-bold text-white hover:bg-violet/90">Done</button>
+            </>
+          ) : phase === 'pay' && clientSecret && amend ? (
+            <>
+              <h2 className="mt-3 font-display text-xl font-bold text-white">Pay the disclosure fee</h2>
+              <p className="mt-1 text-sm text-zinc-400">Your sealed amendment is signed. Pay the administrative amendment fee to lift identity escrow. The card is charged directly for this real-world engagement.</p>
+              <DisclosureFeePayment
+                clientSecret={clientSecret}
+                feeLabel={feeLabel}
+                onPaid={() => { setPhase('done'); onUnlocked?.(); setTimeout(() => onUnlocked?.(), 3500); }}
+              />
             </>
           ) : phase === 'sign' && amend ? (
             <>
@@ -191,7 +211,7 @@ export function VipDisclosureGate({
               </label>
               {err && <p className="mt-2 text-sm text-accent-red">{err}</p>}
               <button onClick={doSign} disabled={busy || !name.trim() || !agreed} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 py-3 font-bold text-ink-950 transition hover:from-amber-300 hover:to-amber-200 disabled:opacity-60">
-                {busy ? 'Sealing…' : 'Sign & unlock'} <ShieldCheck className="h-4 w-4" />
+                {busy ? 'Sealing…' : 'Sign & continue to payment'} <ShieldCheck className="h-4 w-4" />
               </button>
             </>
           ) : (

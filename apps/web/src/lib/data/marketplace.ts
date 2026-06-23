@@ -354,9 +354,18 @@ export const clientReviewEngagement = (dealId: string, decision: 'approved' | 'o
   sb().rpc('client_review_engagement', { p_deal_id: dealId, p_decision: decision, p_reason: reason ?? null });
 
 // E (VIP): present the sealed Named-Disclosure amendment (idempotent). Client then signs it
-// via signAgreement(); execution collects the fee, upgrades the tier, and reveals identity early.
+// via signAgreement(); execution books the premium fee as PENDING (no reveal yet). The client
+// then pays the fee by card via createDisclosureFeeIntent(); the payments webhook
+// (stripe_settle_named_disclosure) lifts identity escrow only once the Stripe charge confirms
+// (money-before-benefit).
 export const requestNamedDisclosure = (dealId: string) =>
   sb().rpc('request_named_disclosure', { p_deal_id: dealId });
+
+// Start a real Stripe card charge for the already-signed Named-Disclosure amendment.
+// Returns { clientSecret } for the web PaymentElement. Web-only surface — intentionally
+// bypasses native IAP (App Store 3.1.1 / Play Billing real-world-service posture).
+export const createDisclosureFeeIntent = (agreementId: string) =>
+  sb().functions.invoke('create-disclosure-fee-intent', { body: { agreement_id: agreementId } });
 
 // ── Commercial Revision Ledger — formal, admin-arbitrated price-revision docket ──
 export type RevisionStatus = 'requested' | 'countered' | 'applied' | 'rejected' | 'withdrawn';

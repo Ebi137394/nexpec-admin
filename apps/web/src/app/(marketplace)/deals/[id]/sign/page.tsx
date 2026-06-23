@@ -11,7 +11,7 @@ import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Eye, Flag, BadgeCheck, Wall
 import {
   fetchClientAgreement, signAgreement, formatUsd, fetchAssignedInspector, clientReviewEngagement,
   fetchDealById, fetchPaymentSchedule, fundDealBalance, raiseNonconformance,
-  fetchInspectorShortlist, selectInspector, requestNamedDisclosure,
+  fetchInspectorShortlist, selectInspector, requestNamedDisclosure, createDisclosureFeeIntent,
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '@/lib/data/marketplace';
 import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '@/components/contracts/InspectorTrust';
@@ -283,6 +283,13 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           return { agreementId: r.agreement_id ?? '', feeCents: r.fee_cents ?? 0, currency: r.currency ?? 'USD', bodyMd: r.body_md ?? null, tier: r.tier_label };
         }}
         onSign={async (id, nm) => { const { error } = await signAgreement(id, nm); return { error }; }}
+        onPay={async (agreementId) => {
+          const { data, error } = await createDisclosureFeeIntent(agreementId);
+          if (error) return { error: error.message };
+          const r = data as { clientSecret?: string; error?: string } | null;
+          if (!r?.clientSecret) return { error: r?.error ?? 'Could not start the payment.' };
+          return { clientSecret: r.clientSecret };
+        }}
         onUnlocked={() => load()}
       />
     </div>

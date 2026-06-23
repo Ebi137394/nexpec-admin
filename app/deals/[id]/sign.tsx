@@ -207,6 +207,15 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           statement: cert?.statement ?? null,
           eoPolicyRef: cert?.eo_policy_ref ?? null,
           redactedCv: d?.redacted_cv ?? null,
+          maskedName: insp.inspector_name_masked,
+          hasCv: !!insp.inspector_has_cv,
+          trustBadges: [
+            insp.inspector_verified ? 'NEXPEC-verified' : null,
+            'Identity on file',
+            cert?.eo_policy_ref ? 'E&O insured' : null,
+            (insp.inspector_jobs ?? 0) > 0 ? `${insp.inspector_jobs} NEXPEC jobs` : null,
+            (insp.inspector_rating ?? 0) > 0 ? `${Number(insp.inspector_rating).toFixed(1)}★` : null,
+          ].filter(Boolean) as string[],
         }}
         revealed={revealed}
         legalName={insp.inspector_legal_name}
@@ -253,10 +262,11 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           </>
         ) : (
           <>
-            <Text style={c.body}>Held under identity protection. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</Text>
+            <Text style={c.kv}>{insp.inspector_name_masked ?? 'Identity sealed.'} <Text style={c.k}>Unlock to reveal full name, verified CV & contact.</Text></Text>
+            <Text style={c.body}>Your engagement unlock collects the booking deposit, activates 36-month non-circumvention protection, and reveals the inspector&apos;s verified identity.</Text>
             <TouchableOpacity style={c.vipBtn} onPress={() => setVipOpen(true)} activeOpacity={0.85}>
               <Ionicons name="diamond" size={14} color="#fbbf24" />
-              <Text style={c.vipBtnTxt}>Unlock named disclosure (VIP)</Text>
+              <Text style={c.vipBtnTxt}>Unlock & book</Text>
             </TouchableOpacity>
           </>
         )}

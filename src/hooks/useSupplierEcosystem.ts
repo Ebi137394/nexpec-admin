@@ -184,6 +184,14 @@ export interface AssignedInspector {
   report_confirmed_at: string | null;
   identity_revealed_at: string | null; // E (VIP): set when a paid Named-Disclosure amendment lifts escrow early
   inspector_legal_name: string | null; inspector_signature: string | null; // F: NULL until report admin-confirmed (or VIP unlock)
+  // Hybrid pseudonymous model (20260801158000): masked tease (always-on) + gated reveal + non-PII trust
+  inspector_name_masked: string | null;
+  inspector_cv_url: string | null;
+  inspector_avatar_url: string | null;
+  inspector_verified: boolean | null;
+  inspector_rating: number | null;
+  inspector_jobs: number | null;
+  inspector_has_cv: boolean | null;
 }
 // Client reads the anonymized, identity-escrowed view (never the base meta row).
 export async function fetchAssignedInspector(dealId: string): Promise<AssignedInspector | null> {

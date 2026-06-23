@@ -20,6 +20,9 @@ export interface CertData {
   redactedCv?: string | null;
   statement?: string | null;
   eoPolicyRef?: string | null;
+  maskedName?: string | null;   // server-masked tease (e.g. 'D▦▦▦▦ ▦.'); never the real name
+  trustBadges?: string[];       // truthful non-PII trust chips
+  hasCv?: boolean;              // a verified CV exists behind the unlock
 }
 
 // ── A + B — cryptographic Digital Certificate (NO name, NO photo) ──────────────
@@ -59,10 +62,25 @@ export function CredentialCertificate({
         </View>
       )}
 
+      {data.trustBadges && data.trustBadges.length > 0 && (
+        <View style={ct.chipRow}>
+          {data.trustBadges.map((b) => (
+            <View key={b} style={[ct.certChip, { borderColor: T.colors.primary, backgroundColor: 'rgba(124,58,237,0.10)' }]}>
+              <Ionicons name="shield-checkmark" size={11} color={T.colors.primaryLight} />
+              <Text style={[ct.certChipTxt, { color: T.colors.primaryLight }]}>{b}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       <Text style={ct.kv}><Text style={ct.k}>Competencies: </Text>{data.competencies.length ? data.competencies.join(', ') : 'n/a'}</Text>
       <Text style={ct.kv}><Text style={ct.k}>Region: </Text>{data.region ?? 'n/a'}</Text>
       <Text style={ct.kv}><Text style={ct.k}>Scope: </Text>{data.scope ?? 'n/a'}</Text>
-      {data.tier === 'named' && !!data.redactedCv && <Text style={ct.cv}>{data.redactedCv}</Text>}
+      {data.hasCv && !revealed ? (
+        <Text style={ct.cv}>Verified CV on file. ▦▦▦▦▦▦ ▦▦▦▦▦▦▦▦ ▦▦▦▦▦▦▦ ▦▦▦▦. Unlock to read.</Text>
+      ) : !!data.redactedCv ? (
+        <Text style={ct.cv}>{data.redactedCv}</Text>
+      ) : null}
       {!!data.statement && <Text style={ct.statement}>{data.statement}</Text>}
 
       <View style={ct.sealRow}>
@@ -77,12 +95,12 @@ export function CredentialCertificate({
         <View style={ct.lockRow}>
           <View style={ct.sealLeft}>
             <Ionicons name="lock-closed" size={12} color={T.colors.textMuted} />
-            <Text style={ct.lockTxt}>Name & photo sealed until final report</Text>
+            <Text style={ct.lockTxt}>Sealed until unlock: {data.maskedName ?? 'identity'}</Text>
           </View>
           {!!onReveal && (
             <TouchableOpacity onPress={onReveal} hitSlop={8} style={ct.revealBtn} activeOpacity={0.8}>
               <Ionicons name="sparkles" size={12} color={AMBER} />
-              <Text style={ct.revealTxt}>Reveal now</Text>
+              <Text style={ct.revealTxt}>Unlock & book</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -125,9 +143,9 @@ export function VipDisclosureGate({
   const [err, setErr] = useState<string | null>(null);
   const functional = !!onRequest && !!onSign;
   const benefits = [
-    'Inspector legal name + verified CV, disclosed upfront',
-    'Direct credential audit before mobilization',
-    'Extended 36-month non-circumvention + liquidated damages',
+    'Reveals full identity, verified CV & contact',
+    'Activates your 36-month non-circumvention protection',
+    'Counts as your booking deposit toward the engagement',
     'Sealed amendment to your MSA (SHA-256 + OpenTimestamps)',
   ];
   const close = () => { setPhase('offer'); setAmend(null); setName(''); setAgreed(false); setErr(null); setBusy(false); onClose(); };
@@ -161,8 +179,8 @@ export function VipDisclosureGate({
               <>
                 <Text style={vp.title}>Amendment signed</Text>
                 <View style={vp.okBox}>
-                  <Text style={vp.okTitle}>Sealed amendment executed — one step left</Text>
-                  <Text style={vp.okBody}>To lift identity escrow, pay the administrative fee on the NEXPEC web app — secure card payment isn&apos;t available in-app. The inspector&apos;s legal name and verified credentials unlock the moment your payment confirms. Your sealed amendment is verifiable at /passport.</Text>
+                  <Text style={vp.okTitle}>Sealed amendment executed. One step left.</Text>
+                  <Text style={vp.okBody}>To lift identity escrow, complete your booking deposit on the NEXPEC web app. Secure card payment isn&apos;t available in-app. The inspector&apos;s verified identity unlocks the moment your payment confirms. Your sealed amendment is verifiable at /passport.</Text>
                 </View>
                 <TouchableOpacity style={[vp.cta, { backgroundColor: T.colors.primary }]} onPress={close} activeOpacity={0.85}><Text style={[vp.ctaTxt, { color: '#fff' }]}>Done</Text></TouchableOpacity>
               </>
@@ -184,9 +202,9 @@ export function VipDisclosureGate({
               </>
             ) : (
               <>
-                <Text style={vp.title}>Unlock Named Disclosure</Text>
+                <Text style={vp.title}>Unlock identity & book</Text>
                 <Text style={vp.desc}>
-                  Inspector <Text style={vp.handle}>{handle}</Text> is sealed at the <Text style={{ fontWeight: '800', color: T.colors.text }}>{tier}</Text> tier. NEXPEC escrows identity to protect against poaching — upgrade to reveal it before the final report.
+                  Inspector <Text style={vp.handle}>{handle}</Text> is sealed at the <Text style={{ fontWeight: '800', color: T.colors.text }}>{tier}</Text> tier. NEXPEC escrows identity to protect against poaching. Your engagement unlock reveals it and books the inspector under sealed non-circumvention terms.
                 </Text>
                 <View style={{ marginTop: 16, gap: 10 }}>
                   {benefits.map((b) => (
@@ -198,8 +216,8 @@ export function VipDisclosureGate({
                 </View>
                 <View style={vp.priceRow}>
                   <View>
-                    <Text style={vp.priceKicker}>NAMED DISCLOSURE</Text>
-                    <Text style={vp.priceName}>Administrative amendment fee</Text>
+                    <Text style={vp.priceKicker}>ENGAGEMENT UNLOCK</Text>
+                    <Text style={vp.priceName}>Booking deposit, reveals identity</Text>
                   </View>
                   <Text style={vp.vipChip}>VIP tier</Text>
                 </View>

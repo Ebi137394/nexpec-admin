@@ -24,7 +24,8 @@
     "qa:db-refs": "node scripts/qa/check-db-refs.mjs",
     "qa:db-refs:baseline": "node scripts/qa/check-db-refs.mjs --write-baseline",
     "qa:e2e:money": "node scripts/qa/e2e-money-flow.mjs",
-    "qa:rls-admin": "node scripts/qa/check-rls-admin-coverage.mjs"
+    "qa:rls-admin": "node scripts/qa/check-rls-admin-coverage.mjs",
+    "qa:gr2": "node scripts/qa/check-price-blindness.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

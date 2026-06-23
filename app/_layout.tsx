@@ -38,7 +38,7 @@ import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
 import { roleHome } from '@/src/core/navigation/routeMap';
 
 function AuthGate() {
-  const { session, loading, role } = useAuth();
+  const { session, loading, role, mfaRequired } = useAuth();
   const { isDarkMode } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -229,6 +229,18 @@ function AuthGate() {
     //  reflects what the user actually picked at signup.
     // ════════════════════════════════════════════════════════════════
 
+    // ── 2FA STEP-UP GATE ─────────────────────────────────────────────
+    //  A valid session can be AAL1 (password only) while the user has a
+    //  verified TOTP factor (nextLevel = aal2). Block the ENTIRE app behind
+    //  the TOTP challenge until the session is stepped up to AAL2. Covers
+    //  every entry path (password, biometric, social OAuth, session restore),
+    //  not just the password sign-in screen.
+    const onMfaChallenge = segments[0] === '(auth)' && segments[1] === 'mfa-challenge';
+    if (isAuthenticated && mfaRequired) {
+      if (!onMfaChallenge) safeNavigate('/(auth)/mfa-challenge');
+      return;
+    }
+
     // 🛑 STRICT ROLE ENFORCEMENT: platform admins (admin ≡ super_admin) belong in the (admin) group OR allowed shared routes
     if (isAuthenticated && (role === 'super_admin' || role === 'admin') && !inAdminGroup && !inAllowedRoute) {
       safeNavigate('/(admin)/dashboard');
@@ -261,7 +273,7 @@ function AuthGate() {
 
     // rootNavState?.key is in the deps so the redirect re-runs the moment the
     // root navigator finishes mounting (it's null on the first pass).
-  }, [isAuthenticated, loading, segments, role, isReady, rootNavState?.key]);
+  }, [isAuthenticated, loading, segments, role, mfaRequired, isReady, rootNavState?.key]);
 
   if (loading || !isReady) {
     return (

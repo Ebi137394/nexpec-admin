@@ -23,6 +23,10 @@ interface AuthState {
   organizationId: string | null;
   role: string | null;
   loading: boolean;
+  // 2FA: true when the session is AAL1 but the user has a verified TOTP factor
+  // (nextLevel === 'aal2'), i.e. they must complete a TOTP challenge before
+  // being allowed into the app. Enforced by the AuthGate (app/_layout.tsx).
+  mfaRequired: boolean;
 }
 
 interface AuthContextValue extends AuthState {
@@ -30,6 +34,8 @@ interface AuthContextValue extends AuthState {
   refreshOrganization: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, role: string) => Promise<{success: boolean; error?: string}>;
+  // Re-evaluate the AAL after a successful TOTP challenge so the gate releases.
+  recheckMfa: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -41,7 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     organizationId: null,
     role: null,
     loading: true,
+    mfaRequired: false,
   });
+
+  // ── 2FA: is the current session AAL1 while a verified TOTP factor exists? ──
+  const computeMfaRequired = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (error || !data) return false;
+      // currentLevel 'aal1' + nextLevel 'aal2' === a verified factor exists but
+      // this session hasn't been challenged yet → step-up required.
+      return data.currentLevel === 'aal1' && data.nextLevel === 'aal2';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const fetchOrganization = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -71,11 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Initialize with current session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const org = await fetchOrganization(session.user.id);
+        const [org, mfaRequired] = await Promise.all([
+          fetchOrganization(session.user.id),
+          computeMfaRequired(),
+        ]);
         setState({
           user: session.user,
           session,
           ...org,
+          mfaRequired,
           loading: false,
         });
       } else {
@@ -86,11 +110,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
-          const org = await fetchOrganization(session.user.id);
+          const [org, mfaRequired] = await Promise.all([
+            fetchOrganization(session.user.id),
+            computeMfaRequired(),
+          ]);
           setState({
             user: session.user,
             session,
             ...org,
+            mfaRequired,
             loading: false,
           });
         } else {
@@ -99,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             session: null,
             organizationId: null,
             role: null,
+            mfaRequired: false,
             loading: false,
           });
         }
@@ -106,11 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     return () => subscription.unsubscribe();
-  }, [fetchOrganization]);
+  }, [fetchOrganization, computeMfaRequired]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
+
+  // Called by the TOTP challenge screen after a successful mfa.verify so the
+  // gate (which reads mfaRequired) immediately releases into the app.
+  const recheckMfa = useCallback(async () => {
+    const mfaRequired = await computeMfaRequired();
+    setState(prev => ({ ...prev, mfaRequired }));
+  }, [computeMfaRequired]);
 
   // Add signIn function
   const signIn = useCallback(async (email: string, password: string) => {
@@ -145,8 +181,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Memoize the context value so auth consumers don't re-render on every
   // provider render — only when auth state or the (stable) callbacks change.
   const value = useMemo(
-    () => ({ ...state, signOut, refreshOrganization, signIn, signUp }),
-    [state, signOut, refreshOrganization, signIn, signUp],
+    () => ({ ...state, signOut, refreshOrganization, signIn, signUp, recheckMfa }),
+    [state, signOut, refreshOrganization, signIn, signUp, recheckMfa],
   );
 
   return (

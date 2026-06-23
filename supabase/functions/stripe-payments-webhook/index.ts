@@ -82,6 +82,8 @@ function isValidUUID(s: unknown): s is string {
 interface PaymentIntentMetadata {
   kind?: string;
   job_id?: string;
+  agreement_id?: string;
+  deal_id?: string;
   client_id?: string;
   agency_id?: string;
   contractor_id?: string;
@@ -296,6 +298,73 @@ Deno.serve(async (req) => {
 
           console.log(
             `[stripe-payments-webhook] wallet_credit_topup ok — pi=${pi.id} user=${md.user_id} amount_halalas=${amountHalalas} result=${JSON.stringify(rpcResult)}`,
+          );
+          return completeAnd200(event.id);
+        }
+
+        // ── NAMED-DISCLOSURE branch (named-disclosure-stripe) ───────
+        // Premium fee for early inspector-identity disclosure. Settling it
+        // flips the vip_disclosure_fee leg to 'held', upgrades the deal to the
+        // 'named' tier, and lifts identity escrow — money-before-benefit.
+        if (md.kind === 'named_disclosure_fee') {
+          if (!isValidUUID(md.agreement_id)) {
+            await logOrphanAuditEvent(
+              event.id, event.type,
+              `named_disclosure_fee payment_intent.succeeded with missing/invalid agreement_id (pi=${pi.id})`,
+              { payment_intent_id: pi.id, amount_received: pi.amount_received, metadata: md },
+            );
+            return completeAnd200(event.id, 'orphan logged');
+          }
+          if (!isValidUUID(md.transaction_ref_id)) {
+            await logOrphanAuditEvent(
+              event.id, event.type,
+              `named_disclosure_fee payment_intent.succeeded with missing/invalid transaction_ref_id (pi=${pi.id} agreement=${md.agreement_id})`,
+              { payment_intent_id: pi.id, agreement_id: md.agreement_id, amount_received: pi.amount_received, metadata: md },
+            );
+            return completeAnd200(event.id, 'orphan logged');
+          }
+
+          const amountCents = Number(pi.amount_received ?? pi.amount);
+          if (!Number.isFinite(amountCents) || amountCents <= 0) {
+            await logOrphanAuditEvent(
+              event.id, event.type,
+              `named_disclosure_fee with non-positive amount (pi=${pi.id})`,
+              { payment_intent_id: pi.id, agreement_id: md.agreement_id, amount: pi.amount, amount_received: pi.amount_received },
+            );
+            return completeAnd200(event.id, 'orphan logged');
+          }
+
+          const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+            'stripe_settle_named_disclosure',
+            {
+              p_agreement_id:       md.agreement_id,
+              p_payment_intent_id:  pi.id,
+              p_amount_cents:       amountCents,
+              p_transaction_ref_id: md.transaction_ref_id,
+            },
+          );
+
+          if (rpcErr) {
+            console.error(
+              '[stripe-payments-webhook] stripe_settle_named_disclosure RPC error:',
+              rpcErr.message,
+            );
+            await logOrphanAuditEvent(
+              event.id, event.type,
+              `stripe_settle_named_disclosure RPC failed for agreement ${md.agreement_id}: ${rpcErr.message}`,
+              {
+                payment_intent_id: pi.id,
+                agreement_id: md.agreement_id,
+                amount_cents: amountCents,
+                rpc_error: rpcErr.message,
+                rpc_code: (rpcErr as any).code ?? null,
+              },
+            );
+            return releaseAnd500(event.id, `stripe_settle_named_disclosure RPC failed: ${rpcErr.message}`);
+          }
+
+          console.log(
+            `[stripe-payments-webhook] stripe_settle_named_disclosure ok — pi=${pi.id} agreement=${md.agreement_id} result=${JSON.stringify(rpcResult)}`,
           );
           return completeAnd200(event.id);
         }

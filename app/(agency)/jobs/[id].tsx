@@ -106,6 +106,8 @@ interface ApplicantProfile {
   hourly_rate_cents: number | null;   // ★ Task 4
   daily_rate: number | null;
   specialties: string[] | null;
+  location_city: string | null;       // proximity is a hiring factor; city is not identifying without a name
+  location_province: string | null;
   cv_url?: string | null;
 }
 
@@ -589,6 +591,14 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
               <View style={styles.experienceRow}>
                 <Briefcase size={12} color={COLORS.textMuted} />
                 <Text style={styles.experienceText}>{applicant.years_experience} years exp</Text>
+              </View>
+            )}
+            {(applicant.location_city || applicant.location_province) && (
+              <View style={styles.experienceRow}>
+                <MapPin size={12} color={COLORS.textMuted} />
+                <Text style={styles.experienceText} numberOfLines={1}>
+                  {[applicant.location_city, applicant.location_province].filter(Boolean).join(', ')}
+                </Text>
               </View>
             )}
           </View>
@@ -1117,7 +1127,7 @@ export default function ApplicantsScreen(): React.JSX.Element {
           //   (NX- handle) until a paid Named-Disclosure reveals identity.
           //   The per-application bid (bid_amount_cents) is on the application
           //   row, not here, so the agency can still evaluate the offer.
-          .select('id, title, bio, years_experience, specialties')
+          .select('id, title, bio, years_experience, specialties, location_city, location_province')
           .in('id', profileIds);
         if (profErr) throw profErr;
         profilesData = profs ?? [];

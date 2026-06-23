@@ -195,7 +195,7 @@ export default function JobDetailsScreen() {
           // ★ ANTI-POACHING: pseudonymous projection only (was select('*'),
           //   which leaked applicants' full_name/email/avatar/rates). Identity
           //   stays sealed (NX- handle) until a paid Named-Disclosure.
-          const { data: profData } = await supabase.from('profiles').select('id, title, bio, specialties').in('id', uniqueIds);
+          const { data: profData } = await supabase.from('profiles').select('id, title, bio, specialties, location_city, location_province').in('id', uniqueIds);
           profiles = profData || [];
         }
 
@@ -358,6 +358,9 @@ export default function JobDetailsScreen() {
                       </View>
                       <View>
                         <Text style={st.applicantName}>{a.inspector?.id ? nxHandle(a.inspector.id) : 'Inspector'}</Text>
+                        {(a.inspector?.location_city || a.inspector?.location_province) ? (
+                          <Text style={st.appDate}>{[a.inspector?.location_city, a.inspector?.location_province].filter(Boolean).join(', ')}</Text>
+                        ) : null}
                         <Text style={st.appDate}>{new Date(a.created_at).toLocaleDateString()}</Text>
                       </View>
                     </View>

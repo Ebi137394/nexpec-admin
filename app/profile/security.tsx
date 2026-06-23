@@ -290,28 +290,30 @@ export default function SecuritySettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
-      "This action is PERMANENT. You will lose all your data, jobs, and history. Are you absolutely sure?",
+      "This deactivates your account and permanently anonymizes your personal data. Financial and contract records are retained as required by law. You can't delete while you have active jobs or an unsettled wallet balance.",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Yes, Delete Everything", 
-          style: "destructive", 
+        {
+          text: "Delete My Account",
+          style: "destructive",
           onPress: async () => {
             try {
-              const { error } = await supabase.rpc('delete_user');
-              
-              if (error) throw error;
+              // Goes through the guarded Edge Function: it anonymizes PII via
+              // request_account_deletion() (blocks on active jobs / wallet funds)
+              // then bans the auth login. No hard delete.
+              const { data, error } = await supabase.functions.invoke('delete-account');
+              if (error) throw new Error(error.message || 'Could not reach the deletion service. Please try again.');
+
+              const r = (data ?? {}) as { ok?: boolean; error?: string };
+              if (!r.ok) throw new Error(r.error || 'Account deletion was blocked.');
 
               await supabase.auth.signOut();
-              
-              Alert.alert("Account Deleted", "Your account has been permanently removed.");
-              
-              router.replace('/(auth)/login'); 
-              
+              Alert.alert("Account Deleted", "Your account has been deactivated and your personal data anonymized.");
+              router.replace('/(auth)/sign-in');
             } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to delete account.");
+              Alert.alert("Could not delete account", err.message || "Failed to delete account.");
             }
-          } 
+          }
         }
       ]
     );

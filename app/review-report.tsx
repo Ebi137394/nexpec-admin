@@ -292,7 +292,7 @@ export default function ReviewReportScreen() {
 
       showAlert(
         'Success',
-        'Payment released and job completed!',
+        'Report approved. NEXPEC will begin the final settlement and payout process with the inspector.',
         // ★ LANE-A-PHASE-2.6 — Repointed /client/jobs (literal) to canonical
         //   /(tabs)/client-dashboard which lands the client on their job list.
         //   (No exact /(client)/jobs index existed; dashboard is the right home.)
@@ -475,7 +475,7 @@ export default function ReviewReportScreen() {
           activeOpacity={0.8}
         >
           <CheckCircle2 size={22} color="#FFFFFF" />
-          <Text style={styles.approveBtnText}>Approve & Release Funds</Text>
+          <Text style={styles.approveBtnText}>Approve & authorize settlement</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -495,9 +495,9 @@ export default function ReviewReportScreen() {
             <View style={styles.modalIconContainer}>
               <DollarSign size={40} color="#22C55E" />
             </View>
-            <Text style={styles.modalTitle}>Confirm Release</Text>
+            <Text style={styles.modalTitle}>Approve report & authorize settlement?</Text>
             <Text style={styles.modalText}>
-              Releasing {formatCurrency(report.job_price)} will complete the job. This action cannot be undone.
+              By confirming, you approve the inspection report and authorize NEXPEC to begin the final settlement and payout process with the inspector.
             </Text>
             <View style={styles.modalBtns}>
               <TouchableOpacity 
@@ -516,7 +516,7 @@ export default function ReviewReportScreen() {
                 {isProcessing ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.confirmBtnText}>Release Payment</Text>
+                  <Text style={styles.confirmBtnText}>Approve & authorize</Text>
                 )}
               </TouchableOpacity>
             </View>

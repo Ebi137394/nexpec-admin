@@ -494,15 +494,15 @@ export default function ReviewReportScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}><DollarSign size={32} color="#FFF" /></View>
-            <Text style={styles.modalTitle}>Release Payment?</Text>
-            <Text style={styles.modalSub}>This will finalize the job and transfer funds to the inspector.</Text>
+            <Text style={styles.modalTitle}>Approve report & authorize settlement?</Text>
+            <Text style={styles.modalSub}>By confirming, you approve the inspection report and authorize NEXPEC to begin the final settlement and payout process with the inspector.</Text>
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowConfirmModal(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={handleApprove} disabled={approving}>
-                {approving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalConfirmText}>Confirm Release</Text>}
+                {approving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalConfirmText}>Approve & authorize</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -514,8 +514,8 @@ export default function ReviewReportScreen() {
         <View style={styles.successOverlay}>
           <View style={styles.successCard}>
             <PartyPopper size={48} color="#22C55E" />
-            <Text style={styles.successTitle}>Payment Released!</Text>
-            <Text style={styles.successSub}>The job is marked as complete.</Text>
+            <Text style={styles.successTitle}>Report Approved!</Text>
+            <Text style={styles.successSub}>Your approval is recorded. NEXPEC will begin the final settlement and payout process with the inspector.</Text>
             <TouchableOpacity style={styles.successBtn} onPress={() => router.replace('/(client)/jobs')}>
               <Text style={styles.successBtnText}>Back to Dashboard</Text>
             </TouchableOpacity>

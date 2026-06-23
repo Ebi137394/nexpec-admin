@@ -5,7 +5,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 // 🌟 وارد کردن پکیج سنسور که نصب کردی — defensive loader (Expo Go safe)
-import LocalAuthentication from '@/src/services/_localAuthSafe';
+import {
+  checkBiometricCapability,
+  authenticateWithBiometrics,
+  enableBiometricLogin,
+  disableBiometricLogin,
+  isBiometricLoginEnabled,
+} from '@/src/services/BiometricAuth';
 // Sprint 13.M2 — recovery codes lane (mirrors web MfaSection)
 import { MfaRecoveryCodesCard } from '@/src/shared-ui/auth/MfaRecoveryCodesCard';
 
@@ -44,6 +50,7 @@ export default function SecuritySettingsScreen() {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
 
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -52,8 +59,13 @@ export default function SecuritySettingsScreen() {
   // 🌟 وقتی صفحه باز میشه وضعیت سنسور و 2FA رو چک میکنه
   useEffect(() => {
     (async () => {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      setIsBiometricSupported(compatible);
+      const cap = await checkBiometricCapability();
+      setIsBiometricSupported(cap.isSupported);
+      // Restore the persisted biometric-login preference (shared with the
+      // sign-in flow via BiometricAuth/AsyncStorage) so the toggle reflects
+      // reality on reopen instead of silently resetting to OFF.
+      const { enabled } = await isBiometricLoginEnabled();
+      setIsBiometricEnabled(enabled);
 
       // Check if 2FA is already enrolled in Supabase
       try {
@@ -162,32 +174,57 @@ export default function SecuritySettingsScreen() {
   // 🚀 تابع واقعی برای فعال کردن اثر انگشت/تشخیص چهره
   const handleBiometricToggle = async (newValue: boolean) => {
     if (newValue) {
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      if (!isEnrolled) {
-        Alert.alert("Unavailable", "No Face ID or Touch ID is set up on this device.");
+      // ── Enable: verify the sensor, then PERSIST the preference + user id so
+      //    the sign-in flow (attemptBiometricLogin) can actually offer it. ──
+      const cap = await checkBiometricCapability();
+      if (!cap.isSupported) {
+        Alert.alert("Unavailable", "This device has no biometric hardware.");
+        setIsBiometricEnabled(false);
+        return;
+      }
+      if (!cap.isEnrolled) {
+        Alert.alert("Unavailable", `No ${cap.displayName} is set up on this device. Add it in your device Settings first.`);
+        setIsBiometricEnabled(false);
         return;
       }
 
-      // اینجا سنسور گوشی فعال میشه
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to enable Biometric Login',
-        fallbackLabel: 'Use Passcode',
-      });
-
-      if (auth.success) {
-        setIsBiometricEnabled(true);
-        Alert.alert("Success", "Biometric login enabled successfully!");
-      } else {
+      const result = await authenticateWithBiometrics('Authenticate to enable Biometric Login');
+      if (!result.success) {
+        if (result.warning !== 'user_cancelled') {
+          Alert.alert("Authentication failed", result.error || "Could not verify biometrics.");
+        }
         setIsBiometricEnabled(false);
+        return;
       }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert("Session error", "Please sign in again to enable biometric login.");
+        setIsBiometricEnabled(false);
+        return;
+      }
+
+      await enableBiometricLogin(user.id);
+      setIsBiometricEnabled(true);
+      Alert.alert("Enabled", `${cap.displayName} login is on. You'll be offered it the next time you sign in.`);
     } else {
+      // ── Disable: clear the persisted preference. ──
+      await disableBiometricLogin();
       setIsBiometricEnabled(false);
     }
   };
 
   const handleUpdatePassword = async () => {
-    if (newPassword.length < 6) {
-      Alert.alert("Weak Password", "Password should be at least 6 characters long.");
+    if (!currentPassword) {
+      Alert.alert("Required", "Enter your current password to confirm this change.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert("Weak Password", "Use at least 8 characters for your new password.");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      Alert.alert("Reuse Blocked", "Your new password must be different from your current one.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -197,12 +234,24 @@ export default function SecuritySettingsScreen() {
 
     setIsUpdatingPassword(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) throw new Error("Could not verify your session. Please sign in again.");
+
+      // ★ Reauthenticate: verify the CURRENT password before changing it, so a
+      //   walk-up attacker on an unlocked session can't silently take over the
+      //   account. signInWithPassword re-validates against Supabase Auth.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) throw new Error("Current password is incorrect.");
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
-      
       if (error) throw error;
-      
+
       Alert.alert("Success", "Your password has been updated securely.");
       setIsPasswordModalVisible(false);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
@@ -392,16 +441,28 @@ export default function SecuritySettingsScreen() {
           <View style={st.modalContent}>
             <View style={st.modalHeader}>
               <Text style={st.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setIsPasswordModalVisible(false)} style={st.modalCloseBtn}>
+              <TouchableOpacity onPress={() => { setIsPasswordModalVisible(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} style={st.modalCloseBtn}>
                 <Ionicons name="close" size={24} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
 
             <View style={st.inputGroup}>
+              <Text style={st.inputLabel}>Current Password</Text>
+              <TextInput
+                style={st.input}
+                placeholder="Enter current password"
+                placeholderTextColor={COLORS.textMuted}
+                secureTextEntry
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+              />
+            </View>
+
+            <View style={st.inputGroup}>
               <Text style={st.inputLabel}>New Password</Text>
-              <TextInput 
-                style={st.input} 
-                placeholder="Enter new password" 
+              <TextInput
+                style={st.input}
+                placeholder="Enter new password"
                 placeholderTextColor={COLORS.textMuted}
                 secureTextEntry 
                 value={newPassword}
@@ -422,9 +483,9 @@ export default function SecuritySettingsScreen() {
             </View>
 
             <TouchableOpacity 
-              style={[st.modalSubmitBtn, (!newPassword || !confirmPassword || isUpdatingPassword) && st.modalSubmitBtnDisabled]} 
+              style={[st.modalSubmitBtn, (!currentPassword || !newPassword || !confirmPassword || isUpdatingPassword) && st.modalSubmitBtnDisabled]}
               onPress={handleUpdatePassword}
-              disabled={!newPassword || !confirmPassword || isUpdatingPassword}
+              disabled={!currentPassword || !newPassword || !confirmPassword || isUpdatingPassword}
             >
               {isUpdatingPassword ? (
                 <ActivityIndicator color="#FFF" size="small" />

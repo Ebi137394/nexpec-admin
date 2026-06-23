@@ -38,6 +38,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { fetchMyNativeSpineContracts, type NativeSpineContract } from '@/src/hooks/useSupplierEcosystem';
 import { formatUsd as fmtUsdSpine } from '@/src/core/utils/money';
+import { nxHandle } from '@/src/core/utils/handle';
 import RNAnimated, {
   FadeInDown,
   useSharedValue,
@@ -733,40 +734,32 @@ export default function ContractsScreen() {
         //   CONTRACTOR (inspector) profile. Both fetches are RLS-safe:
         //   the `profiles_authenticated_select_any` policy lets any
         //   signed-in user read public name + avatar of any profile.
-        const counterpartyIds = Array.from(
-          new Set(
-            viewRows.map((r) =>
-              isInspectorRole ? r.client_id : r.contractor_id,
-            ).filter(Boolean),
-          ),
-        ) as string[];
-        if (counterpartyIds.length > 0) {
-          const { data: profileRows, error: profileErr } = await supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url, company_name, role')
-            .in('id', counterpartyIds);
-          if (!profileErr && Array.isArray(profileRows)) {
-            const profileById = new Map<string, ProfileLite>();
-            for (const p of profileRows as Array<ProfileLite & { id: string }>) {
-              profileById.set(p.id, p);
-            }
-            viewRows = viewRows.map((r) => {
-              // Inspector viewing → hydrate the CLIENT side.
-              // Buyer viewing → hydrate the CONTRACTOR (inspector) side.
-              if (isInspectorRole) {
-                return r.client_id
-                  ? { ...r, client: profileById.get(r.client_id) ?? null }
-                  : r;
+        // ★ ANTI-POACHING (Hybrid Pseudonymous): ONLY inspector-role viewers
+        //   hydrate the counterparty (CLIENT) profile. A BUYER (client / agency
+        //   / enterprise) must NEVER receive the inspector's real name or photo,
+        //   so we skip the fetch entirely and render the deterministic NX- handle
+        //   (nxHandle) instead — see counterName in ContractCard. The real
+        //   identity is revealed only via the paid Named-Disclosure unlock.
+        if (isInspectorRole) {
+          const counterpartyIds = Array.from(
+            new Set(viewRows.map((r) => r.client_id).filter(Boolean)),
+          ) as string[];
+          if (counterpartyIds.length > 0) {
+            const { data: profileRows, error: profileErr } = await supabase
+              .from('profiles')
+              .select('id, full_name, avatar_url, company_name, role')
+              .in('id', counterpartyIds);
+            if (!profileErr && Array.isArray(profileRows)) {
+              const profileById = new Map<string, ProfileLite>();
+              for (const p of profileRows as Array<ProfileLite & { id: string }>) {
+                profileById.set(p.id, p);
               }
-              return r.contractor_id
-                ? { ...r, contractor: profileById.get(r.contractor_id) ?? null }
-                : r;
-            });
-          } else if (profileErr) {
-            console.warn(
-              '[contracts] counterparty profile hydration failed:',
-              profileErr.message,
-            );
+              viewRows = viewRows.map((r) =>
+                r.client_id ? { ...r, client: profileById.get(r.client_id) ?? null } : r,
+              );
+            } else if (profileErr) {
+              console.warn('[contracts] counterparty profile hydration failed:', profileErr.message);
+            }
           }
         }
       } else if (viewRes && viewRes.error) {
@@ -1278,10 +1271,15 @@ const ContractCard = ({
 }) => {
   const meIsClient = userId === contract.client_id;
   const counterpart = counterpartFor(contract, meIsClient);
+  // ★ ANTI-POACHING: a buyer never sees the inspector's real name on a Hub card,
+  //   only the deterministic NX- handle (matches the assigned-inspector card +
+  //   web). Inspectors keep seeing their client counterparty's name.
   const counterName =
-    counterpart?.full_name ||
-    counterpart?.company_name ||
-    counterpartLabel(meIsClient);
+    meIsClient
+      ? nxHandle(contract.contractor_id)
+      : counterpart?.full_name ||
+        counterpart?.company_name ||
+        counterpartLabel(meIsClient);
   const counterRole = counterpart?.role || counterpartLabel(meIsClient);
   const counterColor = roleColor(counterRole);
   const meta = statusMeta(contract.status);
@@ -1420,15 +1418,17 @@ const ContractCard = ({
               <ChevronRight size={12} color={C.textMuted} />
             ) : null}
           </Pressable>
-          {/* ★ PRICE-BLINDNESS (anti-poaching) — the buyer party (client /
-                agency / enterprise) must NEVER see the counterparty inspector's
-                payout amount on a Hub card. `meIsClient` is true whenever the
-                viewer is the client side of THIS contract; the inspector
-                (meIsClient === false) still sees their own agreed payout. */}
+          {/* ★ The amount is the VIEWER'S OWN figure: a buyer (client / agency /
+                enterprise) sees their own client_price_cents (their payable
+                total); an inspector sees their own agreed payout. The price-blind
+                views + role-branched fetch mean neither side ever receives the
+                other's number, so showing the buyer their own total is safe, and
+                masking it only blinded them to their own invoice. Labelled so it
+                is unambiguously their cost, not the inspector's payout. */}
           {meIsClient ? (
             <View style={s.cardAmountMasked}>
-              <ShieldCheck size={13} color={C.textMuted} />
-              <Text style={[s.cardAmount, s.cardAmountMaskedText]}>$•••</Text>
+              <Text style={s.cardAmountMaskedText}>Your Total Cost</Text>
+              <Text style={s.cardAmount}>{formatMoney(contract.total_amount_cents)}</Text>
             </View>
           ) : (
             <Text style={s.cardAmount}>{formatMoney(contract.total_amount_cents)}</Text>

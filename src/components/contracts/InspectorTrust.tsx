@@ -159,10 +159,10 @@ export function VipDisclosureGate({
 
             {phase === 'done' ? (
               <>
-                <Text style={vp.title}>Named disclosure unlocked</Text>
+                <Text style={vp.title}>Amendment signed</Text>
                 <View style={vp.okBox}>
-                  <Text style={vp.okTitle}>Sealed amendment executed</Text>
-                  <Text style={vp.okBody}>The inspector&apos;s legal name and verified credentials are now revealed below. Your sealed amendment is verifiable at /passport.</Text>
+                  <Text style={vp.okTitle}>Sealed amendment executed — one step left</Text>
+                  <Text style={vp.okBody}>To lift identity escrow, pay the administrative fee on the NEXPEC web app — secure card payment isn&apos;t available in-app. The inspector&apos;s legal name and verified credentials unlock the moment your payment confirms. Your sealed amendment is verifiable at /passport.</Text>
                 </View>
                 <TouchableOpacity style={[vp.cta, { backgroundColor: T.colors.primary }]} onPress={close} activeOpacity={0.85}><Text style={[vp.ctaTxt, { color: '#fff' }]}>Done</Text></TouchableOpacity>
               </>
@@ -178,7 +178,7 @@ export function VipDisclosureGate({
                 </TouchableOpacity>
                 {!!err && <Text style={vp.errTxt}>{err}</Text>}
                 <TouchableOpacity style={[vp.cta, (busy || !name.trim() || !agreed) && { opacity: 0.6 }]} disabled={busy || !name.trim() || !agreed} onPress={doSign} activeOpacity={0.85}>
-                  <Text style={vp.ctaTxt}>{busy ? 'Sealing…' : 'Sign & unlock'}</Text>
+                  <Text style={vp.ctaTxt}>{busy ? 'Sealing…' : 'Sign & continue'}</Text>
                   <Ionicons name="shield-checkmark" size={16} color="#1a1505" />
                 </TouchableOpacity>
               </>

@@ -33,6 +33,42 @@ const COLORS = {
   textMuted: '#64748B',
 };
 
+type SessionRow = {
+  id: string;
+  created_at: string | null;
+  updated_at: string | null;
+  not_after: string | null;
+  user_agent: string | null;
+  ip: string | null;
+  aal: string | null;
+  is_current: boolean;
+};
+
+// Best-effort friendly device name from a user-agent string.
+function deviceLabel(ua: string | null): string {
+  const s = (ua || '').toLowerCase();
+  if (!s) return 'Unknown device';
+  if (s.includes('ipad')) return 'iPad';
+  if (s.includes('iphone')) return 'iPhone';
+  if (s.includes('android')) return 'Android device';
+  if (s.includes('macintosh') || s.includes('mac os')) return 'Mac';
+  if (s.includes('windows')) return 'Windows PC';
+  if (s.includes('expo') || s.includes('okhttp') || s.includes('cfnetwork')) return 'NEXPEC mobile app';
+  return 'Web browser';
+}
+
+function sessionWhen(s: SessionRow): string {
+  const ts = s.updated_at || s.created_at;
+  if (!ts) return 'Active session';
+  const d = new Date(ts);
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'Active just now';
+  if (mins < 60) return `Active ${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Active ${hrs}h ago`;
+  return `Last active ${d.toLocaleDateString()}`;
+}
+
 export default function SecuritySettingsScreen() {
   const router = useRouter();
 
@@ -55,6 +91,11 @@ export default function SecuritySettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [isLoggingOutOthers, setIsLoggingOutOthers] = useState(false);
+
+  // Active sessions — real data from auth.sessions via the list_my_sessions RPC.
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // 🌟 وقتی صفحه باز میشه وضعیت سنسور و 2FA رو چک میکنه
   useEffect(() => {
@@ -261,6 +302,54 @@ export default function SecuritySettingsScreen() {
     }
   };
 
+  // Load the caller's real sessions; degrade gracefully to "this device" if the
+  // RPC isn't available so the card is never blank/fake.
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const { data, error } = await supabase.rpc('list_my_sessions');
+      if (error) throw error;
+      setSessions((data ?? []) as SessionRow[]);
+    } catch {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSessions(session ? [{
+        id: session.access_token.slice(-12), created_at: null, updated_at: null,
+        not_after: null, user_agent: null, ip: null, aal: null, is_current: true,
+      }] : []);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadSessions(); }, []);
+
+  const handleRevokeSession = (s: SessionRow) => {
+    Alert.alert(
+      "Sign out this device?",
+      `${deviceLabel(s.user_agent)}${s.ip ? `  ${s.ip}` : ''} will be signed out and will need to log in again.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign Out",
+          style: "destructive",
+          onPress: async () => {
+            setRevokingId(s.id);
+            try {
+              const { data, error } = await supabase.rpc('revoke_session', { p_session_id: s.id });
+              if (error) throw error;
+              if (!((data ?? {}) as { ok?: boolean }).ok) throw new Error('That session could not be revoked.');
+              await loadSessions();
+            } catch (err: any) {
+              Alert.alert("Error", err.message || "Could not sign out that device.");
+            } finally {
+              setRevokingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleLogoutAll = () => {
     Alert.alert(
       "Log Out All Devices",
@@ -276,6 +365,7 @@ export default function SecuritySettingsScreen() {
               const { error } = await supabase.auth.signOut({ scope: 'others' });
               if (error) throw error;
               Alert.alert("Secured", "All other sessions have been terminated.");
+              await loadSessions();
             } catch (err: any) {
               Alert.alert("Error", err.message || "Could not log out other sessions.");
             } finally {
@@ -408,12 +498,40 @@ export default function SecuritySettingsScreen() {
 
         <SectionHeader title="Active Sessions" />
         <View style={st.card}>
-          <SettingRow 
-            icon="phone-portrait-outline" 
-            title="This Device" 
-            subtitle="Active right now" 
-            rightElement={<Text style={st.activeSessionText}>Current</Text>}
-          />
+          {sessionsLoading ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator color={COLORS.primaryLight} />
+            </View>
+          ) : sessions.length === 0 ? (
+            <SettingRow
+              icon="phone-portrait-outline"
+              title="This Device"
+              subtitle="Active right now"
+              rightElement={<Text style={st.activeSessionText}>Current</Text>}
+            />
+          ) : (
+            sessions.map((s, idx) => (
+              <View key={s.id}>
+                {idx > 0 && <View style={st.divider} />}
+                <SettingRow
+                  icon={s.is_current ? 'phone-portrait-outline' : 'globe-outline'}
+                  title={deviceLabel(s.user_agent)}
+                  subtitle={`${s.is_current ? 'Active right now' : sessionWhen(s)}${s.ip ? `  ${s.ip}` : ''}`}
+                  rightElement={
+                    s.is_current ? (
+                      <Text style={st.activeSessionText}>Current</Text>
+                    ) : revokingId === s.id ? (
+                      <ActivityIndicator color={COLORS.primaryLight} size="small" />
+                    ) : (
+                      <TouchableOpacity onPress={() => handleRevokeSession(s)} hitSlop={10}>
+                        <Ionicons name="log-out-outline" size={20} color={COLORS.red} />
+                      </TouchableOpacity>
+                    )
+                  }
+                />
+              </View>
+            ))
+          )}
           <View style={st.divider} />
           <TouchableOpacity style={st.logoutAllBtn} onPress={handleLogoutAll} activeOpacity={0.7} disabled={isLoggingOutOthers}>
             {isLoggingOutOthers ? (

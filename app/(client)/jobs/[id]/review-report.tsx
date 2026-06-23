@@ -534,12 +534,12 @@ export default function ReviewReportScreen() {
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}><DollarSign size={32} color="#FFF" /></View>
-            <Text style={styles.modalTitle}>Release Payment?</Text>
-            <Text style={styles.modalSub}>This will transfer funds to the inspector and mark the job as complete.</Text>
+            <Text style={styles.modalTitle}>Approve report & authorize settlement?</Text>
+            <Text style={styles.modalSub}>By confirming, you approve the inspection report and authorize NEXPEC to begin the final settlement and payout process with the inspector.</Text>
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowConfirmModal(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={styles.modalConfirm} onPress={handleApprove} disabled={approving}>
-                {approving ? <ActivityIndicator color="#FFF"/> : <Text style={styles.confirmText}>Confirm Release</Text>}
+                {approving ? <ActivityIndicator color="#FFF"/> : <Text style={styles.confirmText}>Approve & authorize</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -557,7 +557,7 @@ export default function ReviewReportScreen() {
               <>
                 <PartyPopper size={48} color="#22C55E" />
                 <Text style={styles.modalTitle}>Report Approved!</Text>
-                <Text style={styles.modalSub}>Payment release is queued. The job will be marked complete once Stripe captures the held funds.</Text>
+                <Text style={styles.modalSub}>Your approval is recorded. NEXPEC will begin the final settlement and payout process with the inspector.</Text>
               </>
             ) : (
               <>

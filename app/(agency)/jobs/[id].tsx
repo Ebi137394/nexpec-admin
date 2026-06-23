@@ -54,6 +54,7 @@ import {
   TrendingDown,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { nxHandle } from '@/src/core/utils/handle';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   ApplicationStatus,
@@ -148,26 +149,12 @@ interface ApplicantCertification {
 // ============================================
 // Helper Functions
 // ============================================
-const getApplicantName = (applicant: ApplicantProfile): string => {
-  if (applicant.full_name) return applicant.full_name;
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  return fullName || 'Anonymous Inspector';
-};
+// ★ ANTI-POACHING: applicants are pseudonymous (NX- handle) until a paid
+//   Named-Disclosure reveals identity. Never render the real name here.
+const getApplicantName = (applicant: ApplicantProfile): string => nxHandle(applicant.id);
 
-const getApplicantInitials = (applicant: ApplicantProfile): string => {
-  const firstName = applicant.first_name || '';
-  const lastName = applicant.last_name || '';
-  
-  if (firstName && lastName) {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  }
-  if (firstName) {
-    return firstName.charAt(0).toUpperCase();
-  }
-  return '?';
-};
+const getApplicantInitials = (applicant: ApplicantProfile): string =>
+  nxHandle(applicant.id).replace(/^NX-/, '').slice(0, 2).toUpperCase();
 
 const formatTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);
@@ -1125,7 +1112,12 @@ export default function ApplicantsScreen(): React.JSX.Element {
       if (profileIds.length) {
         const { data: profs, error: profErr } = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, full_name, avatar_url, title, bio, years_experience, hourly_rate_cents, daily_rate, specialties, cv_url, email')
+          // ★ ANTI-POACHING: pseudonymous projection only. NO name / avatar /
+          //   email / cv_url / standing rates — applicants stay pseudonymous
+          //   (NX- handle) until a paid Named-Disclosure reveals identity.
+          //   The per-application bid (bid_amount_cents) is on the application
+          //   row, not here, so the agency can still evaluate the offer.
+          .select('id, title, bio, years_experience, specialties')
           .in('id', profileIds);
         if (profErr) throw profErr;
         profilesData = profs ?? [];

@@ -52,6 +52,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
+import { nxHandle } from '@/src/core/utils/handle';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 
@@ -171,13 +172,14 @@ export default function InspectorDirectoryScreen() {
         let q = supabase
           .from('profiles')
           .select(
+            // ★ ANTI-POACHING: pseudonymous projection only. NO full_name /
+            //   company_name / avatar_url / location_city — those identify the
+            //   inspector and let a buyer poach off-platform, bypassing the
+            //   Named-Disclosure paywall. The card renders the NX- handle
+            //   (nxHandle) derived from the id instead.
             [
               'id',
-              'full_name',
-              'company_name',
-              'avatar_url',
               'headline',
-              'location_city',
               'location_province',
               'country_of_residence',
               'years_of_experience',
@@ -191,13 +193,12 @@ export default function InspectorDirectoryScreen() {
 
         if (verifiedOnly) q = q.eq('is_verified', true);
 
-        // Text search across full_name + company_name + headline.
+        // ★ ANTI-POACHING: search the professional headline only — NEVER
+        //   full_name / company_name, so a buyer cannot confirm a specific
+        //   person is on-platform by typing their name.
         const trimmed = query.trim();
         if (trimmed.length >= 2) {
-          const ilike = `%${trimmed}%`;
-          q = q.or(
-            `full_name.ilike.${ilike},company_name.ilike.${ilike},headline.ilike.${ilike}`,
-          );
+          q = q.ilike('headline', `%${trimmed}%`);
         }
 
         q = q
@@ -614,7 +615,7 @@ function InspectorCard({
 }) {
   const initials = formatInitials(row);
   const name = formatName(row);
-  const loc = [row.location_city, row.location_province, row.country_of_residence]
+  const loc = [row.location_province, row.country_of_residence]
     .filter(Boolean)
     .slice(0, 2)
     .join(', ');
@@ -765,12 +766,9 @@ function Stat({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function formatName(row: InspectorRow | null): string {
+  // ★ ANTI-POACHING: pseudonymous NX- handle only, never the real name/company.
   if (!row) return 'Inspector';
-  return (
-    (row.company_name && row.company_name.trim()) ||
-    (row.full_name && row.full_name.trim()) ||
-    'Inspector'
-  );
+  return nxHandle(row.id);
 }
 
 function formatInitials(row: InspectorRow): string {

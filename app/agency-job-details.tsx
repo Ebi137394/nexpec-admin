@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams, useFocusEffect } from 'expo-router
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star, CheckCircle, XCircle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { nxHandle } from '@/src/core/utils/handle';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 
@@ -54,7 +55,7 @@ const ApplicantModal = ({ visible, applicant, jobPrice, onClose, onUpdateStatus,
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <View style={st.profileCard}>
             <View style={st.avatarCircle}><User size={28} color={C.primary} strokeWidth={1.8} /></View>
-            <Text style={st.profileName}>{profile?.full_name || 'Inspector'}</Text>
+            <Text style={st.profileName}>{profile?.id ? nxHandle(profile.id) : 'Inspector'}</Text>
             
             {/* Broker Logic: Show Client Price, not Inspector's Payout */}
             <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 10, backgroundColor: C.successBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20}}>
@@ -191,7 +192,10 @@ export default function JobDetailsScreen() {
         let profiles: any[] = [];
         
         if (uniqueIds.length > 0) {
-          const { data: profData } = await supabase.from('profiles').select('*').in('id', uniqueIds);
+          // ★ ANTI-POACHING: pseudonymous projection only (was select('*'),
+          //   which leaked applicants' full_name/email/avatar/rates). Identity
+          //   stays sealed (NX- handle) until a paid Named-Disclosure.
+          const { data: profData } = await supabase.from('profiles').select('id, title, bio, specialties').in('id', uniqueIds);
           profiles = profData || [];
         }
 
@@ -353,7 +357,7 @@ export default function JobDetailsScreen() {
                         {isHired ? <CheckCircle size={20} color={C.success} /> : <User size={20} color={C.primary} />}
                       </View>
                       <View>
-                        <Text style={st.applicantName}>{a.inspector?.full_name || 'Inspector'}</Text>
+                        <Text style={st.applicantName}>{a.inspector?.id ? nxHandle(a.inspector.id) : 'Inspector'}</Text>
                         <Text style={st.appDate}>{new Date(a.created_at).toLocaleDateString()}</Text>
                       </View>
                     </View>

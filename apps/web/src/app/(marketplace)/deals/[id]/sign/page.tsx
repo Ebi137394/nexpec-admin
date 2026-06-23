@@ -221,6 +221,15 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           redactedCv: d?.redacted_cv ?? null,
           statement: cert?.statement ?? null,
           eoPolicyRef: cert?.eo_policy_ref ?? null,
+          maskedName: insp.inspector_name_masked,
+          hasCv: !!insp.inspector_has_cv,
+          trustBadges: [
+            insp.inspector_verified ? 'NEXPEC-verified' : null,
+            'Identity on file',
+            cert?.eo_policy_ref ? 'E&O insured' : null,
+            (insp.inspector_jobs ?? 0) > 0 ? `${insp.inspector_jobs} NEXPEC jobs` : null,
+            (insp.inspector_rating ?? 0) > 0 ? `${Number(insp.inspector_rating).toFixed(1)}★` : null,
+          ].filter(Boolean) as string[],
         }}
         revealed={revealed}
         legalName={insp.inspector_legal_name}
@@ -262,9 +271,10 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           </div>
         ) : (
           <div className="mt-2">
-            <p className="text-sm text-white/70">Held in escrow. The real name and signature are released when the final report is admin-confirmed, giving you an auditable deliverable.</p>
+            <p className="text-sm text-white/90">{insp.inspector_name_masked ?? 'Identity sealed.'} <span className="text-white/50">Unlock to reveal full name, verified CV &amp; contact.</span></p>
+            <p className="mt-1 text-xs text-white/50">Your engagement unlock collects the booking deposit, activates 36-month non-circumvention protection, and reveals the inspector&apos;s verified identity.</p>
             <button onClick={() => setVipOpen(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">
-              <Crown size={14} /> Unlock named disclosure (VIP)
+              <Crown size={14} /> Unlock &amp; book
             </button>
           </div>
         )}

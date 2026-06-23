@@ -61,7 +61,7 @@ function PayInner({
   return (
     <div>
       <div className="mt-3 flex items-center justify-between rounded-xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
-        <span className="text-sm text-zinc-300">Amount due now</span>
+        <span className="text-sm text-zinc-300">Booking deposit</span>
         <span className="text-sm font-bold text-amber-200">{feeLabel}</span>
       </div>
       <div className="mt-3 rounded-xl border border-white/[0.06] bg-ink-950 p-3">
@@ -73,7 +73,7 @@ function PayInner({
         disabled={busy || !stripe || !elements}
         className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 py-3 font-bold text-ink-950 transition hover:from-amber-300 hover:to-amber-200 disabled:opacity-60"
       >
-        {busy ? 'Processing…' : 'Pay & unlock'} <ShieldCheck className="h-4 w-4" />
+        {busy ? 'Processing…' : 'Pay & book'} <ShieldCheck className="h-4 w-4" />
       </button>
       <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-zinc-500">
         <Lock className="h-3 w-3" /> Secured by Stripe. Your card is charged directly for this real-world engagement.

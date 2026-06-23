@@ -20,6 +20,9 @@ export interface CertData {
   redactedCv?: string | null;
   statement?: string | null;
   eoPolicyRef?: string | null;
+  maskedName?: string | null;   // server-masked tease (e.g. 'D▦▦▦▦ ▦.'); never the real name
+  trustBadges?: string[];       // truthful non-PII trust chips ("NEXPEC-verified", "E&O insured", …)
+  hasCv?: boolean;              // a verified CV exists behind the unlock
 }
 
 const GUILLOCHE = {
@@ -65,13 +68,27 @@ export function CredentialCertificate({
           </div>
         )}
 
+        {data.trustBadges && data.trustBadges.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {data.trustBadges.map((b) => (
+              <span key={b} className="inline-flex items-center gap-1 rounded-md border border-violet-glow/30 bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-100">
+                <ShieldCheck className="h-3 w-3" /> {b}
+              </span>
+            ))}
+          </div>
+        )}
+
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
           <div className="col-span-2"><dt className="text-zinc-500">Competencies</dt><dd className="text-zinc-200">{data.competencies.length ? data.competencies.join(', ') : 'n/a'}</dd></div>
           <div><dt className="text-zinc-500">Region</dt><dd className="text-zinc-200">{data.region ?? 'n/a'}</dd></div>
           <div><dt className="text-zinc-500">Scope</dt><dd className="truncate text-zinc-200">{data.scope ?? 'n/a'}</dd></div>
         </dl>
 
-        {data.tier === 'named' && data.redactedCv && <p className="mt-2 text-xs italic text-zinc-300">{data.redactedCv}</p>}
+        {data.hasCv && !revealed ? (
+          <p className="mt-2 text-xs italic text-zinc-300">Verified CV on file. ▦▦▦▦▦▦ ▦▦▦▦▦▦▦▦ ▦▦▦▦▦▦▦ ▦▦▦▦. Unlock to read.</p>
+        ) : data.redactedCv ? (
+          <p className="mt-2 text-xs italic text-zinc-300">{data.redactedCv}</p>
+        ) : null}
         {data.statement && <p className="mt-3 text-[11px] leading-relaxed text-zinc-400">{data.statement}</p>}
 
         <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/30 px-3 py-2">
@@ -85,10 +102,10 @@ export function CredentialCertificate({
 
         {!revealed && (
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500"><Lock className="h-3 w-3" /> Name &amp; photo sealed until final report</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500"><Lock className="h-3 w-3" /> Sealed until unlock: {data.maskedName ?? 'identity'}</span>
             {onReveal && (
               <button onClick={onReveal} className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 transition hover:text-amber-200">
-                <Crown className="h-3 w-3" /> Reveal now
+                <Crown className="h-3 w-3" /> Unlock &amp; book
               </button>
             )}
           </div>
@@ -137,9 +154,9 @@ export function VipDisclosureGate({
   if (!open) return null;
   const functional = !!onRequest && !!onSign;
   const benefits = [
-    'Inspector legal name + verified CV, disclosed upfront',
-    'Direct credential audit before mobilization',
-    'Extended 36-month non-circumvention + liquidated damages',
+    'Reveals full identity, verified CV & contact',
+    'Activates your 36-month non-circumvention protection',
+    'Counts as your booking deposit toward the engagement',
     'Sealed amendment to your MSA (SHA-256 + OpenTimestamps)',
   ];
   const close = () => { setPhase('offer'); setAmend(null); setClientSecret(null); setName(''); setAgreed(false); setErr(null); setBusy(false); onClose(); };
@@ -186,8 +203,8 @@ export function VipDisclosureGate({
             </>
           ) : phase === 'pay' && clientSecret && amend ? (
             <>
-              <h2 className="mt-3 font-display text-xl font-bold text-white">Pay the disclosure fee</h2>
-              <p className="mt-1 text-sm text-zinc-400">Your sealed amendment is signed. Pay the administrative amendment fee to lift identity escrow. The card is charged directly for this real-world engagement.</p>
+              <h2 className="mt-3 font-display text-xl font-bold text-white">Confirm your booking deposit</h2>
+              <p className="mt-1 text-sm text-zinc-400">Your sealed amendment is signed. This deposit activates your 36-month protection and reveals the inspector&apos;s verified identity. The card is charged directly for this real-world engagement.</p>
               <DisclosureFeePayment
                 clientSecret={clientSecret}
                 feeLabel={feeLabel}
@@ -216,9 +233,9 @@ export function VipDisclosureGate({
             </>
           ) : (
             <>
-              <h2 className="mt-3 font-display text-xl font-bold text-white">Unlock Named Disclosure</h2>
+              <h2 className="mt-3 font-display text-xl font-bold text-white">Unlock identity &amp; book</h2>
               <p className="mt-1 text-sm text-zinc-400">
-                Inspector <span className="font-mono text-zinc-200">{handle}</span> is sealed at the <span className="font-semibold text-zinc-200">{tier}</span> tier. NEXPEC escrows identity to protect against poaching — upgrade to reveal it before the final report.
+                Inspector <span className="font-mono text-zinc-200">{handle}</span> is sealed at the <span className="font-semibold text-zinc-200">{tier}</span> tier. NEXPEC escrows identity to protect against poaching. Your engagement unlock reveals it and books the inspector under sealed non-circumvention terms.
               </p>
               <ul className="mt-4 space-y-2 text-sm text-zinc-300">
                 {benefits.map((b) => (
@@ -227,8 +244,8 @@ export function VipDisclosureGate({
               </ul>
               <div className="mt-4 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
                 <div>
-                  <p className="text-[11px] uppercase tracking-industrial text-zinc-500">Named Disclosure</p>
-                  <p className="text-sm font-bold text-white">Administrative amendment fee</p>
+                  <p className="text-[11px] uppercase tracking-industrial text-zinc-500">Engagement unlock</p>
+                  <p className="text-sm font-bold text-white">Booking deposit, reveals identity</p>
                 </div>
                 <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[11px] font-bold text-amber-300">VIP tier</span>
               </div>

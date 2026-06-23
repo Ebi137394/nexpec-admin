@@ -525,7 +525,6 @@ const ProfileScreen: React.FC = () => {
   // State for toggles
   const [offlineMode, setOfflineMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
   
   // Handlers
@@ -566,9 +565,6 @@ const ProfileScreen: React.FC = () => {
         break;
       case 'notifications':
         setNotifications(value);
-        break;
-      case 'darkMode':
-        setDarkMode(value);
         break;
       case 'autoSync':
         setAutoSync(value);
@@ -622,14 +618,6 @@ const ProfileScreen: React.FC = () => {
   ];
   
   const preferencesSettings: SettingItem[] = [
-    {
-      id: 'darkMode',
-      icon: Moon,
-      title: 'Dark Mode',
-      subtitle: 'Use dark theme',
-      type: 'toggle',
-      value: darkMode,
-    },
     {
       id: 'language',
       icon: Globe,

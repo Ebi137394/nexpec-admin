@@ -201,15 +201,6 @@ interface SettingsItem {
 
 const SETTINGS_ITEMS: SettingsItem[] = [
   {
-    id: "appearance",
-    icon: "moon-outline",
-    label: "Dark Mode",
-    subtitle: "Always on",
-    type: "toggle",
-    color: COLORS.purple,
-    value: true,
-  },
-  {
     id: "language",
     icon: "language-outline",
     label: "Language",
@@ -273,9 +264,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
 // ═══════════════════════════════════════════════════════
 export default function ClientProfileView() {
   const [activeSection, setActiveSection] = useState<SectionKey>("overview");
-  const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({
-    appearance: true,
-  });
+  const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 

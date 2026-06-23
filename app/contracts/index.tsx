@@ -1420,7 +1420,19 @@ const ContractCard = ({
               <ChevronRight size={12} color={C.textMuted} />
             ) : null}
           </Pressable>
-          <Text style={s.cardAmount}>{formatMoney(contract.total_amount_cents)}</Text>
+          {/* ★ PRICE-BLINDNESS (anti-poaching) — the buyer party (client /
+                agency / enterprise) must NEVER see the counterparty inspector's
+                payout amount on a Hub card. `meIsClient` is true whenever the
+                viewer is the client side of THIS contract; the inspector
+                (meIsClient === false) still sees their own agreed payout. */}
+          {meIsClient ? (
+            <View style={s.cardAmountMasked}>
+              <ShieldCheck size={13} color={C.textMuted} />
+              <Text style={[s.cardAmount, s.cardAmountMaskedText]}>$•••</Text>
+            </View>
+          ) : (
+            <Text style={s.cardAmount}>{formatMoney(contract.total_amount_cents)}</Text>
+          )}
         </View>
 
         {/* Content state chips */}
@@ -1930,6 +1942,13 @@ const s = StyleSheet.create({
   },
   cardAmount: {
     color: C.cyan, fontSize: 18, fontWeight: '800', letterSpacing: -0.3,
+  },
+  // Price-blind mask shown to buyer-party viewers in place of the amount.
+  cardAmountMasked: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+  },
+  cardAmountMaskedText: {
+    color: C.textMuted, letterSpacing: 1,
   },
 
   contentChips: {

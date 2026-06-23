@@ -15,8 +15,11 @@
 //
 //  Hard guarantees:
 //    1. Authenticated Bearer JWT required.
-//    2. Authorization — caller must be the amendment's counterparty (the
-//       client). No one else can pay to lift another deal's identity escrow.
+//    2. Authorization — caller must be the amendment's counterparty, i.e. the
+//       deal's buyer (deals.client_id). This is account-type AGNOSTIC: Client,
+//       Agency, and Enterprise buyers are ALL authorized here by deal ownership,
+//       never by profile role — do NOT narrow this to role === 'client'. No one
+//       else can pay to lift another deal's identity escrow.
 //    3. Contract-before-money — the sealed rider must already be SIGNED
 //       (agreements.status = 'executed'). We never mint a PaymentIntent for an
 //       unsigned amendment.
@@ -142,7 +145,9 @@ serve(async (req) => {
       );
     }
 
-    // ── Step 4: Authorization — caller must be the client counterparty ─
+    // ── Step 4: Authorization — caller must be the buyer counterparty ─
+    //   deals.client_id == counterparty_id; any buyer account type
+    //   (client / agency / enterprise) is authorized by ownership, not role.
     if (agreement.counterparty_id !== user.id) {
       console.warn(
         `[create-disclosure-fee-intent][SECURITY] Non-party unlock attempt — user=${user.id} agreement=${agreement.id}`,

@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, ReactNode } from 'react';
 
 interface ThemeContextType {
   isDarkMode: boolean;
@@ -8,47 +7,19 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = '@nexpec_theme_mode';
-
+// ── MVP: opinionated DARK-ONLY ────────────────────────────────────────────────
+//  Brand identity is deep navy (#020420) + violet (#7C3AED). The light theme was
+//  only ever wired on the Profile screen, so a toggle left every other screen
+//  dark — a broken-looking setting that erodes trust. Locked to dark: isDarkMode
+//  is pinned `true`, storage is NOT consulted (any previously-saved 'light' is
+//  ignored, so no screen regresses), and the toggle UI was removed from Profile
+//  + Settings. `toggleTheme` is a no-op kept only for API compatibility with
+//  existing consumers (e.g. profile.tsx still reads isDarkMode for styling).
+//  A proper token-based light / high-contrast theme (notably inspector
+//  field/sunlight readability) is future roadmap, not MVP.
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load theme preference from storage on mount
-  useEffect(() => {
-    loadThemePreference();
-  }, []);
-
-  const loadThemePreference = async () => {
-    try {
-      const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme !== null) {
-        setIsDarkMode(savedTheme === 'dark');
-      }
-    } catch (error) {
-      console.error('Error loading theme preference:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const toggleTheme = async () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode ? 'dark' : 'light');
-    } catch (error) {
-      console.error('Error saving theme preference:', error);
-    }
-  };
-
-  // Don't render children until theme is loaded to prevent flash
-  if (isLoading) {
-    return null;
-  }
-
   return (
-    <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
+    <ThemeContext.Provider value={{ isDarkMode: true, toggleTheme: () => {} }}>
       {children}
     </ThemeContext.Provider>
   );

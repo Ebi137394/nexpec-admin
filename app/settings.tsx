@@ -22,7 +22,6 @@ import {
   Shield,
   HelpCircle,
   LogOut,
-  Moon,
   Smartphone,
   Briefcase,
 } from 'lucide-react-native';
@@ -115,13 +114,6 @@ export default function SettingsScreen() {
           title: 'Notifications',
           subtitle: 'Job alerts & messages',
           onPress: () => showComingSoon('Notifications Settings'),
-        },
-        {
-          id: 'appearance',
-          icon: <Moon size={22} color="#6366F1" />,
-          title: 'Dark Mode',
-          subtitle: 'Always On',
-          onPress: () => showComingSoon('Appearance Settings'),
         },
       ],
     },

@@ -11,7 +11,6 @@ import {
   RefreshControl,
   SafeAreaView,
   StatusBar,
-  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, Link } from 'expo-router';
@@ -67,7 +66,7 @@ interface Stats {
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const user = session?.user;
-  const { isDarkMode, toggleTheme } = useTheme();
+  const { isDarkMode } = useTheme();
   const colors = getColors(isDarkMode);
   
   // ✅ Get translation function and RTL status
@@ -945,14 +944,6 @@ export default function ProfileScreen() {
         >
           <Text style={[styles.sectionTitle, { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' }]}>{t('Preferences')}</Text>
           <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
-            {renderMenuItem('moon-outline', t('Dark Mode'), () => {}, (
-              <Switch
-                value={isDarkMode}
-                onValueChange={toggleTheme}
-                trackColor={{ false: '#374151', true: '#3B82F6' }}
-                thumbColor="#FFF"
-              />
-            ))}
             {renderMenuItem('language-outline', t('Language'), () => router.push('/profile/language' as any))}
             {renderMenuItem('help-circle-outline', t('Help & Support'), () => router.push('/inbox' as any))}
             {/* ★ LEGAL-WIRING-001 — Terms & Privacy renders the Tier-1 platform

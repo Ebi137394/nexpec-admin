@@ -83,8 +83,13 @@ BEGIN
   IF to_regclass('public.deals') IS NULL THEN
     RAISE EXCEPTION 'SELFTEST: deals missing';
   END IF;
-  IF to_regprocedure('public.nx_is_admin()') IS NULL THEN
-    RAISE EXCEPTION 'SELFTEST: nx_is_admin() missing';
+  -- Check by name (nx_is_admin has a defaulted arg, so to_regprocedure('...()')
+  -- would falsely report it missing even though nx_is_admin() resolves).
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'nx_is_admin' AND pronamespace = 'public'::regnamespace
+  ) THEN
+    RAISE EXCEPTION 'SELFTEST: nx_is_admin missing';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies

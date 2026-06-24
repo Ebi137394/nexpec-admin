@@ -138,7 +138,7 @@ export default async function TalentPage({ params }: PageProps) {
               </div>
             </div>
 
-            {(rating != null || pro.completed_jobs_count != null || pro.is_available) && (
+            {(rating != null || pro.completed_jobs_count != null || pro.is_available || pro.rate_band) && (
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/[0.06] pt-5 text-sm">
                 {rating != null && (
                   <span className="inline-flex items-center gap-1.5 text-zinc-200">
@@ -156,6 +156,11 @@ export default async function TalentPage({ params }: PageProps) {
                   <span className="inline-flex items-center gap-1.5 text-accent-green">
                     <span className="h-1.5 w-1.5 rounded-full bg-accent-green" aria-hidden />
                     Available for dispatch
+                  </span>
+                )}
+                {pro.rate_band && (
+                  <span className="inline-flex items-center gap-1.5 text-zinc-300">
+                    <span className="font-semibold text-violet-glow">{pro.rate_band}</span> rate tier
                   </span>
                 )}
               </div>

@@ -42,6 +42,7 @@ export interface SupplyTeaser {
   is_available: boolean | null;
   is_featured: boolean | null;
   pool_size: number | null; // agency_pool: live inspector count; inspector: null
+  rate_band: string | null; // coarse tier ($ / $$ / $$$); never the exact rate
 }
 
 export type DemandKind = 'client_job' | 'enterprise_mission' | 'agency_tender' | 'rfq';
@@ -62,7 +63,7 @@ export interface TeaserStats {
 }
 
 const SUPPLY_COLS =
-  'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured, pool_size';
+  'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured, pool_size, rate_band';
 const DEMAND_COLS =
   'ref, source_kind, domain, specialty_slugs, location_city, country, timeframe, posted_at';
 

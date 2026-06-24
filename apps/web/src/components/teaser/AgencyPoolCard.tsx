@@ -66,7 +66,7 @@ export function AgencyPoolCard({ pool }: { pool: SupplyTeaser }) {
         </div>
       )}
 
-      {(rating != null || jobs != null || pool.is_available) && (
+      {(rating != null || jobs != null || pool.is_available || pool.rate_band) && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           {rating != null && (
             <span className="inline-flex items-center gap-1 text-zinc-300">
@@ -82,6 +82,12 @@ export function AgencyPoolCard({ pool }: { pool: SupplyTeaser }) {
             <span className="inline-flex items-center gap-1.5 text-accent-green">
               <span className="h-1.5 w-1.5 rounded-full bg-accent-green" aria-hidden />
               Available
+            </span>
+          )}
+          {pool.rate_band && (
+            <span className="inline-flex items-center gap-1.5 text-zinc-400" title="Typical team rate tier">
+              <span className="font-semibold text-violet-glow">{pool.rate_band}</span>
+              <span className="text-zinc-500">rate</span>
             </span>
           )}
         </div>

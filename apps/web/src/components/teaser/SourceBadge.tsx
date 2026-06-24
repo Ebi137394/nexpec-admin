@@ -5,14 +5,16 @@
 //  Demand: Client Job / Enterprise Mission / Agency Tender. Supply: Vetted
 //  Talent (agency-affiliated or independent — affiliation is never shown).
 // ════════════════════════════════════════════════════════════════════════════
-import { Building2, ShieldCheck, Users, UserRound, type LucideIcon } from 'lucide-react';
+import { Building2, ClipboardList, ShieldCheck, Users, UserRound, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 export type SourceKind =
   | 'client_job'
   | 'enterprise_mission'
   | 'agency_tender'
-  | 'inspector';
+  | 'inspector'
+  | 'agency_pool'
+  | 'rfq';
 
 const MAP: Record<SourceKind, { label: string; tone: string; Icon: LucideIcon }> = {
   client_job: {
@@ -34,6 +36,16 @@ const MAP: Record<SourceKind, { label: string; tone: string; Icon: LucideIcon }>
     label: 'Vetted Talent',
     tone: 'border-accent-green/40 bg-accent-green/10 text-accent-green',
     Icon: ShieldCheck,
+  },
+  agency_pool: {
+    label: 'Vetted Agency',
+    tone: 'border-violet/50 bg-violet/10 text-violet-glow',
+    Icon: Building2,
+  },
+  rfq: {
+    label: 'Sourcing RFQ',
+    tone: 'border-white/15 bg-white/[0.06] text-zinc-200',
+    Icon: ClipboardList,
   },
 };
 

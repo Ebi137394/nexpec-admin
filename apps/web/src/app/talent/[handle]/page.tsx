@@ -35,7 +35,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { handle } = await params;
   const pro = await fetchSupplyTeaserByHandle(handle);
-  if (!pro) {
+  if (!pro || pro.source_kind !== 'inspector') {
     return { title: 'Inspector not found, NEXPEC', robots: { index: false, follow: false } };
   }
   const specs = (pro.specialty_slugs ?? []).map(humanizeSlug).slice(0, 3).join(', ');
@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function TalentPage({ params }: PageProps) {
   const { handle } = await params;
   const pro = await fetchSupplyTeaserByHandle(handle);
-  if (!pro) notFound();
+  if (!pro || pro.source_kind !== 'inspector') notFound();
 
   const specs = (pro.specialty_slugs ?? []).filter(Boolean);
   const certs = (pro.certifications ?? []).filter(Boolean);

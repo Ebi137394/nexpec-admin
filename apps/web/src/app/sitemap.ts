@@ -14,6 +14,12 @@
 
 import type { MetadataRoute } from 'next';
 import { fetchInspectorIdsForSitemap } from '@/lib/data/inspectorsDirectory';
+import {
+  fetchAllDemand,
+  fetchAllSupplyHandles,
+  inspectionSlug,
+  talentPath,
+} from '@/lib/data/teaser';
 
 // fetchInspectorIdsForSitemap reads via a Supabase server client that touches
 // cookies, so this route is inherently dynamic and can't be statically exported
@@ -22,6 +28,7 @@ export const dynamic = 'force-dynamic';
 
 const STATIC_ROUTES: Array<{ path: string; priority: number }> = [
   { path: '/', priority: 1.0 },
+  { path: '/discover', priority: 0.9 },
   { path: '/inspectors', priority: 0.9 },
   { path: '/contact', priority: 0.5 },
   { path: '/legal/terms', priority: 0.3 },
@@ -57,5 +64,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('[sitemap] inspector fetch threw', err);
   }
 
-  return [...staticEntries, ...inspectorEntries];
+  // Teaser Marketplace canonical pages (Phase 2): individual talent + inspections.
+  let talentEntries: MetadataRoute.Sitemap = [];
+  let inspectionEntries: MetadataRoute.Sitemap = [];
+  try {
+    const [handles, demand] = await Promise.all([fetchAllSupplyHandles(), fetchAllDemand()]);
+    talentEntries = handles.map((h) => ({
+      url: `${base}${talentPath(h)}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    }));
+    inspectionEntries = demand.map((j) => ({
+      url: `${base}/inspections/${inspectionSlug(j)}`,
+      lastModified: j.posted_at ? new Date(j.posted_at) : new Date(),
+      changeFrequency: 'daily',
+      priority: 0.7,
+    }));
+  } catch (err) {
+    console.error('[sitemap] teaser fetch threw', err);
+  }
+
+  return [...staticEntries, ...inspectorEntries, ...talentEntries, ...inspectionEntries];
 }

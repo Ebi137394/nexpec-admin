@@ -16,6 +16,7 @@ import { Footer } from '@/components/marketing/Footer';
 import { JsonLd } from '@/components/teaser/JsonLd';
 import { SourceBadge, type SourceKind } from '@/components/teaser/SourceBadge';
 import {
+  demandTitle,
   domainLabel,
   fetchAllDemand,
   fetchDemandTeaserByRef,
@@ -45,10 +46,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return { title: 'Inspection not found, NEXPEC', robots: { index: false, follow: false } };
   }
   const where = [job.location_city, job.country].filter(Boolean).join(', ');
-  const title = `${domainLabel(job.domain)} Inspection${where ? ` — ${where}` : ''}`;
-  const description = `Open ${domainLabel(job.domain).toLowerCase()} inspection${
+  const title = `${demandTitle(job)}${where ? ` — ${where}` : ''}`;
+  const description = `Open ${demandTitle(job).toLowerCase()}${
     where ? ` in ${where}` : ''
-  }${job.timeframe ? `, ${job.timeframe}` : ''}. Vetted inspectors apply through NEXPEC — brokered, escrowed, and audit-grade.`;
+  }${job.timeframe ? `, ${job.timeframe}` : ''}. Vetted inspectors engage through NEXPEC — brokered, escrowed, and audit-grade.`;
   return {
     title: `${title}, NEXPEC`,
     description,
@@ -114,7 +115,8 @@ export default async function InspectionPage({ params }: PageProps) {
 
   return (
     <>
-      <JsonLd data={jobLd} />
+      {/* JobPosting markup only for real hires — RFQs are sourcing requests */}
+      {job.source_kind !== 'rfq' && <JsonLd data={jobLd} />}
       <Nav viewer={null} />
       <main id="top" className="relative py-24 sm:py-28">
         <div className="container-narrow max-w-3xl">
@@ -140,7 +142,7 @@ export default async function InspectionPage({ params }: PageProps) {
               )}
             </div>
             <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight text-white">
-              {dLabel} Inspection
+              {demandTitle(job)}
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
               {where && (

@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, MapPin } from 'lucide-react';
 import { SourceBadge } from './SourceBadge';
-import { domainLabel, humanizeSlug, inspectionPath, timeAgo, type DemandTeaser } from '@/lib/data/teaser';
+import { demandTitle, humanizeSlug, inspectionPath, timeAgo, type DemandTeaser } from '@/lib/data/teaser';
 
 export function JobTeaserCard({ job }: { job: DemandTeaser }) {
   const chips = (job.specialty_slugs ?? []).filter(Boolean).slice(0, 3);
@@ -25,7 +25,7 @@ export function JobTeaserCard({ job }: { job: DemandTeaser }) {
 
       <h3 className="font-display text-lg font-semibold leading-snug text-white">
         <Link href={inspectionPath(job)} className="transition-colors hover:text-violet-glow">
-          {domainLabel(job.domain)} Inspection
+          {demandTitle(job)}
         </Link>
       </h3>
 

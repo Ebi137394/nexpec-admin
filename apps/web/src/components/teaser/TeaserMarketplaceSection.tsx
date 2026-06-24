@@ -21,6 +21,7 @@ import {
 } from '@/lib/data/teaser';
 import { JobTeaserCard } from './JobTeaserCard';
 import { TalentSpotlightCard } from './TalentSpotlightCard';
+import { AgencyPoolCard } from './AgencyPoolCard';
 
 export async function TeaserMarketplaceSection({
   variant = 'section',
@@ -87,9 +88,15 @@ export async function TeaserMarketplaceSection({
                 <Placeholder text="New inspections are posting soon." />
               )}
             </Column>
-            <Column eyebrow="Vetted talent" title="Specialists available for dispatch">
+            <Column eyebrow="Vetted talent" title="Specialists & agencies available for dispatch">
               {supply.length ? (
-                supply.map((p) => <TalentSpotlightCard key={p.handle} pro={p} />)
+                supply.map((p) =>
+                  p.source_kind === 'agency_pool' ? (
+                    <AgencyPoolCard key={p.handle} pool={p} />
+                  ) : (
+                    <TalentSpotlightCard key={p.handle} pro={p} />
+                  ),
+                )
               ) : (
                 <Placeholder text="Featured specialists are coming online." />
               )}

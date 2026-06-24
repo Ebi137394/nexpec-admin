@@ -27,7 +27,7 @@ function anonClient() {
 }
 
 // ── Types (mirror the view column lists) ──
-export type SupplyKind = 'inspector';
+export type SupplyKind = 'inspector' | 'agency_pool';
 export interface SupplyTeaser {
   handle: string;
   source_kind: SupplyKind;
@@ -41,9 +41,10 @@ export interface SupplyTeaser {
   completed_jobs_count: number | null;
   is_available: boolean | null;
   is_featured: boolean | null;
+  pool_size: number | null; // agency_pool: live inspector count; inspector: null
 }
 
-export type DemandKind = 'client_job' | 'enterprise_mission' | 'agency_tender';
+export type DemandKind = 'client_job' | 'enterprise_mission' | 'agency_tender' | 'rfq';
 export interface DemandTeaser {
   ref: string; // nx_handle(job.id) — stable opaque anchor for the canonical page
   source_kind: DemandKind;
@@ -61,7 +62,7 @@ export interface TeaserStats {
 }
 
 const SUPPLY_COLS =
-  'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured';
+  'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured, pool_size';
 const DEMAND_COLS =
   'ref, source_kind, domain, specialty_slugs, location_city, country, timeframe, posted_at';
 
@@ -120,6 +121,14 @@ export function domainLabel(domain: string | null): string {
   return DOMAIN_LABELS[domain] ?? humanizeSlug(domain);
 }
 
+// Title for a demand item — RFQs read as sourcing requests, jobs as inspections.
+export function demandTitle(job: Pick<DemandTeaser, 'source_kind' | 'domain'>): string {
+  if (job.source_kind === 'rfq') {
+    return `${job.domain ? domainLabel(job.domain) + ' ' : ''}Sourcing RFQ`;
+  }
+  return `${domainLabel(job.domain)} Inspection`;
+}
+
 export function timeAgo(iso: string | null): string {
   if (!iso) return '';
   const then = new Date(iso).getTime();
@@ -167,7 +176,11 @@ export async function fetchDemandTeaserByRef(ref: string): Promise<DemandTeaser 
 export async function fetchAllSupplyHandles(limit = 1000): Promise<string[]> {
   const sb = anonClient();
   if (!sb) return [];
-  const { data, error } = await sb.from('public_supply_feed').select('handle').limit(limit);
+  const { data, error } = await sb
+    .from('public_supply_feed')
+    .select('handle')
+    .eq('source_kind', 'inspector') // individual talent pages only; pools are card-only
+    .limit(limit);
   if (error) return [];
   return ((data ?? []) as Array<{ handle: string }>).map((r) => r.handle).filter(Boolean);
 }

@@ -73,9 +73,12 @@ CREATE INDEX idx_demand_feed_ref    ON public.public_demand_feed (ref);
 CREATE INDEX idx_demand_feed_kind   ON public.public_demand_feed (source_kind);
 CREATE INDEX idx_demand_feed_posted ON public.public_demand_feed (posted_at DESC NULLS LAST);
 
-REVOKE ALL    ON public.public_supply_feed FROM PUBLIC;
+-- Revoke from the ROLES explicitly (Supabase default privileges auto-grant new
+-- public-schema tables to anon/authenticated; REVOKE FROM PUBLIC alone leaves
+-- those role grants in place → anon could write to the table). Then SELECT-only.
+REVOKE ALL    ON public.public_supply_feed FROM PUBLIC, anon, authenticated;
 GRANT  SELECT ON public.public_supply_feed TO anon, authenticated, service_role;
-REVOKE ALL    ON public.public_demand_feed FROM PUBLIC;
+REVOKE ALL    ON public.public_demand_feed FROM PUBLIC, anon, authenticated;
 GRANT  SELECT ON public.public_demand_feed TO anon, authenticated, service_role;
 
 -- ── 2. Refresh functions (rebuild = the old view logic; SECURITY DEFINER) ─────

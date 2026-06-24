@@ -15,6 +15,8 @@
 import type { MetadataRoute } from 'next';
 import { fetchInspectorIdsForSitemap } from '@/lib/data/inspectorsDirectory';
 import {
+  agencyPath,
+  fetchAllAgencyHandles,
   fetchAllDemand,
   fetchAllSupplyHandles,
   inspectionSlug,
@@ -64,13 +66,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('[sitemap] inspector fetch threw', err);
   }
 
-  // Teaser Marketplace canonical pages (Phase 2): individual talent + inspections.
+  // Teaser Marketplace canonical pages: talent + agencies + inspections.
   let talentEntries: MetadataRoute.Sitemap = [];
+  let agencyEntries: MetadataRoute.Sitemap = [];
   let inspectionEntries: MetadataRoute.Sitemap = [];
   try {
-    const [handles, demand] = await Promise.all([fetchAllSupplyHandles(), fetchAllDemand()]);
+    const [handles, agencies, demand] = await Promise.all([
+      fetchAllSupplyHandles(),
+      fetchAllAgencyHandles(),
+      fetchAllDemand(),
+    ]);
     talentEntries = handles.map((h) => ({
       url: `${base}${talentPath(h)}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    }));
+    agencyEntries = agencies.map((h) => ({
+      url: `${base}${agencyPath(h)}`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.6,
@@ -85,5 +98,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error('[sitemap] teaser fetch threw', err);
   }
 
-  return [...staticEntries, ...inspectorEntries, ...talentEntries, ...inspectionEntries];
+  return [
+    ...staticEntries,
+    ...inspectorEntries,
+    ...talentEntries,
+    ...agencyEntries,
+    ...inspectionEntries,
+  ];
 }

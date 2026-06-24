@@ -179,7 +179,19 @@ export async function fetchAllSupplyHandles(limit = 1000): Promise<string[]> {
   const { data, error } = await sb
     .from('public_supply_feed')
     .select('handle')
-    .eq('source_kind', 'inspector') // individual talent pages only; pools are card-only
+    .eq('source_kind', 'inspector') // individual talent pages only
+    .limit(limit);
+  if (error) return [];
+  return ((data ?? []) as Array<{ handle: string }>).map((r) => r.handle).filter(Boolean);
+}
+
+export async function fetchAllAgencyHandles(limit = 1000): Promise<string[]> {
+  const sb = anonClient();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from('public_supply_feed')
+    .select('handle')
+    .eq('source_kind', 'agency_pool')
     .limit(limit);
   if (error) return [];
   return ((data ?? []) as Array<{ handle: string }>).map((r) => r.handle).filter(Boolean);
@@ -204,6 +216,10 @@ export function slugify(s: string | null | undefined): string {
 
 export function talentPath(handle: string): string {
   return `/talent/${handle}`;
+}
+
+export function agencyPath(handle: string): string {
+  return `/agency/${handle}`;
 }
 
 // Descriptive, SEO-friendly slug that ends with the opaque ref (NX-XXXXXX).

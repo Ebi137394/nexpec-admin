@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 import Link from 'next/link';
 import { ArrowRight, BadgeCheck, Building2, MapPin, Star, Users } from 'lucide-react';
-import { humanizeSlug, type SupplyTeaser } from '@/lib/data/teaser';
+import { agencyPath, humanizeSlug, type SupplyTeaser } from '@/lib/data/teaser';
 
 export function AgencyPoolCard({ pool }: { pool: SupplyTeaser }) {
   const chips = (pool.specialty_slugs ?? []).filter(Boolean).slice(0, 4);
@@ -25,9 +25,12 @@ export function AgencyPoolCard({ pool }: { pool: SupplyTeaser }) {
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-mono text-sm font-semibold tracking-wide text-white">
+            <Link
+              href={agencyPath(pool.handle)}
+              className="truncate font-mono text-sm font-semibold tracking-wide text-white transition-colors hover:text-violet-glow"
+            >
               {pool.handle}
-            </span>
+            </Link>
             <BadgeCheck className="h-4 w-4 shrink-0 text-violet-glow" aria-hidden />
           </div>
           <span className="text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">

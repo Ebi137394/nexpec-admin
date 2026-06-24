@@ -33,12 +33,18 @@
 -- ════════════════════════════════════════════════════════════════════════════
 BEGIN;
 
--- ── 1. Consent flag ───────────────────────────────────────────────────────────
+-- ── 1. Consent + curation flags ───────────────────────────────────────────────
+--   profiles has NO generic is_featured (jobs.is_featured is a different table),
+--   so we add a dedicated admin-curation flag alongside the opt-in flag.
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS public_listing_opt_in boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS public_listing_opt_in   boolean NOT NULL DEFAULT false;
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS public_listing_featured boolean NOT NULL DEFAULT false;
 
 COMMENT ON COLUMN public.profiles.public_listing_opt_in IS
-  'Teaser feed consent: the user opted in to a sanitized public listing. Required (with is_featured) for public_supply_feed. Default false.';
+  'Teaser feed consent: user opted in to a sanitized public listing. Required (with public_listing_featured) for public_supply_feed. Default false.';
+COMMENT ON COLUMN public.profiles.public_listing_featured IS
+  'Teaser feed admin curation: admin promoted this user to the public feed. Required (with public_listing_opt_in). Default false.';
 
 -- ── 2a. get_marketplace_inspectors → pseudonymized (handle, no avatar) ─────────
 --   Body is unchanged EXCEPT: display_name now = public.nx_handle(p.id) and
@@ -80,7 +86,7 @@ BEGIN
     COALESCE(p.is_verified,  false),
     COALESCE(p.is_available, false),
     p.hourly_rate_cents,
-    p.years_experience,
+    p.experience_years,                              -- real column (years_of_experience is text)
     p.skills,
     p.ndt_methods,
     p.certifications,
@@ -90,11 +96,11 @@ BEGIN
     COALESCE(p.rating_count,   0)::integer,
     COALESCE(p.completed_jobs_count, 0)::integer,
     p.response_time_hours,
-    COALESCE(p.is_featured, false),
+    COALESCE(p.public_listing_featured, false),      -- profiles has no is_featured
     p.availability_status
   FROM public.profiles p
   WHERE p.role = 'inspector'
-    AND COALESCE(p.is_active, false) = true
+    AND p.status = 'active'                          -- real gate (no is_active column)
     AND (NOT p_only_verified  OR COALESCE(p.is_verified,  false) = true)
     AND (NOT p_only_available OR COALESCE(p.is_available, false) = true)
     AND (p_min_rating  IS NULL OR COALESCE(p.rating_average, 0) >= p_min_rating)
@@ -110,7 +116,7 @@ BEGIN
   ORDER BY
     CASE WHEN p_sort_by = 'rating'     THEN p.rating_average       END DESC NULLS LAST,
     CASE WHEN p_sort_by = 'reviews'    THEN p.rating_count         END DESC NULLS LAST,
-    CASE WHEN p_sort_by = 'experience' THEN p.years_experience     END DESC NULLS LAST,
+    CASE WHEN p_sort_by = 'experience' THEN p.experience_years     END DESC NULLS LAST,
     CASE WHEN p_sort_by = 'jobs'       THEN p.completed_jobs_count END DESC NULLS LAST,
     CASE WHEN p_sort_by = 'price_low'  THEN p.hourly_rate_cents    END ASC  NULLS LAST,
     CASE WHEN p_sort_by = 'price_high' THEN p.hourly_rate_cents    END DESC NULLS LAST,
@@ -188,11 +194,10 @@ SELECT
 FROM public.profiles p
 WHERE p.role = 'inspector'
   AND p.verification_status = 'verified'           -- vetted baseline (kept)
-  AND COALESCE(p.public_listing_opt_in, false) = true   -- consent
-  AND COALESCE(p.is_featured, false) = true        -- admin curation
-  AND COALESCE(p.is_active, true) = true            -- not deactivated
-  AND p.status = 'active'                           -- not suspended/anonymized
-  AND p.deleted_at IS NULL;                         -- not soft-deleted
+  AND COALESCE(p.public_listing_opt_in, false) = true       -- consent
+  AND COALESCE(p.public_listing_featured, false) = true     -- admin curation
+  AND p.status = 'active'                                    -- live (excludes suspended/anonymized)
+  AND p.deleted_at IS NULL;                                  -- not soft-deleted
 
 COMMENT ON VIEW public.public_supply_feed IS
   'Public (anon) pseudonymous talent spotlights. Privacy by construction: emits nx_handle + sanitized fields only — no id/name/email/avatar/bio/rate/affiliation. Eligibility = verified + public_listing_opt_in + is_featured + live account.';
@@ -211,6 +216,11 @@ BEGIN
                  WHERE table_schema='public' AND table_name='profiles'
                    AND column_name='public_listing_opt_in') THEN
     RAISE EXCEPTION 'SELFTEST: profiles.public_listing_opt_in missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='profiles'
+                   AND column_name='public_listing_featured') THEN
+    RAISE EXCEPTION 'SELFTEST: profiles.public_listing_featured missing';
   END IF;
 
   -- view present + anon can read it

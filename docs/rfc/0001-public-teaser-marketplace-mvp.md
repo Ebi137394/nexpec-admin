@@ -38,7 +38,7 @@ A public, unauthenticated, SEO-indexable feed on the web landing page that mirro
 
 - `nxHandle(id)` — FNV-1a → `NX-XXXXXX` (Crockford alphabet, no I/L/O/U). Mobile: `src/core/utils/handle.ts`. Web: `apps/web/src/lib/identity/inspectorHandle.ts`.
 - `supplier_directory` view (anon) — precedent for an anon-granted sanitized projection (note: it exposes `legal_name`, which is acceptable for a *supplier business entity*, **not** for an individual inspector).
-- `is_featured`, `verification_status`, `is_verified`, `rating_average`, `completed_jobs_count`, `organization_id`, `is_available` already exist on `profiles`.
+- `verification_status`, `is_verified`, `rating_average`, `rating_count`, `completed_jobs_count`, `organization_id`, `is_available`, `status`, `experience_years` (int) already exist on `profiles`. **Note (verified on push):** profiles has **no** `is_featured` or `is_active` — `status='active'` is the live gate, and we add `public_listing_opt_in` + `public_listing_featured`. `jobs.is_featured` is a different table.
 - `jobs` already has the `client_id` / `agency_id` **XOR owner** model (`jobs_owner_xor`) + `domain` enum + `specialty_slugs[]` — so polymorphic demand is nearly free.
 
 **Web stack:** Next.js **15.5.18**, App Router. Existing public pages (e.g. `/directory`) are **client-rendered** (`'use client'` + `useEffect`) — invisible to crawlers. The teaser surface will set the correct **RSC + ISR** pattern.
@@ -68,17 +68,18 @@ The feeds emit the **`nx_handle` only — never the raw `profiles.id` / `jobs.id
 
 ## 6. The supply feed — `public_supply_feed`
 
-**Population (MVP):** independent inspectors only.
+**Population (MVP):** ALL inspectors (independent **and** agency-affiliated) shown individually; affiliation is never emitted.
 
-**Eligibility `WHERE` (all required):**
+**Eligibility `WHERE` (all required) — per product overrides 2026-06-24:**
 ```
 role = 'inspector'
-AND organization_id IS NULL            -- affiliation-aware: agency talent is NOT shown individually
-AND verification_status = 'verified'   -- automated baseline (decision 3)
-AND completed_jobs_count >= 3          -- automated baseline (tunable)
-AND rating_average >= 4.0              -- automated baseline (tunable)
-AND public_listing_opt_in = true       -- consent (NEW flag, decision 1)
-AND is_featured = true                 -- admin curation (existing flag, decision 1)
+AND verification_status = 'verified'           -- vetted baseline (kept)
+AND public_listing_opt_in   = true             -- consent (NEW flag)
+AND public_listing_featured = true             -- admin curation (NEW flag)
+AND status = 'active' AND deleted_at IS NULL    -- live account
+-- NO completed-jobs / rating threshold  → maximize visible talent
+-- NO organization_id filter             → agency-affiliated inspectors appear too;
+--                                          organization_id is simply never a column here
 ```
 
 **Emitted columns (sanitized):**
@@ -86,14 +87,13 @@ AND is_featured = true                 -- admin curation (existing flag, decisio
 | Column | Source | Note |
 |---|---|---|
 | `handle` | `nx_handle(id)` | pseudonym; **no uuid** |
-| `source_kind` | const `'independent_inspector'` | badge |
-| `headline` | derived from `specialty_slugs` | e.g. "NDT & Mechanical Expert" — **not** free-text bio |
-| `specialty_slugs` | `specialty_slugs` | taxonomy tags |
+| `source_kind` | const `'inspector'` | all surface as "vetted NEXPEC talent" |
+| `specialty_slugs` | `specialty_slugs` | taxonomy tags; web composes the headline from these (i18n) |
 | `certifications` | `certifications` | **category labels only** (CWI, API-570…); no cert IDs/numbers |
 | `location_city`, `location_province` | as-is | exact city retained (per your earlier decision); no street/postal |
 | `country` | `country_of_residence` | jurisdiction |
-| `rating_average`, `rating_count` | as-is | trust signal |
-| `completed_jobs_count` | as-is | trust signal |
+| `rating_average`, `rating_count` | NULL when 0 ratings | trust signal; UI omits when NULL (never "0") |
+| `completed_jobs_count` | NULL when 0 | trust signal; UI omits when NULL (never "0 jobs completed") |
 | `is_available` | as-is | "Available for dispatch" |
 | `is_featured` | const true | "Vetted" sigil |
 

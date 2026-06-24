@@ -1,0 +1,137 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  lib/data/teaser.ts — public Teaser Marketplace data layer (RSC / ISR)
+//
+//  Reads the two anon-granted, privacy-isolated projections shipped in
+//  migrations 20260801170000 (public_supply_feed) + 20260801172000
+//  (public_demand_feed). These views emit ZERO PII by construction — handles,
+//  sanitized fields, coarse timeframes only.
+//
+//  IMPORTANT: we use a COOKIELESS anon client (a static empty cookie store) so
+//  this module never touches next/headers `cookies()`. That keeps any consuming
+//  Server Component statically renderable / ISR-cacheable (revalidate). The
+//  public feeds need no session, so anon is exactly right.
+//
+//  Fail-closed: every read degrades to [] / 0 on error, never throws to the UI.
+// ════════════════════════════════════════════════════════════════════════════
+import { createServerClient } from '@supabase/ssr';
+
+const URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+function anonClient() {
+  if (!URL || !ANON) return null;
+  // Empty, no-op cookie adapter → no next/headers access → ISR-safe anon reads.
+  return createServerClient(URL, ANON, {
+    cookies: { getAll: () => [], setAll: () => {} },
+  });
+}
+
+// ── Types (mirror the view column lists) ──
+export type SupplyKind = 'inspector';
+export interface SupplyTeaser {
+  handle: string;
+  source_kind: SupplyKind;
+  specialty_slugs: string[] | null;
+  certifications: string[] | null;
+  location_city: string | null;
+  location_province: string | null;
+  country: string | null;
+  rating_average: number | string | null; // PostgREST may serialize numeric as string
+  rating_count: number | null;
+  completed_jobs_count: number | null;
+  is_available: boolean | null;
+  is_featured: boolean | null;
+}
+
+export type DemandKind = 'client_job' | 'enterprise_mission' | 'agency_tender';
+export interface DemandTeaser {
+  source_kind: DemandKind;
+  domain: string | null;
+  specialty_slugs: string[] | null;
+  location_city: string | null;
+  country: string | null;
+  timeframe: string | null;
+  posted_at: string | null;
+}
+
+export interface TeaserStats {
+  openDemand: number;
+  vettedTalent: number;
+}
+
+const SUPPLY_COLS =
+  'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured';
+const DEMAND_COLS =
+  'source_kind, domain, specialty_slugs, location_city, country, timeframe, posted_at';
+
+// ── Reads ──
+export async function fetchSupplyTeasers(limit = 6): Promise<SupplyTeaser[]> {
+  const sb = anonClient();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from('public_supply_feed')
+    .select(SUPPLY_COLS)
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as unknown as SupplyTeaser[];
+}
+
+export async function fetchDemandTeasers(limit = 6): Promise<DemandTeaser[]> {
+  const sb = anonClient();
+  if (!sb) return [];
+  const { data, error } = await sb
+    .from('public_demand_feed')
+    .select(DEMAND_COLS)
+    .order('posted_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) return [];
+  return (data ?? []) as unknown as DemandTeaser[];
+}
+
+export async function fetchTeaserStats(): Promise<TeaserStats> {
+  const sb = anonClient();
+  if (!sb) return { openDemand: 0, vettedTalent: 0 };
+  const [d, s] = await Promise.all([
+    sb.from('public_demand_feed').select('*', { count: 'exact', head: true }),
+    sb.from('public_supply_feed').select('*', { count: 'exact', head: true }),
+  ]);
+  return { openDemand: d.count ?? 0, vettedTalent: s.count ?? 0 };
+}
+
+// ── Label + format helpers (i18n-light; the feeds emit canonical slugs) ──
+export const DOMAIN_LABELS: Record<string, string> = {
+  industrial_ndt: 'Industrial & NDT',
+  civil_construction: 'Civil & Construction',
+  electrical: 'Electrical',
+  mechanical_field: 'Mechanical Field',
+  chemical_process: 'Chemical & Process',
+};
+
+export function humanizeSlug(slug: string): string {
+  return (
+    DOMAIN_LABELS[slug] ??
+    slug.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+export function domainLabel(domain: string | null): string {
+  if (!domain) return 'Inspection';
+  return DOMAIN_LABELS[domain] ?? humanizeSlug(domain);
+}
+
+export function timeAgo(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.floor(d / 7);
+  if (w < 5) return `${w}w ago`;
+  return `${Math.floor(d / 30)}mo ago`;
+}

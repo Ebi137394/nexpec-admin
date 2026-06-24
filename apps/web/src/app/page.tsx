@@ -18,6 +18,7 @@ import { HowItWorks } from '@/components/marketing/HowItWorks';
 import { TrustPillars } from '@/components/marketing/TrustPillars';
 import { PlatformScale } from '@/components/marketing/PlatformScale';
 import { Industries } from '@/components/marketing/Industries';
+import { TeaserMarketplaceSection } from '@/components/teaser/TeaserMarketplaceSection';
 import { CTASection } from '@/components/marketing/CTASection';
 import { Footer } from '@/components/marketing/Footer';
 // ── NEW · additive cinematic deep-tech sections + scroll glue ──────────────
@@ -108,6 +109,12 @@ export default async function LandingPage() {
             TrustPillars and Industries sections. */}
         <PlatformScale />
         <Industries />
+
+        {/* Public Teaser Marketplace, Set 3 (additive). Live, privacy-isolated
+            feed of open inspections + vetted talent. Server-rendered from the
+            anon feed views; links to the dedicated ISR /discover surface. */}
+        <TeaserMarketplaceSection />
+
         <CTASection />
       </main>
       <Footer />

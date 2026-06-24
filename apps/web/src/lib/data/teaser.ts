@@ -45,6 +45,7 @@ export interface SupplyTeaser {
 
 export type DemandKind = 'client_job' | 'enterprise_mission' | 'agency_tender';
 export interface DemandTeaser {
+  ref: string; // nx_handle(job.id) — stable opaque anchor for the canonical page
   source_kind: DemandKind;
   domain: string | null;
   specialty_slugs: string[] | null;
@@ -62,7 +63,7 @@ export interface TeaserStats {
 const SUPPLY_COLS =
   'handle, source_kind, specialty_slugs, certifications, location_city, location_province, country, rating_average, rating_count, completed_jobs_count, is_available, is_featured';
 const DEMAND_COLS =
-  'source_kind, domain, specialty_slugs, location_city, country, timeframe, posted_at';
+  'ref, source_kind, domain, specialty_slugs, location_city, country, timeframe, posted_at';
 
 // ── Reads ──
 export async function fetchSupplyTeasers(limit = 6): Promise<SupplyTeaser[]> {
@@ -134,4 +135,82 @@ export function timeAgo(iso: string | null): string {
   const w = Math.floor(d / 7);
   if (w < 5) return `${w}w ago`;
   return `${Math.floor(d / 30)}mo ago`;
+}
+
+// ── Per-item lookups (canonical pages) ──
+export async function fetchSupplyTeaserByHandle(handle: string): Promise<SupplyTeaser | null> {
+  const sb = anonClient();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('public_supply_feed')
+    .select(SUPPLY_COLS)
+    .eq('handle', handle)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as unknown as SupplyTeaser | null;
+}
+
+export async function fetchDemandTeaserByRef(ref: string): Promise<DemandTeaser | null> {
+  const sb = anonClient();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from('public_demand_feed')
+    .select(DEMAND_COLS)
+    .eq('ref', ref)
+    .maybeSingle();
+  if (error) return null;
+  return (data ?? null) as unknown as DemandTeaser | null;
+}
+
+// For generateStaticParams (pre-render the live set; new rows fall back to
+// on-demand ISR via dynamicParams).
+export async function fetchAllSupplyHandles(limit = 1000): Promise<string[]> {
+  const sb = anonClient();
+  if (!sb) return [];
+  const { data, error } = await sb.from('public_supply_feed').select('handle').limit(limit);
+  if (error) return [];
+  return ((data ?? []) as Array<{ handle: string }>).map((r) => r.handle).filter(Boolean);
+}
+
+export async function fetchAllDemand(limit = 1000): Promise<DemandTeaser[]> {
+  const sb = anonClient();
+  if (!sb) return [];
+  const { data, error } = await sb.from('public_demand_feed').select(DEMAND_COLS).limit(limit);
+  if (error) return [];
+  return (data ?? []) as unknown as DemandTeaser[];
+}
+
+// ── URL / slug helpers ──
+export function slugify(s: string | null | undefined): string {
+  return (s ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+export function talentPath(handle: string): string {
+  return `/talent/${handle}`;
+}
+
+// Descriptive, SEO-friendly slug that ends with the opaque ref (NX-XXXXXX).
+export function inspectionSlug(
+  job: Pick<DemandTeaser, 'domain' | 'location_city' | 'ref'>,
+): string {
+  const parts = [domainLabel(job.domain), job.location_city ?? '', 'inspection']
+    .map(slugify)
+    .filter(Boolean);
+  return `${parts.join('-')}-${job.ref}`;
+}
+
+export function inspectionPath(
+  job: Pick<DemandTeaser, 'domain' | 'location_city' | 'ref'>,
+): string {
+  return `/inspections/${inspectionSlug(job)}`;
+}
+
+// Extract the trailing NX- ref from a descriptive slug (case-insensitive → upper).
+export function parseRefFromSlug(slug: string): string | null {
+  const m = slug.match(/NX-[0-9A-Z]{6}$/i);
+  return m ? m[0].toUpperCase() : null;
 }

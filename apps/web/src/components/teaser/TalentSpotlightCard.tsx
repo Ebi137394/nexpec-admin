@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 import Link from 'next/link';
 import { ArrowRight, BadgeCheck, MapPin, ShieldCheck, Star } from 'lucide-react';
-import { humanizeSlug, type SupplyTeaser } from '@/lib/data/teaser';
+import { humanizeSlug, talentPath, type SupplyTeaser } from '@/lib/data/teaser';
 
 export function TalentSpotlightCard({ pro }: { pro: SupplyTeaser }) {
   const chips = (pro.specialty_slugs ?? []).filter(Boolean).slice(0, 3);
@@ -24,9 +24,12 @@ export function TalentSpotlightCard({ pro }: { pro: SupplyTeaser }) {
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-mono text-sm font-semibold tracking-wide text-white">
+            <Link
+              href={talentPath(pro.handle)}
+              className="truncate font-mono text-sm font-semibold tracking-wide text-white transition-colors hover:text-violet-glow"
+            >
               {pro.handle}
-            </span>
+            </Link>
             <BadgeCheck className="h-4 w-4 shrink-0 text-cyan-glow" aria-hidden />
           </div>
           <span className="text-[10px] font-semibold uppercase tracking-industrial text-accent-green">

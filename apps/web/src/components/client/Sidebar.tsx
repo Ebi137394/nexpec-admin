@@ -31,6 +31,7 @@ import {
   Shield,
   FileText,
   Store,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -55,6 +56,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Jobs',
     items: [
       { label: 'My jobs', href: '/client/jobs', icon: Briefcase },
+      { label: 'Team Missions', href: '/client/team-missions', icon: ClipboardList },
       { label: 'Post a job', href: '/client/jobs/new', icon: PlusCircle },
       { label: 'Documents', href: '/client/documents', icon: FolderOpen },
     ],

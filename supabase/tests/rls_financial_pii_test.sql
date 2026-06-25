@@ -33,8 +33,8 @@ insert into public.payment_methods (user_id, label, last_four) values (:'A', 'Vi
 -- NB: work_orders.status DEFAULT 'open' is NOT in work_orders_status_check
 -- (active/pending/in_progress/completed/cancelled) — set an allowed value.
 insert into public.work_orders (id, title, owner_id, status) values (:'WO', 'WO A', :'A', 'active');
-insert into public.legal_consents (user_id, document_id, policy_version, signed_at)
-  values ('b1111111-1111-1111-1111-111111111111', 'nda-v1', '1.0', now());
+insert into public.legal_consents (user_id, document_id, signature_base64, policy_version, signed_at)
+  values ('b1111111-1111-1111-1111-111111111111', 'nda-v1', 'dGVzdA==', '1.0', now());
 
 -- ── Owner (A) sees own across all three ──────────────────────────────────────
 set local role authenticated;

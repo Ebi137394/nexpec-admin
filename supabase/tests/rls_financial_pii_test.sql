@@ -30,7 +30,9 @@ insert into public.profiles (id, email, role) values
   (:'B','b.fpii@test.nx','inspector'),
   (:'ADM','adm.fpii@test.nx','admin');
 insert into public.payment_methods (user_id, label, last_four) values (:'A', 'Visa', '4242');
-insert into public.work_orders (id, title, owner_id) values (:'WO', 'WO A', :'A');
+-- NB: work_orders.status DEFAULT 'open' is NOT in work_orders_status_check
+-- (active/pending/in_progress/completed/cancelled) — set an allowed value.
+insert into public.work_orders (id, title, owner_id, status) values (:'WO', 'WO A', :'A', 'active');
 insert into public.legal_consents (user_id, document_id, policy_version, signed_at)
   values ('b1111111-1111-1111-1111-111111111111', 'nda-v1', '1.0', now());
 

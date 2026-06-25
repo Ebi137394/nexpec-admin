@@ -1,0 +1,53 @@
+name: db-tests
+
+# pgTAP suite gate. Boots a throwaway local Supabase stack (applies every
+# migration + seed), then runs supabase/tests/*.sql. Fails the build if any RLS
+# deny-matrix or invariant regresses — e.g. a future `USING (true)` policy
+# re-opening a chat silo or a financial/PII table, a money-table write hole, or
+# a tax/audit gate. This is the automated backstop the manual sweep proved we
+# need (humans won't always catch a leftover allow-all policy).
+#
+# Path-filtered to DB changes so it only runs when it can actually be affected.
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'supabase/seed.sql'
+      - 'supabase/config.toml'
+      - '.github/workflows/db-tests.yml'
+  push:
+    branches: [main, master]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'supabase/seed.sql'
+
+# One run per ref; cancel superseded runs to save CI minutes.
+concurrency:
+  group: db-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pgtap:
+    name: pgTAP RLS + invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (applies all migrations + seed)
+        run: supabase start
+
+      - name: Run pgTAP suite (supabase/tests/*.sql)
+        run: supabase test db
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup

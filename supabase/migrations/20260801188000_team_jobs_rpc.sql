@@ -44,7 +44,9 @@ AS $fn$
   ORDER BY j.created_at DESC NULLS LAST;
 $fn$;
 
-REVOKE ALL    ON FUNCTION public.nx_team_jobs() FROM PUBLIC;
+-- Revoke from the anon ROLE explicitly: Supabase default privileges grant EXECUTE
+-- on new public functions directly to anon, which REVOKE FROM PUBLIC does not undo.
+REVOKE ALL    ON FUNCTION public.nx_team_jobs() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.nx_team_jobs() TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.nx_team_jobs() IS

@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   title: 'Live Inspection Marketplace, Open Jobs & Vetted Inspectors',
   description:
     'Browse live industrial inspection demand and NEXPEC-verified specialists across NDT, civil, electrical, mechanical, and process. Identities protected; every engagement brokered and escrowed.',
-  alternates: { canonical: '/discover' },
+  alternates: {
+    canonical: '/discover',
+    types: { 'application/rss+xml': '/feed.xml' },
+  },
   openGraph: {
     title: 'NEXPEC, Live Inspection Marketplace',
     description:

@@ -118,9 +118,17 @@ export default async function TeamMissionsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={j.can_manage ? 'text-violet-glow' : 'text-zinc-500'}>
-                      {j.can_manage ? 'Manage' : 'View'}
-                    </span>
+                    <div className="inline-flex items-center gap-3">
+                      <Link
+                        href={`/client/jobs/${j.id}/chat`}
+                        className="text-violet-glow transition-colors hover:text-white"
+                      >
+                        Chat
+                      </Link>
+                      <span className={j.can_manage ? 'text-zinc-300' : 'text-zinc-500'}>
+                        {j.can_manage ? 'Manage' : 'View'}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ))}

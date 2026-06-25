@@ -13,19 +13,27 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, Users } from 'lucide-react';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 import type { MessageRow, SenderRole } from '@/lib/data/conversations.types';
 
 interface Props {
   conversationId: string;
   currentUserId: string;
   initialMessages: MessageRow[];
+  /**
+   * Team threads only: maps a sender's user id → their org-role label. When
+   * present, other members' messages are attributed pseudonymously as
+   * "Role · NX-handle" (never a real name). Omit on 1:1 admin threads.
+   */
+  senderRoles?: Record<string, string>;
 }
 
 export function MessageThread({
   conversationId,
   currentUserId,
   initialMessages,
+  senderRoles,
 }: Props) {
   const [messages, setMessages] = useState<MessageRow[]>(initialMessages);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -148,14 +156,23 @@ export function MessageThread({
         </div>
       ) : (
         <ul className="space-y-3">
-          {messages.map((m) => (
-            <Bubble
-              key={m.id}
-              message={m}
-              isMine={m.senderId === currentUserId}
-              isAdminMessage={isAdminRole(m.senderRole)}
-            />
-          ))}
+          {messages.map((m) => {
+            const mine = m.senderId === currentUserId;
+            const admin = isAdminRole(m.senderRole);
+            const teamLabel =
+              senderRoles && !mine && !admin
+                ? `${senderRoles[m.senderId] ?? 'Team'} · ${nxHandle(m.senderId)}`
+                : null;
+            return (
+              <Bubble
+                key={m.id}
+                message={m}
+                isMine={mine}
+                isAdminMessage={admin}
+                teamLabel={teamLabel}
+              />
+            );
+          })}
         </ul>
       )}
       <div ref={bottomRef} aria-hidden />
@@ -167,10 +184,12 @@ function Bubble({
   message,
   isMine,
   isAdminMessage,
+  teamLabel,
 }: {
   message: MessageRow;
   isMine: boolean;
   isAdminMessage: boolean;
+  teamLabel?: string | null;
 }) {
   const alignment = isMine ? 'items-end' : 'items-start';
   const bubbleTone = isMine
@@ -187,6 +206,12 @@ function Bubble({
           <p className="mb-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
             <ShieldCheck className="h-3 w-3" strokeWidth={1.75} />
             NEXPEC Admin
+          </p>
+        )}
+        {!isMine && !isAdminMessage && teamLabel && (
+          <p className="mb-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+            <Users className="h-3 w-3" strokeWidth={1.75} />
+            {teamLabel}
           </p>
         )}
         {message.content && (

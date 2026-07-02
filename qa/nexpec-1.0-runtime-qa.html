@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NEXPEC 1.0 — Pre-Build Runtime QA</title>
+<style>
+  :root{
+    --bg:#020420; --surface:#0b1126; --surface2:#0f1733; --line:#1e2747;
+    --accent:#7C3AED; --accent2:#a855f7; --text:#E5E7EB; --muted:#94A3B8;
+    --pass:#22C55E; --fail:#EF4444; --blocked:#F59E0B;
+    --p0:#EF4444; --p1:#F59E0B; --p2:#3B82F6; --p3:#64748B;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent2)}
+  .wrap{max-width:980px;margin:0 auto;padding:24px 18px 80px}
+  header.top{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,rgba(2,4,32,.98),rgba(2,4,32,.92));backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:-24px -18px 18px;padding:16px 18px}
+  .title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800;color:#fff;letter-spacing:.5px;font-size:13px}
+  h1{font-size:18px;margin:0;font-weight:700}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .barwrap{margin-top:12px;display:flex;align-items:center;gap:12px}
+  .bar{flex:1;height:10px;border-radius:999px;background:var(--surface2);overflow:hidden;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+  .counts{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .counts b{color:var(--text)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button.ctrl{background:var(--surface2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;cursor:pointer}
+  button.ctrl:hover{border-color:var(--accent)}
+  button.ctrl.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  section.role{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden}
+  .role-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none}
+  .role-head:hover{background:var(--surface2)}
+  .role-emoji{font-size:20px}
+  .role-name{font-weight:700;font-size:15.5px}
+  .role-blurb{color:var(--muted);font-size:12px;margin-top:1px}
+  .role-prog{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .mini{width:90px;height:7px;border-radius:999px;background:var(--surface2);overflow:hidden;border:1px solid var(--line)}
+  .mini > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .mini-num{font-size:11.5px;color:var(--muted);min-width:42px;text-align:right}
+  .chev{color:var(--muted);transition:transform .2s;font-size:13px}
+  section.role.collapsed .items{display:none}
+  section.role.collapsed .chev{transform:rotate(-90deg)}
+  .items{padding:4px 10px 12px}
+  .item{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:11px 8px;border-top:1px solid var(--line)}
+  .item:first-child{border-top:none}
+  .status{display:flex;flex-direction:column;gap:5px;padding-top:2px}
+  .sbtn{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:13px;line-height:1;display:grid;place-items:center;padding:0}
+  .sbtn:hover{border-color:var(--accent)}
+  .sbtn.pass.on{background:var(--pass);border-color:var(--pass);color:#04210f}
+  .sbtn.fail.on{background:var(--fail);border-color:var(--fail);color:#2a0606}
+  .sbtn.blocked.on{background:var(--blocked);border-color:var(--blocked);color:#241803}
+  .item-main .row1{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+  .pill{font-size:10px;font-weight:800;letter-spacing:.4px;padding:2px 6px;border-radius:5px;color:#fff;flex:none;margin-top:1px}
+  .P0{background:var(--p0)} .P1{background:var(--p1);color:#241803} .P2{background:var(--p2)} .P3{background:var(--p3)}
+  .act{font-weight:600}
+  .verif{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .verif code{background:var(--surface2);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11.5px;color:#cbd5e1}
+  .notes{margin-top:7px;width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:7px;color:var(--text);font:12.5px inherit;padding:6px 8px;resize:vertical;min-height:0;height:30px}
+  .notes:focus{outline:none;border-color:var(--accent);height:54px}
+  .item.done{opacity:.62}
+  .item.hide{display:none}
+  .note{color:var(--muted);font-size:12px;background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:11px 13px;margin:6px 0 0}
+  .note b{color:var(--text)}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;margin-top:26px;line-height:1.7}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--accent);color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title">
+      <div class="logo">NX</div>
+      <div>
+        <h1>NEXPEC 1.0 — Pre-Build Runtime QA</h1>
+        <div class="sub">Per-role smoke test on the iOS Simulator dev build · before <code style="color:#cbd5e1">eas build --profile production</code></div>
+      </div>
+    </div>
+    <div class="barwrap">
+      <div class="bar"><i id="globalbar"></i></div>
+      <div class="counts" id="counts">0 / 0</div>
+    </div>
+    <div class="controls">
+      <button class="ctrl active" data-filter="all">All</button>
+      <button class="ctrl" data-filter="remaining">Remaining</button>
+      <button class="ctrl" data-filter="issues">Fail / Blocked</button>
+      <span style="flex:1"></span>
+      <button class="ctrl" id="expand">Expand all</button>
+      <button class="ctrl" id="collapse">Collapse all</button>
+      <button class="ctrl" id="export">Copy summary</button>
+      <button class="ctrl" id="reset">Reset</button>
+    </div>
+  </header>
+
+  <div class="note">
+    <b>Before you start:</b> confirm the app reached the home screen with <b>no redbox</b>. For the Stripe sheet to open it needs the <code>create-payment-intent</code> Edge Function deployed with <code>STRIPE_SECRET_KEY</code> set in Supabase — the app only carries the publishable key. Stripe test card: <b>4242 4242 4242 4242</b>, any future expiry / any CVC. Mark <b>Blocked</b> (not Fail) when a backend dependency, not the app, is the holdup.
+  </div>
+
+  <div id="app"></div>
+
+  <footer>
+    Progress is saved in this browser (localStorage) — reload-safe. Generated for the 372→0 burndown verification pass.<br>
+    Priorities: <span class="pill P0">P0</span> boot/root-change &nbsp; <span class="pill P1">P1</span> money &amp; named paths &nbsp; <span class="pill P2">P2</span> touched components &nbsp; <span class="pill P3">P3</span> broad/low-risk
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = [
+  { id:"global", emoji:"🌐", name:"Global · all roles", blurb:"Root-level changes with the widest blast radius", items:[
+    {id:"g1", p:"P0", t:"App boots past splash with NO redbox", v:"Exercises the <code>t()</code> i18n change (rippled across 183 files) + the Supabase client dropping its <code>&lt;Database&gt;</code> generic."},
+    {id:"g2", p:"P0", t:"Log in succeeds; a data-driven list populates", v:"Proves the root Supabase client still queries (root data-layer change)."},
+    {id:"g3", p:"P0", t:"Tab/stack navigation renders — no dead routes / white screens", v:"Deleted subsystems (Operations dashboard, Signature suite, PhotoMarkupEditor ~8.2k lines) leave no dangling links."},
+    {id:"g4", p:"P3", t:"Language toggle EN → FA/AR flips to RTL; labels still render", v:"<code>t(key, fallback)</code> widening — confirms no dropped keys / crashes on missing translations."},
+    {id:"g5", p:"P3", t:"Sign-in screen shows Apple / Google / LinkedIn buttons", v:"<code>socialBusy</code> state widened with <code>linkedin_oidc</code>."},
+  ]},
+  { id:"admin", emoji:"🛡️", name:"Admin (god-mode = you)", blurb:"admin ≡ super_admin — full access everywhere", items:[
+    {id:"a1", p:"P0", t:"Admin dashboard + admin tab routing loads", v:"God-mode mobile routing (admin treated as super_admin)."},
+    {id:"a2", p:"P1", t:"Job detail → approval modal opens; publish-to-inspectors works", v:"<code>(admin)/jobs/[id]</code> — approval modal + earlier crash fix; no error on open/submit."},
+    {id:"a3", p:"P1", t:"“Orig. Budget” row renders on job detail (no crash / blank screen)", v:"<code>(job as any).budget</code> cast — the column is <code>budget_cents</code>; screen must still render."},
+    {id:"a4", p:"P1", t:"Hire / Confirm & Dispatch sets the agreed inspector payout", v:"Server-enforced payout on hire; confirm amount matches the offer."},
+    {id:"a5", p:"P2", t:"Jobs list shows Client / Inspector / Spread with real $ amounts", v:"<code>(admin)/jobs/index</code> reads <code>inspector_payout_cents</code> (newly added to the Job type) — must not be blank/NaN."},
+    {id:"a6", p:"P2", t:"RFQ markup console: client offer is price-blind (admin markup applied)", v:"Admin Intercept & Markup — client never sees raw supplier price."},
+    {id:"a7", p:"P2", t:"Treasury + Supplier Releases pages load", v:"Money-flow admin surfaces still render after data-layer change."},
+    {id:"a8", p:"P2", t:"Flash reports: admin sees all raises; can raise + transition state", v:"Shared FlashReport RPCs + admin-raise parity."},
+    {id:"a9", p:"P3", t:"Support inbox: admin queue opens threads with role labels", v:"Unified inbox role-aware; admin is the broker in every room."},
+  ]},
+  { id:"inspector", emoji:"🔍", name:"Inspector", blurb:"Blind pricing — sees only the admin-set payout", items:[
+    {id:"i1", p:"P0", t:"Inspector dashboard + Assignments load", v:"Core inspector routing + data fetch."},
+    {id:"i2", p:"P1", t:"Earnings / Wallet shows real $ — NOT NaN or $0", v:"The <code>*_halalas → *_cents</code> rename fix; two buckets (available / pending) populate."},
+    {id:"i3", p:"P1", t:"Request Payout button present & opens (manual payout flow)", v:"100% manual payouts (request → admin Mark-as-Paid); no auto-Stripe."},
+    {id:"i4", p:"P2", t:"Find Jobs → submit a bid (apply); only admin-set payout visible", v:"Inspector bidding + strict price-blindness (no client budget leak)."},
+    {id:"i5", p:"P2", t:"Capture / raise a Flash Report (NCR) — saves via outbox", v:"Outbox-routing guardrail (capture/ai_detection/flash_report_raise kinds)."},
+    {id:"i6", p:"P2", t:"Tool Foundry: run a calculator → sealed result sheet appears", v:"<code>tools/[key]</code> onSubmit wrapper change; result_cards render."},
+    {id:"i7", p:"P2", t:"Specialty picker opens & search/filter works", v:"The 3 implemented helpers (prettify/slugify/searchSpecialties)."},
+    {id:"i8", p:"P3", t:"Contracts/Agreements: list opens; sign flow renders", v:"Unified legal portal; sign UI intact."},
+    {id:"i9", p:"P3", t:"Diagnostics screen opens without error", v:"<code>Section.icon</code> typing change — screen still renders."},
+  ]},
+  { id:"client", emoji:"🏠", name:"Client", blurb:"Sees only own budget; never the inspector identity pre-reveal", items:[
+    {id:"c1", p:"P0", t:"Client dashboard loads; can open a project", v:"Client portal routing + data fetch."},
+    {id:"c2", p:"P1", t:"Hire → Payment screen → STRIPE PAYMENT SHEET OPENS", v:"<code>presentPaymentSheet({clientSecret} as any)</code> cast — the sheet must present. Test card 4242…"},
+    {id:"c3", p:"P1", t:"Payment success → returns to project details", v:"Post-payment navigation path intact."},
+    {id:"c4", p:"P2", t:"Applicants list shows NX- handle / sigil — NO real name or PII", v:"Public anonymization (anti-poaching) pre-reveal."},
+    {id:"c5", p:"P2", t:"Finance: Escrow vs Credit shows two buckets in USD", v:"Client escrow+credit hook; no mock/SAR values."},
+    {id:"c6", p:"P2", t:"Approve a submitted report → routes through admin confirm", v:"report → admin → client (<code>admin_confirmed_at</code> gate)."},
+    {id:"c7", p:"P3", t:"Flash report: client sees critical only; acknowledge/dispute works", v:"Notification scope (client critical-only)."},
+    {id:"c8", p:"P3", t:"Support chat is client↔admin only (NO client↔inspector room)", v:"Siloed chat rooms — golden rule."},
+  ]},
+  { id:"agency", emoji:"🏢", name:"Agency", blurb:"Shares /client web portal; separate mobile dashboard", items:[
+    {id:"ag1", p:"P0", t:"Agency dashboard loads (separate mobile dashboard)", v:"<code>(tabs)/agency-dashboard</code> renders after the contracts-row cast."},
+    {id:"ag2", p:"P1", t:"Floating “Post Job” FAB renders & navigates", v:"The nativewind-styled Pressable FAB (className) — must appear & route to post-new-job."},
+    {id:"ag3", p:"P2", t:"Contracts/agreements list populates", v:"<code>contractsRes.data as unknown as AgencyContractRow[]</code> cast — list renders real rows."},
+    {id:"ag4", p:"P2", t:"Agency job details show inspector payout in $", v:"<code>inspector_payout_cents</code> rendering parity."},
+    {id:"ag5", p:"P3", t:"Finance screen renders payment-method cards", v:"<code>(method.type as string) === 'visa'</code> brand-check cast."},
+  ]},
+  { id:"enterprise", emoji:"🏛️", name:"Enterprise (Organization)", blurb:"Org-level client; separate mobile dashboard", items:[
+    {id:"e1", p:"P0", t:"Enterprise dashboard loads", v:"<code>(tabs)/enterprise-dashboard</code> + org routing."},
+    {id:"e2", p:"P2", t:"Budget overview + Invoices screens (live data, themed)", v:"The quick-action screens rewired to live USD + theme."},
+    {id:"e3", p:"P2", t:"Compliance vault + Deliverables/reports screens open", v:"Same live+theme pass; no mock/SAR."},
+    {id:"e4", p:"P2", t:"Org structure / member management accessible", v:"<code>can_manage_org_structure</code> + god-mode parity."},
+    {id:"e5", p:"P3", t:"Enterprise finance shows escrow/credit in USD", v:"Shared client finance hook."},
+  ]},
+  { id:"supplier", emoji:"📦", name:"Supplier", blurb:"Procurement / RFQ ecosystem", items:[
+    {id:"s1", p:"P0", t:"Supplier dashboard loads with the tailored tab set", v:"Supplier role tabs + routing."},
+    {id:"s2", p:"P2", t:"Opportunities: see quotable RFQs → submit a bid", v:"Supplier RFQ RLS + quote amounts as integer cents."},
+    {id:"s3", p:"P2", t:"Awarded bid → project chat opens (supplier↔admin)", v:"job_supplier_admin dual-chat mirror."},
+    {id:"s4", p:"P2", t:"Documents (DocumentField custody) + Finance/withdraw render", v:"Supplier earnings + custody primitive."},
+    {id:"s5", p:"P3", t:"Supplier contract sign; release gated on executed status", v:"Supplier Agreement gate (contract-before-money)."},
+  ]},
+];
+
+const KEY = "nexpec_qa_v1";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ state = {}; }
+let filter = "all";
+
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+function st(id){ return state[id] || {s:"", n:""}; }
+
+const app = document.getElementById("app");
+
+function render(){
+  app.innerHTML = "";
+  DATA.forEach(sec=>{
+    const total = sec.items.length;
+    const done = sec.items.filter(it=>st(it.id).s==="pass").length;
+    const collapsed = state["__c_"+sec.id] ? "collapsed" : "";
+    const el = document.createElement("section");
+    el.className = "role "+collapsed;
+    el.innerHTML = `
+      <div class="role-head" data-toggle="${sec.id}">
+        <span class="role-emoji">${sec.emoji}</span>
+        <div>
+          <div class="role-name">${sec.name}</div>
+          <div class="role-blurb">${sec.blurb}</div>
+        </div>
+        <div class="role-prog">
+          <div class="mini"><i style="width:${total?Math.round(done/total*100):0}%"></i></div>
+          <div class="mini-num">${done}/${total}</div>
+          <span class="chev">▼</span>
+        </div>
+      </div>
+      <div class="items">
+        ${sec.items.map(it=>itemHTML(it)).join("")}
+      </div>`;
+    app.appendChild(el);
+  });
+  wire();
+  updateGlobal();
+  applyFilter();
+}
+
+function itemHTML(it){
+  const cur = st(it.id);
+  const done = cur.s==="pass" ? "done":"";
+  return `<div class="item ${done}" data-item="${it.id}" data-status="${cur.s}">
+    <div class="status">
+      <button class="sbtn pass ${cur.s==="pass"?"on":""}" data-set="pass" data-id="${it.id}" title="Pass">✓</button>
+      <button class="sbtn fail ${cur.s==="fail"?"on":""}" data-set="fail" data-id="${it.id}" title="Fail">✕</button>
+      <button class="sbtn blocked ${cur.s==="blocked"?"on":""}" data-set="blocked" data-id="${it.id}" title="Blocked">⦸</button>
+    </div>
+    <div class="item-main">
+      <div class="row1"><span class="pill ${it.p}">${it.p}</span><span class="act">${it.t}</span></div>
+      <div class="verif">${it.v}</div>
+      <textarea class="notes" placeholder="Notes (bug, screenshot ref, repro)…" data-note="${it.id}">${(cur.n||"").replace(/</g,"&lt;")}</textarea>
+    </div>
+  </div>`;
+}
+
+function wire(){
+  document.querySelectorAll("[data-toggle]").forEach(h=>{
+    h.onclick=(e)=>{ if(e.target.closest(".sbtn"))return; const id="__c_"+h.dataset.toggle; state[id]=!state[id]; save(); render(); };
+  });
+  document.querySelectorAll(".sbtn").forEach(b=>{
+    b.onclick=()=>{ const id=b.dataset.id, set=b.dataset.set; const c=st(id); c.s = c.s===set ? "" : set; state[id]=c; save(); render(); };
+  });
+  document.querySelectorAll("[data-note]").forEach(t=>{
+    t.oninput=()=>{ const id=t.dataset.note; const c=st(id); c.n=t.value; state[id]=c; save(); updateGlobal(); };
+  });
+}
+
+function allItems(){ return DATA.flatMap(s=>s.items); }
+function updateGlobal(){
+  const items=allItems(), total=items.length;
+  const pass=items.filter(i=>st(i.id).s==="pass").length;
+  const fail=items.filter(i=>st(i.id).s==="fail").length;
+  const blk=items.filter(i=>st(i.id).s==="blocked").length;
+  const rem=total-pass-fail-blk;
+  document.getElementById("globalbar").style.width=(total?Math.round(pass/total*100):0)+"%";
+  document.getElementById("counts").innerHTML=`<b>${pass}</b> pass · <b style="color:var(--fail)">${fail}</b> fail · <b style="color:var(--blocked)">${blk}</b> blocked · <b>${rem}</b> left &nbsp;(<b>${pass}/${total}</b>)`;
+}
+
+function applyFilter(){
+  document.querySelectorAll(".item").forEach(el=>{
+    const s=el.dataset.status;
+    let show=true;
+    if(filter==="remaining") show = !(s==="pass"||s==="fail"||s==="blocked");
+    if(filter==="issues") show = (s==="fail"||s==="blocked");
+    el.classList.toggle("hide", !show);
+  });
+}
+
+document.querySelectorAll("[data-filter]").forEach(b=>{
+  b.onclick=()=>{ filter=b.dataset.filter; document.querySelectorAll("[data-filter]").forEach(x=>x.classList.remove("active")); b.classList.add("active"); applyFilter(); };
+});
+document.getElementById("expand").onclick=()=>{ DATA.forEach(s=>state["__c_"+s.id]=false); save(); render(); };
+document.getElementById("collapse").onclick=()=>{ DATA.forEach(s=>state["__c_"+s.id]=true); save(); render(); };
+document.getElementById("reset").onclick=()=>{ if(confirm("Clear all QA results in this browser?")){ state={}; save(); render(); toast("Reset"); } };
+document.getElementById("export").onclick=()=>{
+  const sym={pass:"✅",fail:"❌",blocked:"⛔","":"⬜"};
+  let md=`# NEXPEC 1.0 Runtime QA — results\n_${new Date().toLocaleString()}_\n\n`;
+  DATA.forEach(sec=>{
+    md+=`## ${sec.emoji} ${sec.name}\n`;
+    sec.items.forEach(it=>{ const c=st(it.id); md+=`- ${sym[c.s||""]} [${it.p}] ${it.t}${c.n?` — _${c.n}_`:""}\n`; });
+    md+="\n";
+  });
+  const items=allItems();
+  const pass=items.filter(i=>st(i.id).s==="pass").length;
+  const fail=items.filter(i=>st(i.id).s==="fail").length;
+  const blk=items.filter(i=>st(i.id).s==="blocked").length;
+  md+=`---\n**${pass}/${items.length} pass · ${fail} fail · ${blk} blocked**\n`;
+  navigator.clipboard.writeText(md).then(()=>toast("Summary copied to clipboard"),()=>toast("Copy failed — select manually"));
+};
+
+let tt;
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tt); tt=setTimeout(()=>t.classList.remove("show"),1600); }
+
+render();
+</script>
+</body>
+</html>

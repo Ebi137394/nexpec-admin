@@ -1,0 +1,28 @@
+---
+name: project-brokered-deal
+description: "Brokered Deal contract spine + A–F inspector-trust framework — turnkey contract generation, hub-and-spoke agreements, contract-before-money"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 037bb54c-3737-4da7-bef6-ca32e278f20d
+---
+
+Two intertwined gaps found in turnkey E2E (2026-06-05): (1) the turnkey RFQ award spawned an inspection job but generated NO contracts (Client↔NEXPEC, NEXPEC↔Supplier, NEXPEC↔Inspector) — unlike the direct flow's ISSUE CONTRACT; (2) the client got zero transparency into the assigned inspector's credentials. Both solved by ONE primitive: **NEXPEC as the legal hub of a per-deal contract graph.**
+
+**Full approved blueprint:** `docs/architecture/brokered-deal-blueprint.md` (committed). Diagrams were rendered in-chat (hub-and-spoke topology + the Award&dispatch saga).
+
+**Core architecture (ebi approved in full):**
+- **Hub-and-spoke contract topology** = the business model encoded as data. NEXPEC is a party to EVERY agreement; there is NO contract edge Client↔Supplier or Client↔Inspector. Price-blindness (Golden Rule 2) + anti-poaching + the identity/competence decoupling all fall out of the topology. The client contracts NEXPEC for an OUTCOME, not a named inspector → inspectors can be swapped with no client re-signature.
+- **One engine, many shapes:** a `deals` aggregate owns N polymorphic `agreements` (kind = client_supply | supplier_supply | inspector_engagement). Direct flow, turnkey, and procurement-only are the same engine with different sub-graphs. This unifies the two existing subsystems (`job_contracts`, `supplier_contracts`).
+- **Contract-before-money** invariant (generalizes `release_supplier_contract`'s executed gate): no escrow release on any leg whose agreement ≠ 'executed'.
+- **A–F inspector-trust framework** (decouple identity from competence; identity ≠ what the client needs, competence is): A anonymous credential dossier, B sealed credential certificate (auditor-grade, better than a CV), C independence attestation, D approve/object gate (auto-approve timeout), E tiered transparency (standard/enterprise/named), F identity escrow. "NEXPEC doesn't hide the inspector — it GUARANTEES them."
+
+**Approved executive decisions (blueprint §13):** (1) escrow funds on client signature; (2) auto-approve window standard 24h / enterprise 48h / named manual; (3) named tier leads with redacted CV (mediated interview later); (4) new `deals` aggregate (not overload `jobs`); (5) **inspector real identity revealed to the client on FINAL REPORT signature** (ASME/API need the name+signature in their audit file; risk mitigated since money is escrowed + non-circumvention signed by then).
+
+**P0 SHIPPED (commit 9823adc, migration `20260801124000_brokered_deal_spine.sql`):** additive spine — `deals`, `agreements`, `agreement_signatures` + the three price-blind projected views (`client_deal_view`/`supplier_deal_view`/`inspector_deal_view`, one money figure each). Base-table RLS keyed on `counterparty_id` (a client is counterparty of client_supply only → can't read other legs). Legacy `job_contracts`/`supplier_contracts` LEFT UNTOUCHED — adoption deferred to P1 (a legacy job_contract holds the DUAL blind price and must split into client_supply + inspector_engagement; unsafe to backfill blind). Validated by structural lint only (no Postgres in sandbox). NEEDS `supabase db push`.
+
+**Key schema facts:** RFQ table is `supplier_rfqs` (NOT `rfqs`); `supplier_quotes` for quotes; `job_contracts` has NO content_sha256 + carries client_price_cents + inspector_payout_cents (dual blind); `supplier_contracts` has content_sha256 + amount_cents; `jobs` has client_id + contractor_id (inspector) + admin_confirmed_at; `nx_is_admin()` exists. See [[reference_nexpec_schema_gotchas]].
+
+**P1 SHIPPED (commit 3b50b60, migrations `20260801124500_brokered_deal_p1_saga` + `20260801124600_brokered_deal_p1_adopt_legacy`):** `award_and_dispatch(p_quote_id)` freezes the client price + presents a sealed `client_supply` (legal-armor template fn `_brokered_client_supply_md`). `sign_agreement(p_agreement_id,name,ip,ua)` executes it → INSERTs `deal_money_legs` (client_escrow_in, held) → calls existing `award_quote` (fires the spawn trigger → source/FAT job) → drafts the `supplier_supply` leg at supplier COST → deal→'dispatched'. Money cannot move before the contract. Strict trigger `nx_guard_contract_before_money` on `deal_money_legs` refuses any →released whose gating agreement ≠ 'executed' (belt); `release_deal_leg` is a thin admin RPC (per-leg milestone predicates deferred to P2). Legacy adoption is additive + idempotent via `legacy_ref` (job_contracts → client_supply + inspector_engagement split; supplier_contracts → supplier_supply), INSERT-only — the app still reads legacy tables until a later cut-over. Escrow here is the LEDGER hold; an actual Stripe capture is a separate integration ($0 decision). Web: `/deals/[id]/sign` Review&sign page + `awardAndDispatch`/`fetchClientAgreement`/`signAgreement` in `apps/web/src/lib/data/marketplace.ts`; the client Award button (`rfqs/[id]` doAccept) now routes through signing. tsc+lint clean. NEEDS `supabase db push`.
+
+**Phases remaining:** P2 = admin generates/presents `supplier_supply` + creates `inspector_engagement` on assign + per-leg release predicates (goods accepted / report admin-confirmed) + mobile Review&sign parity. P3 = A/B/C artifacts + D approve/object (+ decision 5: inspector identity reveal on final-report signature). P4 = E tiers + F identity escrow + amendments + app cut-over off the legacy tables. Builds on [[project_golden_rules]], [[project_admin_intercept_markup]], [[project_supplier_agreement_gate]], [[project_public_anonymization]].

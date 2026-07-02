@@ -1,0 +1,36 @@
+---
+name: project-zero-defect-sweep2
+description: 2026-07-02 full-ecosystem diagnostic sweep (6 hunters + 4 fixers) — ~75 verified fixes, 2 auth P0s, GR2/GR3 holes closed, phantom-object drift surfaced
+metadata:
+  type: project
+---
+
+# Zero-Defect Sweep #2 (2026-07-02, Fable session)
+
+Six read-only hunter agents (client/agency/org, inspector/admin/tabs/auth, root screens, src core, apps/web, backend/config) + four fixer agents + lead surgery. ~75 fixes applied, no commits/pushes (working tree only).
+
+## P0s found & FIXED
+- **Dual Supabase clients** — `src/lib/supabase.ts` ran a second `createClient` on the same AsyncStorage key as `src/core/supabase/supabase.ts` → two GoTrue instances raced one refresh-token family ("Invalid Refresh Token: Already Used" = the false-logout symptom AuthContext retry was band-aiding). Fix: src/lib re-exports the core client. NEVER reintroduce a second client.
+- **PKCE never enabled** — neither client set `auth.flowType: 'pkce'` (supabase-js defaults to implicit) → `?code=` never returned → oauth-callback's exchangeCodeForSession was unreachable → ALL social sign-in dead. Fix: flowType pkce on the canonical client.
+- **messages/[id].tsx read path** — send was modern (send_message RPC) but reads/realtime still filtered raw `job_id` → new messages invisible. Rebuilt on resolveJobConversationId + conversation_id filters + mark_conversation_read(p_conv_id) RPC. Legacy sibling `[jobId].tsx` (1,449 lines, raw insert, route collision) stubbed to Redirect — DELETE at commit time.
+- **GR3 holes** — (client)/approve.tsx + jobs/[id]/review-report.tsx rendered UNPUBLISHED reports (deep-linkable). Both now filter `.eq('is_published', true)` server-side.
+- **GR2 leaks** — (tabs)/index.tsx select('*') shipped client_price/spread to inspector (→ INSPECTOR_JOB_FIELDS); applicants.tsx select('*') shipped admin_counter_cents/admin_comment/admin_attachment + profile email to buyer (→ explicit allowlist; bid+name stay = approved product decision); cv_url removed from buyer embed (CV admin-only-until-hire); explore/index.tsx moved to get_marketplace_inspectors RPC (direct profiles read would go near-empty under 248000 party RLS) + standing-rate display removed.
+
+## Fixed P1 clusters (fixers verified per-file)
+- **Admin payout board was dead**: status vocab 'pending'→'unpaid' (check constraint: unpaid|processing|paid|disputed), reject wrote invalid 'rejected'+phantom jobs.notes → 'disputed'+payout_notes, fake "Marked Paid" now gated on success.
+- **Phantom columns**: jobs.budget→budget_cents ((client)/create.tsx insert — job posting ALWAYS failed; (client)/index.tsx), jobs.paid_at/completed_at→payout_paid_at (statement.tsx), jobs.inspector_id→contractor_id ((admin)/users/[id]), monthly_earned derived from transactions, inspector_earnings *_halalas→*_cents mapping (useEarnings — Finance tab showed $0), messages reply_to embed removed (PGRST200 on every chat load), submit-report projectId/jobId param mismatch + local-file:// URI now uploaded to report-images.
+- **Money math**: admin jobs/[id] currency() fed dollars → toCents at 4 sites + writes inspector_payout_cents alongside payout_amount_cents (GENERATED spread depended on it); agency BidComparison /100; review-report expenses dollars→cents at fetch boundary.
+- **Dispute split-brain**: `file_dispute` RPC is BROKEN server-side (inserts job_id/opener_id/category/body into `disputes` which has project_id/raised_by/reason_category/reason). Mobile now reads job_disputes AND writes via canonical `flag_job_dispute` (freezes job to status='disputed'). Category vocab = job_disputes check constraint. TODO: drop/repair file_dispute in a migration.
+- **Reviews**: rate/rate-inspector raw insert (23502 NOT NULL) → submit_review RPC.
+- **Fake-success killers**: invoices approve/dispute (.select('id') + 0-row=failure), publishReport, nomination, cert delete, support-chat text send.
+- **Dead routes**: /(client)/jobs (4 sites → /(tabs)/client-dashboard), /(inspector)/jobs (2 → /(tabs)/jobs), /contracts/[id]/link (→ Coming-soon), map View-Applicants wired, discover+my-applications added to AuthGate allowlist.
+- **Web**: suppliers layout runWithRetry + middleware /suppliers gate (was the one unhardened portal), .or() escaping (users/openJobs), returnTo open-redirect schema, loading/error boundaries ×4 portals, integrityMonitor stale comment.
+- **Backend/config**: 236000 polname→policyname (WOULD HAVE ABORTED db push chain), .env.example Stripe secret names fixed (STRIPE_PAYMENTS_WEBHOOK_SECRET/STRIPE_CONNECT_WEBHOOK_SECRET — old name matched NOTHING) + 17 missing env vars documented, 500-response error-message leaks stripped (handle-dispute/verify-affidavit/mint-doc-url), PdfViewer Google-Docs wrapper removed (policy), contracts/view.tsx WebView uri allowlisted to supabase /storage/, __DEV__ gates on 5 debug screens, (inspector)/_layout.tsx role guard created, chat/[job_id] Persian error strings → rendered English error state, legacy app/auth.tsx → redirect stub (hardcoded inspector role!).
+
+## DELIBERATELY RED / OPEN
+- **qa:db-refs — 14 phantom objects (REAL, was masked by checker regex bug now fixed)**: tables job_clauses, clause_acceptances, contract_assignments, inspector_equipment, inspector_work_experience, supplier_releases, contact_submissions + RPCs sign_contract, notify(web contracts), invite_org_member, accept_org_invitation, revoke_org_invitation, mark_notification_read, mark_all_notifications_read. NONE exist in the prod baseline dump — their CREATEs live only in migrations_archive (never applied to prod). Web features referencing them (job clauses, contract assignment/sign, inspector equipment+work-experience editors, supplier releases page, contact form, org invites, notification mark-read) + mobile (client)/team.tsx are broken in prod TODAY. Decision needed: verify live schema, then restore-from-archive migration OR retire the features. Do NOT blindly allowlist.
+- **[[reference_zero_defect_backlog]] leftovers**: styled dot separators (~20), whole-accent cyan families (contracts/*, suppliers/*, discover, my-applications, inspector-directory, diagnostics), agency reject-message discarded, Alert.prompt iOS-only (invoices), network/index + applicant/[id] fake-stats/de-anonymization vectors (product calls), ai-coinspector orphan, caller-less broken src/core/chat helpers (chat.ts startOrGetConversation, useChat.ts, getConversations/editMessage/deleteMessage) — prune at commit, stale hand-written types/database.types.ts (regen via supabase gen types post-launch).
+- **236000+240000 push notes** stand (dedupe wallet_topup markers; deploy window for 3-arg restore_wallet_balance).
+
+## Verification state (end of sweep)
+qa:gr2 ✓ · qa:outbox ✓ (3 new interactive writes annotated outbox-exempt) · qa:rls-admin ✓ · qa:db-refs ✗ DELIBERATE (see above) · apps/web tsc ✓ 0 errors (CI-blocking since 5b18f88-era; ignoreBuildErrors GONE — memory was stale) · mobile full tsc: sandbox-slow, fixer-verified per-file; re-run before commit.

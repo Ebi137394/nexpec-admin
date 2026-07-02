@@ -61,11 +61,16 @@ const C = {
   okDim: 'rgba(16,249,149,0.12)',
 };
 
+// Vocabulary = job_disputes_reason_category_check (the canonical dispute table
+// used by flag_job_dispute + the web disputes flow). The old file_dispute RPC
+// targets legacy `disputes` columns that no longer exist — never call it.
 const CATEGORIES = [
-  { value: 'scope', label: 'Scope disagreement' },
-  { value: 'quality', label: 'Quality concern' },
-  { value: 'payment', label: 'Payment issue' },
+  { value: 'inspection_quality', label: 'Inspection quality' },
+  { value: 'incomplete_work', label: 'Incomplete work' },
+  { value: 'no_show', label: 'Inspector no-show' },
+  { value: 'pricing', label: 'Pricing issue' },
   { value: 'communication', label: 'Communication breakdown' },
+  { value: 'safety', label: 'Safety concern' },
   { value: 'other', label: 'Other' },
 ] as const;
 
@@ -117,7 +122,7 @@ export default function ClientDisputesScreen() {
   const [eligibleJobs, setEligibleJobs] = useState<EligibleJob[]>([]);
   const [eligibleLoading, setEligibleLoading] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [category, setCategory] = useState<string>('scope');
+  const [category, setCategory] = useState<string>('inspection_quality');
   const [body, setBody] = useState('');
 
   // ── Fetch disputes filed by this client ─────────────────────────────────
@@ -128,14 +133,31 @@ export default function ClientDisputesScreen() {
       return;
     }
     try {
+      // Real table is job_disputes (job_id / raised_by / reason_category /
+      // reason / status / resolution_notes / resolved_at). The previous query
+      // hit phantom columns (filed_by/category/body/resolution on `disputes`)
+      // and 400'd on every load, rendering a fake-empty list.
       const { data, error } = await supabase
-        .from('disputes')
-        .select('id, job_id, category, body, status, resolution, created_at, resolved_at')
-        .eq('filed_by', user.id)
+        .from('job_disputes')
+        .select('id, job_id, reason_category, reason, status, resolution_notes, created_at, resolved_at')
+        .eq('raised_by', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
-      const rows = (data ?? []) as Omit<DisputeRow, 'job_title'>[];
+      // Map DB rows → the screen's display shape. job_disputes statuses are
+      // open | resolved_paid | resolved_refunded — collapse resolved_* for the UI.
+      const rows: Omit<DisputeRow, 'job_title'>[] = (data ?? []).map((r: any) => ({
+        id: r.id,
+        job_id: r.job_id,
+        category: r.reason_category,
+        body: r.reason,
+        status: (r.status === 'resolved_paid' || r.status === 'resolved_refunded'
+          ? 'resolved'
+          : r.status) as DisputeStatus,
+        resolution: r.resolution_notes,
+        created_at: r.created_at,
+        resolved_at: r.resolved_at,
+      }));
 
       // Hydrate job titles in one batch
       const jobIds = Array.from(new Set(rows.map((r) => r.job_id)));
@@ -153,8 +175,12 @@ export default function ClientDisputesScreen() {
         rows.map((r) => ({ ...r, job_title: titles.get(r.job_id) ?? null })),
       );
     } catch (err) {
+      // Never fake-empty on a failed fetch — tell the user something broke.
       console.warn('[client-disputes] fetch error:', (err as Error)?.message);
-      setItems([]);
+      Alert.alert(
+        'Could not load disputes',
+        (err as Error)?.message ?? 'Please try again in a moment.',
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -170,7 +196,7 @@ export default function ClientDisputesScreen() {
     if (!user?.id) return;
     setFilerOpen(true);
     setSelectedJobId(null);
-    setCategory('scope');
+    setCategory('inspection_quality');
     setBody('');
     setEligibleLoading(true);
     try {
@@ -203,15 +229,18 @@ export default function ClientDisputesScreen() {
     }
     setFiling(true);
     try {
-      const { error } = await supabase.rpc('file_dispute', {
+      // flag_job_dispute is the canonical write (inserts job_disputes, freezes
+      // the job to status='disputed'). file_dispute is broken server-side
+      // (inserts legacy columns) — do not switch back.
+      const { error } = await supabase.rpc('flag_job_dispute', {
         p_job_id: selectedJobId,
-        p_category: category,
-        p_body: body.trim(),
+        p_reason: body.trim(),
+        p_reason_category: category,
       });
       if (error) throw error;
       Alert.alert(
         'Dispute filed',
-        'Funds on this job are now paused and admin has been notified. You\'ll get a notification when there\'s a resolution.',
+        'This job is now frozen for review and NEXPEC has been notified. You\'ll get a notification when there\'s a resolution.',
       );
       setFilerOpen(false);
       await fetchDisputes();

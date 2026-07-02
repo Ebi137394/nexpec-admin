@@ -3,7 +3,7 @@
 //
 //  Mobile parity for web /inspector/wallet/statement/[period]. Period earnings
 //  for the inspector: jobs where contractor_id = me AND payout_status = 'paid'
-//  AND paid_at in the selected [start,end) range. Periods: month / quarter / year.
+//  AND payout_paid_at in the selected [start,end) range. Periods: month / quarter / year.
 //
 //  GOLDEN RULE 2 — STRICT: selects ONLY the admin-set inspector payout
 //  (inspector_payout_cents). NEVER selects/derives client_price_cents or
@@ -66,18 +66,18 @@ export default function InspectorStatementScreen() {
       // GR2: inspector payout ONLY. Never select client_price_cents / spread.
       const { data, error: qErr } = await supabase
         .from('jobs')
-        .select('id, title, paid_at, completed_at, inspector_payout_cents, payout_status')
+        .select('id, title, payout_paid_at, inspector_payout_cents, payout_status')
         .eq('contractor_id', user.id)
         .eq('payout_status', 'paid')
-        .gte('paid_at', r.start)
-        .lt('paid_at', r.end)
-        .order('paid_at', { ascending: true });
+        .gte('payout_paid_at', r.start)
+        .lt('payout_paid_at', r.end)
+        .order('payout_paid_at', { ascending: true });
       if (qErr) { setError(qErr.message); return; }
 
       setLines(((data ?? []) as Array<Record<string, unknown>>).map((j) => ({
         jobId: String(j.id),
         title: String(j.title ?? 'Inspection'),
-        paidAt: (j.paid_at as string | null) ?? (j.completed_at as string | null) ?? null,
+        paidAt: (j.payout_paid_at as string | null) ?? null,
         payoutCents: j.inspector_payout_cents != null ? Number(j.inspector_payout_cents) : 0,
       })));
     } catch (e: unknown) {

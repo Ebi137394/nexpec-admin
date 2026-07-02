@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../lib/supabase';
+import { signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 
 // =============================================================================
 // TYPES
@@ -90,6 +91,9 @@ export default function ExpensesScreen() {
   const [job, setJob] = useState<Job | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  // receipt_url now stores a PATH in the locked `receipts` bucket; mint a signed
+  // URL per expense for display. Keyed by expense id. (Never await in JSX.)
+  const [receiptSignedUrls, setReceiptSignedUrls] = useState<Record<string, string | null>>({});
 
   // New Expense Form
   const [newExpense, setNewExpense] = useState({
@@ -106,6 +110,24 @@ export default function ExpensesScreen() {
   useEffect(() => {
     initializeData();
   }, [jobId]);
+
+  // Mint signed URLs for any expense whose receipt_url (now a storage PATH in the
+  // locked `receipts` bucket) hasn't been minted yet. Runs after expenses load /
+  // refresh / add. Minting happens here, never inside JSX render.
+  useEffect(() => {
+    const pending = expenses
+      .map((e) => e.receipt_url)
+      .filter((p): p is string => !!p && !(p in receiptSignedUrls));
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const minted = await signedUrls('receipts', pending, SIGNED_URL_TTL.VIEW);
+      if (!cancelled) setReceiptSignedUrls((prev) => ({ ...prev, ...minted }));
+    })();
+
+    return () => { cancelled = true; };
+  }, [expenses]);
 
   const initializeData = async () => {
     try {
@@ -264,8 +286,9 @@ export default function ExpensesScreen() {
   };
 
   /**
-   * Upload receipt image to Supabase Storage
-   * Using the SAFE publicUrl extraction method
+   * Upload receipt image to Supabase Storage.
+   * The `receipts` bucket is locked to owner+admin, so a public URL would be a
+   * dead link. We STORE the storage PATH and mint a signed URL at read time.
    */
   const uploadReceiptImage = async (uri: string): Promise<string | null> => {
     try {
@@ -294,22 +317,12 @@ export default function ExpensesScreen() {
         throw uploadError;
       }
 
-      // Step 4: Get public URL - SAFE METHOD
-      // DO NOT destructure like: const { data: { publicUrl } } = ...
-      const { data: urlData } = supabase.storage
-        .from('receipts')
-        .getPublicUrl(filePath);
+      // Step 4: Persist the storage PATH (not a public URL).
+      // A signed URL is minted on display via signedUrl().
+      const receiptUrl = filePath;
 
-      // Safely access publicUrl
-      const publicUrl = urlData?.publicUrl;
+      return receiptUrl;
 
-      if (!publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
-
-      console.log('Receipt uploaded:', publicUrl);
-      return publicUrl;
-      
     } catch (error) {
       console.error('Error uploading receipt:', error);
       return null;
@@ -344,10 +357,12 @@ export default function ExpensesScreen() {
     try {
       // Upload receipt if selected
       let receiptUrl: string | null = null;
-      
+      let receiptUploadFailed = false;
+
       if (newExpense.receipt_uri) {
         receiptUrl = await uploadReceiptImage(newExpense.receipt_uri);
-        // Continue even if upload fails
+        // Continue even if upload fails — but say so honestly below.
+        if (!receiptUrl) receiptUploadFailed = true;
       }
 
       // Insert expense
@@ -379,8 +394,15 @@ export default function ExpensesScreen() {
       });
       setShowModal(false);
 
-      Alert.alert('Success', 'Expense added successfully!');
-      
+      if (receiptUploadFailed) {
+        Alert.alert(
+          'Expense Saved',
+          'Expense saved, but the receipt upload failed — you can re-attach it later.'
+        );
+      } else {
+        Alert.alert('Success', 'Expense added successfully!');
+      }
+
     } catch (error: any) {
       console.error('Error adding expense:', error);
       Alert.alert('Error', error.message || 'Failed to add expense');
@@ -411,13 +433,18 @@ export default function ExpensesScreen() {
 
               if (error) throw error;
 
-              // Try to delete receipt from storage
+              // Try to delete receipt from storage.
+              // receipt_url stores the FULL object key within the `receipts`
+              // bucket (`receipts/<jobId>/<file>` — the upload path keeps a
+              // `receipts/` prefix inside the bucket, see uploadReceiptImage).
+              // Bare keys pass through unchanged; legacy full-URL rows extract
+              // the key after the bucket segment, preserving that prefix.
               if (expense.receipt_url) {
                 try {
-                  const pathMatch = expense.receipt_url.match(/receipts\/(.+)$/);
-                  if (pathMatch) {
-                    await supabase.storage.from('receipts').remove([pathMatch[1]]);
-                  }
+                  const storagePath = expense.receipt_url.startsWith('receipts/')
+                    ? expense.receipt_url
+                    : expense.receipt_url.match(/\/receipts\/(.+)$/)?.[1] ?? expense.receipt_url;
+                  await supabase.storage.from('receipts').remove([storagePath]);
                 } catch (e) {
                   console.log('Could not delete receipt file:', e);
                 }
@@ -601,10 +628,10 @@ export default function ExpensesScreen() {
                   </View>
                 </View>
 
-                {expense.receipt_url && (
+                {expense.receipt_url && receiptSignedUrls[expense.receipt_url] && (
                   <View style={styles.receiptPreview}>
                     <Image
-                      source={{ uri: expense.receipt_url }}
+                      source={{ uri: receiptSignedUrls[expense.receipt_url]! }}
                       style={styles.receiptImage}
                       resizeMode="cover"
                     />

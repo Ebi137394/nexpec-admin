@@ -23,11 +23,16 @@ import type {
 // ─── Status Mapping ───────────────────────────────────────────────────────────
 
 const DB_TO_UI_STATUS: Record<string, UIJobStatus> = {
-  urgent:    'Critical',
-  active:    'In Progress',
-  pending:   'Pending',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
+  // ★ Mapped against the real `jobs.status` enum:
+  //   pending_approval, open, assigned, in_progress, completed, paid, cancelled, disputed
+  pending_approval: 'Pending',
+  open:             'Pending',     // available / awaiting assignment
+  assigned:         'In Progress', // dispatched to this inspector
+  in_progress:      'In Progress',
+  completed:        'Completed',
+  paid:             'Completed',
+  cancelled:        'Cancelled',
+  disputed:         'Critical',
 };
 
 const STATUS_STYLE: Record<UIJobStatus, { color: string; bg: string }> = {
@@ -39,8 +44,12 @@ const STATUS_STYLE: Record<UIJobStatus, { color: string; bg: string }> = {
 };
 
 function resolveUIStatus(job: Pick<InspectorJob, 'status' | 'priority'>): UIJobStatus {
-  if (job.priority === 'urgent' && job.status === 'active') return 'Critical';
-  return DB_TO_UI_STATUS[job.status] ?? 'Pending';
+  // The on-disk InspectorJob.status union is stale; runtime values are the real
+  // jobs.status enum (pending_approval/open/assigned/in_progress/...). Read it as
+  // string so the canonical-enum comparison + map lookup are sound.
+  const status = job.status as string;
+  if (job.priority === 'urgent' && status === 'in_progress') return 'Critical';
+  return DB_TO_UI_STATUS[status] ?? 'Pending';
 }
 
 function mapJob(raw: InspectorJob): MappedInspectorJob {
@@ -60,6 +69,7 @@ export function useInspectorData(): InspectorDataReturn {
 
   const [jobs, setJobs]                     = useState<MappedInspectorJob[]>([]);
   const [earnings, setEarnings]             = useState<InspectorEarnings | null>(null);
+  const [monthlyEarnedHalalas, setMonthlyEarnedHalalas] = useState(0);
   const [isLoadingJobs, setIsLoadingJobs]   = useState(true);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(true);
   const [isRefreshing, setIsRefreshing]     = useState(false);
@@ -79,7 +89,7 @@ export function useInspectorData(): InspectorDataReturn {
         address,
         status,
         priority,
-        inspector_id,
+        contractor_id,
         client_id,
         scheduled_date,
         created_at,
@@ -90,7 +100,7 @@ export function useInspectorData(): InspectorDataReturn {
           avatar_url
         )
       `)
-      .eq('inspector_id', user.id)
+      .eq('contractor_id', user.id)
       .order('created_at', { ascending: false });
 
     if (err) {
@@ -118,6 +128,31 @@ export function useInspectorData(): InspectorDataReturn {
     }
   }, [user?.id]);
 
+  const fetchMonthlyEarned = useCallback(async () => {
+    if (!user?.id) return;
+
+    // ★ WALLET-SCHEMA-DRIFT-001 (follow-up) — inspector_earnings has no
+    //   monthly_earned column; derive it by summing this month's paid
+    //   transactions (net_amount_halalas — the unit formatHalalas expects).
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const { data, error: err } = await supabase
+      .from('transactions')
+      .select('net_amount_halalas')
+      .eq('inspector_id', user.id)
+      .eq('status', 'paid')
+      .gte('created_at', monthStart);
+
+    if (!err && data) {
+      setMonthlyEarnedHalalas(
+        data.reduce((s, t: { net_amount_halalas?: number | string | null }) => {
+          const n = Number(t.net_amount_halalas);
+          return s + (Number.isFinite(n) ? n : 0);
+        }, 0),
+      );
+    }
+  }, [user?.id]);
+
   // ── Initial parallel load ────────────────────────────────────────────────
 
   useEffect(() => {
@@ -126,8 +161,9 @@ export function useInspectorData(): InspectorDataReturn {
     Promise.all([
       fetchJobs().finally(() => setIsLoadingJobs(false)),
       fetchEarnings().finally(() => setIsLoadingEarnings(false)),
+      fetchMonthlyEarned(),
     ]);
-  }, [user?.id, fetchJobs, fetchEarnings]);
+  }, [user?.id, fetchJobs, fetchEarnings, fetchMonthlyEarned]);
 
   // ── Single channel — multi-table real-time subscription ──────────────────
   // One channel with four bindings is the correct Supabase v2 pattern
@@ -137,9 +173,9 @@ export function useInspectorData(): InspectorDataReturn {
   useRealtimeSubscription({
     channelName: `inspector-dashboard:${user?.id ?? 'anon'}:${channelId}`,
     bindings: [
-      { event: 'INSERT', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
-      { event: 'UPDATE', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
-      { event: 'DELETE', table: 'jobs',               filter: user?.id ? `inspector_id=eq.${user.id}` : undefined },
+      { event: 'INSERT', table: 'jobs',               filter: user?.id ? `contractor_id=eq.${user.id}` : undefined },
+      { event: 'UPDATE', table: 'jobs',               filter: user?.id ? `contractor_id=eq.${user.id}` : undefined },
+      { event: 'DELETE', table: 'jobs',               filter: user?.id ? `contractor_id=eq.${user.id}` : undefined },
       // ★ WALLET-SCHEMA-DRIFT-001 — Realtime filter uses `user_id`
       //   to match the live column. The `jobs` bindings reference a
       //   different table — jobs.inspector_id is unrelated drift.
@@ -177,9 +213,10 @@ export function useInspectorData(): InspectorDataReturn {
       }
     },
     onDesync: () => {
-      // Dropped socket → refetch both feeds so the dashboard can't go stale.
+      // Dropped socket → refetch all feeds so the dashboard can't go stale.
       fetchJobs();
       fetchEarnings();
+      fetchMonthlyEarned();
     },
     enabled: !!user?.id,
   });
@@ -189,9 +226,9 @@ export function useInspectorData(): InspectorDataReturn {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     setError(null);
-    await Promise.all([fetchJobs(), fetchEarnings()]);
+    await Promise.all([fetchJobs(), fetchEarnings(), fetchMonthlyEarned()]);
     setIsRefreshing(false);
-  }, [fetchJobs, fetchEarnings]);
+  }, [fetchJobs, fetchEarnings, fetchMonthlyEarned]);
 
   // ── Derived stats (memoized to prevent re-renders on tab switches) ────────
 
@@ -199,7 +236,7 @@ export function useInspectorData(): InspectorDataReturn {
   const criticalJobsCount  = useMemo(() => jobs.filter((j) => j.uiStatus === 'Critical').length,    [jobs]);
   const completedJobsCount = useMemo(() => jobs.filter((j) => j.uiStatus === 'Completed').length,   [jobs]);
   const totalEarned        = useMemo(() => earnings?.total_earned ?? 0,          [earnings]);
-  const monthlyEarned      = useMemo(() => earnings?.monthly_earned ?? 0,        [earnings]);
+  const monthlyEarned      = monthlyEarnedHalalas; // derived — no monthly_earned column exists
   const pendingAmount      = useMemo(() => earnings?.pending_amount ?? 0,        [earnings]);
   const referralCode       = useMemo(() => earnings?.referral_code ?? '—',       [earnings]);
 

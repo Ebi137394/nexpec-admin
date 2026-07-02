@@ -194,20 +194,21 @@ export default function InvoiceDetailScreen() {
                 Alert.alert('Sign in required', 'Please sign in to approve invoices.');
                 return;
               }
-              const { error: updErr } = await supabase
+              // .select('id') so an RLS-filtered 0-row update surfaces as an
+              // empty result instead of a silent fake success.
+              const { data: updRows, error: updErr } = await supabase
                 .from('invoices')
                 .update({
                   status: 'approved',
                   approved_at: new Date().toISOString(),
                   approved_by: user.id,
                 })
-                .eq('id', invoice.id);
-              if (updErr) {
+                .eq('id', invoice.id)
+                .select('id');
+              if (updErr || !updRows || updRows.length === 0) {
                 Alert.alert(
                   'Could not approve',
-                  updErr.message.includes('row-level security')
-                    ? 'You do not have permission to approve this invoice. The web app may have a more permissive flow, try there.'
-                    : updErr.message,
+                  'This action requires NEXPEC review — please contact support',
                 );
                 return;
               }
@@ -244,7 +245,9 @@ export default function InvoiceDetailScreen() {
             try {
               const { data: { user } } = await supabase.auth.getUser();
               if (!user) { Alert.alert('Sign in required'); return; }
-              const { error: updErr } = await supabase
+              // .select('id') so an RLS-filtered 0-row update surfaces as an
+              // empty result instead of a silent fake success.
+              const { data: updRows, error: updErr } = await supabase
                 .from('invoices')
                 .update({
                   status: 'disputed',
@@ -252,13 +255,12 @@ export default function InvoiceDetailScreen() {
                   disputed_by: user.id,
                   dispute_reason: trimmed,
                 })
-                .eq('id', invoice.id);
-              if (updErr) {
+                .eq('id', invoice.id)
+                .select('id');
+              if (updErr || !updRows || updRows.length === 0) {
                 Alert.alert(
                   'Could not file dispute',
-                  updErr.message.includes('row-level security')
-                    ? 'You do not have permission. Try the web app instead.'
-                    : updErr.message,
+                  'This action requires NEXPEC review — please contact support',
                 );
                 return;
               }

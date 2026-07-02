@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase'; // مسیر ایمپورت خودت رو چک کن
 
-type PayoutStatus = 'pending' | 'processing' | 'paid' | 'rejected';
+// DB check constraint: payout_status ∈ {unpaid, processing, paid, disputed}
+type PayoutStatus = 'unpaid' | 'processing' | 'paid' | 'disputed';
 
 interface InspectorProfile {
   id: string;
@@ -43,13 +44,13 @@ const T = {
 } as const;
 
 const STATUS_CFG: Record<PayoutStatus, { color: string; bg: string; icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  pending: { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: 'time-outline', label: 'Pending' },
+  unpaid: { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', icon: 'time-outline', label: 'Pending' },
   processing: { color: '#3B82F6', bg: 'rgba(59,130,246,0.12)', icon: 'sync-outline', label: 'Processing' },
   paid: { color: '#10B981', bg: 'rgba(16,185,129,0.12)', icon: 'checkmark-circle-outline', label: 'Paid' },
-  rejected: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', icon: 'close-circle-outline', label: 'Rejected' },
+  disputed: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', icon: 'close-circle-outline', label: 'Disputed' },
 };
 
-const SEGMENTS = ['Pending', 'Paid', 'Rejected'] as const;
+const SEGMENTS = ['Pending', 'Paid', 'Disputed'] as const;
 const SEG_PAD = 3;
 
 // ★ Task 4: input is integer CENTS — divide by 100 before display.
@@ -81,16 +82,16 @@ export default function PayoutsScreen() {
   const segW = useMemo(() => (segContainerW - SEG_PAD * 2) / SEGMENTS.length, [segContainerW]);
 
   const metrics: Metrics = useMemo(() => {
-    const pend = payouts.filter((p) => p.payout_status === 'pending' || p.payout_status === 'processing');
+    const pend = payouts.filter((p) => p.payout_status === 'unpaid' || p.payout_status === 'processing');
     const paid = payouts.filter((p) => p.payout_status === 'paid');
     return { pendingAmount: pend.reduce((s, p) => s + Number(p.payout_amount_cents), 0), paidAmount: paid.reduce((s, p) => s + Number(p.payout_amount_cents), 0), pendingCount: pend.length };
   }, [payouts]);
 
   const filtered = useMemo(() => {
     switch (activeIdx) {
-      case 0: return payouts.filter((p) => p.payout_status === 'pending' || p.payout_status === 'processing');
+      case 0: return payouts.filter((p) => p.payout_status === 'unpaid' || p.payout_status === 'processing');
       case 1: return payouts.filter((p) => p.payout_status === 'paid');
-      case 2: return payouts.filter((p) => p.payout_status === 'rejected');
+      case 2: return payouts.filter((p) => p.payout_status === 'disputed');
       default: return payouts;
     }
   }, [payouts, activeIdx]);
@@ -160,17 +161,19 @@ export default function PayoutsScreen() {
     }).start();
   }, [activeIdx, segW, indicatorX]);
 
-  const mutateStatus = useCallback(async (id: string, status: PayoutStatus, notes?: string) => {
+  const mutateStatus = useCallback(async (id: string, status: PayoutStatus, notes?: string): Promise<boolean> => {
     setBusyIds((s) => new Set(s).add(id));
     try {
       const patch: Record<string, unknown> = { payout_status: status };
-      if (notes !== undefined) patch.notes = notes;
+      if (notes !== undefined) patch.payout_notes = notes;
       const { error } = await supabase.from('jobs').update(patch).eq('id', id);
       if (error) throw error;
-      Haptics.notificationAsync(status === 'rejected' ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(status === 'disputed' ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
       await fetchPayouts();
+      return true;
     } catch (err: any) {
       Alert.alert('Update Failed', err.message ?? 'Please try again.');
+      return false;
     } finally {
       setBusyIds((s) => { const n = new Set(s); n.delete(id); return n; });
     }
@@ -182,7 +185,8 @@ export default function PayoutsScreen() {
   // (admin_mark_withdrawal_paid against the inspector's withdrawal_request).
   const processViaEdgeFunction = useCallback(
     async (jobId: string) => {
-      await mutateStatus(jobId, 'paid');
+      const ok = await mutateStatus(jobId, 'paid');
+      if (!ok) return; // mutateStatus already surfaced the failure alert
       Alert.alert(
         'Marked Paid',
         'Job payout marked paid. Wire the funds out-of-band and settle the payout in the Treasury Control Tower (web).',
@@ -211,14 +215,14 @@ export default function PayoutsScreen() {
 
   const onReject = useCallback((r: JobPayout) => {
     if (Platform.OS === 'ios') {
-      Alert.prompt('Reject Payout', `Reject ${fmt(r.payout_amount_cents)} for ${displayName(r)}?\nProvide a reason:`, [
+      Alert.prompt('Dispute Payout', `Dispute ${fmt(r.payout_amount_cents)} for ${displayName(r)}?\nProvide a reason:`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reject', style: 'destructive', onPress: (reason?: string) => mutateStatus(r.id, 'rejected', reason || 'Rejected by admin') },
+        { text: 'Dispute', style: 'destructive', onPress: (reason?: string) => mutateStatus(r.id, 'disputed', reason || 'Disputed by admin') },
       ], 'plain-text', '', 'default');
     } else {
-      Alert.alert('Reject Payout', `Reject ${fmt(r.payout_amount_cents)} for ${displayName(r)}?`, [
+      Alert.alert('Dispute Payout', `Dispute ${fmt(r.payout_amount_cents)} for ${displayName(r)}?`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reject', style: 'destructive', onPress: () => mutateStatus(r.id, 'rejected', 'Rejected by admin') },
+        { text: 'Dispute', style: 'destructive', onPress: () => mutateStatus(r.id, 'disputed', 'Disputed by admin') },
       ]);
     }
   }, [mutateStatus]);
@@ -287,10 +291,10 @@ export default function PayoutsScreen() {
             </View>
           </View>
         </View>
-        {item.payout_status === 'pending' && (
+        {item.payout_status === 'unpaid' && (
           <View style={s.actionsRow}>
             <TouchableOpacity style={s.btnReject} activeOpacity={0.7} onPress={() => onReject(item)} disabled={busy}>
-              {busy ? <ActivityIndicator size="small" color="#EF4444" /> : <><Ionicons name="close" size={16} color="#EF4444" /><Text style={s.btnRejectTxt}>Reject</Text></>}
+              {busy ? <ActivityIndicator size="small" color="#EF4444" /> : <><Ionicons name="close" size={16} color="#EF4444" /><Text style={s.btnRejectTxt}>Dispute</Text></>}
             </TouchableOpacity>
             <TouchableOpacity style={s.btnApprove} activeOpacity={0.7} onPress={() => onApprove(item)} disabled={busy}>
               {busy ? <ActivityIndicator size="small" color={T.white} /> : <><Ionicons name="checkmark" size={16} color={T.white} /><Text style={s.btnApproveTxt}>Approve</Text></>}
@@ -306,7 +310,7 @@ export default function PayoutsScreen() {
     return (
       <View style={s.emptyWrap}>
         <View style={s.emptyIconBg}><Ionicons name={iconMap[activeIdx] ?? 'document-outline'} size={44} color={T.textTertiary} /></View>
-        <Text style={s.emptyTitle}>{activeIdx === 0 ? 'No Pending Payouts' : activeIdx === 1 ? 'No Paid Payouts Yet' : 'No Rejected Payouts'}</Text>
+        <Text style={s.emptyTitle}>{activeIdx === 0 ? 'No Pending Payouts' : activeIdx === 1 ? 'No Paid Payouts Yet' : 'No Disputed Payouts'}</Text>
         <Text style={s.emptySub}>{activeIdx === 0 ? 'All caught up, no payouts awaiting review.' : `No ${SEGMENTS[activeIdx].toLowerCase()} payouts to display.`}</Text>
       </View>
     );

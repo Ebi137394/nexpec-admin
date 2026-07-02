@@ -14,9 +14,12 @@ import {
   Modal, Image, Linking,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { SA, currency, statusColor } from '@/lib/super-admin/theme';
 import type { Job } from '@/lib/super-admin/types';
@@ -57,6 +60,9 @@ export default function SpreadEditor() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportData, setReportData] = useState<{ id: string; is_published: boolean; photo_url?: string; notes?: string } | null>(null);
+  // photo_url stores a PRIVATE inspection-photos storage path — render the
+  // minted signed URL, never the raw path (which shows a broken image).
+  const [reportPhotoUrl, setReportPhotoUrl] = useState<string | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
 
   // Candidate the Client has selected — populated only when there's a
@@ -187,6 +193,12 @@ export default function SpreadEditor() {
           .eq('job_id', id)
           .maybeSingle();
         if (report) setReportData(report);
+        if (report?.photo_url) {
+          const url = await signedUrl({ bucket: 'inspection-photos', path: report.photo_url, ttl: 3600 });
+          setReportPhotoUrl(url ?? null);
+        } else {
+          setReportPhotoUrl(null);
+        }
       } catch (e) {
         console.warn('No report found for job');
       }
@@ -201,10 +213,11 @@ export default function SpreadEditor() {
 
   const publishReport = async () => {
     try {
-      await supabase
+      const { error: pubErr } = await supabase
         .from('inspection_reports')
         .update({ is_published: true })
         .eq('job_id', id);
+      if (pubErr) throw pubErr;
 
       Alert.alert('Success', 'Report has been published to client');
       setReportData((prev) => (prev ? { ...prev, is_published: true } : null));
@@ -223,6 +236,7 @@ export default function SpreadEditor() {
         .update({
           client_price_cents: toCents(cp),   // ★ Task 4
           payout_amount_cents: toCents(ip),  // ★ Task 4
+          inspector_payout_cents: toCents(ip), // keep GR2 inspector column in sync
           payout_status: payoutStatus,
         })
         .eq('id', job.id);
@@ -238,6 +252,7 @@ export default function SpreadEditor() {
               ...prev,
               client_price_cents: toCents(cp),   // ★ Task 4
               payout_amount_cents: toCents(ip),  // ★ Task 4
+              inspector_payout_cents: toCents(ip), // keep GR2 inspector column in sync
               payout_status: payoutStatus,
             } as Job)
           : null,
@@ -268,27 +283,25 @@ export default function SpreadEditor() {
       const ext = fileName.includes('.') ? fileName.split('.').pop() : 'bin';
       const storagePath = `admin-replies/${id}/${Date.now()}.${ext}`;
 
-      // Read file as blob and upload
-      const fetchResp = await fetch(asset.uri);
-      const blob = await fetchResp.blob();
+      // Read file as base64 → ArrayBuffer (native-safe; fetch(uri).blob()
+      // uploads 0 bytes on RN for file:// URIs).
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const fileBytes = decode(base64);
 
       // Use the existing chat_attachments bucket since it's known to exist
       // and has the right RLS for cross-role reads.
       const { error: uploadErr } = await supabase.storage
         .from('chat_attachments')
-        .upload(storagePath, blob, {
+        .upload(storagePath, fileBytes, {
           contentType: asset.mimeType ?? 'application/octet-stream',
           upsert: false,
         });
       if (uploadErr) throw uploadErr;
 
-      // Get a public URL the client can open directly.
-      const { data: pub } = supabase.storage
-        .from('chat_attachments')
-        .getPublicUrl(storagePath);
-      const publicUrl = pub?.publicUrl ?? null;
-
-      setAdminAttachmentUrl(publicUrl);
+      // Store the storage PATH (not a URL). chat_attachments is private
+      // post-lockdown; getPublicUrl would yield a dead link. Counterpart
+      // screens mint a signed URL from this path at open time.
+      setAdminAttachmentUrl(storagePath);
       setAdminAttachmentName(fileName);
     } catch (err: any) {
       Alert.alert('Upload failed', err?.message ?? 'Could not attach the file.');
@@ -363,7 +376,7 @@ export default function SpreadEditor() {
 
     Alert.alert(
       'Approve & Publish',
-      `Client billed: ${currency(cp)}\nInspector offered: ${currency(ip)}\nPlatform spread: ${currency(spread)} (${margin}%)\n\nPublish this job to inspectors?`,
+      `Client billed: ${currency(toCents(cp))}\nInspector offered: ${currency(toCents(ip))}\nPlatform spread: ${currency(toCents(spread))} (${margin}%)\n\nPublish this job to inspectors?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -377,6 +390,7 @@ export default function SpreadEditor() {
                 .update({
                   client_price_cents: toCents(cp),   // ★ Task 4
                   payout_amount_cents: toCents(ip),  // ★ Task 4
+                  inspector_payout_cents: toCents(ip), // keep GR2 inspector column in sync
                   payout_status: payoutStatus,
                   status: 'open',
                   updated_at: new Date().toISOString(),
@@ -422,7 +436,7 @@ export default function SpreadEditor() {
 
     Alert.alert(
       'Confirm & Dispatch',
-      `Inspector: ${inspectorName}\nClient billed: ${currency(cp)}\nInspector offered: ${currency(ip)}\nPlatform spread: ${currency(spread)} (${margin}%)\n\nProceed?`,
+      `Inspector: ${inspectorName}\nClient billed: ${currency(toCents(cp))}\nInspector offered: ${currency(toCents(ip))}\nPlatform spread: ${currency(toCents(spread))} (${margin}%)\n\nProceed?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -460,7 +474,7 @@ export default function SpreadEditor() {
                       inspectorName,
                       jobTitle: job.title || 'Inspection Job',
                       location: job.location || 'Location not specified',
-                      payoutAmount: currency(ip),
+                      payoutAmount: currency(toCents(ip)),
                     },
                   });
                 } catch (notifyErr) {
@@ -770,7 +784,7 @@ export default function SpreadEditor() {
             label="Scheduled"
             value={(job as any).scheduled_date ? new Date((job as any).scheduled_date).toLocaleDateString() : '—'}
           />
-          <InfoRow icon="cash-outline" label="Orig. Budget" value={currency((job as any).budget)} />
+          <InfoRow icon="cash-outline" label="Orig. Budget" value={currency((job as any).budget_cents)} />
         </View>
 
         <View style={s.section}>
@@ -829,7 +843,7 @@ export default function SpreadEditor() {
             <View style={s.spreadRow}>
               <Text style={s.spreadLabel}>Platform Spread</Text>
               <Text style={[s.spreadValue, { color: spread >= 0 ? SA.success : SA.danger }]}>
-                {currency(spread)}
+                {currency(toCents(spread))}
               </Text>
             </View>
             <View style={s.spreadRow}>
@@ -1001,9 +1015,9 @@ export default function SpreadEditor() {
           <View style={{ backgroundColor: '#0A0D2C', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1A1D3C', maxHeight: '80%' }}>
             <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Draft Inspection Report</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {reportData?.photo_url && (
+              {reportPhotoUrl && (
                 <Image
-                  source={{ uri: reportData.photo_url }}
+                  source={{ uri: reportPhotoUrl }}
                   style={{ width: '100%', height: 220, borderRadius: 8, marginBottom: 16, backgroundColor: '#1A1D3C' }}
                   resizeMode="cover"
                 />

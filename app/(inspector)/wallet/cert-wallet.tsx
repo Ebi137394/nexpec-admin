@@ -19,6 +19,7 @@ import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 // ✅ IMPORT LANGUAGE HOOK
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 
@@ -49,6 +50,9 @@ export default function CertWalletScreen() {
   const { t, isRTL } = useLanguage();
 
   const [certs, setCerts] = useState<Certification[]>([]);
+  // file_url is now a storage PATH (certifications bucket is private). Mint
+  // signed URLs at read for the owner viewing their own certs. Keyed by path.
+  const [certUrls, setCertUrls] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -74,7 +78,19 @@ export default function CertWalletScreen() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCerts(data || []);
+      const rows = data || [];
+      setCerts(rows);
+
+      // Mint signed URLs for cert file PATHs (private bucket; owner-authorized).
+      const paths = rows
+        .map((c: Certification) => c.file_url)
+        .filter((p): p is string => !!p);
+      if (paths.length > 0) {
+        const urls = await signedUrls('certifications', paths, SIGNED_URL_TTL.THUMB);
+        setCertUrls(urls);
+      } else {
+        setCertUrls({});
+      }
     } catch (error) {
       console.error('Error fetching certs:', error);
     } finally {
@@ -95,32 +111,23 @@ export default function CertWalletScreen() {
   };
 
   /**
-   * Upload certificate image to Supabase Storage
-   * Using the SAFE publicUrl extraction method
+   * Upload certificate image to Supabase Storage and return the storage PATH.
+   * The `certifications` bucket is private (owner+admin only); we store the
+   * path and mint signed URLs at read time.
    */
   const uploadImage = async (uri: string): Promise<string> => {
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
       const filePath = `${user?.id}/${Date.now()}.jpg`;
-      
+
       const { error: uploadError } = await supabase.storage
         .from('certifications')
         .upload(filePath, decode(base64), { contentType: 'image/jpeg' });
 
       if (uploadError) throw uploadError;
 
-      // ✅ SAFE METHOD: Get public URL without destructuring
-      const { data: urlData } = supabase.storage
-        .from('certifications')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData?.publicUrl;
-
-      if (!publicUrl) {
-        throw new Error(t('Failed to get public URL'));
-      }
-
-      return publicUrl;
+      // Store the PATH (not a public URL — bucket is private).
+      return filePath;
     } catch (error) {
       console.error('Upload failed:', error);
       throw error;
@@ -169,7 +176,12 @@ export default function CertWalletScreen() {
         text: t('Delete'),
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('certifications').delete().eq('id', id);
+          // outbox-exempt: interactive online delete with explicit error alert; not a field-capture op.
+          const { error } = await supabase.from('certifications').delete().eq('id', id);
+          if (error) {
+            Alert.alert(t('Error'), error.message || t('Failed to delete'));
+            return;
+          }
           fetchCerts();
         }
       }
@@ -199,8 +211,8 @@ export default function CertWalletScreen() {
           </View>
         </View>
 
-        {item.file_url && (
-          <Image source={{ uri: item.file_url }} style={styles.thumbnail} />
+        {item.file_url && certUrls[item.file_url] && (
+          <Image source={{ uri: certUrls[item.file_url] as string }} style={styles.thumbnail} />
         )}
 
         <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>

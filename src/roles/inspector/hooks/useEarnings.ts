@@ -132,7 +132,19 @@ export function useEarnings(): UseEarningsReturn {
       .select('*')
       .eq('user_id', user.id)
       .single();
-    if (data) setEarningsRecord(data as EarningsRecord);
+    if (data) {
+      // ★ WALLET-SCHEMA-DRIFT-001 (follow-up) — Live balance columns are the
+      //   `_halalas` BIGINT quartet; map them onto the `_cents` field names
+      //   this hook exposes (1:1 numeric identity — see fetchTransactions).
+      const row = data as Record<string, unknown>;
+      setEarningsRecord({
+        ...(data as EarningsRecord),
+        available_balance_cents: toFiniteNumber(row.available_balance_halalas),
+        pending_cents:           toFiniteNumber(row.pending_halalas),
+        total_earned_cents:      toFiniteNumber(row.total_earned_halalas),
+        ytd_gross_cents:         toFiniteNumber(row.ytd_gross_halalas),
+      });
+    }
   }, [user?.id]);
 
   const fetchMonthlyBreakdown = useCallback(async () => {
@@ -235,9 +247,8 @@ export function useEarnings(): UseEarningsReturn {
       .order('created_at', { ascending: false })
       .limit(50);
     if (data) {
-      // Map _halalas DB columns → _cents TS field names (numeric identity)
-      // and flatten the join shape Supabase returns (single-row joins arrive
-      // as a 1-element array).
+      // Map _halalas DB columns → _cents TS field names (numeric identity).
+      // To-one embeds (job, client) arrive as objects, not arrays.
       const transformedData = data.map((item: any) => ({
         id:                 item.id,
         inspector_id:       item.inspector_id,
@@ -248,8 +259,8 @@ export function useEarnings(): UseEarningsReturn {
         net_amount_cents:   toFiniteNumber(item.net_amount_halalas),
         status:             item.status,
         created_at:         item.created_at,
-        job: item.job?.[0]
-          ? { ...item.job[0], client: item.job[0].client?.[0] || null }
+        job: item.job
+          ? { ...item.job, client: item.job.client ?? null }
           : null,
       }));
       setTransactions(transformedData as EarningsTransaction[]);

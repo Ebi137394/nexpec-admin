@@ -30,14 +30,14 @@ const COLORS = {
   cardBg: '#161E2E',
   
   // Accent Colors
-  primary: '#00F5FF',
-  primaryDark: '#00C4CC',
-  primaryGlow: 'rgba(0, 245, 255, 0.15)',
-  primaryMuted: 'rgba(0, 245, 255, 0.5)',
-  
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
+  primaryGlow: 'rgba(124, 58, 237, 0.15)',
+  primaryMuted: 'rgba(124, 58, 237, 0.5)',
+
   // Financial Colors
-  money: '#00F5FF',
-  moneyGlow: 'rgba(0, 245, 255, 0.2)',
+  money: '#7C3AED',
+  moneyGlow: 'rgba(124, 58, 237, 0.2)',
   reimbursable: '#10B981',
   reimbursableBg: 'rgba(16, 185, 129, 0.15)',
   nonBillable: '#F59E0B',
@@ -911,7 +911,7 @@ const ExpenseTrackerScreen: React.FC = () => {
             <Text style={styles.headerSubtitle}>Pipeline Inspection - Site A</Text>
           </View>
           <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-            <PlusIcon size={16} color={COLORS.background} />
+            <PlusIcon size={16} color="#FFFFFF" />
             <Text style={styles.addButtonText}>Add</Text>
           </TouchableOpacity>
         </View>
@@ -1353,7 +1353,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
     marginLeft: 8,
   },
 
@@ -1519,7 +1519,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterBadgeTextActive: {
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 
   // List
@@ -1978,7 +1978,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 
   // Detail Modal
@@ -2095,7 +2095,7 @@ const styles = StyleSheet.create({
   },
   detailActionPrimaryText: {
     fontSize: 15,
-    color: COLORS.background,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 });

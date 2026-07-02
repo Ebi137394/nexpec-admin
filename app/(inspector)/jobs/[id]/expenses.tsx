@@ -69,12 +69,13 @@ export default function ExpensesScreen() {
       let receiptUrl: string | null = null;
       let storagePath: string | undefined;
 
-      // Compute the receipt's deterministic storage path + public URL up front
-      // (getPublicUrl is a local string build — works offline). The outbox handler
-      // uploads the file to that path on drain.
+      // Compute the receipt's deterministic storage PATH up front (a local string,
+      // so it works offline). The outbox handler uploads the file to that path on
+      // drain. The `receipts` bucket is locked to owner+admin, so we store the PATH
+      // and mint a signed URL at display time (never a public URL).
       if (receipt) {
         storagePath = `${user?.id}/${Date.now()}.jpg`;
-        receiptUrl = supabase.storage.from('receipts').getPublicUrl(storagePath).data.publicUrl;
+        receiptUrl = storagePath;
       }
 
       // Route through the outbox — offline-safe, idempotent on the client PK `id`.

@@ -20,8 +20,11 @@ import { useAuth } from '../../../src/contexts/AuthContext';
 //   replies don't run on a separate auth session.
 import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck,
@@ -34,7 +37,7 @@ const COLORS = {
   surface: 'rgba(255, 255, 255, 0.03)',
   surfaceSolid: '#0D0D24',
   border: 'rgba(255, 255, 255, 0.1)',
-  primary: '#00FFFF',
+  primary: '#7C3AED',
   textPrimary: '#FFFFFF',
   textSecondary: '#9CA3AF',
   textMuted: '#64748B',
@@ -199,10 +202,8 @@ export default function AdminSupportChatScreen() {
     if (need.length === 0) return;
     const results = await Promise.allSettled(
       need.map(async (m) => {
-        const { data } = await supabase.storage
-          .from('chat_attachments')
-          .createSignedUrl(m.attachment_url!, 3600);
-        return { path: m.attachment_url!, url: data?.signedUrl ?? null };
+        const url = await signedUrl({ bucket: 'chat_attachments', path: m.attachment_url!, ttl: 3600 });
+        return { path: m.attachment_url!, url };
       })
     );
     const newEntries: Record<string, string> = {};
@@ -294,13 +295,11 @@ export default function AdminSupportChatScreen() {
         });
         // Resolve image attachments into a signed URL right away.
         if (incoming.attachment_type === 'image' && incoming.attachment_url) {
-          const { data } = await supabase.storage
-            .from('chat_attachments')
-            .createSignedUrl(incoming.attachment_url, 3600);
-          if (data?.signedUrl)
+          const url = await signedUrl({ bucket: 'chat_attachments', path: incoming.attachment_url, ttl: 3600 });
+          if (url)
             setSignedUrlCache((prev) => ({
               ...prev,
-              [incoming.attachment_url!]: data.signedUrl,
+              [incoming.attachment_url!]: url,
             }));
         }
       } else if (payload.eventType === 'UPDATE') {
@@ -379,11 +378,11 @@ export default function AdminSupportChatScreen() {
         // Group all thread attachments under the customer's folder so RLS
         // and clean-up stay aligned with the user-side support chat.
         const storagePath = `support/${customerId}/${Date.now()}_${sanitized}`;
-        const fetchResp = await fetch(uri);
-        const blob = await fetchResp.blob();
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+        const fileBytes = decode(base64);
         const { error: uploadErr } = await supabase.storage
           .from('chat_attachments')
-          .upload(storagePath, blob, {
+          .upload(storagePath, fileBytes, {
             contentType: mimeForFile(fileName, kind),
             upsert: false,
           });
@@ -463,10 +462,8 @@ export default function AdminSupportChatScreen() {
 
   const handleOpenDocument = useCallback(async (storagePath: string) => {
     try {
-      const { data } = await supabase.storage
-        .from('chat_attachments')
-        .createSignedUrl(storagePath, 3600);
-      if (data?.signedUrl) await Linking.openURL(data.signedUrl);
+      const url = await signedUrl({ bucket: 'chat_attachments', path: storagePath, ttl: 3600 });
+      if (url) await Linking.openURL(url);
     } catch {}
   }, []);
 
@@ -603,7 +600,7 @@ export default function AdminSupportChatScreen() {
                       {
                         backgroundColor: isMe
                           ? 'rgba(255,255,255,0.18)'
-                          : 'rgba(0,255,255,0.12)',
+                          : 'rgba(124,58,237,0.12)',
                       },
                     ]}
                   >
@@ -890,7 +887,7 @@ export default function AdminSupportChatScreen() {
                 <View style={s.sendCircle}>
                   <Send
                     size={17}
-                    color={COLORS.background}
+                    color="#FFFFFF"
                     style={{ marginLeft: 2 }}
                   />
                 </View>
@@ -970,9 +967,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: 'rgba(0, 255, 255, 0.1)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 255, 0.25)',
+    borderColor: 'rgba(124, 58, 237, 0.25)',
   },
   adminBadgeText: {
     color: COLORS.primary,

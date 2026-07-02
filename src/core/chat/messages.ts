@@ -10,20 +10,64 @@ import {
   RealtimeMessageEvent,
 } from '@/types/message';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 
 /**
- * Get messages for a job
+ * Resolve (or create) the caller's SILOED conversation for a job, returning its
+ * conversation_id. The hardened `messages` RLS only honours conversation_id, so
+ * every send/read must go through it. Kind is derived from the caller's role on
+ * the job (assigned inspector → inspector↔admin; client/agency → client↔admin);
+ * the server-side `ensure_job_conversation` RPC re-checks that authorization.
  */
-/**
- * Generate correct room_id based on chat type
- * General Chat: room_id = job_id
- * Admin Support Chat: room_id = `${jobId}-admin-${userId}`
- */
-export function getChatRoomId(jobId: string, chatType: string | null, userId: string): string {
-  if (chatType === 'admin_support') {
-    return `${jobId}-admin-${userId}`;
+export async function getOrCreateJobConversationId(
+  jobId: string
+): Promise<{ id: string | null; error: Error | null }> {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error('Not authenticated');
+
+    const { data: job, error: jobError } = await supabase
+      .from('jobs')
+      .select('client_id, agency_id, contractor_id')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (jobError) throw jobError;
+    if (!job) throw new Error('Job not found');
+
+    const kind =
+      user.id === (job as any).contractor_id ? 'job_inspector_admin'
+      : (user.id === (job as any).client_id || user.id === (job as any).agency_id) ? 'job_client_admin'
+      : null;
+    if (!kind) throw new Error('Not a participant on this job');
+
+    const { data, error } = await supabase.rpc('ensure_job_conversation', {
+      p_job_id: jobId,
+      p_kind: kind,
+    });
+    if (error) throw error;
+    return { id: (data as string) ?? null, error: null };
+  } catch (error) {
+    return { id: null, error: error as Error };
   }
-  return jobId;
+}
+
+/**
+ * Resolve (or create) the caller's help-and-support conversation_id.
+ */
+export async function getOrCreateSupportConversationId(): Promise<{
+  id: string | null;
+  error: Error | null;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('ensure_help_support_conversation');
+    if (error) throw error;
+    return { id: (data as string) ?? null, error: null };
+  } catch (error) {
+    return { id: null, error: error as Error };
+  }
 }
 
 export async function getJobMessages(
@@ -43,18 +87,15 @@ export async function getJobMessages(
           first_name,
           last_name,
           avatar_url
-        ),
-        reply_to:messages!messages_reply_to_id_fkey (
-          id,
-          content,
-          sender_id
         )
       `);
 
-    if (chatType === 'admin_support' && userId) {
-      const adminRoomId = getChatRoomId(jobId, chatType, userId);
-      query = query.eq('room_id', adminRoomId);
+    if (chatType === 'admin_support') {
+      const { id: supportConvId } = await getOrCreateSupportConversationId();
+      if (!supportConvId) return { data: [], error: null };
+      query = query.eq('conversation_id', supportConvId);
     } else {
+      // Read by job_id; the messages RLS silos each row to the caller's conversation.
       query = query.eq('job_id', jobId).is('room_id', null);
     }
 
@@ -85,33 +126,27 @@ export async function sendMessage(
   chatType: string | null = null
 ): Promise<{ data: Message | null; error: Error | null }> {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!user) throw new Error('Not authenticated');
+    // Resolve the conversation this message belongs to (silo-correct).
+    const { id: conversationId, error: convErr } =
+      chatType === 'admin_support'
+        ? await getOrCreateSupportConversationId()
+        : await getOrCreateJobConversationId(jobId);
+    if (convErr) throw convErr;
+    if (!conversationId) throw new Error('Could not resolve conversation');
 
-    const roomId = chatType === 'admin_support' 
-      ? getChatRoomId(jobId, chatType, user.id) 
-      : null;
-
-    const payload: SendMessagePayload = {
-      job_id: jobId,
-      room_id: roomId,
-      sender_id: user.id,
-      content: content.trim(),
-      attachment_url: attachmentUrl || null,
-      attachment_type: attachmentType as any || null,
-      attachment_name: attachmentName || null,
-      reply_to_id: replyToId || null,
-    };
-
-    const { data, error } = await supabase
-      .from('messages')
-      .insert(payload)
-      .select()
-      .single();
+    // Canonical send path — RLS-safe: send_message sets conversation_id +
+    // sender_id = auth.uid() server-side. (replyToId is accepted for signature
+    // compatibility but not yet persisted by the RPC.)
+    const { data, error } = await supabase.rpc('send_message', {
+      p_conversation_id: conversationId,
+      p_content: content?.trim() ?? '',
+      p_attachment_url: attachmentUrl ?? null,
+      p_attachment_type: attachmentType ?? null,
+      p_attachment_name: attachmentName ?? null,
+    });
 
     if (error) throw error;
-    return { data, error: null };
+    return { data: data as Message, error: null };
   } catch (error) {
     return { data: null, error: error as Error };
   }
@@ -126,17 +161,12 @@ export function subscribeToMessages(
   chatType: string | null = null,
   userId: string | null = null
 ): RealtimeChannel {
-  let filter = `job_id=eq.${jobId}`;
-  
-  if (chatType === 'admin_support' && userId) {
-    const adminRoomId = getChatRoomId(jobId, chatType, userId);
-    filter = `room_id=eq.${adminRoomId}`;
-  } else {
-    filter = `job_id=eq.${jobId} AND room_id=is.null`;
-  }
-
-  const channelName = chatType === 'admin_support' 
-    ? `messages:admin:${jobId}:${userId}` 
+  // Realtime delivery is gated by the messages SELECT RLS, so a job_id filter only
+  // ever yields rows the caller may see. (admin_support precision is handled on
+  // refetch via the help-support conversation; realtime here is best-effort.)
+  const filter = `job_id=eq.${jobId}`;
+  const channelName = chatType === 'admin_support'
+    ? `messages:support:${jobId}:${userId ?? 'self'}`
     : `messages:${jobId}`;
 
   const channel = supabase
@@ -173,8 +203,12 @@ export async function markMessagesRead(
     if (userError) throw userError;
     if (!user) throw new Error('Not authenticated');
 
+    // mark_conversation_read takes a conversation_id (p_conv_id), not a job_id —
+    // the previous { p_job_id } call silently mismatched the signature.
+    const { id: conversationId } = await getOrCreateJobConversationId(jobId);
+    if (!conversationId) return { count: 0, error: null };
     const { data, error } = await supabase
-      .rpc('mark_conversation_read', { p_job_id: jobId });
+      .rpc('mark_conversation_read', { p_conv_id: conversationId });
 
     if (error) throw error;
     return { count: data || 0, error: null };
@@ -343,11 +377,9 @@ export async function getChatAttachmentSignedUrl(
 ): Promise<{ url: string | null; error: Error | null }> {
   try {
     if (/^https?:\/\//i.test(pathOrUrl)) return { url: pathOrUrl, error: null };
-    const { data, error } = await supabase.storage
-      .from('chat_attachments')
-      .createSignedUrl(pathOrUrl, ttlSeconds);
-    if (error) throw error;
-    return { url: data.signedUrl, error: null };
+    // Server-authorized mint (chat_attachments is owner+admin only at the RLS layer).
+    const url = await signedUrl({ bucket: 'chat_attachments', path: pathOrUrl, ttl: ttlSeconds });
+    return { url, error: null };
   } catch (error) {
     return { url: null, error: error as Error };
   }
@@ -372,22 +404,10 @@ export async function uploadChatAttachment(
     const extension = fileName.split('.').pop()?.toLowerCase() || 'file';
     const uniqueName = `${jobId}/${user.id}/${timestamp}.${extension}`;
 
-    // Fetch file and convert to blob
-    const response = await fetch(uri);
-    const blob = await response.blob();
-
-    const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (reader.result instanceof ArrayBuffer) {
-          resolve(reader.result);
-        } else {
-          reject(new Error('Failed to read file'));
-        }
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsArrayBuffer(blob);
-    });
+    // base64 → ArrayBuffer. fetch(uri).blob() uploads 0 bytes on native
+    // (Expo Blob limitation); readAsStringAsync + decode is the reliable path.
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    const arrayBuffer = decode(base64);
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage

@@ -125,6 +125,12 @@ export default async function TeamMissionsPage() {
                       >
                         Chat
                       </Link>
+                      <Link
+                        href={`/client/jobs/${j.id}/internal`}
+                        className="text-zinc-300 transition-colors hover:text-white"
+                      >
+                        Internal
+                      </Link>
                       <span className={j.can_manage ? 'text-zinc-300' : 'text-zinc-500'}>
                         {j.can_manage ? 'Manage' : 'View'}
                       </span>

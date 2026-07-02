@@ -6,8 +6,6 @@ import React, {
   useState,
   useCallback,
   useMemo,
-  useRef,
-  useId,
 } from 'react';
 import {
   View,
@@ -15,22 +13,27 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   RefreshControl,
   TextInput,
   StatusBar,
 } from 'react-native';
-import { useRouter, useFocusEffect, Link } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@/src/contexts/AuthContext';
-// ★ Schema-fix: '@/src/lib/supabase' is a phantom path — there is no
-//   src/lib/supabase.ts file in this repo. The canonical client lives
-//   at /lib/supabase.ts; every other screen imports it as '@/lib/supabase'.
-//   With the broken path, Metro resolved supabase to undefined and the
-//   first .from('jobs') call threw silently, leaving the screen stuck on
-//   skeleton loaders forever.
-import { supabase } from '@/lib/supabase';
-import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+// ★ INBOX-CONSOLIDATION — the inbox is now built from the UNIFIED
+//   conversations backend via useInbox(), NOT by querying the `messages`
+//   table and grouping on messages.job_id. Post-RLS-hardening, new
+//   messages are siloed by conversation_id and carry job_id = NULL, so
+//   the old grouping produced stale previews/unread and its realtime
+//   subscription was an unfiltered firehose. useInbox() reads the
+//   canonical `conversations` projection (last_message_preview,
+//   last_message_at, unread_for_user/admin), already role-scopes the
+//   query, and already excludes job_team_internal (Ghost Mode).
+import {
+  useInbox,
+  roleLabel,
+  CONVERSATION_KIND_LABELS,
+  type ConversationRow,
+} from '@/src/hooks/useConversations';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -58,7 +61,7 @@ const COLORS = {
   surface: 'rgba(255, 255, 255, 0.03)',
   surfaceSolid: '#0D0D24',
   border: 'rgba(255, 255, 255, 0.1)',
-  primary: '#00FFFF',
+  primary: '#7C3AED',
   textPrimary: '#FFFFFF',
   textSecondary: '#9CA3AF',
   textMuted: '#64748B',
@@ -71,46 +74,28 @@ const COLORS = {
 // ═══════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════
-interface Profile {
-  id: string;
-  full_name: string;
-  avatar_url: string | null;
-  role: string;
-}
-
-interface JobRow {
-  id: string;
-  title: string;
-  client_id: string | null;
-  agency_id: string | null;
-  hired_inspector_id: string | null;
-}
-
-interface MessageRow {
-  id: string;
-  job_id: string;
-  sender_id: string;
-  content: string;
-  is_read: boolean;
-  created_at: string;
-  attachment_url: string | null;
-  attachment_type: string | null;
-  attachment_name: string | null;
-}
-
+// A flattened inbox row, derived from the unified `conversations` backend
+// (useInbox → ConversationRow). The view keeps its original visual shape;
+// only the data SOURCE changed (conversations projection, not grouped
+// messages). `convId` is the conversation primary key (always unique and
+// present); `jobId` may be null for help_support / no-job rooms.
 interface Conversation {
-  job_id: string;
-  job_title: string;
-  other_user: Profile;
-  last_message: MessageRow;
-  unread_count: number;
+  convId: string;
+  jobId: string | null;
+  kind: ConversationRow['kind'];
+  title: string;
+  preview: string;
+  lastMessageAt: string | null;
+  unreadCount: number;
 }
 
 // ═══════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════
-function formatRelative(iso: string): string {
+function formatRelative(iso: string | null): string {
+  if (!iso) return '';
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -128,17 +113,6 @@ function formatRelative(iso: string): string {
   });
 }
 
-function messagePreview(msg: MessageRow, myId: string): string {
-  const prefix = msg.sender_id === myId ? 'You: ' : '';
-  if (msg.attachment_type === 'image') return `${prefix}📷 Photo`;
-  if (msg.attachment_type === 'document')
-    return `${prefix}📎 ${msg.attachment_name || 'Document'}`;
-  const text = msg.content ?? '';
-  const truncated =
-    text.length > 50 ? text.substring(0, 50) + '…' : text;
-  return `${prefix}${truncated}`;
-}
-
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -146,20 +120,6 @@ function getInitials(name: string): string {
     .join('')
     .toUpperCase()
     .substring(0, 2);
-}
-
-/**
- * Resolves the "other participant" for a 1-on-1 job chat.
- * - If I am the inspector → other is client or agency
- * - If I am the client or agency → other is inspector
- */
-function resolveOtherUserId(job: JobRow, myId: string): string | null {
-  if (job.hired_inspector_id === myId) {
-    // I am the inspector; the other party is the client or agency
-    return job.client_id ?? job.agency_id ?? null;
-  }
-  // I am the client or agency; the other party is the inspector
-  return job.hired_inspector_id ?? null;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -231,30 +191,28 @@ const EmptyState = React.memo(() => (
 // ═══════════════════════════════════════════════════════════
 interface ConvoRowProps {
   item: Conversation;
-  myId: string;
-  onPress: (jobId: string) => void;
+  onPress: (item: Conversation) => void;
 }
 
-const ConversationRow = React.memo(({ item, myId }: { item: Conversation; myId: string; }) => {
-  const hasUnread = item.unread_count > 0;
+const ConversationRow = React.memo(({ item, onPress }: ConvoRowProps) => {
+  const hasUnread = item.unreadCount > 0;
+  // Conversations carry no avatar; the initials fallback (already in the
+  // styles) stands in for the counterparty/room title.
   return (
-    <Link href={`/messages/${item.job_id}`} asChild>
-      {/* CRITICAL: Do NOT add an onPress here. The Link injects it automatically. */}
-      <TouchableOpacity activeOpacity={0.65} style={styles.row}>
-        {item.other_user.avatar_url ? <Image source={{ uri: item.other_user.avatar_url }} style={styles.avatar} /> : <View style={[styles.avatar, styles.avatarFallback]}><Text style={styles.avatarInitials}>{getInitials(item.other_user.full_name)}</Text></View>}
-        <View style={styles.rowBody}>
-          <View style={styles.rowTopLine}>
-            <Text style={styles.rowName} numberOfLines={1}>{item.other_user.full_name}</Text>
-            <Text style={[styles.rowTime, hasUnread && { color: COLORS.primary }]}>{formatRelative(item.last_message?.created_at)}</Text>
-          </View>
-          <View style={styles.rowMidLine}>
-            <Text style={[styles.rowPreview, hasUnread && { color: COLORS.textPrimary, fontWeight: '500' }]} numberOfLines={1}>{messagePreview(item.last_message, myId)}</Text>
-            {hasUnread && <View style={styles.badge}><Text style={styles.badgeText}>{item.unread_count > 99 ? '99+' : item.unread_count}</Text></View>}
-          </View>
-          <Text style={styles.rowJob} numberOfLines={1}>{item.job_title}</Text>
+    <TouchableOpacity activeOpacity={0.65} style={styles.row} onPress={() => onPress(item)}>
+      <View style={[styles.avatar, styles.avatarFallback]}><Text style={styles.avatarInitials}>{getInitials(item.title)}</Text></View>
+      <View style={styles.rowBody}>
+        <View style={styles.rowTopLine}>
+          <Text style={styles.rowName} numberOfLines={1}>{item.title}</Text>
+          <Text style={[styles.rowTime, hasUnread && { color: COLORS.primary }]}>{formatRelative(item.lastMessageAt)}</Text>
         </View>
-      </TouchableOpacity>
-    </Link>
+        <View style={styles.rowMidLine}>
+          <Text style={[styles.rowPreview, hasUnread && { color: COLORS.textPrimary, fontWeight: '500' }]} numberOfLines={1}>{item.preview}</Text>
+          {hasUnread && <View style={styles.badge}><Text style={styles.badgeText}>{item.unreadCount > 99 ? '99+' : item.unreadCount}</Text></View>}
+        </View>
+        <Text style={styles.rowJob} numberOfLines={1}>{CONVERSATION_KIND_LABELS[item.kind]}</Text>
+      </View>
+    </TouchableOpacity>
   );
 });
 
@@ -264,196 +222,77 @@ const ConversationRow = React.memo(({ item, myId }: { item: Conversation; myId: 
 export default function MessagesListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, profile } = useAuth() as unknown as {
-    user: { id: string } | null;
-    profile: Profile | null;
-    [key: string]: any;
-  };
-  const myId = user?.id ?? null;
-  const isAdmin = profile?.role === 'admin';
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
+  // ─── DATA: unified conversations backend ───
+  // useInbox() role-scopes the query (own rooms vs. full admin queue),
+  // hydrates counterparty labels for admins, excludes job_team_internal,
+  // and exposes refetch() for focus/pull-to-refresh. It is the single
+  // source of truth — no more grouping the `messages` table by job_id.
+  const { items, isAdmin, loading, refetch } = useInbox();
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
 
-  // ─── DATA FETCH ───
-  const fetchConversations = useCallback(async () => {
-    if (!myId) return;
-
-    try {
-      // 1) Get all relevant jobs
-      let jobQuery = supabase
-        .from('jobs')
-        .select('id, title, client_id, agency_id, hired_inspector_id')
-        .not('hired_inspector_id', 'is', null);
-
-      if (!isAdmin) {
-        // Non-admin: only jobs I am part of
-        jobQuery = jobQuery.or(
-          `client_id.eq.${myId},agency_id.eq.${myId},hired_inspector_id.eq.${myId}`,
-        );
-      }
-
-      const { data: jobs, error: jobErr } = await jobQuery;
-      if (jobErr) throw jobErr;
-      if (!jobs || jobs.length === 0) {
-        setConversations([]);
-        return;
-      }
-
-      const jobIds = jobs.map((j: JobRow) => j.id);
-
-      // 2) Get all messages for those jobs (newest first)
-      const { data: allMsgs, error: msgErr } = await supabase
-        .from('messages')
-        .select('*')
-        .in('job_id', jobIds)
-        .order('created_at', { ascending: false });
-
-      if (msgErr) throw msgErr;
-      if (!allMsgs || allMsgs.length === 0) {
-        setConversations([]);
-        return;
-      }
-
-      // Group messages by job_id
-      const msgsByJob: Record<string, MessageRow[]> = {};
-      for (const m of allMsgs as MessageRow[]) {
-        (msgsByJob[m.job_id] ??= []).push(m);
-      }
-
-      // 3) Collect all other-user profile IDs
-      const profileIds = new Set<string>();
-      for (const job of jobs as JobRow[]) {
-        const otherId = isAdmin
-          ? job.hired_inspector_id ??
-            job.client_id ??
-            job.agency_id
-          : resolveOtherUserId(job, myId);
-        if (otherId) profileIds.add(otherId);
-      }
-
-      // 4) Fetch profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, role')
-        .in('id', [...profileIds]);
-
-      const profileMap: Record<string, Profile> = {};
-      for (const p of (profiles ?? []) as Profile[]) {
-        profileMap[p.id] = p;
-      }
-
-      // 5) Build conversation list
-      const convos: Conversation[] = [];
-
-      for (const job of jobs as JobRow[]) {
-        const jobMessages = msgsByJob[job.id];
-        if (!jobMessages || jobMessages.length === 0) continue;
-
-        const otherId = isAdmin
-          ? job.hired_inspector_id ??
-            job.client_id ??
-            job.agency_id
-          : resolveOtherUserId(job, myId);
-
-        const otherProfile: Profile = otherId
-          ? profileMap[otherId] ?? {
-              id: otherId,
-              full_name: 'Unknown User',
-              avatar_url: null,
-              role: 'unknown',
-            }
-          : {
-              id: 'unknown',
-              full_name: 'Unknown User',
-              avatar_url: null,
-              role: 'unknown',
-            };
-
-        const unreadCount = jobMessages.filter(
-          (m) => !m.is_read && m.sender_id !== myId,
-        ).length;
-
-        convos.push({
-          job_id: job.id,
-          job_title: job.title ?? 'Untitled Job',
-          other_user: otherProfile,
-          last_message: jobMessages[0], // already sorted desc
-          unread_count: unreadCount,
-        });
-      }
-
-      // Sort by most recent message
-      convos.sort(
-        (a, b) =>
-          new Date(b.last_message.created_at).getTime() -
-          new Date(a.last_message.created_at).getTime(),
-      );
-
-      setConversations(convos);
-    } catch (err) {
-      console.error('[MessagesListScreen] fetch error:', err);
-    }
-  }, [myId, isAdmin]);
-
-  // ─── LOAD ON FOCUS ───
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      (async () => {
-        await fetchConversations();
-        if (alive) setLoading(false);
-      })();
-      return () => {
-        alive = false;
-      };
-    }, [fetchConversations]),
+  // Map each ConversationRow → the flat shape the list/row renders.
+  const conversations: Conversation[] = useMemo(
+    () =>
+      items.map((c: ConversationRow) => {
+        // Title: admins see the counterparty (name/role); everyone else
+        // sees the room title, falling back to the kind label.
+        const title = isAdmin
+          ? c.userLabel || roleLabel(c.userRole)
+          : c.title || CONVERSATION_KIND_LABELS[c.kind];
+        const preview = c.lastMessagePreview || CONVERSATION_KIND_LABELS[c.kind];
+        const unreadCount = isAdmin ? c.unreadForAdmin : c.unreadForUser;
+        return {
+          convId: c.id,
+          jobId: c.jobId,
+          kind: c.kind,
+          title,
+          preview,
+          lastMessageAt: c.lastMessageAt,
+          unreadCount,
+        };
+      }),
+    [items, isAdmin],
   );
 
-  // ─── REALTIME SUBSCRIPTION ───
-  const chatListChannelId = useId();
-  useRealtimeSubscription({
-    channelName: `chat-list-realtime:${myId ?? 'anon'}:${chatListChannelId}`,
-    bindings: [
-      { event: 'INSERT', table: 'messages' },
-      { event: 'UPDATE', table: 'messages' },
-    ],
-    onChange: (payload) => {
-      if (payload.eventType === 'INSERT') {
-        const incoming = payload.new as MessageRow;
-        if (incoming.sender_id !== myId) {
-          Haptics.impactAsync(
-            Haptics.ImpactFeedbackStyle.Medium,
-          ).catch(() => {});
-        }
-      }
-      fetchConversations();
-    },
-    onDesync: () => {
-      fetchConversations();
-    },
-    enabled: !!myId,
-  });
+  // ─── REFRESH (focus + pull-to-refresh) ───
+  // useInbox already loads on mount; re-pull on focus so previews/unread
+  // stay fresh after returning from a thread (replaces the old unfiltered
+  // `messages` realtime firehose).
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
-  // ─── HANDLERS ───
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchConversations();
+    await refetch();
     setRefreshing(false);
-  }, [fetchConversations]);
+  }, [refetch]);
 
-  const handleRowPress = useCallback((jobId: string) => { 
-    console.log('🧭 Tapped conversation! Routing to Job ID:', jobId);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); 
-    
-    // Using the foolproof object syntax for dynamic routes
-    router.push({
-      pathname: "/messages/[id]",
-      params: { id: jobId }
-    } as any); 
-  }, [router]);
+  // ─── ROW TAP ───
+  // Preserve the existing destination: a job conversation opens
+  // /messages/[id] where the param is the JOB id (that screen resolves
+  // the siloed conversation itself). A help_support / no-job room routes
+  // to the param-less support chat screen. Route defensively — never crash
+  // on a missing job_id.
+  const handleRowPress = useCallback(
+    (item: Conversation) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      if (item.jobId) {
+        router.push({
+          pathname: '/messages/[id]',
+          params: { id: item.jobId },
+        } as any);
+      } else {
+        // help_support and any other no-job conversation.
+        router.push('/support-chat' as any);
+      }
+    },
+    [router],
+  );
 
   // ─── FILTERED DATA ───
   const filtered = useMemo(() => {
@@ -461,26 +300,26 @@ export default function MessagesListScreen() {
     const q = search.toLowerCase();
     return conversations.filter(
       (c) =>
-        c.other_user.full_name.toLowerCase().includes(q) ||
-        c.job_title.toLowerCase().includes(q),
+        c.title.toLowerCase().includes(q) ||
+        c.preview.toLowerCase().includes(q),
     );
   }, [conversations, search]);
 
   const totalUnread = useMemo(
-    () => conversations.reduce((sum, c) => sum + c.unread_count, 0),
+    () => conversations.reduce((sum, c) => sum + c.unreadCount, 0),
     [conversations],
   );
 
   // ─── RENDER ───
   const renderItem = useCallback(
     ({ item }: { item: Conversation }) => (
-      <ConversationRow item={item} myId={myId!} />
+      <ConversationRow item={item} onPress={handleRowPress} />
     ),
-    [myId],
+    [handleRowPress],
   );
 
   const keyExtractor = useCallback(
-    (item: Conversation) => item.job_id,
+    (item: Conversation) => item.convId,
     [],
   );
 
@@ -605,7 +444,7 @@ const styles = StyleSheet.create({
   headerBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 
   // search
@@ -697,7 +536,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
   rowJob: { fontSize: 12, color: COLORS.textMuted },
 

@@ -261,9 +261,8 @@ export const useChat = ({ roomId }: UseChatOptions): UseChatReturn => {
 
         try {
           const { error: rpcError } = await supabase.rpc('send_message', {
-            p_room_id: roomId,
+            p_conversation_id: roomId,
             p_content: text.trim(),
-            p_message_type: 'text',
           });
 
           if (!rpcError) {
@@ -275,7 +274,7 @@ export const useChat = ({ roomId }: UseChatOptions): UseChatReturn => {
         } catch (rpcErr) {
           // Fallback to direct insert
           const { error: insertError } = await supabase.from('messages').insert({
-            room_id: roomId,
+            conversation_id: roomId,
             sender_id: user.id,
             content: text.trim(),
             is_read: false,
@@ -318,17 +317,17 @@ export const useChat = ({ roomId }: UseChatOptions): UseChatReturn => {
     try {
       // Try RPC function first, fallback to direct update
       try {
-        const { error: rpcError } = await supabase.rpc('mark_messages_read', {
-          p_room_id: roomId,
+        const { error: rpcError } = await supabase.rpc('mark_conversation_read', {
+          p_conv_id: roomId,
         });
 
         if (!rpcError) return;
       } catch (rpcErr) {
-        // Fallback to direct update
+        // Fallback to direct update (conversation_id-keyed; read_at is not a column)
         const { error: updateError } = await supabase
           .from('messages')
-          .update({ is_read: true, read_at: new Date().toISOString() })
-          .eq('room_id', roomId)
+          .update({ is_read: true })
+          .eq('conversation_id', roomId)
           .eq('is_read', false)
           .neq('sender_id', user.id);
 

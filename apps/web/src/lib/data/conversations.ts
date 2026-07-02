@@ -99,6 +99,10 @@ export async function fetchAdminConversations(
         .select(projection)
         .order('last_message_at', { ascending: false })
         .limit(opts.limit ?? 100);
+      // Ghost mode: agency team-internal threads must NEVER appear in any admin
+      // conversation list — only the zero-trace Integrity Monitor may surface
+      // them. (Mirrors the mobile useInbox exclusion.)
+      q = q.neq('kind', 'job_team_internal');
       if (opts.kind && opts.kind !== 'all') q = q.eq('kind', opts.kind);
       if (opts.status && opts.status !== 'all') q = q.eq('status', opts.status);
       return q;

@@ -12,14 +12,17 @@ import { supportChat } from '../src/lib/supportChat';
 //   sign-in, contributing to the stuck-on-spinner bug.
 import { supabase } from '../lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck, FileText, ChevronDown, Headphones } from 'lucide-react-native';
 
 const COLORS = {
   background: '#070716', surface: 'rgba(255, 255, 255, 0.03)', surfaceSolid: '#0D0D24', border: 'rgba(255, 255, 255, 0.1)',
-  primary: '#00FFFF', textPrimary: '#FFFFFF', textSecondary: '#9CA3AF', textMuted: '#64748B', purple: '#7C3AED',
+  primary: '#7C3AED', textPrimary: '#FFFFFF', textSecondary: '#9CA3AF', textMuted: '#64748B', purple: '#7C3AED',
   myBubble: '#7C3AED', theirBubble: 'rgba(255, 255, 255, 0.08)', skeleton: 'rgba(255, 255, 255, 0.06)',
 };
 
@@ -67,8 +70,8 @@ export default function SupportChatScreen() {
     const need = msgs.filter((m) => m.attachment_type === 'image' && m.attachment_url && !signedUrlCache[m.attachment_url]);
     if (need.length === 0) return;
     const results = await Promise.allSettled(need.map(async (m) => {
-      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(m.attachment_url!, 3600);
-      return { path: m.attachment_url!, url: data?.signedUrl ?? null };
+      const url = await signedUrl({ bucket: 'chat_attachments', path: m.attachment_url!, ttl: 3600 });
+      return { path: m.attachment_url!, url };
     }));
     const newEntries: Record<string, string> = {};
     for (const r of results) if (r.status === 'fulfilled' && r.value.url) newEntries[r.value.path] = r.value.url;
@@ -119,8 +122,8 @@ export default function SupportChatScreen() {
         if (incoming.sender_id === myId) setOptimisticMsgs([]);
         setMessages((prev) => { if (prev.some((m) => m.id === incoming.id)) return prev; return [incoming, ...prev]; });
         if (incoming.attachment_type === 'image' && incoming.attachment_url) {
-          const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(incoming.attachment_url, 3600);
-          if (data?.signedUrl) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: data.signedUrl }));
+          const url = await signedUrl({ bucket: 'chat_attachments', path: incoming.attachment_url, ttl: 3600 });
+          if (url) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: url }));
         }
       } else if (payload.eventType === 'UPDATE') {
         const updated = payload.new as SupportMessage; setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
@@ -141,6 +144,7 @@ export default function SupportChatScreen() {
       if (error) throw error;
     } catch (err: any) {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); setText(body);
+      Alert.alert('Message not sent', 'Please try again.');
     } finally { setIsSending(false); }
   }, [text, isSending, myId]);
 
@@ -151,8 +155,9 @@ export default function SupportChatScreen() {
     setOptimisticMsgs((prev) => [ghost, ...prev]); setIsSending(true);
     try {
       const sanitized = encodeURIComponent(fileName); const storagePath = `support/${myId}/${Date.now()}_${sanitized}`;
-      const fetchResp = await fetch(uri); const blob = await fetchResp.blob();
-      const { error: uploadErr } = await supabase.storage.from('chat_attachments').upload(storagePath, blob, { contentType: mimeForFile(fileName, kind), upsert: false });
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const fileBytes = decode(base64);
+      const { error: uploadErr } = await supabase.storage.from('chat_attachments').upload(storagePath, fileBytes, { contentType: mimeForFile(fileName, kind), upsert: false });
       if (uploadErr) throw uploadErr;
       const { error: insertErr } = await supabase.from('helpdesk_messages').insert({ user_id: myId, sender_id: myId, content: '', attachment_url: storagePath, attachment_type: kind, attachment_name: fileName });
       if (insertErr) throw insertErr;
@@ -187,8 +192,8 @@ export default function SupportChatScreen() {
 
   const handleOpenDocument = useCallback(async (storagePath: string) => {
     try {
-      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(storagePath, 3600);
-      if (data?.signedUrl) await Linking.openURL(data.signedUrl);
+      const url = await signedUrl({ bucket: 'chat_attachments', path: storagePath, ttl: 3600 });
+      if (url) await Linking.openURL(url);
     } catch {}
   }, []);
 
@@ -223,7 +228,7 @@ export default function SupportChatScreen() {
             )}
             {item.attachment_type === 'document' && (
               <TouchableOpacity style={s.attachDocRow} activeOpacity={0.7} disabled={item._optimistic} onPress={() => item.attachment_url && handleOpenDocument(item.attachment_url)}>
-                <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,255,255,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
+                <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(124,58,237,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
                 <View style={s.attachDocText}>
                   <Text style={[s.attachDocName, { color: isMe ? '#FFFFFF' : COLORS.textPrimary }]} numberOfLines={1}>{item.attachment_name || 'Document'}</Text>
                   <Text style={[s.attachDocHint, { color: isMe ? 'rgba(255,255,255,0.6)' : COLORS.textMuted }]}>Tap to open</Text>
@@ -273,7 +278,7 @@ export default function SupportChatScreen() {
           </View>
           {hasContent || isSending ? (
             <TouchableOpacity onPress={handleSendText} disabled={isSending || !hasContent} style={[s.inputIconBtn, (isSending || !hasContent) && { opacity: 0.4 }]}>
-              {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color={COLORS.background} style={{ marginLeft: 2 }} /></View>}
+              {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color="#FFFFFF" style={{ marginLeft: 2 }} /></View>}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={handleCamera} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Camera size={22} color={COLORS.textSecondary} /></TouchableOpacity>

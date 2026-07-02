@@ -15,6 +15,7 @@ import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 
 const COLORS = {
   background: '#020420', cardBackground: '#0A0D2C', cardBorder: '#1A1D3C',
@@ -26,10 +27,12 @@ const COLORS = {
 interface ChatMessage {
   id: string;
   job_id: string;
+  conversation_id?: string;
   sender_id: string;
   content: string;
-  file_url?: string;
-  file_type?: string;
+  attachment_url?: string;
+  attachment_type?: string;
+  attachment_name?: string;
   sender?: {
     id: string;
     first_name?: string;
@@ -138,6 +141,20 @@ const AudioPlayerBubble: React.FC<{ url: string; tint: string }> = ({ url, tint 
   );
 };
 
+// Resolve (or create) the caller's SILOED conversation for a job. Mirrors the
+// send path's convKind logic EXACTLY (contractor → inspector_admin silo, else
+// client_admin silo) so reads and writes land in the same conversation. The
+// hardened messages RLS only honours conversation_id; ensure_job_conversation
+// re-checks the kind server-side.
+async function resolveJobConversationId(jobId: string, myId: string): Promise<string | null> {
+  const { data: jobRow } = await supabase
+    .from('jobs').select('client_id, agency_id, contractor_id').eq('id', jobId).maybeSingle();
+  const convKind = myId === (jobRow as any)?.contractor_id ? 'job_inspector_admin' : 'job_client_admin';
+  const { data: convId, error } = await supabase.rpc('ensure_job_conversation', { p_job_id: jobId, p_kind: convKind });
+  if (error) return null;
+  return (convId as string) ?? null;
+}
+
 export default function JobChatScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
@@ -167,6 +184,15 @@ export default function JobChatScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Post-RLS-hardening the messages table is siloed by conversation_id (job_id is
+  // NULL on new rows), so we resolve the caller's SILOED conversation at LOAD time
+  // and read / subscribe by it — mirroring the send path's convKind logic.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  // Private bucket (IDOR lockdown): messages.attachment_url stores a
+  // chat_attachments PATH. We mint signed URLs (path → signed URL) here and
+  // render from this map.
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string | null>>({});
   const [inputText, setInputText] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -192,7 +218,7 @@ export default function JobChatScreen() {
   
   useEffect(() => {
     if (!actualJobId) {
-      setFetchError(new Error("آیدی پروژه نامعتبر است."));
+      setFetchError(new Error("Invalid project ID."));
       setLoading(false);
       return;
     }
@@ -202,12 +228,12 @@ export default function JobChatScreen() {
 
   const chatChannelId = useId();
   useRealtimeSubscription({
-    channelName: `chat_${actualJobId ?? 'none'}:${chatChannelId}`,
+    channelName: `chat_${conversationId ?? 'none'}:${chatChannelId}`,
     bindings: [
       {
         event: 'INSERT',
         table: 'messages',
-        filter: actualJobId ? `job_id=eq.${actualJobId}` : undefined,
+        filter: conversationId ? `conversation_id=eq.${conversationId}` : undefined,
       },
     ],
     onChange: async (payload) => {
@@ -230,8 +256,28 @@ export default function JobChatScreen() {
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     },
     onDesync: () => { fetchMessages(); },
-    enabled: !!actualJobId,
+    enabled: !!conversationId,
   });
+
+  // Mint signed URLs for attachment paths (private bucket). Only fetch paths
+  // not already in the map so this doesn't refetch-loop as `messages` changes.
+  useEffect(() => {
+    let cancelled = false;
+    const pending = Array.from(
+      new Set(
+        messages
+          .map((m) => m.attachment_url)
+          .filter((p): p is string => !!p && !(p in attachmentUrls)),
+      ),
+    );
+    if (pending.length === 0) return;
+    (async () => {
+      const minted = await signedUrls('chat_attachments', pending, SIGNED_URL_TTL.VIEW);
+      if (cancelled) return;
+      setAttachmentUrls((prev) => ({ ...prev, ...minted }));
+    })();
+    return () => { cancelled = true; };
+  }, [messages, attachmentUrls]);
 
   useEffect(() => {
     return () => {
@@ -243,7 +289,7 @@ export default function JobChatScreen() {
   const fetchMessages = async () => {
     try {
       setFetchError(null);
-      if (!actualJobId) throw new Error("آیدی پروژه یافت نشد!");
+      if (!actualJobId) throw new Error("Project ID not found.");
 
       const { data: jobData } = await supabase.from('jobs').select('title').eq('id', actualJobId).maybeSingle();
       if (jobData) setJobInfo({ title: jobData.title });
@@ -283,14 +329,28 @@ export default function JobChatScreen() {
         setOtherUser({ id: 'job-chat', full_name: 'Job Chat', role: 'user' });
       }
       
+      // Resolve the SILOED conversation for this caller + job. Newly-sent
+      // messages carry conversation_id (job_id is NULL post-hardening), so we
+      // must read by it. A brand-new job with no conversation yet resolves to
+      // null → render an empty list rather than reading the (dead) job_id path.
+      const resolvedConvId = currentUid ? await resolveJobConversationId(actualJobId, currentUid) : null;
+      setConversationId(resolvedConvId);
+      conversationIdRef.current = resolvedConvId;
+
+      if (!resolvedConvId) {
+        setMessages([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .select('*, sender:profiles!messages_sender_id_fkey(id, first_name, last_name, avatar_url, role)')
-        .eq('job_id', actualJobId)
+        .eq('conversation_id', resolvedConvId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
-      
+
       let finalMessages = (data as ChatMessage[]) || [];
       if (isAdminSupport) {
         finalMessages = finalMessages.filter((msg) => isVisibleInCurrentSupportView(msg, isAdmin));
@@ -306,7 +366,7 @@ export default function JobChatScreen() {
     }
   };
 
-  const uploadFileToStorage = async (uri: string): Promise<{ url: string; type: string }> => {
+  const uploadFileToStorage = async (uri: string): Promise<{ path: string; type: string }> => {
     if (!user?.id) throw new Error("Authentication error");
     const ext = uri.substring(uri.lastIndexOf('.') + 1) || 'jpg';
     const fileName = `chat_${Date.now()}.${ext}`;
@@ -315,7 +375,9 @@ export default function JobChatScreen() {
     const contentType = ext.match(/(jpg|jpeg|png|gif)/i) ? `image/${ext}` : 'application/octet-stream';
     const { error } = await supabase.storage.from('chat_attachments').upload(filePath, decode(base64), { contentType });
     if (error) throw error;
-    return { url: supabase.storage.from('chat_attachments').getPublicUrl(filePath).data.publicUrl, type: contentType };
+    // Private bucket (IDOR lockdown 20260801236000): store the storage PATH,
+    // not a (now-dead) public URL. A signed URL is minted at read/display time.
+    return { path: filePath, type: contentType };
   };
 
   const pickAttachment = async () => {
@@ -325,8 +387,8 @@ export default function JobChatScreen() {
         if (!result.canceled) {
           setUploading(true);
           try {
-            const { url, type } = await uploadFileToStorage(result.assets[0].uri);
-            await sendMessage('', url, type);
+            const { path, type } = await uploadFileToStorage(result.assets[0].uri);
+            await sendMessage('', path, type);
           } catch (err: any) { Alert.alert('Error', err.message); } finally { setUploading(false); }
         }
       }},
@@ -335,8 +397,8 @@ export default function JobChatScreen() {
         if (!result.canceled && result.assets.length > 0) {
           setUploading(true);
           try {
-            const { url, type } = await uploadFileToStorage(result.assets[0].uri);
-            await sendMessage('', url, type);
+            const { path, type } = await uploadFileToStorage(result.assets[0].uri);
+            await sendMessage('', path, type);
           } catch (err: any) { Alert.alert('Error', err.message); } finally { setUploading(false); }
         }
       }},
@@ -347,29 +409,31 @@ export default function JobChatScreen() {
   const sendMessage = async (content: string = inputText, fileUrl?: string, fileType?: string) => {
     if (!user?.id || (!content.trim() && !fileUrl)) return;
     try {
-      // ★ MOBILE PARITY 2026-05-20 — previously this INSERT dropped the
-      //   file_url / file_type columns, so attachments + voice messages
-      //   silently disappeared after upload. Restored here. A voice note
-      //   carries an `[Audio]` placeholder for content so the unread-list
-      //   preview shows something meaningful; the actual playback URL
-      //   lives on file_url with file_type === 'audio/m4a' (or similar).
+      // ★ MOBILE PARITY 2026-05-20 — a voice note carries an `[Audio]`
+      //   placeholder for content so the unread-list preview shows something
+      //   meaningful; the actual playback path lives on attachment_url with
+      //   attachment_type === 'audio/m4a' (or similar).
       const isAudio = !!fileType && fileType.startsWith('audio');
       const placeholder = isAudio ? '[Audio]' : fileUrl ? '[Attachment]' : '';
       const finalContent = content.trim() || placeholder;
 
-      const payload: Record<string, unknown> = {
-        job_id: actualJobId,
-        sender_id: user.id,
-        content: finalContent,
-      };
-      if (fileUrl) payload.file_url = fileUrl;
-      if (fileType) payload.file_type = fileType;
+      // Resolve the caller's SILOED conversation — the hardened messages RLS only
+      // honours conversation_id. Reuse the load-time resolution when present so
+      // reads and writes stay on the same conversation.
+      if (!actualJobId) return;
+      const convId = conversationIdRef.current ?? await resolveJobConversationId(actualJobId, user.id);
+      if (!convId) throw new Error('Could not resolve conversation');
+      if (!conversationIdRef.current) {
+        setConversationId(convId);
+        conversationIdRef.current = convId;
+      }
 
-      const { data, error } = await supabase
-        .from('messages')
-        .insert(payload)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('send_message', {
+        p_conversation_id: convId,
+        p_content: finalContent,
+        p_attachment_url: fileUrl ?? null,
+        p_attachment_type: fileType ?? null,
+      });
       if (error) throw error;
       if (data) {
         setMessages(prev => [...prev, data]);
@@ -407,35 +471,44 @@ export default function JobChatScreen() {
     if (uri) {
       setUploading(true);
       try {
-        const { url, type } = await uploadFileToStorage(uri);
-        await sendMessage('', url, 'audio/m4a');
+        const { path } = await uploadFileToStorage(uri);
+        await sendMessage('', path, 'audio/m4a');
       } catch (err: any) { Alert.alert('Error', err.message); } finally { setUploading(false); }
     }
   };
 
   const renderMessage = (message: ChatMessage) => {
     const isMyMessage = message.sender_id === user?.id;
-    const isAudio = !!message.file_type && message.file_type.startsWith('audio');
-    const isImage = !!message.file_type && message.file_type.includes('image');
+    const isAudio = !!message.attachment_type && message.attachment_type.startsWith('audio');
+    const isImage = !!message.attachment_type && message.attachment_type.includes('image');
     return (
       <View key={message.id} style={[styles.messageRow, isMyMessage ? styles.myMessageRow : styles.otherMessageRow]}>
         <View style={[styles.messageBubble, isMyMessage ? styles.myBubble : styles.otherBubble]}>
-          {message.file_url && (
+          {message.attachment_url && (
             isImage ? (
-              <Image source={{ uri: message.file_url }} style={styles.messageImage} resizeMode="cover" />
+              attachmentUrls[message.attachment_url] ? (
+                <Image source={{ uri: attachmentUrls[message.attachment_url] ?? undefined }} style={styles.messageImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.messageImage, styles.messageImagePlaceholder]}>
+                  <ActivityIndicator color={COLORS.textMuted} size="small" />
+                </View>
+              )
             ) : isAudio ? (
               // ★ MOBILE PARITY 2026-05-20 — voice-note player. Tap to
               //   play the uploaded m4a. We instantiate a fresh expo-av
               //   Sound per tap (no global state needed for a chat thread)
               //   so multiple notes can replay independently.
               <AudioPlayerBubble
-                url={message.file_url}
+                url={attachmentUrls[message.attachment_url] ?? ''}
                 tint={isMyMessage ? '#FFFFFF' : COLORS.textPrimary}
               />
             ) : (
               <TouchableOpacity
                 style={styles.attachmentContainer}
-                onPress={() => Linking.openURL(message.file_url!).catch(() => {})}
+                onPress={() => {
+                  const u = attachmentUrls[message.attachment_url!];
+                  if (u) Linking.openURL(u).catch(() => {});
+                }}
               >
                 <Ionicons name="document-text" size={24} color={COLORS.textMuted} />
                 <Text style={styles.attachmentText}>Open attachment</Text>
@@ -490,14 +563,26 @@ export default function JobChatScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         
-        <ScrollView ref={scrollViewRef} contentContainerStyle={styles.messagesContainer} showsVerticalScrollIndicator={false}>
-          {messages.map(renderMessage)}
-          {uploading && (
-            <View style={[styles.messageRow, styles.myMessageRow]}>
-              <View style={[styles.messageBubble, styles.myBubble]}><ActivityIndicator color="#FFF" size="small" /></View>
-            </View>
-          )}
-        </ScrollView>
+        {fetchError ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={44} color={COLORS.danger} />
+            <Text style={styles.errorTitle}>Couldn't load messages</Text>
+            <Text style={styles.errorSubtitle}>{fetchError?.message || 'Something went wrong. Please try again.'}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); fetchMessages(); }}>
+              <Ionicons name="refresh" size={18} color="#FFF" />
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <ScrollView ref={scrollViewRef} contentContainerStyle={styles.messagesContainer} showsVerticalScrollIndicator={false}>
+            {messages.map(renderMessage)}
+            {uploading && (
+              <View style={[styles.messageRow, styles.myMessageRow]}>
+                <View style={[styles.messageBubble, styles.myBubble]}><ActivityIndicator color="#FFF" size="small" /></View>
+              </View>
+            )}
+          </ScrollView>
+        )}
 
         <View style={styles.inputBar}>
           <TouchableOpacity style={styles.attachBtn} onPress={pickAttachment} disabled={uploading}>
@@ -551,10 +636,16 @@ const styles = StyleSheet.create({
   otherMessageText: { color: COLORS.textPrimary },
   messageTime: { fontSize: 11, color: COLORS.textMuted, alignSelf: 'flex-end', marginTop: 4 },
   messageImage: { width: 220, height: 160, borderRadius: 10, marginBottom: 8 },
+  messageImagePlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.cardBorder },
   attachmentContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
   attachmentText: { color: COLORS.textMuted, fontSize: 14 },
   inputBar: { flexDirection: 'row', alignItems: 'center', padding: 12, borderTopWidth: 1, borderTopColor: COLORS.cardBorder, backgroundColor: COLORS.background },
   attachBtn: { padding: 10, marginRight: 8 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 8 },
+  errorTitle: { color: COLORS.textPrimary, fontSize: 17, fontWeight: '700', marginTop: 4 },
+  errorSubtitle: { color: COLORS.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20 },
+  retryBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   textInput: { flex: 1, backgroundColor: COLORS.cardBackground, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: COLORS.textPrimary, maxHeight: 100, textAlignVertical: 'center' },
   sendBtn: { marginLeft: 8, padding: 10, backgroundColor: COLORS.primary, borderRadius: 20 }
 });

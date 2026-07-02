@@ -12,6 +12,7 @@
 // never need to filter defensively.
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as FileSystem from 'expo-file-system';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import { supabase } from '@/lib/supabase';
 
 export type ConversationKind =
@@ -76,12 +77,9 @@ function toMsg(r: any): MessageRow {
 async function signPath(path: string | null): Promise<string | null> {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path; // legacy full URLs pass through
-  try {
-    const { data } = await supabase.storage.from(CHAT_BUCKET).createSignedUrl(path, 60 * 60);
-    return data?.signedUrl ?? null;
-  } catch {
-    return null;
-  }
+  // Routed through the server-authorized mint-doc-url edge function (chat_attachments
+  // is owner+admin only at the RLS layer; a non-uploading party must mint via the fn).
+  return await signedUrl({ bucket: CHAT_BUCKET, path, ttl: 60 * 60 });
 }
 async function hydrateMsgs(msgs: MessageRow[]): Promise<MessageRow[]> {
   return Promise.all(
@@ -276,7 +274,14 @@ export function useInbox() {
 
     const cols = 'id, kind, job_id, user_id, title, status, last_message_at, last_message_preview, unread_for_user, unread_for_admin, created_at';
     let q = supabase.from('conversations').select(cols).order('last_message_at', { ascending: false }).limit(100);
-    if (!admin) q = q.eq('user_id', uid);
+    if (!admin) {
+      q = q.eq('user_id', uid);
+    } else {
+      // Ghost mode: agency team-internal threads must NEVER surface in the admin
+      // inbox (not even as an unread badge). The admin reaches them only via the
+      // dedicated, zero-trace Integrity Monitor.
+      q = q.neq('kind', 'job_team_internal');
+    }
     const { data } = await q;
     let rows = ((data ?? []) as any[]).map(toConv);
 

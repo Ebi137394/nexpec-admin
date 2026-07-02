@@ -7,14 +7,17 @@ import { useAuth } from '@/src/contexts/AuthContext';
 //   in app/messages/index.tsx. Canonical client lives at /lib/supabase.ts.
 import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck, FileText, ChevronDown } from 'lucide-react-native';
 
 const COLORS = {
   background: '#070716', surface: 'rgba(255, 255, 255, 0.03)', surfaceSolid: '#0D0D24', border: 'rgba(255, 255, 255, 0.1)',
-  primary: '#00FFFF', textPrimary: '#FFFFFF', textSecondary: '#9CA3AF', textMuted: '#64748B', purple: '#7C3AED',
+  primary: '#7C3AED', textPrimary: '#FFFFFF', textSecondary: '#9CA3AF', textMuted: '#64748B', purple: '#7C3AED',
   myBubble: '#7C3AED', theirBubble: 'rgba(255, 255, 255, 0.08)', skeleton: 'rgba(255, 255, 255, 0.06)',
 };
 
@@ -26,6 +29,19 @@ interface MessageRow { id: string; job_id: string; sender_id: string; content: s
 interface DisplayMessage extends MessageRow { _optimistic?: boolean; _localUri?: string; }
 
 const keyExtractor = (item: DisplayMessage) => item.id;
+
+// Resolve (or create) the caller's SILOED conversation for a job. The hardened
+// messages RLS only honours conversation_id, so sends must go through it; kind is
+// derived from the caller's role and re-checked by ensure_job_conversation.
+async function resolveJobConversationId(jobId: string, myId: string): Promise<string | null> {
+  const { data: job } = await supabase
+    .from('jobs').select('client_id, agency_id, contractor_id').eq('id', jobId).maybeSingle();
+  if (!job) return null;
+  const kind = myId === (job as any).contractor_id ? 'job_inspector_admin' : 'job_client_admin';
+  const { data, error } = await supabase.rpc('ensure_job_conversation', { p_job_id: jobId, p_kind: kind });
+  if (error) return null;
+  return (data as string) ?? null;
+}
 
 function hapticLight() { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); }
 function hapticMedium() { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); }
@@ -43,8 +59,10 @@ function mimeForFile(name: string, kind: 'image' | 'document'): string {
   if (ext === 'pdf') return 'application/pdf'; if (ext === 'doc' || ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   return 'application/octet-stream';
 }
-function resolveOtherUserId(job: { client_id: string | null; agency_id: string | null; hired_inspector_id: string | null; }, myId: string): string | null {
-  return job.hired_inspector_id === myId ? (job.client_id ?? job.agency_id ?? null) : (job.hired_inspector_id ?? null);
+function resolveOtherUserId(job: { client_id: string | null; agency_id: string | null; contractor_id: string | null; hired_inspector_id: string | null; }, myId: string): string | null {
+  // contractor_id is the canonical assignment column; hired_inspector_id is a legacy fallback.
+  const inspectorId = job.contractor_id ?? job.hired_inspector_id;
+  return inspectorId === myId ? (job.client_id ?? job.agency_id ?? null) : (inspectorId ?? null);
 }
 
 export default function ChatRoomScreen() {
@@ -53,6 +71,7 @@ export default function ChatRoomScreen() {
   const { user } = useAuth() as any; const myId = user?.id ?? null;
 
   const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [convId, setConvId] = useState<string | null>(null);
   const [optimisticMsgs, setOptimisticMsgs] = useState<DisplayMessage[]>([]);
   const [otherUser, setOtherUser] = useState<Profile | null>(null);
   const [jobTitle, setJobTitle] = useState('');
@@ -70,8 +89,8 @@ export default function ChatRoomScreen() {
     const need = msgs.filter((m) => m.attachment_type === 'image' && m.attachment_url && !signedUrlCache[m.attachment_url]);
     if (need.length === 0) return;
     const results = await Promise.allSettled(need.map(async (m) => {
-      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(m.attachment_url!, 3600);
-      return { path: m.attachment_url!, url: data?.signedUrl ?? null };
+      const url = await signedUrl({ bucket: 'chat_attachments', path: m.attachment_url!, ttl: 3600 });
+      return { path: m.attachment_url!, url };
     }));
     const newEntries: Record<string, string> = {};
     for (const r of results) if (r.status === 'fulfilled' && r.value.url) newEntries[r.value.path] = r.value.url;
@@ -82,24 +101,26 @@ export default function ChatRoomScreen() {
     if (!jobId || !myId) return;
     setIsLoading(true);
     try {
-      // ★ N+1-MESSAGES-001 — Pre-strike this loader ran THREE
-      //   sequential awaits (jobs → profiles → messages). On a slow
-      //   connection that's max(j+p+m) ≈ 800ms typical. The jobs and
-      //   messages queries are independent — they can fire in
-      //   parallel. Profile still depends on the job row to know
-      //   which user_id to fetch; we kick it off as soon as the job
-      //   resolves, in parallel with the messages mark-read UPDATE.
-      //   Net latency drops to max(j, m) + max(p, mark) ≈ 250ms.
+      // ★ CONVERSATION-READ-PATH — the hardened messages RLS silos rows by
+      //   conversation_id (send_message writes conversation_id; job_id is
+      //   legacy and NULL on new rows — backfilled by migration 200000).
+      //   Reading/subscribing by raw job_id therefore misses every new
+      //   message. Resolve the caller's siloed conversation FIRST, then
+      //   fetch job meta + messages in parallel on conversation_id.
+      const conversationId = await resolveJobConversationId(jobId, myId);
+      if (!conversationId) throw new Error('Could not resolve conversation');
+      setConvId(conversationId);
+
       const [jobsRes, msgsRes] = await Promise.all([
         supabase
           .from('jobs')
-          .select('title, client_id, agency_id, hired_inspector_id')
+          .select('title, client_id, agency_id, contractor_id, hired_inspector_id')
           .eq('id', jobId)
           .single(),
         supabase
           .from('messages')
           .select('*')
-          .eq('job_id', jobId)
+          .eq('conversation_id', conversationId)
           .order('created_at', { ascending: false }),
       ]);
 
@@ -113,8 +134,9 @@ export default function ChatRoomScreen() {
       setMessages(messageList);
 
       // Profile fetch + mark-read run in parallel — both depend on
-      // data we already have (otherId from job row, unreadIds from
-      // messages), neither depends on the other.
+      // data we already have; neither depends on the other. Mark-read
+      // goes through the RPC (direct messages UPDATEs are RLS-blocked
+      // in the siloed model; the RPC also carries the ghost belt).
       const otherId = resolveOtherUserId(job, myId);
       const profilePromise = otherId
         ? supabase
@@ -124,16 +146,10 @@ export default function ChatRoomScreen() {
             .single()
         : Promise.resolve({ data: null, error: null } as const);
 
-      const unreadIds = messageList
-        .filter((m) => m.sender_id !== myId && !m.is_read)
-        .map((m) => m.id);
-      const markReadPromise =
-        unreadIds.length > 0
-          ? supabase
-              .from('messages')
-              .update({ is_read: true })
-              .in('id', unreadIds)
-          : Promise.resolve();
+      const hasUnread = messageList.some((m) => m.sender_id !== myId && !m.is_read);
+      const markReadPromise = hasUnread
+        ? supabase.rpc('mark_conversation_read', { p_conv_id: conversationId })
+        : Promise.resolve();
 
       const [profRes] = await Promise.all([profilePromise, markReadPromise]);
       if (profRes && (profRes as { data: unknown }).data) {
@@ -141,7 +157,10 @@ export default function ChatRoomScreen() {
       }
 
       await ensureSignedUrls(messageList);
-    } catch (err) {} finally { setIsLoading(false); }
+    } catch (err) {
+      console.error('[messages/[id]] load failed', err);
+      Alert.alert('Conversation unavailable', 'Could not load this conversation. Please try again.');
+    } finally { setIsLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, myId]);
 
@@ -151,27 +170,27 @@ export default function ChatRoomScreen() {
 
   const chatRoomChannelId = useId();
   useRealtimeSubscription({
-    channelName: `chatroom-${jobId ?? 'none'}:${chatRoomChannelId}`,
+    channelName: `chatroom-${convId ?? 'none'}:${chatRoomChannelId}`,
     bindings: [
-      { event: 'INSERT', table: 'messages', filter: jobId ? `job_id=eq.${jobId}` : undefined },
-      { event: 'UPDATE', table: 'messages', filter: jobId ? `job_id=eq.${jobId}` : undefined },
+      { event: 'INSERT', table: 'messages', filter: convId ? `conversation_id=eq.${convId}` : undefined },
+      { event: 'UPDATE', table: 'messages', filter: convId ? `conversation_id=eq.${convId}` : undefined },
     ],
     onChange: async (payload) => {
       if (payload.eventType === 'INSERT') {
         const incoming = payload.new as MessageRow;
-        if (incoming.sender_id !== myId) { hapticMedium(); await supabase.from('messages').update({ is_read: true }).eq('id', incoming.id); }
+        if (incoming.sender_id !== myId) { hapticMedium(); if (convId) await supabase.rpc('mark_conversation_read', { p_conv_id: convId }); }
         if (incoming.sender_id === myId) setOptimisticMsgs([]);
         setMessages((prev) => { if (prev.some((m) => m.id === incoming.id)) return prev; return [incoming, ...prev]; });
         if (incoming.attachment_type === 'image' && incoming.attachment_url) {
-          const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(incoming.attachment_url, 3600);
-          if (data?.signedUrl) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: data.signedUrl }));
+          const url = await signedUrl({ bucket: 'chat_attachments', path: incoming.attachment_url, ttl: 3600 });
+          if (url) setSignedUrlCache((prev) => ({ ...prev, [incoming.attachment_url!]: url }));
         }
       } else if (payload.eventType === 'UPDATE') {
         const updated = payload.new as MessageRow; setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
       }
     },
     onDesync: () => { loadConversation(); },
-    enabled: !!jobId && !!myId,
+    enabled: !!convId && !!myId,
   });
 
   const handleSendText = useCallback(async () => {
@@ -181,12 +200,16 @@ export default function ChatRoomScreen() {
     const ghost: DisplayMessage = { id: tempId, job_id: jobId, sender_id: myId, content: body, is_read: false, created_at: new Date().toISOString(), attachment_url: null, attachment_type: null, attachment_name: null, _optimistic: true };
     setOptimisticMsgs((prev) => [ghost, ...prev]); setIsSending(true);
     try {
-      const { error } = await supabase.from('messages').insert({ job_id: jobId, sender_id: myId, content: body });
+      const targetConvId = convId ?? (await resolveJobConversationId(jobId, myId));
+      if (!targetConvId) throw new Error('Could not resolve conversation');
+      if (!convId) setConvId(targetConvId);
+      const { error } = await supabase.rpc('send_message', { p_conversation_id: targetConvId, p_content: body });
       if (error) throw error;
     } catch (err: any) {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); setText(body);
+      Alert.alert('Message not sent', 'Please try again.');
     } finally { setIsSending(false); }
-  }, [text, isSending, myId, jobId]);
+  }, [text, isSending, myId, jobId, convId]);
 
   const uploadAndSendAttachment = useCallback(async (uri: string, kind: 'image' | 'document', fileName: string) => {
     if (!myId || !jobId) return; hapticLight();
@@ -195,15 +218,19 @@ export default function ChatRoomScreen() {
     setOptimisticMsgs((prev) => [ghost, ...prev]); setIsSending(true);
     try {
       const sanitized = encodeURIComponent(fileName); const storagePath = `${myId}/${jobId}/${Date.now()}_${sanitized}`;
-      const fetchResp = await fetch(uri); const blob = await fetchResp.blob();
-      const { error: uploadErr } = await supabase.storage.from('chat_attachments').upload(storagePath, blob, { contentType: mimeForFile(fileName, kind), upsert: false });
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const fileBytes = decode(base64);
+      const { error: uploadErr } = await supabase.storage.from('chat_attachments').upload(storagePath, fileBytes, { contentType: mimeForFile(fileName, kind), upsert: false });
       if (uploadErr) throw uploadErr;
-      const { error: insertErr } = await supabase.from('messages').insert({ job_id: jobId, sender_id: myId, content: '', attachment_url: storagePath, attachment_type: kind, attachment_name: fileName });
+      const targetConvId = convId ?? (await resolveJobConversationId(jobId, myId));
+      if (!targetConvId) throw new Error('Could not resolve conversation');
+      if (!convId) setConvId(targetConvId);
+      const { error: insertErr } = await supabase.rpc('send_message', { p_conversation_id: targetConvId, p_content: '', p_attachment_url: storagePath, p_attachment_type: kind, p_attachment_name: fileName });
       if (insertErr) throw insertErr;
     } catch (err: any) {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); Alert.alert('Upload Failed', err.message ?? 'Could not upload the attachment.');
     } finally { setIsSending(false); }
-  }, [myId, jobId]);
+  }, [myId, jobId, convId]);
 
   const handlePickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (status !== 'granted') return;
@@ -231,8 +258,8 @@ export default function ChatRoomScreen() {
 
   const handleOpenDocument = useCallback(async (storagePath: string) => {
     try {
-      const { data } = await supabase.storage.from('chat_attachments').createSignedUrl(storagePath, 3600);
-      if (data?.signedUrl) await Linking.openURL(data.signedUrl);
+      const url = await signedUrl({ bucket: 'chat_attachments', path: storagePath, ttl: 3600 });
+      if (url) await Linking.openURL(url);
     } catch {}
   }, []);
 
@@ -267,7 +294,7 @@ export default function ChatRoomScreen() {
             )}
             {item.attachment_type === 'document' && (
               <TouchableOpacity style={s.attachDocRow} activeOpacity={0.7} disabled={item._optimistic} onPress={() => item.attachment_url && handleOpenDocument(item.attachment_url)}>
-                <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(0,255,255,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
+                <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(124,58,237,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
                 <View style={s.attachDocText}>
                   <Text style={[s.attachDocName, { color: isMe ? '#FFFFFF' : COLORS.textPrimary }]} numberOfLines={1}>{item.attachment_name || 'Document'}</Text>
                   <Text style={[s.attachDocHint, { color: isMe ? 'rgba(255,255,255,0.6)' : COLORS.textMuted }]}>Tap to open</Text>
@@ -293,7 +320,7 @@ export default function ChatRoomScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.headerBackBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}><ArrowLeft size={24} color={COLORS.textPrimary} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/messages'))} style={s.headerBackBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}><ArrowLeft size={24} color={COLORS.textPrimary} /></TouchableOpacity>
         <View style={s.headerProfile}>
           {otherUser?.avatar_url ? <Image source={{ uri: otherUser.avatar_url }} style={s.headerAvatar} /> : <View style={[s.headerAvatar, s.headerAvatarFb]}><Text style={s.headerAvatarTxt}>{getInitials(otherUser?.full_name ?? '?')}</Text></View>}
           <View style={s.headerInfo}>
@@ -317,7 +344,7 @@ export default function ChatRoomScreen() {
           </View>
           {hasContent || isSending ? (
             <TouchableOpacity onPress={handleSendText} disabled={isSending || !hasContent} style={[s.inputIconBtn, (isSending || !hasContent) && { opacity: 0.4 }]}>
-              {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color={COLORS.background} style={{ marginLeft: 2 }} /></View>}
+              {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color="#FFFFFF" style={{ marginLeft: 2 }} /></View>}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={handleCamera} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Camera size={22} color={COLORS.textSecondary} /></TouchableOpacity>

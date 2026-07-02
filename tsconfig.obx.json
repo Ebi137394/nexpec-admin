@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig", "include": ["app/_layout.tsx"] }

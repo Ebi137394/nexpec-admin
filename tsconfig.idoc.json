@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "app/(inspector)/profile/verification.tsx",
+    "app/(admin)/verification/index.tsx",
+    "app/(admin)/dashboard.tsx",
+    "app/(admin)/users/[id].tsx"
+  ]
+}

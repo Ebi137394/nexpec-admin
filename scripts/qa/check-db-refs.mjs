@@ -107,11 +107,13 @@ const defRel = new Set();
 for (const file of walk(join(REPO_ROOT, MIGRATIONS_DIR), SQL_EXT)) {
   const sql = readFileSync(file, 'utf8');
   let m;
-  const fnRe = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi;
+  // Accept both bare (`public.name`, `name`) and pg_dump-quoted
+  // (`"public"."name"`) forms on schema + name.
+  const fnRe = /create\s+(?:or\s+replace\s+)?function\s+(?:"?public"?\.)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi;
   while ((m = fnRe.exec(sql))) defFn.add(m[1].toLowerCase());
-  const tblRe = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi;
+  const tblRe = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:"?public"?\.)?"?([a-z_][a-z0-9_]*)"?/gi;
   while ((m = tblRe.exec(sql))) defRel.add(m[1].toLowerCase());
-  const viewRe = /create\s+(?:or\s+replace\s+)?(?:materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi;
+  const viewRe = /create\s+(?:or\s+replace\s+)?(?:materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:"?public"?\.)?"?([a-z_][a-z0-9_]*)"?/gi;
   while ((m = viewRe.exec(sql))) defRel.add(m[1].toLowerCase());
 }
 

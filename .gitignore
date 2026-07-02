@@ -75,3 +75,6 @@ supabase/ghost-ddl/
 
 # Local EAS env push helper (carries environment-specific EXPO_PUBLIC keys; do not commit)
 scripts/eas-prod-env.sh
+
+# Supabase CLI local branch state (machine-local, never commit)
+supabase/.branches/

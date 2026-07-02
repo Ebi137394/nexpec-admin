@@ -53,6 +53,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import {
   Building2,
   CheckCircle2,
@@ -81,7 +83,7 @@ const C = {
   primaryDim: 'rgba(124,58,237,0.14)',
   text: '#FFFFFF', textSec: '#CBD5F5', textDim: '#64748B',
   ok: '#10B981', warn: '#F59E0B', danger: '#EF4444', amber: '#FBBF24',
-  cyan: '#06B6D4',
+  cyan: '#7C3AED', // brand purple — stray cyan accent retired
 };
 
 type Tier = 'cci_basic' | 'cci_advanced' | 'cci_lead';
@@ -308,11 +310,11 @@ export default function PostComplianceJobScreen() {
         try {
           const stamp = Date.now() + i;
           const remotePath = `documents/${jobId}/${stamp}-${doc.doc_type}.jpg`;
-          const resp = await fetch(doc.localUri);
-          const blob = await resp.blob();
+          const base64 = await FileSystem.readAsStringAsync(doc.localUri, { encoding: FileSystem.EncodingType.Base64 });
+          const fileBytes = decode(base64);
           const { error: upErr } = await supabase.storage
             .from('compliance')
-            .upload(remotePath, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+            .upload(remotePath, fileBytes, { contentType: 'image/jpeg', upsert: false });
           if (upErr) throw upErr;
 
           const { error: docErr } = await supabase

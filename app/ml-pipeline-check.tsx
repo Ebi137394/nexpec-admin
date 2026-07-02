@@ -25,7 +25,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import {
   getModelRuntime,
   registerInferenceBackend,
@@ -71,6 +71,8 @@ interface LogRow {
 }
 
 export default function MlPipelineCheckScreen() {
+  // Dev-only pipeline proof — never reachable in production builds.
+  if (!__DEV__) { return <Redirect href="/" />; }
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState<LogRow[]>([]);

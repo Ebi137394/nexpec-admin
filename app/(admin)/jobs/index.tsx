@@ -42,9 +42,15 @@ export default function JobModeration() {
       const jobsList = (jobsData as Job[]) ?? [];
 
       // Step 2: Extract unique profile IDs
+      //   ★ Assignee lives on jobs.contractor_id (the canonical dispatch
+      //     column). hired_inspector_id is a legacy fallback. inspector_id
+      //     is never written. Resolve all three so dispatched jobs surface
+      //     their inspector.
+      const assigneeId = (j: Job) =>
+        j.contractor_id ?? (j as any).hired_inspector_id ?? j.inspector_id;
       const uniqueIds = Array.from(new Set([
         ...jobsList.map(j => j.client_id).filter(Boolean),
-        ...jobsList.map(j => j.inspector_id).filter(Boolean),
+        ...jobsList.map(assigneeId).filter(Boolean),
         ...jobsList.map(j => j.agency_id).filter(Boolean)
       ]));
 
@@ -62,12 +68,15 @@ export default function JobModeration() {
       }
 
       // Step 4: Map profiles back to jobs
-      const jobsWithProfiles = jobsList.map(job => ({
-        ...job,
-        client: job.client_id ? profilesMap.get(job.client_id) : null,
-        inspector: job.inspector_id ? profilesMap.get(job.inspector_id) : null,
-        agency: job.agency_id ? profilesMap.get(job.agency_id) : null,
-      }));
+      const jobsWithProfiles = jobsList.map(job => {
+        const aid = assigneeId(job);
+        return {
+          ...job,
+          client: job.client_id ? profilesMap.get(job.client_id) : null,
+          inspector: aid ? profilesMap.get(aid) : null,
+          agency: job.agency_id ? profilesMap.get(job.agency_id) : null,
+        };
+      });
 
       setJobs(jobsWithProfiles);
     } catch (err: any) {

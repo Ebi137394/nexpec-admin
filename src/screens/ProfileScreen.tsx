@@ -62,8 +62,8 @@ const COLORS = {
   surface: '#141B2D',
   surfaceLight: '#1E2A45',
   surfaceDark: '#0D1321',
-  primary: '#00F5FF',
-  primaryDark: '#00C8D4',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
   secondary: '#7B61FF',
   accent: '#FF6B6B',
   success: '#00D68F',
@@ -75,10 +75,10 @@ const COLORS = {
   textPrimary: '#FFFFFF',
   textSecondary: '#A0AEC0',
   textMuted: '#64748B',
-  border: 'rgba(0, 245, 255, 0.2)',
+  border: 'rgba(124, 58, 237, 0.2)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
   glassBg: 'rgba(20, 27, 45, 0.85)',
-  glassGlow: 'rgba(0, 245, 255, 0.15)',
+  glassGlow: 'rgba(124, 58, 237, 0.15)',
   overlay: 'rgba(0, 0, 0, 0.5)',
   gold: '#FFD700',
   goldDark: '#B8860B',
@@ -211,7 +211,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user, onEditPress }) => (
   <View style={styles.profileHeader}>
     {/* Background Gradient */}
     <LinearGradient
-      colors={['rgba(0, 245, 255, 0.15)', 'rgba(0, 245, 255, 0.02)', 'transparent']}
+      colors={['rgba(124, 58, 237, 0.15)', 'rgba(124, 58, 237, 0.02)', 'transparent']}
       style={styles.headerGradient}
     />
     
@@ -401,7 +401,7 @@ const CustomToggle: React.FC<CustomToggleProps> = ({ value, onValueChange, disab
     disabled={disabled}
     trackColor={{
       false: COLORS.surfaceLight,
-      true: 'rgba(0, 245, 255, 0.3)',
+      true: 'rgba(124, 58, 237, 0.3)',
     }}
     thumbColor={value ? COLORS.primary : COLORS.textMuted}
     ios_backgroundColor={COLORS.surfaceLight}
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 245, 255, 0.1)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 245, 255, 0.1)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -1134,7 +1134,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 245, 255, 0.1)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },

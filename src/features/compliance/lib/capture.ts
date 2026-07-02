@@ -32,6 +32,7 @@
 
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 import { canonicalJsonStringify, sha256Hex } from '@/src/features/compliance/lib/signature';
 
@@ -150,12 +151,12 @@ export async function uploadCaptureFile(args: {
   const ext = args.extension ?? 'jpg';
   const remotePath = `captures/${args.jobId}/${args.requirementId}/${args.captureId}.${ext}`;
 
-  const resp = await fetch(args.localUri);
-  const blob = await resp.blob();
+  const base64 = await FileSystem.readAsStringAsync(args.localUri, { encoding: FileSystem.EncodingType.Base64 });
+  const fileBytes = decode(base64);
   const { error } = await supabase.storage
     .from('compliance')
-    .upload(remotePath, blob, {
-      contentType: args.contentType ?? blob.type ?? 'image/jpeg',
+    .upload(remotePath, fileBytes, {
+      contentType: args.contentType ?? 'image/jpeg',
       upsert: false,
     });
   if (error) throw error;

@@ -27,7 +27,7 @@ const COLORS = {
   cardBg: '#0F172A',
   primary: '#3B82F6',
   primaryMuted: 'rgba(59, 130, 246, 0.15)',
-  accent: '#06B6D4',
+  accent: '#7C3AED',
   success: '#10B981',
   successBg: 'rgba(16, 185, 129, 0.12)',
   warning: '#F59E0B',

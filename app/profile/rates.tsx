@@ -452,7 +452,7 @@ export default function RatesScreen(): React.JSX.Element {
       if (userError) throw userError;
       if (!user) {
         Alert.alert('Session Expired', 'Please log in again.', [
-          { text: 'OK', onPress: () => router.replace('/auth/login') }
+          { text: 'OK', onPress: () => router.replace('/(auth)/sign-in') }
         ]);
         return;
       }

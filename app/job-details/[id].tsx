@@ -29,7 +29,10 @@ const COLORS = {
 };
 
 export default function JobDetailsScreen() {
-  const { jobId } = useLocalSearchParams<{ jobId: string }>();
+  // Route segment is [id]; callers pass the value positionally as `id`. Reading
+  // `jobId` here left it undefined → the screen never loaded its job (also on
+  // the notification deep-link path).
+  const { id: jobId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -129,9 +132,9 @@ export default function JobDetailsScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>Job not found</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
           >
             <Ionicons name="arrow-back" size={24} color="#FFF" />
             <Text style={{color: '#FFF', fontWeight: 'bold', marginLeft: 8}}>Go Back</Text>
@@ -147,7 +150,7 @@ export default function JobDetailsScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}>
           <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Job Details</Text>

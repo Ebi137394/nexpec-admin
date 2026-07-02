@@ -54,16 +54,10 @@ export async function uploadReportImageFromPicker({ uri, base64 }: UploadImagePa
       throw uploadError;
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('report-images')
-      .getPublicUrl(filePath);
-
-    if (!urlData?.publicUrl) {
-      throw new Error('Failed to get public URL for uploaded image');
-    }
-
-    return urlData.publicUrl;
+    // `report-images` is private post-lockdown (migration 20260801236000):
+    // getPublicUrl would yield a dead link. Return the storage PATH; callers
+    // mint a signed URL at render time via signedUrl({ bucket:'report-images' }).
+    return filePath;
   } catch (error: any) {
     console.error('Image upload failed:', error);
     throw error;

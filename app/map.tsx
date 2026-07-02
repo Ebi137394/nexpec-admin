@@ -669,11 +669,14 @@ export default function InteractiveMapScreen() {
 
     setJobsLoading(true);
     try {
+      // GR2 price-blindness: inspectors must NEVER receive the client budget.
+      // Branch the projection so the column never leaves the DB for them.
+      const jobCols = role === 'inspector'
+        ? 'id, title, description, status, latitude, longitude, location, client_id, contractor_id, created_at, inspection_type'
+        : 'id, title, description, status, budget, latitude, longitude, location, client_id, contractor_id, created_at, inspection_type';
       let query = supabase
         .from('jobs')
-        .select(
-          'id, title, description, status, budget, latitude, longitude, location, client_id, contractor_id, created_at, inspection_type'
-        )
+        .select(jobCols)
         .not('latitude', 'is', null)
         .not('longitude', 'is', null);
 
@@ -695,15 +698,23 @@ export default function InteractiveMapScreen() {
         return;
       }
 
-      const validJobs: JobMarker[] = (data || []).filter(
-        (job: any) =>
-          typeof job.latitude === 'number' &&
-          typeof job.longitude === 'number' &&
-          !isNaN(job.latitude) &&
-          !isNaN(job.longitude) &&
-          Math.abs(job.latitude) <= 90 &&
-          Math.abs(job.longitude) <= 180
-      ) as JobMarker[];
+      const validJobs: JobMarker[] = (data || [])
+        .filter(
+          (job: any) =>
+            typeof job.latitude === 'number' &&
+            typeof job.longitude === 'number' &&
+            !isNaN(job.latitude) &&
+            !isNaN(job.longitude) &&
+            Math.abs(job.latitude) <= 90 &&
+            Math.abs(job.longitude) <= 180
+        )
+        .map((job: any) => ({
+          ...job,
+          // GR2 defense-in-depth: the inspector SELECT already omits budget;
+          // null it explicitly so the marker pill (gated on budget !== null)
+          // and the detail sheet render "Budget TBD", never a client figure.
+          budget: role === 'inspector' ? null : (job.budget ?? null),
+        })) as JobMarker[];
 
       setJobs(validJobs);
       console.log(`[Map] Loaded ${validJobs.length} jobs with valid coordinates`);
@@ -815,7 +826,7 @@ export default function InteractiveMapScreen() {
           style: 'default',
           onPress: () => {
             bottomSheetRef.current?.close();
-            router.push(`/jobs/${selectedJob.id}/apply`);
+            router.push(`/(inspector)/jobs/${selectedJob.id}/apply`);
           },
         },
       ]
@@ -839,13 +850,10 @@ export default function InteractiveMapScreen() {
   const handleViewApplicants = useCallback(() => {
     if (!selectedJob) return;
     bottomSheetRef.current?.close();
-    Alert.alert(
-      'View Applicants',
-      `Navigate to applicants for "${selectedJob.title}".\n\nRoute: /jobs/${selectedJob.id}/applicants`
-    );
-    // In production:
-    // router.push(`/jobs/${selectedJob.id}/applicants`);
-  }, [selectedJob]);
+    // Canonical applicants screen lives in the (client) group — same route
+    // the (client) applications redirect stub targets.
+    router.push(`/(client)/jobs/${selectedJob.id}/applicants` as any);
+  }, [selectedJob, router]);
 
   // ── Bottom Sheet Close Handler ────────────────────────────
   const handleSheetChange = useCallback((index: number) => {

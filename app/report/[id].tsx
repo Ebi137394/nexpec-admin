@@ -93,8 +93,10 @@ export default function InspectionScreen({ onClose }: Props) {
 
     const { error } = await supabase.storage.from('inspection-photos').upload(filePath, decode(base64), { contentType });
     if (error) throw error;
-    
-    return supabase.storage.from('inspection-photos').getPublicUrl(filePath).data.publicUrl;
+
+    // Storage lockdown: inspection-photos is PRIVATE — getPublicUrl yields a dead
+    // link. Return the storage PATH; a signed URL is minted at READ/display time.
+    return filePath;
   };
 
   const handleSubmit = async () => {
@@ -138,12 +140,11 @@ export default function InspectionScreen({ onClose }: Props) {
         photo_url: primaryPhotoUrl ?? undefined,
       });
 
-      const { error: updateError } = await supabase.from('jobs').update({
-        status: 'completed'
-      }).eq('id', id);
-      if (updateError) throw updateError;
+      // Job completion is admin/RPC-driven (report→admin→client confirm via
+      // admin_confirmed_at). An inspector submitting a report must NOT write
+      // jobs.status='completed' — that skipped the broker confirmation step.
 
-      Alert.alert('Report Submitted! 🚀', 'Your inspection is now complete.', [
+      Alert.alert('Report Submitted! 🚀', 'Your inspection has been submitted for review.', [
         { text: 'OK', onPress: () => router.push('/my-jobs' as any) }
       ]);
 
@@ -160,7 +161,7 @@ export default function InspectionScreen({ onClose }: Props) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => onClose ? onClose() : router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => onClose ? onClose() : (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>

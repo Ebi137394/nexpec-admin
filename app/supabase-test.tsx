@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Redirect } from 'expo-router';
 import SupabaseConnectionTest from '../components/SupabaseConnectionTest';
 
 const SupabaseTestScreen = () => {
+  // Dev-only diagnostic surface — never reachable in production builds.
+  if (!__DEV__) { return <Redirect href="/" />; }
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>🔧 Supabase Connection Fix</Text>

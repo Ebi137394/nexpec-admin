@@ -25,8 +25,8 @@ import ProfileScreen from '../screens/ProfileScreen';
 // ============================================
 const COLORS = {
   background: '#0A0E17',
-  primary: '#00F5FF',
-  primaryDark: '#00C8D4',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
   surfaceDark: '#0D1321',
   textMuted: '#64748B',
   tabBarBg: 'rgba(20, 27, 45, 0.95)',
@@ -126,7 +126,7 @@ const EnhancedCustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors,
             colors={[COLORS.primary, COLORS.primaryDark]}
             style={styles.fabGradient}
           >
-            <Plus size={32} color={COLORS.surfaceDark} strokeWidth={3} />
+            <Plus size={32} color="#FFFFFF" strokeWidth={3} />
           </LinearGradient>
         </TouchableOpacity>
         {/* Glow behind FAB */}
@@ -137,7 +137,7 @@ const EnhancedCustomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors,
       <View style={styles.tabBarContainer}>
         <View style={styles.glassBackground}>
           <LinearGradient
-            colors={['rgba(0, 245, 255, 0.3)', 'transparent']}
+            colors={['rgba(124, 58, 237, 0.3)', 'transparent']}
             style={styles.topBorderGlow}
           />
         </View>

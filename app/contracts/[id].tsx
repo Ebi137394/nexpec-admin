@@ -13,7 +13,10 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import PdfViewer from '../../src/components/PdfViewer';
+import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
+// App-local viewer: validates the URL and loads it directly in a WebView
+// (the old src/ variant bounced private links through the Google Docs viewer).
+import PdfViewer from '../components/PdfViewer';
 
 // Match your app's theme colors
 const COLORS = {
@@ -34,6 +37,9 @@ export default function ContractDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
+  // Signed https URL for the inline viewer — pdf_file_name is a PRIVATE
+  // storage path and can't be loaded (or shared) directly.
+  const [inlinePdfUrl, setInlinePdfUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) fetchContractDetails();
@@ -52,7 +58,7 @@ export default function ContractDetailsScreen() {
       const rawId = String(id ?? '').replace(/^jc:/, '');
       if (!rawId || !UUID_RX.test(rawId)) {
         Alert.alert('Not found', 'No contract matches that link.');
-        router.back();
+        if (router.canGoBack()) router.back(); else router.replace('/contracts');
         return;
       }
 
@@ -147,7 +153,7 @@ export default function ContractDetailsScreen() {
       if (error) throw error;
       if (!contractData) {
         Alert.alert('Not found', 'This contract no longer exists.');
-        router.back();
+        if (router.canGoBack()) router.back(); else router.replace('/contracts');
         return;
       }
 
@@ -187,7 +193,7 @@ export default function ContractDetailsScreen() {
     } catch (err: any) {
       console.error('[contracts/[id]] fetch error →', err);
       Alert.alert('Error', err?.message ?? 'Failed to load contract');
-      router.back();
+      if (router.canGoBack()) router.back(); else router.replace('/contracts');
     } finally {
       setLoading(false);
     }
@@ -200,14 +206,19 @@ export default function ContractDetailsScreen() {
         text: 'Sign Now',
         onPress: async () => {
           setSigning(true);
+          // Same normalisation as fetchContractDetails: strip the Hub's
+          // `jc:` prefix or the uuid `id` column 22P02s on the raw param.
+          const rawId = String(id ?? '').replace(/^jc:/, '');
           const { error } = await supabase
             .from('contracts')
             .update({ status: 'signed', signed_at: new Date().toISOString() })
-            .eq('id', id);
+            .eq('id', rawId);
 
           if (!error) {
             setContract({ ...contract, status: 'signed', signed_at: new Date().toISOString() });
             Alert.alert('Success', 'Contract Signed Successfully!');
+          } else {
+            Alert.alert('Signing Failed', error.message ?? 'Could not sign the contract. Please try again.');
           }
           setSigning(false);
         }
@@ -271,9 +282,21 @@ export default function ContractDetailsScreen() {
         {contract.pdf_file_name && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Contract PDF</Text>
-            <TouchableOpacity 
-              style={styles.pdfToggleBtn} 
-              onPress={() => setShowPdf(!showPdf)}
+            <TouchableOpacity
+              style={styles.pdfToggleBtn}
+              onPress={async () => {
+                if (showPdf) { setShowPdf(false); return; }
+                // Mirror the Full-Screen button: the `contracts` bucket is
+                // private, so the raw storage path must be exchanged for a
+                // signed URL before the WebView can load it.
+                let url = inlinePdfUrl;
+                if (!url) {
+                  url = await signedUrl({ bucket: 'contracts', path: contract.pdf_file_name, ttl: SIGNED_URL_TTL.VIEW });
+                  if (!url) { Alert.alert('Unavailable', 'Could not open the contract PDF. Please try again.'); return; }
+                  setInlinePdfUrl(url);
+                }
+                setShowPdf(true);
+              }}
             >
               <Ionicons name={showPdf ? "document-text-outline" : "document-text-outline"} size={20} color="#FFF" />
               <Text style={styles.pdfToggleText}>
@@ -281,26 +304,25 @@ export default function ContractDetailsScreen() {
               </Text>
               <Ionicons name={showPdf ? "chevron-up" : "chevron-down"} size={20} color="#FFF" />
             </TouchableOpacity>
-            
-            {showPdf && (
+
+            {showPdf && inlinePdfUrl && (
               <View style={styles.pdfContainer}>
-                <PdfViewer uri={contract.pdf_file_name} />
+                <PdfViewer uri={inlinePdfUrl} />
               </View>
             )}
             
             {/* Full Screen PDF View Button */}
             <TouchableOpacity 
               style={styles.fullScreenBtn} 
-              onPress={() => {
-                // Get the public URL for the PDF
-                const { data: publicUrlData } = supabase.storage
-                  .from('contracts')
-                  .getPublicUrl(contract.pdf_file_name);
-                
+              onPress={async () => {
+                // `contracts` bucket is private post-lockdown — mint a signed
+                // URL at open time (getPublicUrl would yield a dead link).
+                const url = await signedUrl({ bucket: 'contracts', path: contract.pdf_file_name, ttl: SIGNED_URL_TTL.VIEW });
+                if (!url) { Alert.alert('Unavailable', 'Could not open the contract PDF. Please try again.'); return; }
                 router.push({
                   pathname: '/contracts/view',
                   params: {
-                    pdfUrl: publicUrlData.publicUrl,
+                    uri: url,
                     contractNumber: contract.jobs?.title || 'Contract'
                   }
                 });

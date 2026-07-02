@@ -5,12 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 // ★ NX-STORAGE-002 — `documents` bucket is private post-Module-2 lockdown.
 //   Document views require a freshly minted signed URL; the legacy
 //   `file_url` field is a non-working public URL for new uploads and
 //   should be re-parsed into bucket+path so we can mint a signed URL on
 //   demand.
-import { signedUrl, parseSupabaseStorageUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
+import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 // ★ Library section deprecated — ReferenceHub + MicroLearning no longer
 //   imported. The Resources tab is now strictly Project Documents.
 import { supabase } from '../../lib/supabase';
@@ -359,11 +361,10 @@ export default function ResourcesScreen() {
       return;
     }
 
-    // Existing file-upload flow — bucket is private post-NX-STORAGE-002
-    // lockdown, so `file_url` (legacy public URL) is no longer renderable.
-    // We DEFER the signed-URL mint to onPress so handleViewDoc stays sync
-    // (the outer useCallback is not async). Falls back to legacy URL if
-    // parsing fails (non-Supabase URL).
+    // Existing file-upload flow — `documents` bucket is private post-
+    // NX-STORAGE-002 lockdown, so `file_url` now stores the bucket PATH
+    // (not a renderable URL). We DEFER the signed-URL mint to onPress so
+    // handleViewDoc stays sync (the outer useCallback is not async).
     if (doc.file_url) {
       Alert.alert(
         doc.file_name,
@@ -374,15 +375,15 @@ export default function ResourcesScreen() {
             text: userRole === 'inspector' ? t('Download') : t('View'),
             onPress: async () => {
               try {
-                let openUrl = doc.file_url;
-                const parsed = parseSupabaseStorageUrl(doc.file_url);
-                if (parsed) {
-                  const fresh = await signedUrl({
-                    bucket: parsed.bucket,
-                    path:   parsed.path,
-                    ttl:    SIGNED_URL_TTL.VIEW,
-                  });
-                  if (fresh) openUrl = fresh;
+                // file_url is a `documents`-bucket path — mint a signed URL.
+                const openUrl = await signedUrl({
+                  bucket: 'documents',
+                  path:   doc.file_url,
+                  ttl:    SIGNED_URL_TTL.VIEW,
+                });
+                if (!openUrl) {
+                  Alert.alert(t('Could not open'), t('This document is unavailable. Please try again.'));
+                  return;
                 }
                 const supported = await Linking.canOpenURL(openUrl);
                 if (supported) {
@@ -427,32 +428,31 @@ export default function ResourcesScreen() {
         // Stores files in a specific folder for each project to avoid mixing with existing inspector documents
         const filePath = `project_${uploadJobId}/${Date.now()}_${cleanFileName}`;
 
-        // 3. Read file as Blob (Standard React Native approach for Supabase)
-        const response = await fetch(file.uri);
-        const blob = await response.blob();
+        // 3. Read file as base64 → ArrayBuffer (native-safe; fetch(uri).blob()
+        //    uploads 0 bytes on RN for file:// URIs).
+        const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const fileBytes = decode(base64);
 
         // 4. Upload to Supabase Storage ('documents' bucket)
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('documents')
-          .upload(filePath, blob, {
+          .upload(filePath, fileBytes, {
             contentType: file.mimeType || 'application/octet-stream',
             upsert: false,
           });
 
         if (uploadError) throw uploadError;
 
-        // 5. Get Public URL
-        const { data: publicUrlData } = supabase.storage
-          .from('documents')
-          .getPublicUrl(filePath);
-
-        // 6. Save document record to Database
+        // 5. Save document record to Database.
+        //    Store the STORAGE PATH (not a public URL): the `documents`
+        //    bucket is private post-lockdown, so getPublicUrl would yield a
+        //    dead link. We mint a fresh signed URL at open time instead.
         const newDoc = {
           job_id: uploadJobId,
           file_name: file.name,
           file_type: fileExt,
           file_size: file.size || 0,
-          file_url: publicUrlData.publicUrl,
+          file_url: filePath,
           category,
           uploaded_by: user.id,
           notes: null,

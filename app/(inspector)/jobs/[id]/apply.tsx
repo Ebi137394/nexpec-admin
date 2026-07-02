@@ -191,7 +191,7 @@ export default function SubmitProposalScreen() {
 
   const handleSuccessComplete = () => {
     setShowSuccess(false);
-    router.replace('/(inspector)/jobs');
+    router.replace('/(tabs)/jobs');
   };
 
   const handleCoverLetterChange = (text: string) => {

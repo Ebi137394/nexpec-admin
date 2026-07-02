@@ -744,6 +744,25 @@ export default function ClientDashboardScreen() {
                 color={C.pink}
               />
             </View>
+
+            {/* Discovery zone — Teaser Marketplace + Agency Team Missions. Additive
+                secondary row; leaves the 5-card Quick Actions grid untouched. */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <Pressable
+                onPress={() => safeNav('/discover')}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }}
+              >
+                <Sparkles size={18} color={C.cyan} strokeWidth={2.2} />
+                <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{t('Discover')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => safeNav('/(client)/team-missions')}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border }}
+              >
+                <Users size={18} color={C.primary} strokeWidth={2.2} />
+                <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{t('Team Missions')}</Text>
+              </Pressable>
+            </View>
           </RNAnimated.View>
 
           {/* ───── KPI GRID ───── */}

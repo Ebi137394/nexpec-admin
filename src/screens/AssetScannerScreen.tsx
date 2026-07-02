@@ -30,10 +30,10 @@ const COLORS = {
   surfaceHighlight: '#252F3F',
   
   // Neon Colors (Cyberpunk)
-  neonCyan: '#00F5FF',
-  neonCyanDim: 'rgba(0, 245, 255, 0.5)',
-  neonCyanGlow: 'rgba(0, 245, 255, 0.2)',
-  neonCyanFaint: 'rgba(0, 245, 255, 0.1)',
+  neonCyan: '#7C3AED',
+  neonCyanDim: 'rgba(124, 58, 237, 0.5)',
+  neonCyanGlow: 'rgba(124, 58, 237, 0.2)',
+  neonCyanFaint: 'rgba(124, 58, 237, 0.1)',
   neonPink: '#FF00FF',
   neonPinkDim: 'rgba(255, 0, 255, 0.5)',
   neonGreen: '#00FF88',
@@ -42,8 +42,8 @@ const COLORS = {
   
   // Scanner Colors
   scannerBg: '#050810',
-  gridLine: 'rgba(0, 245, 255, 0.08)',
-  laserGlow: 'rgba(0, 245, 255, 0.8)',
+  gridLine: 'rgba(124, 58, 237, 0.08)',
+  laserGlow: 'rgba(124, 58, 237, 0.8)',
   
   // Text Colors
   text: '#FFFFFF',
@@ -1313,7 +1313,7 @@ const styles = StyleSheet.create({
   simulateScanText: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 
   // Manual Entry Link
@@ -1592,7 +1592,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 
   // Quick Actions
@@ -1721,7 +1721,7 @@ const styles = StyleSheet.create({
   manualEntryButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
 });
 

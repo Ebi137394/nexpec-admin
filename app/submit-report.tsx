@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { Ionicons } from '@expo/vector-icons';
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '../lib/supabase';
@@ -21,7 +23,10 @@ import { supabase } from '../lib/supabase';
 type InspectionType = 'Visual' | 'Welding' | 'NDT';
 
 export default function SubmitReport() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  // Callers are split: legacy pushes pass `projectId`, while my-jobs.tsx
+  // pushes `jobId` for the same value. Accept both, prefer projectId.
+  const { projectId, jobId } = useLocalSearchParams<{ projectId?: string; jobId?: string }>();
+  const effectiveProjectId = projectId ?? jobId;
   const router = useRouter();
 
   const [inspectionType, setInspectionType] = useState<InspectionType>('Visual');
@@ -45,11 +50,11 @@ export default function SubmitReport() {
           setUserId(session.user.id);
         } else {
           Alert.alert('Error', 'No authenticated user found');
-          router.replace('/login');
+          router.replace('/(auth)/sign-in');
         }
       } catch (error: any) {
         Alert.alert('Auth Error', error.message);
-        router.replace('/login');
+        router.replace('/(auth)/sign-in');
       }
     };
 
@@ -129,16 +134,41 @@ export default function SubmitReport() {
     setLoading(true);
 
     try {
-      // NOTE: For now we save the local URI. In Phase 5 we will upload to Storage bucket.
+      // Upload the photo (if any) to the `report-images` bucket and persist
+      // the storage PATH — a local file:// URI is meaningless on any other
+      // device. A signed URL is minted at read time.
+      let imagePath: string | null = null;
+      if (imageUri) {
+        try {
+          const base64Data = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const bytes = decode(base64Data);
+          const path = `${userId}/${effectiveProjectId}/${Date.now()}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from('report-images')
+            // outbox-exempt: legacy reports screen; upload failure aborts the submit with an explicit alert (no silent loss). Successor = outbox-routed inspector job report flow.
+            .upload(path, bytes, { contentType: 'image/jpeg' });
+          if (uploadError) throw uploadError;
+          imagePath = path;
+        } catch (uploadErr: any) {
+          Alert.alert(
+            'Photo Upload Failed',
+            uploadErr?.message ?? 'Could not upload the evidence photo. Please try again.'
+          );
+          return; // abort — never save a report pointing at a dead local URI
+        }
+      }
+
       const { error } = await supabase
         .from('reports')
         .insert([
           {
-            project_id: projectId,
+            project_id: effectiveProjectId,
             inspector_id: userId,
             inspection_type: inspectionType,
             description: description.trim(),
-            image_url: imageUri || null, 
+            image_url: imagePath,
             signature: signature, // Save signature as base64 data URI
             status: 'Submitted',
           },
@@ -199,7 +229,7 @@ export default function SubmitReport() {
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <View style={styles.header}>
             <Text style={styles.title}>Inspection Results</Text>
-            <Text style={styles.subtitle}>Project Ref: {projectId?.slice(0, 8)}...</Text>
+            <Text style={styles.subtitle}>Project Ref: {effectiveProjectId?.slice(0, 8)}...</Text>
         </View>
 
         <View style={styles.section}>

@@ -341,7 +341,10 @@ async function releaseLock(): Promise<void> {
 
 /**
  * Uploads a single local file to Supabase Storage.
- * Returns the public URL or throws on failure.
+ * Returns the storage PATH (not a URL) or throws on failure.
+ *
+ * Storage lockdown: these buckets are PRIVATE, so getPublicUrl yields a dead
+ * link. We persist the path; a signed URL is minted at READ/display time.
  */
 async function uploadFileToStorage(
   localUri: string,
@@ -380,16 +383,13 @@ async function uploadFileToStorage(
     throw new Error(`Storage upload failed: ${uploadError.message}`);
   }
 
-  // Get public URL
-  const { data: urlData } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(storagePath);
-
-  if (!urlData?.publicUrl) {
-    throw new Error('Failed to generate public URL after upload.');
+  // Storage lockdown: return the storage PATH (private bucket → no public URL).
+  // photos_urls / signature now hold paths; the reader mints signed URLs.
+  if (!storagePath) {
+    throw new Error('Missing storage path after upload.');
   }
 
-  return urlData.publicUrl;
+  return storagePath;
 }
 
 // ═══════════════════════════════════════════════════════════

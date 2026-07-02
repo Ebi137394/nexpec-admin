@@ -43,8 +43,8 @@ const COLORS = {
   redBg: 'rgba(239, 68, 68, 0.12)',
   amber: '#F59E0B',
   amberBg: 'rgba(245, 158, 11, 0.12)',
-  cyan: '#06B6D4',
-  cyanBg: 'rgba(6, 182, 212, 0.12)',
+  cyan: '#7C3AED', // brand purple — stray cyan accent retired (blue stays semantic)
+  cyanBg: 'rgba(124, 58, 237, 0.12)',
   white: '#FFFFFF',
   textPrimary: '#F1F5F9',
   textSecondary: '#94A3B8',

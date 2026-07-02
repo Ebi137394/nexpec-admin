@@ -52,8 +52,8 @@ const COLORS = {
   surface: '#141B2D',
   surfaceLight: '#1E2A45',
   surfaceDark: '#0D1321',
-  primary: '#00F5FF',
-  primaryDark: '#00C8D4',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
   secondary: '#7B61FF',
   accent: '#FF6B6B',
   success: '#00D68F',
@@ -65,10 +65,10 @@ const COLORS = {
   textPrimary: '#FFFFFF',
   textSecondary: '#A0AEC0',
   textMuted: '#64748B',
-  border: 'rgba(0, 245, 255, 0.2)',
+  border: 'rgba(124, 58, 237, 0.2)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
   glassBg: 'rgba(20, 27, 45, 0.85)',
-  glassGlow: 'rgba(0, 245, 255, 0.15)',
+  glassGlow: 'rgba(124, 58, 237, 0.15)',
   overlay: 'rgba(0, 0, 0, 0.5)',
 };
 
@@ -418,7 +418,7 @@ const FilterChipComponent: React.FC<FilterChipComponentProps> = ({
         {Icon && (
           <Icon
             size={14}
-            color={isActive ? COLORS.surfaceDark : COLORS.textMuted}
+            color={isActive ? '#FFFFFF' : COLORS.textMuted}
           />
         )}
         <Text
@@ -655,7 +655,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ type, searchQuery, onClearSearc
           ]}
         >
           <LinearGradient
-            colors={['rgba(0, 245, 255, 0.1)', 'rgba(123, 97, 255, 0.1)']}
+            colors={['rgba(124, 58, 237, 0.1)', 'rgba(123, 97, 255, 0.1)']}
             style={styles.emptyStateGradient}
           >
             <FileSearch size={56} color={COLORS.primary} />
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   filterChipTextActive: {
-    color: COLORS.surfaceDark,
+    color: '#FFFFFF',
   },
   filterChipCount: {
     backgroundColor: COLORS.surfaceLight,
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
   },
   filterChipCountTextActive: {
-    color: COLORS.surfaceDark,
+    color: '#FFFFFF',
   },
 
   // Results Container

@@ -116,6 +116,27 @@ export async function enqueueReportSave(input: ReportSaveInput): Promise<string>
   return opId;
 }
 
+// ── contract_sign ─────────────────────────────────────────────────
+export interface ContractSignInput {
+  rpcName: 'client_sign_job_contract' | 'inspector_sign_job_contract';
+  contractId: string;
+  typedName: string;
+  ip?: string | null;
+}
+
+/**
+ * Enqueue a contract signature. Offline-durable: survives a mid-tap network
+ * drop and drains on reconnect (the sign RPCs are idempotent on signer +
+ * contract state). Returns the client_op_id so the caller can report
+ * queued-vs-applied via opStillQueued(opId).
+ */
+export async function enqueueContractSign(input: ContractSignInput): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({ client_op_id: opId, kind: 'contract_sign', payload: input });
+  if (isOnline()) flushQueue();
+  return opId;
+}
+
 export interface ReportUpdateInput {
   id: string;
   patch: Record<string, unknown>;

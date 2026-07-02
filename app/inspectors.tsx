@@ -57,7 +57,7 @@ const C = {
   warn: '#F59E0B',
   warnDim: 'rgba(245,158,11,0.16)',
   info: '#3B82F6',
-  cyan: '#06B6D4',
+  cyan: '#7C3AED', // brand purple — stray cyan accent retired (info stays blue)
 };
 
 // ─── TYPES ──────────────────────────────────────────────────────────
@@ -80,7 +80,9 @@ interface JobLite {
   id: string;
   status: string;
   contractor_id: string | null;
-  payout_amount_cents: number | null;   // ★ Task 4
+  // GR2 (price-blindness): this is a BUYER surface (eq client_id = me).
+  // payout_amount_cents (the inspector's payout) is intentionally OMITTED —
+  // the buyer only ever sees their own spend (client_price_cents).
   client_price_cents: number | null;    // ★ Task 4
   updated_at?: string | null;
 }
@@ -150,7 +152,7 @@ export default function InspectorsScreen() {
       // 1) all jobs owned by this agency
       const { data: jobsRow, error: jobsErr } = await supabase
         .from('jobs')
-        .select('id, status, contractor_id, payout_amount_cents, client_price_cents, updated_at')
+        .select('id, status, contractor_id, client_price_cents, updated_at')
         .eq('client_id', me);
       if (jobsErr) throw jobsErr;
       const jobs = (jobsRow ?? []) as JobLite[];
@@ -225,8 +227,10 @@ export default function InspectorsScreen() {
         if (j.status === 'in_progress') row.isLive = true;
         if (j.status === 'completed') {
           row.completed += 1;
-          // ★ Task 4: row.earnings is now stored as integer cents end-to-end.
-          row.earnings += Number(j.payout_amount_cents ?? j.client_price_cents ?? 0) || 0;
+          // GR2 (price-blindness): this BUYER-facing total reflects the
+          // buyer's OWN spend (client_price_cents) — never the inspector's
+          // payout. Stored as integer cents end-to-end.
+          row.earnings += Number(j.client_price_cents ?? 0) || 0;
         }
         if (j.updated_at && (!row.lastActiveISO || j.updated_at > row.lastActiveISO)) {
           row.lastActiveISO = j.updated_at;

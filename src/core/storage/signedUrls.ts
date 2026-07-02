@@ -65,16 +65,19 @@ export async function signedUrl(opts: SignedUrlOptions): Promise<string | null> 
   }
 
   try {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .createSignedUrl(path, ttl);
+    // Private buckets are owner+admin-only at the storage-RLS layer (IDOR
+    // lockdown 20260801236000). Mint via the server-authorized `mint-doc-url`
+    // edge function, which checks nx_can_access_doc (admin / owner / job-party)
+    // as service_role. The client can no longer createSignedUrl these directly.
+    // outbox-exempt: read-time signed-URL mint, not an offline-queueable write
+    const { data, error } = await supabase.functions.invoke('mint-doc-url', {
+      body: { bucket, path, ttl },
+    });
     if (error) {
-      console.warn(
-        `[signedUrl] createSignedUrl failed for ${bucket}/${path}: ${error.message}`,
-      );
+      console.warn(`[signedUrl] mint-doc-url failed for ${bucket}/${path}: ${error.message}`);
       return null;
     }
-    return data?.signedUrl ?? null;
+    return ((data as { url?: string | null })?.url) ?? null;
   } catch (e: any) {
     console.warn(`[signedUrl] exception minting URL for ${bucket}/${path}:`, e?.message);
     return null;
@@ -90,10 +93,31 @@ export async function signedUrls(
   paths: string[],
   ttl: number,
 ): Promise<Record<string, string | null>> {
-  const entries = await Promise.all(
-    paths.map(async (path) => [path, await signedUrl({ bucket, path, ttl })] as const),
-  );
-  return Object.fromEntries(entries);
+  if (!bucket || paths.length === 0) return {};
+  if (PUBLIC_BUCKETS.has(bucket)) {
+    const out: Record<string, string | null> = {};
+    for (const path of paths) {
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      out[path] = data?.publicUrl ?? null;
+    }
+    return out;
+  }
+  try {
+    // One authorized round-trip for the whole batch (private buckets).
+    // outbox-exempt: read-time signed-URL mint, not an offline-queueable write
+    const { data, error } = await supabase.functions.invoke('mint-doc-url', {
+      body: { bucket, paths, ttl },
+    });
+    if (error) {
+      console.warn(`[signedUrls] batch mint failed for ${bucket}: ${error.message}`);
+      return Object.fromEntries(paths.map((p) => [p, null]));
+    }
+    const urls = (data as { urls?: Record<string, string | null> })?.urls ?? {};
+    return Object.fromEntries(paths.map((p) => [p, urls[p] ?? null]));
+  } catch (e: any) {
+    console.warn(`[signedUrls] batch exception for ${bucket}:`, e?.message);
+    return Object.fromEntries(paths.map((p) => [p, null]));
+  }
 }
 
 /**

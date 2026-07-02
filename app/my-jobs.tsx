@@ -29,6 +29,7 @@ export default function MyJobsScreen() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>('');
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export default function MyJobsScreen() {
   const fetchMyActiveJobs = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setCurrentUserId(user.id);
@@ -45,13 +47,16 @@ export default function MyJobsScreen() {
       const { data, error } = await supabase
         .from('jobs')
         .select('id, title, location, status, payout_amount_cents, created_at')
-        .eq('inspector_id', user.id)
+        // ★ Assignment column is jobs.contractor_id (set by the dispatch path);
+        //   jobs.inspector_id is never populated → this list was always empty.
+        .eq('contractor_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setJobs(data || []);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
+    } catch (err: any) {
+      console.error('Error fetching jobs:', err);
+      setError(err?.message ?? 'Could not load your jobs.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -59,6 +64,13 @@ export default function MyJobsScreen() {
   };
 
   const generateTestJob = async () => {
+    // Pre-launch: test-data seeding is DEV-only. In production this no-ops so a
+    // stray button can never mint a self-assigned job (contractor_id = self
+    // bypasses the admin broker).
+    if (!__DEV__) {
+      Alert.alert('Unavailable', 'Test data generation is disabled in production.');
+      return;
+    }
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -71,7 +83,7 @@ export default function MyJobsScreen() {
           status: 'open',
           client_price_cents: 100000,
           payout_amount_cents: 30000,
-          inspector_id: user.id,
+          contractor_id: user.id,
       }]);
 
       if (error) throw error;
@@ -149,16 +161,45 @@ export default function MyJobsScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.fillButton, { flex: 1, backgroundColor: '#1E293B', borderWidth: 1, borderColor: '#3B82F6' }]}
+              style={[styles.fillButton, { flex: 1, backgroundColor: '#0a0f2e', borderWidth: 1, borderColor: '#7C3AED' }]}
               onPress={() => {
                 router.push(`/chat/${item.id}`);
               }}
             >
-              <Ionicons name="chatbubbles-outline" size={18} color="#3B82F6" />
-              <Text style={[styles.fillButtonText, { color: '#3B82F6' }]}>Chat</Text>
+              <Ionicons name="chatbubbles-outline" size={18} color="#7C3AED" />
+              <Text style={[styles.fillButtonText, { color: '#7C3AED' }]}>Chat</Text>
             </TouchableOpacity>
           </View>
         )}
+      </View>
+    );
+  };
+
+  const renderEmpty = () => {
+    if (loading) {
+      return (
+        <View style={styles.centerBox}>
+          <ActivityIndicator size="large" color="#7C3AED" />
+        </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.centerBox}>
+          <Ionicons name="cloud-offline-outline" size={48} color="#7C3AED" />
+          <Text style={styles.emptyTitle}>Couldn't load your jobs</Text>
+          <Text style={styles.emptySub}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchMyActiveJobs}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.centerBox}>
+        <Ionicons name="briefcase-outline" size={48} color="#7C3AED" />
+        <Text style={styles.emptyTitle}>No active jobs yet</Text>
+        <Text style={styles.emptySub}>Jobs assigned to you by the dispatch team will appear here.</Text>
       </View>
     );
   };
@@ -168,19 +209,21 @@ export default function MyJobsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Active Jobs</Text>
         <TouchableOpacity onPress={fetchMyActiveJobs} style={styles.headerRefreshButton}>
-          <Ionicons name="refresh-outline" size={24} color="#60A5FA" />
+          <Ionicons name="refresh-outline" size={24} color="#7C3AED" />
         </TouchableOpacity>
       </View>
 
-      <View style={{ paddingHorizontal: 20, paddingTop: 15, paddingBottom: 5 }}>
-        <TouchableOpacity 
-          style={{ backgroundColor: '#10B981', padding: 15, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }}
-          onPress={generateTestJob}
-        >
-          <Ionicons name="flask-outline" size={20} color="#fff" />
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Generate Test Job (Magic)</Text>
-        </TouchableOpacity>
-      </View>
+      {__DEV__ && (
+        <View style={{ paddingHorizontal: 20, paddingTop: 15, paddingBottom: 5 }}>
+          <TouchableOpacity
+            style={{ backgroundColor: '#10B981', padding: 15, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+            onPress={generateTestJob}
+          >
+            <Ionicons name="flask-outline" size={20} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Generate Test Job (Magic)</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FlatList
         data={jobs}
@@ -188,21 +231,22 @@ export default function MyJobsScreen() {
         renderItem={renderJobCard}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7C3AED" />}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: Platform.OS === 'web' ? 20 : 60, backgroundColor: '#1E293B', borderBottomWidth: 1, borderBottomColor: '#334155' },
+  container: { flex: 1, backgroundColor: '#020420' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: Platform.OS === 'web' ? 20 : 60, backgroundColor: '#0a0f2e', borderBottomWidth: 1, borderBottomColor: '#1F2937' },
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#F1F5F9' },
   headerRefreshButton: { padding: 4 },
   listContainer: { padding: 20, paddingBottom: 40, flexGrow: 1 },
-  jobCard: { backgroundColor: '#1E293B', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#334155' },
+  jobCard: { backgroundColor: '#0a0f2e', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#1F2937' },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16, gap: 12 },
-  iconContainer: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1E40AF', justifyContent: 'center', alignItems: 'center' },
+  iconContainer: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(124, 58, 237, 0.15)', justifyContent: 'center', alignItems: 'center' },
   headerText: { flex: 1 },
   jobTitle: { fontSize: 18, fontWeight: '700', color: '#F1F5F9', lineHeight: 24, marginBottom: 4 },
   reportLabel: { fontSize: 13, color: '#94A3B8', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
@@ -212,6 +256,11 @@ const styles = StyleSheet.create({
   priceText: { fontWeight: '600', color: '#10B981' },
   pendingBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#78350F', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, gap: 6, marginBottom: 16 },
   pendingText: { fontSize: 13, fontWeight: '600', color: '#FCD34D' },
-  fillButton: { backgroundColor: '#3B82F6', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 14, borderRadius: 12, gap: 8, marginBottom: 12 },
+  fillButton: { backgroundColor: '#7C3AED', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 14, borderRadius: 12, gap: 8, marginBottom: 12 },
   fillButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  centerBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 64, paddingHorizontal: 32, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: '#F1F5F9', textAlign: 'center', marginTop: 6 },
+  emptySub: { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
+  retryBtn: { marginTop: 14, backgroundColor: '#7C3AED', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 10 },
+  retryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

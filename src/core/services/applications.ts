@@ -86,7 +86,7 @@ export async function getJobApplications(
           full_name,
           avatar_url,
           rating_average,
-          years_experience
+          years_experience:experience_years
         )
       `)
       .eq('job_id', jobId)
@@ -173,9 +173,11 @@ export async function withdrawApplication(
     if (!user) throw new Error('Not authenticated');
 
     // ★ HIRE-008: canonical applications table; inspector_id → applicant_id.
+    // Withdraw writes 'withdrawn' (NOT 'rejected' — that's an admin/buyer
+    // action; conflating them corrupts the application's audit/state).
     const { error } = await supabase
       .from('applications')
-      .update({ status: 'rejected' })
+      .update({ status: 'withdrawn' })
       .eq('id', applicationId)
       .eq('applicant_id', user.id); // Ensure user owns the application
 

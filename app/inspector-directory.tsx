@@ -420,7 +420,7 @@ export default function InspectorDirectoryScreen() {
                 row={item}
                 index={index}
                 onInvite={() => openInviteSheet(item)}
-                onProfile={() => router.push(`/p/${item.id}` as any)}
+                onProfile={() => router.push(`/(client)/inspector/${item.id}` as any)}
               />
             )}
             refreshControl={

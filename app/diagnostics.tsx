@@ -46,7 +46,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import {
   ChevronLeft,
   RefreshCw,
@@ -342,6 +342,8 @@ interface Section {
 }
 
 export default function DiagnosticsScreen() {
+  // Dev-only pre-flight diagnostic — never reachable in production builds.
+  if (!__DEV__) { return <Redirect href="/" />; }
   const router = useRouter();
   const { user } = useAuth();
   const [running, setRunning] = useState(true);

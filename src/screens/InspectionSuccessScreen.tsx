@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 const COLORS = {
   background: '#0A0E17',
   surface: '#141B2D',
-  primary: '#00F5FF',
+  primary: '#7C3AED',
   success: '#00D68F',
   text: '#FFFFFF',
   textSecondary: '#A0AEC0',
@@ -144,13 +144,13 @@ const InspectionSuccessScreen = () => {
 
           <TouchableOpacity style={styles.primaryButton} onPress={handleDone}>
             <LinearGradient
-              colors={[COLORS.primary, '#00C8D4']}
+              colors={[COLORS.primary, '#6D28D9']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.gradientButton}
             >
               <Text style={styles.primaryButtonText}>Back to Dashboard</Text>
-              <ArrowRight size={20} color="#000" />
+              <ArrowRight size={20} color="#FFFFFF" />
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primaryButtonText: {
-    color: '#0A0E17',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },

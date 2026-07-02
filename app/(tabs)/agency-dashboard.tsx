@@ -983,6 +983,14 @@ export default function AgencyDashboard() {
               gradient: ['rgba(6,182,212,0.32)', 'rgba(6,182,212,0.06)'],
               onPress: () => router.push('/contracts/' as any),
             },
+            {
+              id: 'team-missions',
+              icon: Users,
+              tint: C.primary,
+              label: t('Missions'),
+              gradient: ['rgba(124,58,237,0.32)', 'rgba(124,58,237,0.06)'],
+              onPress: () => router.push('/(client)/team-missions' as any),
+            },
           ]}
         />
 

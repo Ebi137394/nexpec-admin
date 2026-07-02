@@ -63,7 +63,7 @@ interface NotificationSection {
 const THEME = {
   // Primary Colors
   darkBg: '#0A0E17',
-  neonCyan: '#00F5FF',
+  neonCyan: '#7C3AED',
   
   // Surface Colors
   surfaceDark: '#0D1520',
@@ -82,8 +82,8 @@ const THEME = {
   infoBlue: '#3498DB',
   
   // Gradient helpers
-  cyanGlow: 'rgba(0, 245, 255, 0.15)',
-  cyanGlowIntense: 'rgba(0, 245, 255, 0.3)',
+  cyanGlow: 'rgba(124, 58, 237, 0.15)',
+  cyanGlowIntense: 'rgba(124, 58, 237, 0.3)',
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -714,7 +714,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   notificationItemUnread: {
-    backgroundColor: 'rgba(0, 245, 255, 0.03)',
+    backgroundColor: 'rgba(124, 58, 237, 0.03)',
   },
   unreadIndicator: {
     position: 'absolute',
@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(0, 245, 255, 0.2)',
+    borderColor: 'rgba(124, 58, 237, 0.2)',
   },
   zzzContainer: {
     position: 'absolute',

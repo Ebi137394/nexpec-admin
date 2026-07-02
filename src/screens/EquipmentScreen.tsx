@@ -29,9 +29,9 @@ const COLORS = {
   surfaceHighlight: '#252F3F',
   
   // Accent Colors
-  primary: '#00F5FF',
-  primaryDark: '#00C4CC',
-  primaryGlow: 'rgba(0, 245, 255, 0.2)',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
+  primaryGlow: 'rgba(124, 58, 237, 0.2)',
   
   // Text Colors
   text: '#FFFFFF',
@@ -790,7 +790,7 @@ const EquipmentScreen: React.FC = () => {
           onPress={() => openAddEditModal()}
           activeOpacity={0.8}
         >
-          <PlusIcon size={16} color={COLORS.background} />
+          <PlusIcon size={16} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add Tool</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -1213,7 +1213,7 @@ const styles = StyleSheet.create({
   headerBadgeText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 14,
@@ -1236,7 +1236,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
     marginLeft: 8,
   },
 
@@ -1625,7 +1625,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 28,
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 245, 255, 0.03)',
+    backgroundColor: 'rgba(124, 58, 237, 0.03)',
   },
   uploadAreaSuccess: {
     borderColor: COLORS.valid,
@@ -1690,7 +1690,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    color: COLORS.background,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 
@@ -1851,7 +1851,7 @@ const styles = StyleSheet.create({
   },
   closeDetailsButtonText: {
     fontSize: 16,
-    color: COLORS.background,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 });

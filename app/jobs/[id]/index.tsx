@@ -224,7 +224,7 @@ export default function JobDetailScreen() {
 
   const handleContractPress = () => {
     // 🚀 رفتن مستقیم به صفحه قرارداد حرفه‌ای (بدون پاپ‌آپ ارور)
-    router.push(`/jobs/${id}/contract`);
+    router.push(`/(inspector)/jobs/${id}/contract`);
   };
 
   const navigateToExpenses = () => {
@@ -316,8 +316,8 @@ export default function JobDetailScreen() {
 
       {/* Manual Header with Back Button */}
       <View style={styles.manualHeader}>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/jobs'))}
           style={styles.backButtonContainer}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
@@ -402,7 +402,7 @@ export default function JobDetailScreen() {
 
             <TouchableOpacity
               style={styles.toolButton}
-              onPress={() => router.push(`/jobs/${id}/expenses` as any)}
+              onPress={() => router.push(`/(inspector)/jobs/${id}/expenses` as any)}
               activeOpacity={0.7}
             >
               <View style={[styles.toolButtonIcon, { backgroundColor: COLORS.success + '20' }]}>

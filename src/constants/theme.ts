@@ -3,7 +3,7 @@
 // Dark theme colors
 const darkColors = {
   // Primary Colors
-  primary: '#00F5FF',      // Neon Cyan
+  primary: '#7C3AED',      // Brand Violet
   secondary: '#8B5CF6',    // Purple
   accent: '#FF006E',       // Accent Pink (optional)
   
@@ -34,7 +34,7 @@ const darkColors = {
 // Light theme colors
 const lightColors = {
   // Primary Colors
-  primary: '#00F5FF',      // Neon Cyan (keep same)
+  primary: '#7C3AED',      // Brand Violet
   secondary: '#8B5CF6',    // Purple (keep same)
   accent: '#FF006E',       // Accent Pink (keep same)
   

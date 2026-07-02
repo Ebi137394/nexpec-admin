@@ -86,7 +86,7 @@ interface InspectionReport {
 const THEME = {
   // Primary Colors
   darkBg: '#0A0E17',
-  neonCyan: '#00F5FF',
+  neonCyan: '#7C3AED',
   
   // Document Colors (Paper-like for dark mode)
   paperBg: '#1A1F2E',
@@ -110,8 +110,8 @@ const THEME = {
   infoBlue: '#3498DB',
   
   // Accents
-  cyanGlow: 'rgba(0, 245, 255, 0.15)',
-  cyanGlowIntense: 'rgba(0, 245, 255, 0.3)',
+  cyanGlow: 'rgba(124, 58, 237, 0.15)',
+  cyanGlowIntense: 'rgba(124, 58, 237, 0.3)',
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -661,7 +661,7 @@ const FloatingActionButton: React.FC<FABProps> = ({ onPress }) => {
         activeOpacity={0.9}
       >
         <View style={styles.fabContent}>
-          <Printer size={22} color={THEME.darkBg} />
+          <Printer size={22} color="#FFFFFF" />
           <Text style={styles.fabText}>Print / Export</Text>
         </View>
       </TouchableOpacity>
@@ -1422,7 +1422,7 @@ const styles = StyleSheet.create({
   fabText: {
     fontSize: 15,
     fontWeight: '700',
-    color: THEME.darkBg,
+    color: '#FFFFFF',
     marginLeft: 8,
   },
   fabGlow: {

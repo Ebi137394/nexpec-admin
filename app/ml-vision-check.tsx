@@ -23,7 +23,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { getModelRuntime, ML_RUNTIME_ENABLED, type ModelStage } from '@/src/core/ml';
 import { registerVisionBackend } from '@/src/core/ml/vision/registerVision';
@@ -63,6 +63,8 @@ interface LogRow {
 }
 
 export default function MlVisionCheckScreen() {
+  // Dev-only pipeline proof — never reachable in production builds.
+  if (!__DEV__) { return <Redirect href="/" />; }
   const router = useRouter();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [running, setRunning] = useState(false);

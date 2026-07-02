@@ -59,7 +59,7 @@ const COLORS = {
   background: '#070716', 
   surface: 'rgba(255, 255, 255, 0.03)',
   border: 'rgba(255, 255, 255, 0.1)',
-  primary: '#00FFFF', // Neon Cyan
+  primary: '#7C3AED', // Brand Purple
   textPrimary: '#FFFFFF',
   textSecondary: '#9CA3AF',
   textMuted: '#64748B',
@@ -72,8 +72,8 @@ const COLORS = {
   greenBg: 'rgba(16, 185, 129, 0.12)',
   amber: '#F59E0B',
   amberBg: 'rgba(245, 158, 11, 0.12)',
-  cyan: '#06B6D4',
-  cyanBg: 'rgba(6, 182, 212, 0.12)',
+  cyan: '#7C3AED', // brand purple — stray cyan accent retired (blue stays semantic)
+  cyanBg: 'rgba(124, 58, 237, 0.12)',
   red: '#EF4444',
   redBg: 'rgba(239, 68, 68, 0.12)',
 };
@@ -92,7 +92,7 @@ const NOTIFICATION_GROUPS: ToggleGroup[] = [
       { id: 'contract_assigned', label: 'Contract Assigned', description: 'Receive alerts when a client assigns you a contract', icon: ClipboardCheck, iconColor: COLORS.blue, iconBg: COLORS.blueBg, roles: ['inspector'], defaultValue: true },
       { id: 'urgent_safety', label: 'Urgent Safety Warnings', description: 'Critical safety notices regarding your active sites', icon: ShieldAlert, iconColor: COLORS.red, iconBg: COLORS.redBg, roles: ['inspector', 'agency'], defaultValue: true },
       { id: 'location_alerts', label: 'Location Updates', description: 'Changes to inspection sites or schedule times', icon: MapPin, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['inspector'], defaultValue: true },
-      { id: 'new_applicant', label: 'New Applicant', description: 'Get notified when an inspector applies to your job post', icon: UserCheck, iconColor: COLORS.primary, iconBg: 'rgba(0, 255, 255, 0.1)', roles: ['client'], defaultValue: true },
+      { id: 'new_applicant', label: 'New Applicant', description: 'Get notified when an inspector applies to your job post', icon: UserCheck, iconColor: COLORS.primary, iconBg: 'rgba(124, 58, 237, 0.1)', roles: ['client'], defaultValue: true },
       { id: 'inspection_started', label: 'Inspection Started', description: 'Know when your assigned inspector begins an inspection', icon: Activity, iconColor: COLORS.cyan, iconBg: COLORS.cyanBg, roles: ['client'], defaultValue: true },
       { id: 'new_enterprise_contract', label: 'New Enterprise Contract', description: 'Get notified about new enterprise-level contracts', icon: Building2, iconColor: COLORS.amber, iconBg: COLORS.amberBg, roles: ['agency', 'enterprise'], defaultValue: true },
     ],
@@ -118,7 +118,7 @@ const NOTIFICATION_GROUPS: ToggleGroup[] = [
   {
     id: 'delivery_methods', title: 'Delivery Methods', subtitle: 'Choose how you receive these alerts', icon: Smartphone, iconColor: COLORS.cyan, iconBg: COLORS.cyanBg,
     toggles: [
-      { id: 'push_notifications', label: 'Push Notifications', description: 'Receive instant alerts on your device', icon: Bell, iconColor: COLORS.primary, iconBg: 'rgba(0, 255, 255, 0.1)', roles: 'all', defaultValue: true },
+      { id: 'push_notifications', label: 'Push Notifications', description: 'Receive instant alerts on your device', icon: Bell, iconColor: COLORS.primary, iconBg: 'rgba(124, 58, 237, 0.1)', roles: 'all', defaultValue: true },
       { id: 'email_notifications', label: 'Email Notifications', description: 'Get notification summaries via email', icon: Mail, iconColor: COLORS.blue, iconBg: COLORS.blueBg, roles: 'all', defaultValue: true },
       { id: 'sms_alerts', label: 'SMS Alerts', description: 'Receive text messages for urgent security and job alerts', icon: Smartphone, iconColor: COLORS.green, iconBg: COLORS.greenBg, roles: 'all', defaultValue: false },
     ],
@@ -412,9 +412,9 @@ export default function NotificationSettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Sync Preferences"
         >
-          {saving ? <ActivityIndicator size="small" color="#000" /> : 
+          {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> :
           <>
-            <CloudUpload size={20} color="#000" />
+            <CloudUpload size={20} color="#FFFFFF" />
             <Text style={st.saveButtonText}>Sync Preferences</Text>
           </>}
         </TouchableOpacity>
@@ -433,7 +433,7 @@ const st = StyleSheet.create({
   roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   roleBadgeText: { fontSize: 11, fontWeight: '700' },
   infoBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border, gap: 10 },
-  infoBannerIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(0, 255, 255, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  infoBannerIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(124, 58, 237, 0.1)', justifyContent: 'center', alignItems: 'center' },
   infoBannerText: { flex: 1, fontSize: 13, color: COLORS.textSecondary, lineHeight: 19 },
   quickActions: { flexDirection: 'row', backgroundColor: COLORS.surface, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   quickActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 6 },
@@ -458,5 +458,5 @@ const st = StyleSheet.create({
   toggleDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.04)', marginLeft: 52 },
   saveButtonWrap: { position: 'absolute', bottom: 0, left: 20, right: 20, alignItems: 'center' },
   saveButton: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 16, backgroundColor: COLORS.primary, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8, gap: 10 },
-  saveButtonText: { fontSize: 17, fontWeight: '800', color: '#000000' },
+  saveButtonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
 });

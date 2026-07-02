@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,6 +21,7 @@ import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/lib/supabase';
 // ✅ تغییر حیاتی: آدرس درست AuthContext که توی بقیه اپلیکیشن کار می‌کنه
 import { useAuth } from '@/src/contexts/AuthContext';
+import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 
 interface WorkExperience {
@@ -157,30 +159,39 @@ export default function ExperienceScreen() {
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('resumes')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData?.publicUrl;
-
-      if (!publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
-
+      // The `resumes` bucket is private (owner+admin only). Store the storage
+      // PATH and mint a signed URL at view time.
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ resume_url: publicUrl })
+        // outbox-exempt: profile settings write (resume storage path), not a field-capture op; retried on next save
+        .update({ resume_url: filePath })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      setResumeUrl(publicUrl);
+      setResumeUrl(filePath);
       Alert.alert(t('Success'), t('CV uploaded successfully!'));
     } catch (error: any) {
       console.error('Upload failed:', error);
       Alert.alert(t('Error'), error.message || t('Failed to upload CV'));
     } finally {
       setUploadingCV(false);
+    }
+  };
+
+  const handleViewCV = async () => {
+    if (!resumeUrl) return;
+    try {
+      // resume_url is a storage PATH; mint a signed URL (owner-authorized) and open it.
+      const url = await signedUrl({ bucket: 'resumes', path: resumeUrl, ttl: SIGNED_URL_TTL.VIEW });
+      if (url) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t('Error'), t('Failed to open CV'));
+      }
+    } catch (error: any) {
+      console.error('Error opening CV:', error);
+      Alert.alert(t('Error'), error?.message || t('Failed to open CV'));
     }
   };
 
@@ -248,7 +259,7 @@ export default function ExperienceScreen() {
     <View style={[styles.card, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
       <View style={styles.cardContent}>
         <View style={[styles.cardHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <Briefcase size={20} color="#00F5FF" style={isRTL ? { marginLeft: 8 } : { marginRight: 8 }} />
+          <Briefcase size={20} color="#7C3AED" style={isRTL ? { marginLeft: 8 } : { marginRight: 8 }} />
           <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{item.job_title}</Text>
         </View>
         <Text style={[styles.cardCompany, { textAlign: isRTL ? 'right' : 'left' }]}>{item.company_name}</Text>
@@ -281,7 +292,7 @@ export default function ExperienceScreen() {
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#00F5FF" />
+          <ActivityIndicator size="large" color="#7C3AED" />
         </View>
       </SafeAreaView>
     );
@@ -303,7 +314,7 @@ export default function ExperienceScreen() {
         {/* CV Upload Section */}
         <View style={styles.cvSection}>
           <View style={[styles.cvHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <FileText size={20} color="#00F5FF" />
+            <FileText size={20} color="#7C3AED" />
             <Text style={[styles.cvTitle, isRTL ? { marginRight: 8 } : { marginLeft: 8 }]}>{t('Resume / CV')}</Text>
           </View>
           {resumeUrl ? (
@@ -312,7 +323,7 @@ export default function ExperienceScreen() {
                 <FileText size={24} color="#10B981" />
                 <Text style={[styles.cvUploadedText, { textAlign: isRTL ? 'right' : 'left', marginRight: isRTL ? 12 : 0, marginLeft: isRTL ? 0 : 12 }]}>{t('CV Uploaded')}</Text>
                 <TouchableOpacity
-                  onPress={() => Alert.alert('CV', 'CV is available at: ' + resumeUrl)}
+                  onPress={handleViewCV}
                   style={styles.viewCvButton}
                 >
                   <Text style={styles.viewCvText}>{t('View')}</Text>
@@ -369,7 +380,7 @@ export default function ExperienceScreen() {
         style={[styles.fab, isRTL ? { left: 20, right: undefined } : { right: 20, left: undefined }]}
         onPress={() => setModalVisible(true)}
       >
-        <Plus size={28} color="#000" />
+        <Plus size={28} color="#FFFFFF" />
       </TouchableOpacity>
 
       {/* Add Experience Modal */}
@@ -421,7 +432,7 @@ export default function ExperienceScreen() {
                 <Text style={styles.cancelText}>{t('Cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleAddExperience} disabled={saving}>
-                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveText}>{t('Save')}</Text>}
+                {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>{t('Save')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -443,7 +454,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
   backButton: { padding: 8 },
-  addButton: { backgroundColor: '#00F5FF', padding: 8, borderRadius: 8 },
+  addButton: { backgroundColor: '#7C3AED', padding: 8, borderRadius: 8 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1, padding: 20 },
 
@@ -470,12 +481,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#00F5FF',
+    backgroundColor: '#7C3AED',
     padding: 14,
     borderRadius: 12,
   },
   uploadCvText: {
-    color: '#000',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -531,7 +542,7 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   cardTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  cardCompany: { color: '#00F5FF', fontSize: 14, marginBottom: 4, fontWeight: '500' },
+  cardCompany: { color: '#7C3AED', fontSize: 14, marginBottom: 4, fontWeight: '500' },
   dateRow: { alignItems: 'center', marginBottom: 4 },
   cardDate: { color: '#64748b', fontSize: 12 },
   cardDescription: { color: '#94a3b8', fontSize: 13, marginTop: 8 },
@@ -548,11 +559,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#00F5FF',
+    backgroundColor: '#7C3AED',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: '#00F5FF',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -577,7 +588,7 @@ const styles = StyleSheet.create({
   },
   modalActions: { gap: 12, marginTop: 8 },
   cancelBtn: { flex: 1, padding: 16, alignItems: 'center', borderRadius: 12, backgroundColor: '#334155' },
-  saveBtn: { flex: 1, padding: 16, alignItems: 'center', borderRadius: 12, backgroundColor: '#00F5FF' },
+  saveBtn: { flex: 1, padding: 16, alignItems: 'center', borderRadius: 12, backgroundColor: '#7C3AED' },
   cancelText: { color: '#fff', fontWeight: '600' },
-  saveText: { color: '#000', fontWeight: 'bold' },
+  saveText: { color: '#FFFFFF', fontWeight: 'bold' },
 });

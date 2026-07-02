@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { SA, ago, statusColor } from '@/lib/super-admin/theme';
+import { signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 import type { VerificationDoc } from '@/lib/super-admin/types';
 
 type DocFilter = 'pending' | 'approved' | 'rejected' | 'all';
@@ -24,6 +25,11 @@ export default function VerificationCenter() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<DocFilter>('pending');
+
+  // document_url holds a storage PATH (inspector-docs is owner+admin-only).
+  // Admin is authorized, so we batch-mint signed URLs (keyed by path) after
+  // each fetch and render/open from this cache. Never mint in render.
+  const [docUrlCache, setDocUrlCache] = useState<Record<string, string | null>>({});
 
   // Rejection notes
   const [notesFor, setNotesFor] = useState<string | null>(null);
@@ -38,7 +44,10 @@ export default function VerificationCenter() {
       // Step 1: Fetch documents
       let query = supabase
         .from('inspector_documents')
-        .select('*')
+        // inspector_documents columns are inspector_id/doc_name/file_url — alias to
+        // the names this screen reads (user_id/document_type/document_url) so the
+        // phantom-column reads resolve. reviewed_* added in migration 202000.
+        .select('id, user_id:inspector_id, document_type:doc_name, document_url:file_url, status, created_at, reviewed_at, reviewed_by, notes, expiry_date')
         .order('created_at', { ascending: false });
 
       if (filter !== 'all') {
@@ -72,6 +81,15 @@ export default function VerificationCenter() {
       }));
 
       setDocs(docsWithProfiles);
+
+      // Batch-mint signed URLs for the doc paths (admin is authorized).
+      const paths = Array.from(
+        new Set(docsList.map(d => d.document_url).filter(Boolean) as string[]),
+      );
+      if (paths.length > 0) {
+        const minted = await signedUrls('inspector-docs', paths, SIGNED_URL_TTL.VIEW);
+        setDocUrlCache(prev => ({ ...prev, ...minted }));
+      }
     } catch (err: any) {
       setError(err.message ?? 'Failed to load documents');
     } finally {
@@ -160,6 +178,7 @@ export default function VerificationCenter() {
     const profile = item.user as any;
     const isImg = /\.(jpg|jpeg|png|webp|gif)$/i.test(item.document_url ?? '');
     const showNotes = notesFor === item.id;
+    const signedDocUrl = item.document_url ? docUrlCache[item.document_url] : null;
 
     return (
       <View style={s.card}>
@@ -193,13 +212,17 @@ export default function VerificationCenter() {
         </View>
 
         {/* Document preview */}
-        <TouchableOpacity style={s.previewWrap} onPress={() => openDoc(item.document_url)}>
-          {isImg ? (
-            <Image source={{ uri: item.document_url }} style={s.previewImg} resizeMode="cover" />
+        <TouchableOpacity
+          style={s.previewWrap}
+          onPress={() => signedDocUrl && openDoc(signedDocUrl)}
+          disabled={!signedDocUrl}
+        >
+          {isImg && signedDocUrl ? (
+            <Image source={{ uri: signedDocUrl }} style={s.previewImg} resizeMode="cover" />
           ) : (
             <View style={s.previewFile}>
               <Ionicons name="open-outline" size={24} color={SA.accent} />
-              <Text style={s.previewText}>Open Document</Text>
+              <Text style={s.previewText}>{signedDocUrl ? 'Open Document' : 'Loading…'}</Text>
             </View>
           )}
         </TouchableOpacity>

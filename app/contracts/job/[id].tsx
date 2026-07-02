@@ -100,6 +100,7 @@ import {
 
 import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
+import { enqueueContractSign, isOnline, flushQueue, opStillQueued } from '@/lib/offline';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Theme — same vocabulary as enterprise dashboard + contracts hub
@@ -526,30 +527,37 @@ export default function JobContractSigningScreen() {
     }
     const rpcName =
       role === 'client'
-        ? 'client_sign_job_contract'
-        : 'inspector_sign_job_contract';
+        ? ('client_sign_job_contract' as const)
+        : ('inspector_sign_job_contract' as const);
     setSigning(true);
     try {
-      // p_ip is optional — the web sends the request IP; on mobile we let
-      // the server log it from the connection. Pass null deliberately.
-      const { error: rpcErr } = await supabase.rpc(rpcName, {
-        p_contract_id: id,
-        p_typed_name: trimmed,
-        p_ip: null,
-      });
-      if (rpcErr) throw rpcErr;
+      // Offline-durable: the signature is persisted to the outbox and drains on
+      // reconnect (the sign RPC is idempotent on signer + contract state), so a
+      // mid-tap network drop can never lose a binding signature. The server logs
+      // the request IP from the connection.
+      const opId = await enqueueContractSign({ rpcName, contractId: id, typedName: trimmed });
       setTypedName('');
+      if (isOnline()) await flushQueue();
       await fetchContract();
-      Alert.alert(
-        'Signed',
-        role === 'client'
-          ? 'You signed. The inspector is now notified to counter-sign.'
-          : 'You signed. The contract is fully executed and the job is in motion.',
-      );
+      // Honest feedback: only claim "Signed" when the op actually left the queue.
+      const queued = await opStillQueued(opId);
+      if (queued) {
+        Alert.alert(
+          'Saved',
+          'Your signature is saved and will be recorded automatically once you reconnect.',
+        );
+      } else {
+        Alert.alert(
+          'Signed',
+          role === 'client'
+            ? 'You signed. The inspector is now notified to counter-sign.'
+            : 'You signed. The contract is fully executed and the job is in motion.',
+        );
+      }
     } catch (err: any) {
       Alert.alert(
-        'Could not sign',
-        err?.message ?? 'The server refused the signature. Pull to refresh and try again.',
+        'Could not save signature',
+        err?.message ?? 'Could not queue the signature. Please try again.',
       );
     } finally {
       setSigning(false);

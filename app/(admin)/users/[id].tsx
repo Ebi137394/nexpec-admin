@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { SA, ago, statusColor } from '@/lib/super-admin/theme';
+import { signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 
 interface ProfileDetail { id: string; full_name: string | null; email: string | null; role: string | null; avatar_url: string | null; phone: string | null; company_name: string | null; created_at: string; updated_at: string | null; bio: string | null; address: string | null; city: string | null; state: string | null; country: string | null; skills: any; rating: number | null; experience: string | number | null; }
 interface InspectorDoc { id: string; user_id: string; document_type: string; document_url: string; status: string; created_at: string; reviewed_at: string | null; reviewed_by: string | null; notes: string | null; }
@@ -23,6 +24,10 @@ export default function UserProfileDetail() {
   const [myId, setMyId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
   const [documents, setDocuments] = useState<InspectorDoc[]>([]);
+  // document_url holds a storage PATH (inspector-docs is owner+admin-only).
+  // Admin is authorized: batch-mint signed URLs (keyed by path) after fetch
+  // and render/open from this cache. Never mint in render.
+  const [docUrlCache, setDocUrlCache] = useState<Record<string, string | null>>({});
   const [jobsList, setJobsList] = useState<JobRow[]>([]);
   const [stats, setStats] = useState<UserStats>({ totalJobs: 0, completedJobs: 0, activeJobs: 0, totalEarned: 0, pendingEarned: 0 });
   
@@ -59,7 +64,7 @@ export default function UserProfileDetail() {
 
       try {
         let jobQuery = supabase.from('jobs').select('id, title, status, inspector_payout_cents, created_at').order('created_at', { ascending: false });
-        if (p.role === 'inspector') jobQuery = jobQuery.eq('inspector_id', id);
+        if (p.role === 'inspector') jobQuery = jobQuery.eq('contractor_id', id);
         else if (p.role === 'client') jobQuery = jobQuery.eq('client_id', id);
         else if (p.role === 'agency' || p.role === 'enterprise') jobQuery = jobQuery.eq('agency_id', id);
         
@@ -78,13 +83,23 @@ export default function UserProfileDetail() {
           totalEarned: completed.reduce((sum, j) => sum + Number(j.inspector_payout_cents || 0), 0),
           pendingEarned: active.reduce((sum, j) => sum + Number(j.inspector_payout_cents || 0), 0)
         });
-      } catch {}
+      } catch (err) { console.error('[admin/users] jobs/stats load failed:', err); }
 
       if (p.role === 'inspector') {
         try {
-          const { data: docsData, error: docsError } = await supabase.from('inspector_documents').select('*').eq('user_id', id).order('created_at', { ascending: false });
+          const { data: docsData, error: docsError } = await supabase.from('inspector_documents').select('id, inspector_id, document_type:doc_name, document_url:file_url, status, created_at, reviewed_at, reviewed_by, notes').eq('inspector_id', id).order('created_at', { ascending: false });
           if (docsError) throw docsError;
-          setDocuments((docsData as InspectorDoc[]) ?? []);
+          const docs = (docsData as unknown as InspectorDoc[]) ?? [];
+          setDocuments(docs);
+
+          // Batch-mint signed URLs for the doc paths (admin is authorized).
+          const paths = Array.from(
+            new Set(docs.map(d => d.document_url).filter(Boolean) as string[]),
+          );
+          if (paths.length > 0) {
+            const minted = await signedUrls('inspector-docs', paths, SIGNED_URL_TTL.VIEW);
+            setDocUrlCache(prev => ({ ...prev, ...minted }));
+          }
         } catch { setDocuments([]); }
       } else { setDocuments([]); }
 
@@ -266,16 +281,17 @@ export default function UserProfileDetail() {
                 documents.map((doc) => {
                   const si = docStatusIcon(doc.status);
                   const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(doc.document_url ?? '');
+                  const signedDocUrl = doc.document_url ? docUrlCache[doc.document_url] : null;
                   return (
                     <View key={doc.id} style={s.docCard}>
                       <View style={s.docHeader}>
                         <View style={s.docTypeWrap}><Ionicons name="document-text-outline" size={16} color={SA.accent} /><Text style={s.docType}>{doc.document_type.replace(/_/g, ' ').toUpperCase()}</Text></View>
                         <View style={[s.docStatusBadge, { backgroundColor: statusColor(doc.status) + '18' }]}><Ionicons name={si.name} size={12} color={si.color} /><Text style={[s.docStatusText, { color: si.color }]}>{doc.status.toUpperCase()}</Text></View>
                       </View>
-                      {isImage && ( <TouchableOpacity onPress={() => handleOpenDocument(doc.document_url)} activeOpacity={0.8}><Image source={{ uri: doc.document_url }} style={s.docPreview} resizeMode="cover" /></TouchableOpacity> )}
+                      {isImage && signedDocUrl && ( <TouchableOpacity onPress={() => handleOpenDocument(signedDocUrl)} activeOpacity={0.8}><Image source={{ uri: signedDocUrl }} style={s.docPreview} resizeMode="cover" /></TouchableOpacity> )}
                       <View style={s.docMeta}><Text style={s.docDate}>Submitted {ago(doc.created_at)}</Text>{doc.reviewed_at && <Text style={s.docDate}>Reviewed {ago(doc.reviewed_at)}</Text>}</View>
                       {doc.notes ? ( <View style={s.docNotes}><Text style={s.docNotesLabel}>Review Notes:</Text><Text style={s.docNotesContent}>{doc.notes}</Text></View> ) : null}
-                      <TouchableOpacity style={s.openDocBtn} onPress={() => handleOpenDocument(doc.document_url)} activeOpacity={0.7}><Ionicons name="open-outline" size={16} color={SA.accent} /><Text style={s.openDocText}>Open Document</Text></TouchableOpacity>
+                      <TouchableOpacity style={s.openDocBtn} onPress={() => signedDocUrl && handleOpenDocument(signedDocUrl)} disabled={!signedDocUrl} activeOpacity={0.7}><Ionicons name="open-outline" size={16} color={SA.accent} /><Text style={s.openDocText}>{signedDocUrl ? 'Open Document' : 'Loading…'}</Text></TouchableOpacity>
                     </View>
                   );
                 })

@@ -49,6 +49,9 @@ import RNAnimated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 import {
   ArrowLeft,
   FilePlus,
@@ -879,11 +882,8 @@ export default function ContractsScreen() {
           return;
         }
         if (contract.document_url) {
-          const { data, error } = await supabase.storage
-            .from('contracts')
-            .createSignedUrl(contract.document_url, 3600);
-          if (error) throw error;
-          if (data?.signedUrl) await Linking.openURL(data.signedUrl);
+          const url = await signedUrl({ bucket: 'contracts', path: contract.document_url, ttl: 3600 });
+          if (url) await Linking.openURL(url);
           return;
         }
         // ★ No file/link attached — common for digitally-signed Job Agreements.
@@ -928,12 +928,12 @@ export default function ContractsScreen() {
         const sanitized = encodeURIComponent(file.name);
         const path = `documents/${contract.id}/${Date.now()}_${sanitized}`;
 
-        const fetchResp = await fetch(file.uri);
-        const blob = await fetchResp.blob();
+        const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const fileBytes = decode(base64);
 
         const { error: uploadErr } = await supabase.storage
           .from('contracts')
-          .upload(path, blob, {
+          .upload(path, fileBytes, {
             contentType: file.mimeType || 'application/octet-stream',
             upsert: false,
           });
@@ -966,20 +966,16 @@ export default function ContractsScreen() {
     [fetchContracts],
   );
 
-  const handleAddLink = useCallback((contract: Contract) => {
+  const handleAddLink = useCallback((_contract: Contract) => {
+    // `/contracts/[id]/link` was never built — pushing it fell into the [id]
+    // catch-all and dead-ended. Until an external-link editor ships, say so
+    // honestly instead of navigating nowhere. Upload PDF / Fill Manually
+    // remain the working paths.
     Alert.alert(
-      'Link External Contract',
-      'Paste a DocuSign, Adobe Sign, Google Drive, or Dropbox URL. We will track signature status from the source provider.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Open Editor',
-          style: 'default',
-          onPress: () => safeNav(`/contracts/${contract.id}/link`),
-        },
-      ],
+      'Coming Soon',
+      'Linking an external contract (DocuSign, Adobe Sign, Google Drive, Dropbox) is not available yet. You can upload the PDF or fill the contract in-app instead.',
     );
-  }, [safeNav]);
+  }, []);
 
   const handleFillManually = useCallback(
     (contract: Contract) => setEditorTarget(contract),

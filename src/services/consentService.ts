@@ -1,19 +1,17 @@
 // src/services/consentService.ts
 
-import { createClient } from '@supabase/supabase-js';
-import { 
-  LegalConsentResult, 
-  ConsentFormData, 
-  SignatureData, 
-  ConsentMetadata 
+import {
+  LegalConsentResult,
+  ConsentFormData,
+  SignatureData,
+  ConsentMetadata
 } from '../types/consent.types';
 import { getIPAddress, generateTimestamp, getDeviceInfo } from '../utils/ipService';
-
-// Supabase client setup
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Use the app's AUTHENTICATED Supabase client. Previously this file created a
+// fresh createClient(anonKey) with no session, so consent reads ran as anon (now
+// denied by the hardened legal_consents RLS) and writes could be forged for any
+// user_id. The shared client carries the user's JWT → auth.uid() is enforceable.
+import { supabase } from '@/lib/supabase';
 
 export interface ConsentCheckResult {
   hasConsent: boolean;
@@ -80,10 +78,13 @@ export class ConsentService {
     policyVersion: string = '2.1.0'
   ): Promise<ConsentCheckResult> {
     try {
+      // Security: bind to the authenticated identity; never trust the userId param.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { hasConsent: false, needsNewConsent: true };
       const { data, error } = await supabase
         .from('legal_consents')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('document_id', documentId)
         .eq('policy_version', policyVersion)
         .eq('consent_status', 'completed')
@@ -100,9 +101,11 @@ export class ConsentService {
 
       const hasConsent = data && data.length > 0;
       const latestConsent = data && data.length > 0 ? this.mapToConsentResult(data[0]) : undefined;
-      
-      // Check if consent is older than 1 year (365 days)
-      const needsNewConsent = latestConsent ? this.isConsentExpired(latestConsent) : false;
+
+      // New consent is needed when none exists OR the latest one is older
+      // than 1 year (365 days).
+      const needsNewConsent =
+        !hasConsent || !latestConsent || this.isConsentExpired(latestConsent);
 
       return {
         hasConsent,
@@ -128,9 +131,15 @@ export class ConsentService {
     consents: ConsentFormData,
     policyVersion: string = '2.1.0'
   ): Promise<LegalConsentResult> {
+    // Security: consent is written for the AUTHENTICATED user only — never an
+    // arbitrary caller-supplied userId (RLS owner-scope + forge prevention).
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const ownerId = user.id;
+
     // Ensure we have fresh metadata
     const metadata = await this.fetchMetadata();
-    
+
     // Update timestamp to submission time
     const submissionMetadata: ConsentMetadata = {
       ...metadata,
@@ -138,7 +147,7 @@ export class ConsentService {
     };
 
     const consentResult: LegalConsentResult = {
-      userId,
+      userId: ownerId,
       documentId,
       signature,
       consents,
@@ -193,10 +202,14 @@ export class ConsentService {
    */
   public async getConsentHistory(userId: string): Promise<LegalConsentResult[]> {
     try {
+      // Security: bind to the authenticated identity; never trust the userId
+      // param (same rule as checkConsent/saveConsent).
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
       const { data, error } = await supabase
         .from('legal_consents')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('signed_at', { ascending: false });
 
       if (error) {

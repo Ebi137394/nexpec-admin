@@ -25,6 +25,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
 
@@ -58,14 +60,10 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
 ];
 
 async function uriToArrayBuffer(uri: string): Promise<ArrayBuffer> {
-  const resp = await fetch(uri);
-  const blob = await resp.blob();
-  return await new Promise<ArrayBuffer>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => (reader.result instanceof ArrayBuffer ? resolve(reader.result) : reject(new Error('read failed')));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
+  // base64 → ArrayBuffer. fetch(uri).blob() uploads 0 bytes on native
+  // (Expo Blob limitation); readAsStringAsync + decode is the reliable path.
+  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  return decode(base64);
 }
 
 export default function ClientVaultScreen() {

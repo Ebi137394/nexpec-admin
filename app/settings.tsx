@@ -136,7 +136,7 @@ export default function SettingsScreen() {
         },
         {
           id: 'about',
-          icon: <Info size={22} color="#06B6D4" />,
+          icon: <Info size={22} color="#7C3AED" />,
           title: 'About NEXPEC',
           subtitle: 'Version 1.0.0',
           onPress: () => showComingSoon('About'),

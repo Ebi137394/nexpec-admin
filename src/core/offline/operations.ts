@@ -154,9 +154,8 @@ async function handlePhotoUpload(row: OutboxRow): Promise<void> {
 
   // Optional: append to a report's photos_urls array
   if (payload.link_to_report_id) {
-    const publicUrl = supabase.storage
-      .from(payload.bucket)
-      .getPublicUrl(objectKey).data.publicUrl;
+    // Storage lockdown: the bucket is PRIVATE — getPublicUrl yields a dead link.
+    // Store the storage PATH (objectKey); a signed URL is minted at READ time.
 
     // Use SQL append to handle concurrent writers — RPC preferred,
     // but a read-modify-write is fine for inspector-owned data.
@@ -179,8 +178,8 @@ async function handlePhotoUpload(row: OutboxRow): Promise<void> {
     }
 
     const next = Array.isArray((existing as any)?.photos_urls)
-      ? [...(existing as any).photos_urls, publicUrl]
-      : [publicUrl];
+      ? [...(existing as any).photos_urls, objectKey]
+      : [objectKey];
 
     const { data: updated, error: updErr } = await supabase
       .from('inspection_reports')
@@ -502,6 +501,31 @@ async function handleExpenseAdd(row: OutboxRow): Promise<void> {
   }
 }
 
+// ── contract_sign ─────────────────────────────────────────────────
+//
+// Payload: { rpcName, contractId, typedName, ip? }. Calls the broker sign RPC
+// (client_sign_job_contract / inspector_sign_job_contract). Idempotent on
+// (signer, contract state): a redelivery after the signature already landed
+// surfaces an "already signed / wrong state" error → treated as success so the
+// op doesn't loop.
+async function handleContractSign(row: OutboxRow): Promise<void> {
+  const p = JSON.parse(row.payload_json) as {
+    rpcName: string;
+    contractId: string;
+    typedName: string;
+    ip?: string | null;
+  };
+  const { error } = await supabase.rpc(p.rpcName, {
+    p_contract_id: p.contractId,
+    p_typed_name: p.typedName,
+    p_ip: p.ip ?? null,
+  });
+  if (error) {
+    if (isDuplicateKey(error) || /already|signed|executed|not awaiting/i.test(error.message ?? '')) return;
+    throw error;
+  }
+}
+
 // ── Registry ──────────────────────────────────────────────────────
 
 export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> = {
@@ -517,6 +541,7 @@ export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> 
   flash_report_transition: handleFlashReportTransition,
   withdrawal_request: handleWithdrawalRequest,
   expense_add: handleExpenseAdd,
+  contract_sign: handleContractSign,
 };
 
 // ── tiny base64 → bytes (no native deps) ──────────────────────────

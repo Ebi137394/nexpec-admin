@@ -11,18 +11,6 @@ interface PdfViewerProps {
 const PdfViewer: React.FC<PdfViewerProps> = ({ uri, onError }) => {
   const [isLoading, setIsLoading] = useState(true);
 
-  // Generate Google Docs viewer URL for Expo Go compatibility
-  const getGoogleDocsViewerUrl = (fileUrl: string) => {
-    try {
-      // Ensure the URL is properly encoded
-      const encodedUrl = encodeURIComponent(fileUrl);
-      return `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
-    } catch (error) {
-      console.error('Error encoding URL:', error);
-      return '';
-    }
-  };
-
   const handleLoadStart = () => {
     setIsLoading(true);
   };
@@ -41,32 +29,18 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ uri, onError }) => {
     }
   };
 
-  // Validate URI
-  if (!uri || typeof uri !== 'string') {
+  // Validate URI — only remote http(s) documents can render here. Raw
+  // storage paths / file:// URIs must be exchanged for a signed https URL
+  // by the caller first; we never bounce private documents through a
+  // third-party (Google) viewer.
+  if (!uri || typeof uri !== 'string' || !/^https?:\/\//i.test(uri)) {
     return (
       <View style={styles.errorContainer}>
         <View style={styles.errorContent}>
           <View style={styles.errorIcon} />
           <View style={styles.errorTextContainer}>
             <Text style={styles.errorTitle}>Invalid Document</Text>
-            <Text style={styles.errorSubtitle}>No valid document URL provided</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  // Generate the Google Docs viewer URL
-  const viewerUrl = getGoogleDocsViewerUrl(uri);
-
-  if (!viewerUrl) {
-    return (
-      <View style={styles.errorContainer}>
-        <View style={styles.errorContent}>
-          <View style={styles.errorIcon} />
-          <View style={styles.errorTextContainer}>
-            <Text style={styles.errorTitle}>URL Error</Text>
-            <Text style={styles.errorSubtitle}>Unable to process document URL</Text>
+            <Text style={styles.errorSubtitle}>A secure document link (https) is required to display this file</Text>
           </View>
         </View>
       </View>
@@ -76,7 +50,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ uri, onError }) => {
   return (
     <View style={styles.container}>
       <WebView
-        source={{ uri: viewerUrl }}
+        source={{ uri }}
         style={styles.webview}
         onLoadStart={handleLoadStart}
         onLoadEnd={handleLoadEnd}

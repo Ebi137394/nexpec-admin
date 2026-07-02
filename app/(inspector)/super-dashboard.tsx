@@ -43,14 +43,14 @@ export default function SuperDashboard() {
         // excludes client_price_cents / budget_*_cents. We still join the
         // client profile for display purposes (name + avatar only).
         .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
-        .eq('inspector_id', user.id)
+        .eq('contractor_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
       if (!error && realJobs) {
         setJobs(realJobs);
         // Find the first active/in-progress job to attach to the ChatFAB
-        const activeJob = (realJobs as any[]).find((j: any) => j.status === 'in_progress' || j.status === 'Active');
+        const activeJob = (realJobs as any[]).find((j: any) => j.status === 'in_progress' || j.status === 'assigned');
         if (activeJob) setActiveJobId(activeJob.id);
       }
 

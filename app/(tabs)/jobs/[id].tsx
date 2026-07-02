@@ -18,6 +18,7 @@ import { jobFieldsForRole } from '@/lib/jobsProjection';
 import { nxHandle } from '@/src/core/utils/handle';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 
 const COLORS = {
   background: '#020420', card: '#0A0D2C', cardBorder: '#1A1D3C',
@@ -293,14 +294,21 @@ export default function JobDetailScreen() {
     ]);
   };
 
-  const openCV = async (url: string) => {
-    if (!url) {
+  // `path` is the stored chat_attachments PATH (private bucket post-lockdown).
+  // Mint a short-lived signed URL before opening — getPublicUrl would be dead.
+  const openCV = async (path: string) => {
+    if (!path) {
       Alert.alert(t('No CV'), t('This inspector has not uploaded a CV yet.'));
       return;
     }
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) await Linking.openURL(url);
+      const u = await signedUrl({ bucket: 'chat_attachments', path, ttl: SIGNED_URL_TTL.VIEW });
+      if (!u) {
+        Alert.alert(t('Error'), t('Failed to open document.'));
+        return;
+      }
+      const supported = await Linking.canOpenURL(u);
+      if (supported) await Linking.openURL(u);
       else Alert.alert(t('Error'), t('Cannot open this link format.'));
     } catch (error) {
       Alert.alert(t('Error'), t('Failed to open document.'));
@@ -332,13 +340,9 @@ export default function JobDetailScreen() {
                   
                 if (reportError) throw new Error("Report DB Error: " + reportError.message);
 
-                // 2. Update the jobs table to completed
-                const { error: jobError } = await supabase
-                  .from('jobs')
-                  .update({ status: 'completed' })
-                  .eq('id', id || job?.id);
-
-                if (jobError) throw new Error("Job DB Error: " + jobError.message);
+                // 2. Job completion is admin/RPC-driven (report→admin→client
+                //    confirm). This buyer surface only records client approval
+                //    (is_client_approved above); it must NOT write jobs.status.
 
                 // 3. Update local state
                 setReportData((prev: any) => ({ ...prev, is_client_approved: true }));
@@ -524,7 +528,7 @@ export default function JobDetailScreen() {
                      findings, downloadable history) at /jobs/[id]/review-report,
                      matching /(client)/jobs/[id] + web, instead of the minimal
                      single-photo in-screen modal. */
-                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${id}/review-report` as any)}>
+                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/(client)/jobs/${id}/review-report` as any)}>
                     <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{t('View Full Report')}</Text>
                   </TouchableOpacity>
                 )}

@@ -194,7 +194,7 @@ export default function InspectorAssignmentsScreen() {
           <View style={s.emptyState}>
             <Ionicons name="briefcase-outline" size={32} color={C.textMute} />
             <Text style={s.emptyText}>{t('No active assignments. Browse the open queue to find work.')}</Text>
-            <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(inspector)/jobs' as any)} activeOpacity={0.85}>
+            <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(tabs)/jobs' as any)} activeOpacity={0.85}>
               <Text style={s.browseBtnText}>{t('Browse open jobs')}</Text>
             </TouchableOpacity>
           </View>

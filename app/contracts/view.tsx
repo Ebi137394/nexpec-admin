@@ -72,14 +72,48 @@ export default function ContractView() {
     }
   };
 
-  const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(uri || '')}&embedded=true`;
+  // Load the signed PDF directly. Never route a private contract through a
+  // third-party (Google) viewer. iOS WebView renders PDFs inline; on Android
+  // the file may download rather than render inline — acceptable vs. leaking.
+  const viewerUrl = uri || '';
+
+  // ── URI allow-list ────────────────────────────────────────────────
+  // This screen renders whatever `uri` it is handed inside a WebView, so a
+  // crafted deep link could otherwise turn it into an arbitrary-web surface.
+  // Only accept signed Supabase Storage URLs from OUR project: https, on the
+  // EXPO_PUBLIC_SUPABASE_URL host, under /storage/.
+  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const isAllowedUri =
+    typeof viewerUrl === 'string' &&
+    viewerUrl.startsWith('https://') &&
+    !!SUPABASE_URL &&
+    viewerUrl.startsWith(`${SUPABASE_URL.replace(/\/$/, '')}/storage/`);
+
+  if (!isAllowedUri) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerText}>Contract Details</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Ionicons name="alert-circle-outline" size={44} color="#7C3AED" />
+          <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>
+            Document unavailable
+          </Text>
+          <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+            This viewer only opens secure NEXPEC contract links. Please reopen the contract from its details screen.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerText}>Contract Details</Text>
         <TouchableOpacity onPress={handleDownload} disabled={downloading}>
-          {downloading ? <ActivityIndicator color="#00CFD5" /> : <Ionicons name="download-outline" size={24} color="#00CFD5" />}
+          {downloading ? <ActivityIndicator color="#7C3AED" /> : <Ionicons name="download-outline" size={24} color="#7C3AED" />}
         </TouchableOpacity>
       </View>
 
@@ -89,7 +123,7 @@ export default function ContractView() {
           <Ionicons 
             name={status.inspector ? "checkmark-circle" : "time-outline"} 
             size={18} 
-            color={status.inspector ? "#00CFD5" : "#94A3B8"} 
+            color={status.inspector ? "#7C3AED" : "#94A3B8"} 
           />
           <Text style={[styles.statusText, { color: status.inspector ? "#FFF" : "#94A3B8" }]}>
             Inspector: {status.inspector ? "Signed" : "Pending"}
@@ -99,7 +133,7 @@ export default function ContractView() {
           <Ionicons 
             name={status.client ? "checkmark-circle" : "time-outline"} 
             size={18} 
-            color={status.client ? "#00CFD5" : "#94A3B8"} 
+            color={status.client ? "#7C3AED" : "#94A3B8"} 
           />
           <Text style={[styles.statusText, { color: status.client ? "#FFF" : "#94A3B8" }]}>
             Client: {status.client ? "Signed" : "Pending"}
@@ -111,7 +145,7 @@ export default function ContractView() {
         source={{ uri: viewerUrl }}
         style={styles.webview}
         startInLoadingState={true}
-        renderLoading={() => <ActivityIndicator color="#00CFD5" size="large" style={styles.loader} />}
+        renderLoading={() => <ActivityIndicator color="#7C3AED" size="large" style={styles.loader} />}
       />
     </View>
   );

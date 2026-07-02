@@ -41,9 +41,14 @@ export default function LiveRadar() {
       const jobsList = (jobsData as Job[]) ?? [];
 
       // Step 2: Extract unique profile IDs
+      //   ★ Assignee = jobs.contractor_id (canonical dispatch column),
+      //     hired_inspector_id (legacy fallback), inspector_id (never
+      //     written). Resolve all three so the radar shows the inspector.
+      const assigneeId = (j: Job) =>
+        j.contractor_id ?? (j as any).hired_inspector_id ?? j.inspector_id;
       const uniqueIds = Array.from(new Set([
         ...jobsList.map(j => j.client_id).filter(Boolean),
-        ...jobsList.map(j => j.inspector_id).filter(Boolean)
+        ...jobsList.map(assigneeId).filter(Boolean)
       ]));
 
       // Step 3: Fetch profiles in batch
@@ -60,11 +65,14 @@ export default function LiveRadar() {
       }
 
       // Step 4: Map profiles back to jobs
-      const jobsWithProfiles = jobsList.map(job => ({
-        ...job,
-        client: job.client_id ? profilesMap.get(job.client_id) : null,
-        inspector: job.inspector_id ? profilesMap.get(job.inspector_id) : null,
-      }));
+      const jobsWithProfiles = jobsList.map(job => {
+        const aid = assigneeId(job);
+        return {
+          ...job,
+          client: job.client_id ? profilesMap.get(job.client_id) : null,
+          inspector: aid ? profilesMap.get(aid) : null,
+        };
+      });
 
       setJobs(jobsWithProfiles);
     } catch (err: any) {

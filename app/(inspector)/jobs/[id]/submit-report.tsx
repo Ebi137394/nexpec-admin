@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker'; // ✅ Required for Word docs
 import * as FileSystem from 'expo-file-system'; // ✅ Required for downloading templates
 import * as Sharing from 'expo-sharing'; // ✅ Required for opening downloaded files
+import { decode } from 'base64-arraybuffer'; // ✅ base64 → ArrayBuffer for reliable native uploads
 import SignatureScreen, { SignatureViewRef } from 'react-native-signature-canvas';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -36,7 +37,9 @@ const COLORS = {
 
 export default function SubmitReportScreen() {
   const { t, isRTL, language } = useLanguage();
-  const { jobId } = useLocalSearchParams<{ jobId: string }>();
+  // Route segment is [id]; read `id` (not `jobId`, which is always undefined here
+  // and silently enqueued reports with no job_id).
+  const { id: jobId } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
 
@@ -182,17 +185,32 @@ export default function SubmitReportScreen() {
       if (document) {
         const fileExt = document.name.split('.').pop();
         const docName = `reports/${user.id}/${Date.now()}.${fileExt}`;
-        const response = await fetch(document.uri);
-        const blob = await response.blob();
+
+        // Read the picked file as base64 → ArrayBuffer. On native,
+        // fetch(document.uri).blob() yields a 0-byte body for file://
+        // URIs (Expo Blob limitation) and the upload silently stores an
+        // EMPTY .docx/.pdf. base64 → decode is the reliable path and
+        // matches imageUpload.ts / DocumentField.tsx. We also pin an
+        // explicit contentType so the stored doc serves with the right
+        // MIME instead of a generic octet-stream.
+        const base64 = await FileSystem.readAsStringAsync(document.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const fileBytes = decode(base64);
 
         const { error: uploadError } = await supabase.storage
           .from('job-documents')
-          .upload(docName, blob);
+          .upload(docName, fileBytes, {
+            contentType: document.mimeType || 'application/octet-stream',
+            upsert: false,
+          });
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage.from('job-documents').getPublicUrl(docName);
-        docUrl = data.publicUrl;
+        // Storage lockdown: job-documents is PRIVATE — getPublicUrl yields a dead
+        // link. Store the storage PATH in final_report_doc; the reader mints a
+        // signed URL at display time.
+        docUrl = docName;
       }
 
       // 2. Enqueue the report row insert. Returns immediately even

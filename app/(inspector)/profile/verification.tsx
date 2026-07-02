@@ -16,6 +16,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   ChevronLeft,
@@ -858,15 +860,21 @@ export default function VerificationScreen() {
       // Generate unique filename
       const fileName = generateUniqueFileName(file.name, currentUserId);
       
-      // Read file and upload
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
+      // Read the picked file as base64 → ArrayBuffer. On native,
+      // fetch(file.uri).blob() returns a 0-byte body for file:// URIs
+      // (Expo Blob limitation), so a raw Blob handed to storage.upload
+      // silently stores an EMPTY file. base64 → decode is the reliable
+      // path and matches imageUpload.ts / DocumentField.tsx.
+      const base64 = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const fileBytes = decode(base64);
       setUploadProgress(50);
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(STORAGE_BUCKET)
-        .upload(fileName, blob, {
+        .upload(fileName, fileBytes, {
           contentType: file.mimeType || 'application/octet-stream',
           upsert: false,
         });
@@ -874,18 +882,17 @@ export default function VerificationScreen() {
       if (uploadError) throw uploadError;
       setUploadProgress(80);
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(fileName);
-
+      // Store the storage PATH (not a public URL). The inspector-docs bucket
+      // is owner+admin-only (IDOR lockdown 20260801242000), so getPublicUrl
+      // would yield a dead link. Display/open mints a signed URL at read time
+      // via signedUrl()/signedUrls().
       // Insert document record
       const { data: docData, error: docError } = await supabase
         .from('inspector_documents')
         .insert({
           inspector_id: currentUserId,
           doc_name: `${selectedDocType.name} - ${file.name}`,
-          file_url: urlData?.publicUrl,
+          file_url: fileName,
           expiry_date: expiryDate?.toISOString() || null,
           status: 'pending',
         })
@@ -931,10 +938,9 @@ export default function VerificationScreen() {
 
           if (error) throw error;
 
-          // Delete from storage (extract path from URL)
-          const urlParts = doc.file_url.split('/');
-          const filePath = urlParts.slice(-2).join('/');
-          await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+          // file_url is the storage PATH (e.g. "<inspectorId>/<file>"), so
+          // remove() takes it directly. (Pre-launch: no legacy public-URL rows.)
+          await supabase.storage.from(STORAGE_BUCKET).remove([doc.file_url]);
 
           // Update local state
           setDocuments((prev) => prev.filter((d) => d.id !== doc.id));

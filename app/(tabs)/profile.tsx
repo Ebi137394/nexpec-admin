@@ -185,7 +185,7 @@ export default function ProfileScreen() {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('role, created_at, years_of_experience, years_experience, verification_status, rating_average, rating_count')
+        .select('role, created_at, years_of_experience, years_experience:experience_years, verification_status, rating_average, rating_count')
         .eq('id', userId)
         .maybeSingle() as any;
 
@@ -747,7 +747,7 @@ export default function ProfileScreen() {
               {profile?.skills && profile.skills.length > 0 ? (
                 <View style={[styles.skillsChips, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                   {profile.skills.map((skill, index) => (
-                    <View key={index} style={[styles.skillChip, { backgroundColor: isDarkMode ? 'rgba(0, 245, 255, 0.15)' : 'rgba(0, 245, 255, 0.2)', borderColor: colors.primary }]}>
+                    <View key={index} style={[styles.skillChip, { backgroundColor: isDarkMode ? 'rgba(124, 58, 237, 0.15)' : 'rgba(124, 58, 237, 0.2)', borderColor: colors.primary }]}>
                       <Text style={[styles.skillChipText, { color: colors.primary }]}>{skill}</Text>
                     </View>
                   ))}
@@ -1365,11 +1365,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 245, 255, 0.15)',
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 245, 255, 0.3)',
+    borderColor: 'rgba(124, 58, 237, 0.3)',
   },
   skillsContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
@@ -1389,12 +1389,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#00F5FF',
+    borderColor: '#7C3AED',
   },
   skillChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#00F5FF',
+    color: '#7C3AED',
   },
   emptySkills: {
     alignItems: 'center',

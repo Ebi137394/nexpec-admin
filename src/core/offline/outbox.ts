@@ -25,7 +25,10 @@ export type OperationKind =
   | 'flash_report_transition' // NCR state-machine transition (idempotent pre-check)
   // #QA — financial flows: server-atomic idempotent withdrawal + offline expense.
   | 'withdrawal_request'
-  | 'expense_add';
+  | 'expense_add'
+  // #Step2 — contract signing routed through the outbox (offline-durable; the
+  // broker sign RPCs are idempotent on signer + contract state).
+  | 'contract_sign';
 
 // 'conflict' (#56) is terminal-pending: the server state diverged (row gone /
 // sealed / RLS-filtered / optimistic-lock miss). It is NOT auto-retried — it

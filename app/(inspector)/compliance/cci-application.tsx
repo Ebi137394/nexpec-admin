@@ -45,6 +45,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import {
   CheckCircle2,
   ChevronLeft,
@@ -246,13 +247,13 @@ export default function CciApplicationScreen() {
 
   // ─── Upload helper ──────────────────────────────────────
   const uploadLocalToBucket = async (localUri: string, remotePath: string): Promise<string> => {
-    // Read file as base64 then convert. The Supabase JS client accepts
-    // an ArrayBuffer or a Blob in RN via fetch().
-    const resp = await fetch(localUri);
-    const blob = await resp.blob();
+    // Read file as base64 → ArrayBuffer. fetch(uri).blob() uploads 0 bytes
+    // on native (Expo Blob limitation), so this is the only reliable path.
+    const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
+    const fileBytes = decode(base64);
     const { error } = await supabase.storage
       .from('compliance')
-      .upload(remotePath, blob, { upsert: false, contentType: blob.type || 'image/jpeg' });
+      .upload(remotePath, fileBytes, { upsert: false, contentType: 'image/jpeg' });
     if (error) throw error;
     return remotePath;
   };

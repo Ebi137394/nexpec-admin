@@ -43,8 +43,8 @@ const COLORS = {
   surface: '#141B2D',
   surfaceLight: '#1E2A45',
   surfaceDark: '#0D1321',
-  primary: '#00F5FF',
-  primaryDark: '#00C8D4',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
   secondary: '#7B61FF',
   accent: '#FF6B6B',
   success: '#00D68F',
@@ -54,10 +54,10 @@ const COLORS = {
   textPrimary: '#FFFFFF',
   textSecondary: '#A0AEC0',
   textMuted: '#64748B',
-  border: 'rgba(0, 245, 255, 0.2)',
+  border: 'rgba(124, 58, 237, 0.2)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
   glassBg: 'rgba(20, 27, 45, 0.85)',
-  glassGlow: 'rgba(0, 245, 255, 0.15)',
+  glassGlow: 'rgba(124, 58, 237, 0.15)',
   overlay: 'rgba(0, 0, 0, 0.5)',
 };
 
@@ -349,7 +349,7 @@ const MapPlaceholder: React.FC<MapPlaceholderProps> = ({ location, address }) =>
       <View style={styles.mapMarker}>
         <View style={styles.mapMarkerPulse} />
         <View style={styles.mapMarkerDot}>
-          <Navigation size={16} color={COLORS.surfaceDark} />
+          <Navigation size={16} color="#FFFFFF" />
         </View>
       </View>
       {/* Location label */}
@@ -494,7 +494,7 @@ const ActionFooter: React.FC<ActionFooterProps> = ({ status, onStartInspection }
           end={{ x: 1, y: 0 }}
           style={styles.actionButtonGradient}
         >
-          <IconComponent size={22} color={COLORS.surfaceDark} />
+          <IconComponent size={22} color="#FFFFFF" />
           <Text style={styles.actionButtonText}>{buttonConfig.label}</Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -887,7 +887,7 @@ const styles = StyleSheet.create({
     width: '10%',
     height: 30,
     borderWidth: 0.5,
-    borderColor: 'rgba(0, 245, 255, 0.1)',
+    borderColor: 'rgba(124, 58, 237, 0.1)',
   },
   mapMarker: {
     position: 'absolute',
@@ -1135,7 +1135,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.surfaceDark,
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
 });

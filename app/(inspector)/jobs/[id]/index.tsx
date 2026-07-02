@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 // ★ Phase 5 / Hour 3 — retry wrapper for critical state-machine RPCs
 import { rpcWithRetry } from '@/src/core/net/supabaseRetry';
 // ★ Phase 5 — Industrial Black Box (inspector view, RLS-gated to their job)
@@ -137,6 +138,9 @@ export default function InspectorJobDetailScreen() {
     signed_by?: string | null;
     created_at?: string | null;
   } | null>(null);
+  // photo_url stores a PRIVATE inspection-photos storage path — render the
+  // minted signed URL, never the raw path (which shows a broken image).
+  const [reportPhotoUrl, setReportPhotoUrl] = useState<string | null>(null);
   const [reportViewerVisible, setReportViewerVisible] = useState(false);
   const [approvalData, setApprovalData] = useState<any>(null);
   const [debugError, setDebugError] = useState<string | null>(null);
@@ -280,12 +284,14 @@ const fetchApplication = async (uid: string) => {
   };
 
   const checkIfSaved = async (uid: string) => {
+    // .maybeSingle() — the row is usually ABSENT (job not yet saved).
+    // .single() throws PGRST116 on 0 rows and surfaces a noisy 406.
     const { data } = await supabase
       .from('saved_jobs')
       .select('id')
       .eq('job_id', id)
       .eq('user_id', uid)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setIsSaved(true);
@@ -306,6 +312,13 @@ const fetchApplication = async (uid: string) => {
 
       if (data) {
         setReportData(data as any);
+        const photoPath = (data as any).photo_url as string | null | undefined;
+        if (photoPath) {
+          const url = await signedUrl({ bucket: 'inspection-photos', path: photoPath, ttl: 3600 });
+          setReportPhotoUrl(url ?? null);
+        } else {
+          setReportPhotoUrl(null);
+        }
       }
     } catch (error) {
       console.error('Error fetching report status:', error);
@@ -314,11 +327,12 @@ const fetchApplication = async (uid: string) => {
 
   const publishReport = async () => {
     try {
-      await supabase
+      const { error } = await supabase
         .from('inspection_reports')
         .update({ is_published: true })
         .eq('job_id', id);
-      
+      if (error) throw error;
+
       Alert.alert(t('Success'), t('Report has been published to client'));
       fetchReportStatus();
     } catch (error) {
@@ -379,7 +393,7 @@ const fetchApplication = async (uid: string) => {
 
   const handleContractPress = () => {
     // 🚀 رفتن مستقیم به صفحه قرارداد حرفه‌ای (بدون پاپ‌آپ ارور)
-    router.push(`/jobs/${id}/contract`);
+    router.push(`/(inspector)/jobs/${id}/contract`);
   };
 
   // ── NEGOTIATION LOOP (Mobile parity 2026-05-20) ───────────────────────
@@ -439,7 +453,7 @@ const fetchApplication = async (uid: string) => {
   );
 
   const navigateToExpenses = () => {
-    router.push(`/jobs/${id}/expenses`);
+    router.push(`/(inspector)/jobs/${id}/expenses`);
   };
 
   // ── MILESTONE RELEASE REQUEST (2026-05-20) ──────────────────────────
@@ -735,13 +749,13 @@ const fetchApplication = async (uid: string) => {
         </View>
 
         {/* --- REPORT STATUS CARD --- */}
-        {reportData && !reportData.is_published && userRole === 'admin' && (
+        {reportData && !reportData.is_published && isAdmin && (
           <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#F59E0B', borderWidth: 1, padding: 16, borderRadius: 12, marginBottom: 24 }}>
             <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>{t('Report Pending Review')}</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 style={{ flex: 1, paddingVertical: 12, borderWidth: 1, borderColor: '#7C3AED', borderRadius: 8, alignItems: 'center' }}
-                onPress={() => Alert.alert(t('View Draft'), t('Report viewer coming soon'))}
+                onPress={() => setReportViewerVisible(true)}
               >
                 <Text style={{ color: '#7C3AED', fontWeight: '600' }}>{t('View Draft')}</Text>
               </TouchableOpacity>
@@ -1077,7 +1091,7 @@ const fetchApplication = async (uid: string) => {
         <View style={styles.actionBar}>
           <TouchableOpacity
             style={styles.applyButton}
-            onPress={() => router.push(`/jobs/${id}/apply`)} // ✅ CHANGE: Navigate to new apply screen
+            onPress={() => router.push(`/(inspector)/jobs/${id}/apply`)} // ✅ Navigate to apply screen
             activeOpacity={0.8}
           >
             <Ionicons name="send" size={20} color="#fff" />
@@ -1437,9 +1451,9 @@ const fetchApplication = async (uid: string) => {
               ) : null}
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {reportData?.photo_url ? (
+              {reportPhotoUrl ? (
                 <Image
-                  source={{ uri: reportData.photo_url }}
+                  source={{ uri: reportPhotoUrl }}
                   style={{ width: '100%', height: 220, borderRadius: 8, marginBottom: 16, backgroundColor: '#1A1D3C' }}
                   resizeMode="cover"
                 />

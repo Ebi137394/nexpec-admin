@@ -131,8 +131,8 @@ export function useJobs(): UseJobsReturn {
             *,
             client:profiles!jobs_client_id_fkey(full_name, avatar_url, company_name)
           `)
-          .eq('hired_inspector_id', user.id)
-          .eq('status', 'in_progress')
+          .eq('contractor_id', user.id)
+          .in('status', ['assigned', 'in_progress'])
           .order('updated_at', { ascending: false });
 
         if (myJobsError) {
@@ -177,7 +177,7 @@ export function useJobs(): UseJobsReturn {
       {
         event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'
         table: 'jobs',
-        filter: user?.id ? `hired_inspector_id=eq.${user.id}` : undefined,
+        filter: user?.id ? `contractor_id=eq.${user.id}` : undefined,
       },
       {
         event: '*', // 🔴 CRITICAL FIX: Changed from 'UPDATE'

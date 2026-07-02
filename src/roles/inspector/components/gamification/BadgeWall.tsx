@@ -38,7 +38,7 @@ const BADGES_DATA_TEMPLATE: Badge[] = [
     description: 'Completed 5 JSA checklists',
     icon: 'shield-check',
     unlocked: false,
-    accentColor: '#06B6D4',
+    accentColor: '#7C3AED',
     accentSecondary: '#0891B2',
     progress: 0,
   },
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   counterText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#06B6D4',
+    color: '#7C3AED',
   },
   overallProgressContainer: {
     marginBottom: 18,

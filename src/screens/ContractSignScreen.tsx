@@ -35,9 +35,9 @@ const COLORS = {
   documentText: '#E5E7EB',
   
   // Accent Colors
-  primary: '#00F5FF',
-  primaryDark: '#00C4CC',
-  primaryGlow: 'rgba(0, 245, 255, 0.15)',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
+  primaryGlow: 'rgba(124, 58, 237, 0.15)',
   
   // Text Colors
   text: '#FFFFFF',
@@ -60,7 +60,7 @@ const COLORS = {
   disabled: '#4B5563',
   disabledText: '#6B7280',
   checkboxBorder: '#6B7280',
-  checkboxActive: '#00F5FF',
+  checkboxActive: '#7C3AED',
 };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -1095,7 +1095,7 @@ const styles = StyleSheet.create({
   documentLogoText: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
   documentHeaderTitle: {
     fontSize: 22,
@@ -1256,7 +1256,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkmarkText: {
-    color: COLORS.background,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -1449,7 +1449,7 @@ const styles = StyleSheet.create({
   fabText: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.background,
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   fabTextDisabled: {
@@ -1468,13 +1468,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#FFFFFF',
     marginRight: 10,
   },
   fabLoadingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.background,
+    color: '#FFFFFF',
   },
   requirementsList: {
     marginTop: 12,

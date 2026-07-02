@@ -55,8 +55,8 @@ const COLORS = {
   surface: '#141B2D',
   surfaceLight: '#1E2A45',
   surfaceDark: '#0D1321',
-  primary: '#00F5FF',
-  primaryDark: '#00C8D4',
+  primary: '#7C3AED',
+  primaryDark: '#6D28D9',
   secondary: '#7B61FF',
   accent: '#FF6B6B',
   success: '#00D68F',
@@ -68,10 +68,10 @@ const COLORS = {
   textPrimary: '#FFFFFF',
   textSecondary: '#A0AEC0',
   textMuted: '#64748B',
-  border: 'rgba(0, 245, 255, 0.2)',
+  border: 'rgba(124, 58, 237, 0.2)',
   borderLight: 'rgba(255, 255, 255, 0.08)',
   glassBg: 'rgba(20, 27, 45, 0.85)',
-  glassGlow: 'rgba(0, 245, 255, 0.15)',
+  glassGlow: 'rgba(124, 58, 237, 0.15)',
   overlay: 'rgba(0, 0, 0, 0.5)',
   passGlow: 'rgba(0, 214, 143, 0.3)',
   failGlow: 'rgba(255, 71, 87, 0.3)',
@@ -227,7 +227,7 @@ const Header: React.FC<HeaderProps> = ({ onClose, onSubmit, canSubmit }) => (
       activeOpacity={0.7}
       disabled={!canSubmit}
     >
-      <Send size={18} color={canSubmit ? COLORS.surfaceDark : COLORS.textMuted} />
+      <Send size={18} color={canSubmit ? '#FFFFFF' : COLORS.textMuted} />
       <Text style={[
         styles.submitButtonText,
         !canSubmit && styles.submitButtonTextDisabled,
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.surfaceDark,
+    color: '#FFFFFF',
   },
   submitButtonTextDisabled: {
     color: COLORS.textMuted,
@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 245, 255, 0.1)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
   },
   checklistItemCompleted: {
-    borderColor: 'rgba(0, 245, 255, 0.2)',
+    borderColor: 'rgba(124, 58, 237, 0.2)',
   },
   checklistItemFailed: {
     borderColor: 'rgba(255, 71, 87, 0.3)',
@@ -1231,7 +1231,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 245, 255, 0.05)',
+    backgroundColor: 'rgba(124, 58, 237, 0.05)',
     gap: 4,
   },
   addPhotoText: {

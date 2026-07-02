@@ -356,6 +356,15 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
+        {errors.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.35)', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginHorizontal: 20, marginBottom: 16 }}>
+            <Text style={{ color: '#FCA5A5', fontSize: 13, fontWeight: '600', flex: 1, marginRight: 12 }}>{errors[0]}</Text>
+            <TouchableOpacity onPress={onRefresh} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: '#A78BFA', fontSize: 13, fontWeight: '700' }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ========== Main Earnings Card ========== */}
         <TouchableOpacity activeOpacity={0.9} onPress={handleMyContracts}>
           <LinearGradient

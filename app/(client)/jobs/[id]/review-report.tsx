@@ -14,6 +14,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { nxHandle } from '@/src/core/utils/handle';
+import { signedUrl, signedUrls, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 
 // ★ NEXPEC brand palette (locked): deep-navy canvas + violet accent.
 const C = {
@@ -120,6 +121,11 @@ export default function ReviewReportScreen() {
   // Track evidence photos whose remote image failed to load, so a broken /
   // permission-gated URL never leaves a dead dark tile in the grid.
   const [brokenPhotos, setBrokenPhotos] = useState<Record<string, boolean>>({});
+  // Storage lockdown: photos_urls / report_file_url now hold private storage
+  // PATHS, not URLs. Mint signed URLs once after fetch and render from state
+  // (never await inside JSX). Keyed by the stored path; null = mint failed.
+  const [photoUrlMap, setPhotoUrlMap] = useState<Record<string, string | null>>({});
+  const [reportFileSignedUrl, setReportFileSignedUrl] = useState<string | null>(null);
 
   // ★ AGENCY-PARITY-006 — same gate as the parent /jobs/[id] screen.
   //   Buyer (client or agency) sees the action buttons; everyone else sees
@@ -150,18 +156,22 @@ export default function ReviewReportScreen() {
         // photo_url single (not photos_urls[]), created_at (not submitted_at);
         // there are no revision_* columns on this table.
         .select(`
-          id, job_id, inspector_id, notes, photo_url, pdf_url, final_report_doc, status, created_at,
+          id, job_id, inspector_id, notes, photo_url, pdf_url, final_report_doc, status, created_at, is_published,
           jobs (title, price_cents, location, client_id, agency_id),
           inspector:profiles (rating_average, rating_count)
         `)
         .eq('job_id', id)
+        // GR3 (report→admin→client): a buyer may only ever open a report the
+        // admin has reviewed and released. Deep links to submitted/unreviewed
+        // reports must bounce, not render.
+        .eq('is_published', true)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (rError) throw rError;
       if (!rData) {
-         Alert.alert('Report Not Found', 'The inspector has not submitted a report yet.');
+         Alert.alert('Report Not Available', 'No released report yet. Reports appear here once reviewed and released by NEXPEC.');
          router.back();
          return;
       }
@@ -203,7 +213,37 @@ export default function ReviewReportScreen() {
         inspector_reviews: inspector?.rating_count || 0,
       });
 
-      setExpenses(eData || []);
+      // job_expenses.amount is NUMERIC DOLLARS (inspector enters dollars);
+      // every consumer below (PaymentCard sum, ExpensesList) works in integer
+      // CENTS via formatCurrency. Convert once at the fetch boundary.
+      setExpenses(
+        (eData || []).map((exp: any) => ({
+          ...exp,
+          amount: Math.round((Number(exp.amount) || 0) * 100),
+        })),
+      );
+
+      // ── Storage lockdown: mint signed URLs for the now-PATH-valued fields ──
+      // Evidence photos live in `inspection-photos`; the report doc lives in
+      // `job-documents`. Both are private — render must use signed URLs minted
+      // here (once), not getPublicUrl and never awaited inside JSX.
+      const photoPaths = (rData.photo_url ? [rData.photo_url] : []).filter(
+        (p): p is string => typeof p === 'string' && p.trim().length > 0,
+      );
+      if (photoPaths.length > 0) {
+        const map = await signedUrls('inspection-photos', photoPaths, SIGNED_URL_TTL.VIEW);
+        setPhotoUrlMap(map);
+      } else {
+        setPhotoUrlMap({});
+      }
+
+      const docPath = rData.pdf_url || rData.final_report_doc || null;
+      if (docPath) {
+        const url = await signedUrl({ bucket: 'job-documents', path: docPath, ttl: SIGNED_URL_TTL.VIEW });
+        setReportFileSignedUrl(url);
+      } else {
+        setReportFileSignedUrl(null);
+      }
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -350,11 +390,10 @@ export default function ReviewReportScreen() {
             </View>
             <View style={{alignItems:'flex-end'}}>
               <Text style={styles.expAmount}>{formatCurrency(exp.amount)}</Text>
-              {exp.receipt_url && (
-                <TouchableOpacity onPress={() => Linking.openURL(exp.receipt_url!)}>
-                  <Text style={styles.viewReceipt}>View Receipt</Text>
-                </TouchableOpacity>
-              )}
+              {/* Raw receipt scan intentionally NOT shown to the buyer
+                  (price-blindness + anti-poaching: receipts can carry the
+                  inspector's identity/cost detail). The `receipts` bucket is
+                  owner+admin only; admin reviews receipts during reconciliation. */}
             </View>
           </View>
         ))}
@@ -366,8 +405,10 @@ export default function ReviewReportScreen() {
   if (!report) return null;
 
   const parsed = parseReport(report.summary);
+  // report.photos_urls holds storage PATHS; keep only those with a freshly
+  // minted, non-broken signed URL so a dead/permission-gated tile never shows.
   const photos = (report.photos_urls || []).filter(
-    (u) => typeof u === 'string' && u.trim().length > 0 && !brokenPhotos[u],
+    (p) => typeof p === 'string' && p.trim().length > 0 && !!photoUrlMap[p] && !brokenPhotos[p],
   );
   const statusMeta =
     report.report_status === 'approved'
@@ -454,8 +495,8 @@ export default function ReviewReportScreen() {
             </View>
           </View>
 
-          {report.report_file_url && (
-            <TouchableOpacity style={styles.docBtn} onPress={() => Linking.openURL(report.report_file_url!)}>
+          {reportFileSignedUrl && (
+            <TouchableOpacity style={styles.docBtn} onPress={() => Linking.openURL(reportFileSignedUrl)}>
               <View style={styles.docIconWrap}><FileText size={18} color="#7C3AED" /></View>
               <View style={{flex:1}}>
                 <Text style={styles.docName}>Full Inspection Report</Text>
@@ -475,12 +516,12 @@ export default function ReviewReportScreen() {
           </View>
           {photos.length > 0 ? (
             <View style={styles.photoGrid}>
-              {photos.map((url) => (
+              {photos.map((path) => (
                 <Image
-                  key={url}
-                  source={{ uri: url }}
+                  key={path}
+                  source={{ uri: photoUrlMap[path]! }}
                   style={styles.photo}
-                  onError={() => setBrokenPhotos((prev) => ({ ...prev, [url]: true }))}
+                  onError={() => setBrokenPhotos((prev) => ({ ...prev, [path]: true }))}
                 />
               ))}
             </View>
@@ -566,7 +607,7 @@ export default function ReviewReportScreen() {
                 <Text style={styles.modalSub}>The inspector has been notified and can resubmit. You'll see the updated report here when they do.</Text>
               </>
             )}
-            <TouchableOpacity style={styles.successBtn} onPress={() => router.replace('/(client)/jobs')}>
+            <TouchableOpacity style={styles.successBtn} onPress={() => router.replace('/(tabs)/client-dashboard')}>
               <Text style={styles.successText}>Back to Dashboard</Text>
             </TouchableOpacity>
           </View>

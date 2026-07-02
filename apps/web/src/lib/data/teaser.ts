@@ -73,7 +73,11 @@ export async function fetchSupplyTeasers(limit = 6): Promise<SupplyTeaser[]> {
   if (!sb) return [];
   const { data, error } = await sb
     .from('public_supply_feed')
+    // Featured first (admin curation), then by rating — mirrors the mobile Discover
+    // feed so Inspector Spotlights are surfaced consistently across platforms.
     .select(SUPPLY_COLS)
+    .order('is_featured', { ascending: false, nullsFirst: false })
+    .order('rating_average', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) return [];
   return (data ?? []) as unknown as SupplyTeaser[];

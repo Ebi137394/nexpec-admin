@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { signedUrl } from '@/src/core/storage/signedUrls';
 
 // ============================================
 // Color Constants - Dark Theme
@@ -41,6 +42,7 @@ export default function ApproveScreen() {
 
   const [job, setJob] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
+  const [reportPhotoUrl, setReportPhotoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -50,7 +52,7 @@ export default function ApproveScreen() {
   }, [jobId, user]);
 
   const fetchData = async () => {
-    if (!jobId || !user) return;
+    if (!jobId || !user) { setLoading(false); return; }
     try {
       // 1. Fetch Job Info — GR2: client is buyer-tier, no payout columns.
       const { data: jobData, error: jobError } = await supabase
@@ -65,14 +67,29 @@ export default function ApproveScreen() {
       // Check if current user is the client
       setIsClient((jobData as any).client_id === user.id);
 
-      // 2. Fetch Inspection Report (if exists)
-      const { data: reportData } = await supabase
+      // 2. Fetch Inspection Report — GR3: the client may only see a report
+      //    AFTER admin review (is_published). Unpublished/submitted reports
+      //    must never render here, so filter server-side. limit(1) instead of
+      //    maybeSingle: >1 rows must not error into a silent "no report".
+      const { data: reportRows } = await supabase
         .from('inspection_reports')
-        .select('*')
+        .select('id, notes, photo_url, created_at, is_published')
         .eq('job_id', jobId)
-        .maybeSingle(); // Use maybeSingle to avoid error if no report yet
+        .eq('is_published', true)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
+      const reportData = reportRows?.[0] ?? null;
       setReport(reportData);
+
+      // photo_url stores a PRIVATE inspection-photos storage path — mint a
+      // signed URL for display (raw paths render as a broken image).
+      if (reportData?.photo_url) {
+        const url = await signedUrl({ bucket: 'inspection-photos', path: reportData.photo_url, ttl: 3600 });
+        setReportPhotoUrl(url ?? null);
+      } else {
+        setReportPhotoUrl(null);
+      }
 
     } catch (err: any) {
       console.error('Error fetching data:', err.message);
@@ -161,7 +178,7 @@ export default function ApproveScreen() {
           <View style={styles.divider} />
 
           <Text style={styles.priceLabel}>Agreed Price</Text>
-          <Text style={styles.priceValue}>${job?.price?.toLocaleString()}</Text>
+          <Text style={styles.priceValue}>${(((job?.price_cents ?? 0) / 100)).toLocaleString()}</Text>
         </View>
 
         {/* 2. Inspection Report Section */}
@@ -169,9 +186,9 @@ export default function ApproveScreen() {
 
         {report ? (
           <View style={styles.card}>
-            {report.photo_url ? (
+            {reportPhotoUrl ? (
               <Image
-                source={{ uri: report.photo_url }}
+                source={{ uri: reportPhotoUrl }}
                 style={styles.reportImage}
                 resizeMode="cover"
               />
@@ -191,7 +208,7 @@ export default function ApproveScreen() {
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={40} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>Inspector has not submitted a report yet.</Text>
+            <Text style={styles.emptyText}>No report available yet. Reports appear here once reviewed and released by NEXPEC.</Text>
           </View>
         )}
 

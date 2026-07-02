@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Alert, ScrollView, StyleSheet, Image, TextInput as RNTextInput } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../lib/supabase';
 import { BrandingConfig } from '../../src/types/report';
 
@@ -59,13 +61,14 @@ export default function BrandingSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const fileBytes = decode(base64);
       const filename = `company-logo-${user.id}-${Date.now()}.png`;
 
       const { error: uploadError } = await supabase.storage
         .from('company-logos')
-        .upload(filename, blob, {
+        .upload(filename, fileBytes, {
+          contentType: 'image/png',
           cacheControl: '3600',
           upsert: false
         });
@@ -94,12 +97,14 @@ export default function BrandingSettings() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          ...updates,
+          // Default on, but let callers override via `updates` (e.g. the
+          // enable/disable toggle) — the spread must win, so it comes last.
+          use_custom_branding: true,
           report_header_text: headerText,
           report_footer_text: footerText,
           primary_color: primaryColor,
           company_name: companyName,
-          use_custom_branding: true
+          ...updates,
         })
         .eq('id', user.id);
 

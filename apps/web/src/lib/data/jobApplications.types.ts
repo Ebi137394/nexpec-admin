@@ -38,15 +38,9 @@ export interface JobApplicationRow {
   status: ApplicationStatus;
   /** Cover letter / proposal text. */
   coverNote: string | null;
-  /**
-   * Inspector's bid in cents (bid_amount_cents column).
-   *
-   * GOLDEN_RULE_2 — ADMIN-ONLY. The client UI MUST NOT render this value
-   * (the client never sees the inspector's price). It stays on the row
-   * so admin surfaces and the dispatch/spread editor can use the same
-   * type. New client components that consume this field must hide it.
-   */
-  bidCents: number | null;
+  // GOLDEN_RULE_2 — the inspector's bid (bid_amount_cents) is intentionally
+  // ABSENT from this buyer-facing row. The client must never receive the
+  // inspector's price. Admin surfaces read the bid via their own fetchers.
   createdAt: string;
   /** Embedded inspector profile via applications_applicant_id_fkey. */
   inspector: {

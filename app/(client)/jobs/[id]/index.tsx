@@ -131,8 +131,7 @@ export default function JobDetailScreen() {
             title,
             rating_average,
             reviews_count,
-            completed_jobs_count,
-            cv_url
+            completed_jobs_count
           )
         `)
         .eq('job_id', id)
@@ -432,7 +431,7 @@ export default function JobDetailScreen() {
                  {reportData.is_published ? 'Final Inspection Report Ready' : 'Report Pending Admin Review'}
                </Text>
                {reportData.is_published && (
-                 <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${job.id}/review-report`)}>
+                 <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/(client)/jobs/${job.id}/review-report`)}>
                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Full Report</Text>
                  </TouchableOpacity>
                )}
@@ -443,9 +442,8 @@ export default function JobDetailScreen() {
            <TouchableOpacity 
              style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: 16, borderRadius: 12, marginTop: 16, marginBottom: 24, borderWidth: 1, borderColor: '#7C3AED', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
              onPress={() => {
-               console.log("Client opening ADMIN CHAT with ID:", job?.id || id);
                router.push(`/chat/${job?.id || id}?chatType=admin_support`);
-             }} 
+             }}
            >
              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                <MessageSquare size={24} color="#7C3AED" style={{ marginRight: 12 }} />
@@ -462,7 +460,7 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <CheckCircle size={22} color={COLORS.success} />
-                <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
+                <Text style={styles.sectionHeaderTitle}>Selected Inspector</Text>
               </View>
               <View style={styles.hiredCard}>
                 {/* ANTI-POACHING: pseudonymous sigil + NX handle, never the

@@ -455,13 +455,9 @@ const InspectorCard: React.FC<InspectorCardProps> = ({ inspector, onPress }) => 
             </View>
           </View>
 
-          {/* Rate */}
-          <View style={styles.rateContainer}>
-            <Text style={styles.rateValue}>
-              {inspector.hourly_rate_cents ? `$${(inspector.hourly_rate_cents / 100).toFixed(0)}` : '-'}
-            </Text>
-            <Text style={styles.rateLabel}>/hr</Text>
-          </View>
+          {/* Inspector standing hourly rate intentionally NOT shown:
+              inspector-side pricing must not surface to buyers (broker
+              model). Pricing is set by NEXPEC admin at dispatch. */}
         </View>
 
         {/* NDT Methods */}
@@ -847,95 +843,24 @@ export default function ExploreScreen() {
       }
 
       try {
-        // Try RPC function first, fallback to direct query
-        let query = supabase
-          .from('profiles')
-          .select(`
-            id,
-            bio,
-            is_verified,
-            is_available,
-            hourly_rate_cents,
-            years_experience,
-            skills,
-            ndt_methods,
-            certifications,
-            location_city,
-            location_province,
-            rating_average,
-            rating_count,
-            completed_jobs_count,
-            response_time_hours,
-            is_featured,
-            availability_status
-          `)
-          .eq('role', 'inspector')
-          .eq('is_active', true);
-
-        // Apply filters
-        if (filters.isVerified) {
-          query = query.eq('is_verified', true);
-        }
-        if (filters.isAvailable) {
-          query = query.eq('is_available', true);
-        }
-        if (filters.location) {
-          query = query.ilike('location_city', `%${filters.location}%`);
-        }
-        if (filters.minRating) {
-          query = query.gte('rating_average', filters.minRating);
-        }
-
-        // Apply NDT methods filter
-        if (filters.ndtMethods.size > 0) {
-          query = query.contains('ndt_methods', Array.from(filters.ndtMethods));
-        }
-
-        // Apply search — ANTI-POACHING: search capability/expertise only, NOT
-        // the inspector's real name. Matching first_name/last_name here would
-        // let a client type a name and correlate it to the NX- handle shown in
-        // results (a de-anonymization oracle). Capability discovery only.
-        if (searchQuery) {
-          query = query.or(`bio.ilike.%${searchQuery}%,skills.cs.{${searchQuery}}`);
-        }
-
-        // Apply sorting
-        let orderBy = 'rating_average';
-        let ascending = false;
-        switch (filters.sortBy) {
-          case 'rating':
-            orderBy = 'rating_average';
-            ascending = false;
-            break;
-          case 'reviews':
-            orderBy = 'rating_count';
-            ascending = false;
-            break;
-          case 'experience':
-            orderBy = 'years_experience';
-            ascending = false;
-            break;
-          case 'jobs':
-            orderBy = 'completed_jobs_count';
-            ascending = false;
-            break;
-          case 'price_low':
-            orderBy = 'hourly_rate_cents';
-            ascending = true;
-            break;
-          case 'price_high':
-            orderBy = 'hourly_rate_cents';
-            ascending = false;
-            break;
-        }
-
-        query = query.order(orderBy, { ascending });
-
-        // Pagination
+        // Cross-user profile reads are blocked by the party-relationship RLS
+        // (profiles_read_self) — a direct table query returns a near-empty
+        // directory. The sanctioned marketplace projection is the SECURITY
+        // DEFINER RPC get_marketplace_inspectors (paginated + filterable;
+        // enforces role=inspector AND is_active=true server-side).
         const limit = 20;
-        query = query.range(pageNum * limit, (pageNum + 1) * limit - 1);
-
-        const { data, error } = await query;
+        const { data, error } = await supabase.rpc('get_marketplace_inspectors', {
+          p_search: searchQuery || null,
+          p_min_rating: filters.minRating || null,
+          p_only_verified: filters.isVerified,
+          p_only_available: filters.isAvailable,
+          p_location_city: filters.location || null,
+          p_ndt_methods:
+            filters.ndtMethods.size > 0 ? Array.from(filters.ndtMethods) : null,
+          p_sort_by: filters.sortBy,
+          p_limit: limit,
+          p_offset: pageNum * limit,
+        });
 
         if (error) throw error;
 

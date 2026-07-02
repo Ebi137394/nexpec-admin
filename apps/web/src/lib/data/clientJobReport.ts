@@ -93,7 +93,9 @@ export async function fetchClientJobReport(
 
     // 3. Latest client-originated signal in audit_events for this job.
     const { data: rawEvents } = await supabase
-      .from('audit_events')
+      // Price-blind + identity-blind redacted view (non-admin readers must use
+      // this; the raw audit_events table is admin-only after 20260801230000).
+      .from('audit_events_public')
       .select('event_type, created_at, summary, metadata')
       .eq('subject_table', 'jobs')
       .eq('subject_id', jobId)

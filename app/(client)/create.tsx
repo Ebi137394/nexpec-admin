@@ -137,9 +137,12 @@ export default function CreateJobScreen() {
           description: formData.description.trim(),
           location: formData.location.trim(),
           scheduled_date: formData.scheduled_date.toISOString(),
-          budget: parseFloat(formData.budget),
+          // Canonical jobs money column is budget_cents (there is no `budget`
+          // column) — form input is in dollars, store integer cents.
+          budget_cents: Math.round(parseFloat(formData.budget) * 100),
           required_certifications: formData.required_certifications,
-          status: 'open',
+          // Jobs require NEXPEC admin approval before going live to inspectors.
+          status: 'pending_approval',
           created_at: new Date().toISOString(),
         })
         .select()

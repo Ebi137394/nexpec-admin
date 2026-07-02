@@ -175,7 +175,9 @@ const forceClientSelection = async (
       })
       .eq('id', appId)
       .select('id, status, client_notes, cover_note')
-      .single();
+      // .maybeSingle() — an RLS-filtered or already-claimed row returns 0
+      // rows; .single() would throw PGRST116 and mask the real cause.
+      .maybeSingle();
 
     if (error) {
       console.error('[forceClientSelection] supabase error →', error);
@@ -183,6 +185,16 @@ const forceClientSelection = async (
         'DB Error',
         `${error.message}\n\nMost likely cause: the applications.status CHECK ` +
         `constraint does not include 'CLIENT_SELECTED'. Run fix-hiring-workflow.sql.`
+      );
+      return false;
+    }
+
+    if (!data) {
+      // 0 rows came back: the update matched nothing the client can see
+      // (RLS, wrong id, or the application moved on). Treat as a failure.
+      Alert.alert(
+        'Selection failed',
+        'This application could not be updated. It may have already been actioned. Pull to refresh and try again.'
       );
       return false;
     }
@@ -1101,19 +1113,26 @@ export default function ApplicantsScreen(): React.JSX.Element {
       if (jobError) throw jobError;
       setJob(jobData as JobDetails);
 
+      // GR2/anti-poaching: explicit column list — the previous `*` shipped the
+      // ADMIN-INTERNAL negotiation fields (admin_counter_cents, admin_comment,
+      // admin_feedback, admin_attachment) and applicant CV attachments to the
+      // buyer's device. Bid + name visibility on this screen is an approved
+      // product decision; the admin negotiation ledger and raw CVs are not.
+      // Profile embed: email deliberately NOT selected (contact vector).
       const { data: appsData, error: appsError } = await supabase
         .from('applications')
         .select(`
-          *,
+          id, job_id, applicant_id, status, cover_note, bid_amount_cents, bid_type,
+          currency, estimated_duration, available_start_date:availability_date, created_at, updated_at,
+          last_viewed_by_client,
           applicant:profiles (
             id,
             first_name,
             last_name,
-            email,
             avatar_url,
             title,
             bio,
-            years_experience,
+            years_experience:experience_years,
             hourly_rate_cents,
             daily_rate,
             specialties
@@ -1124,7 +1143,9 @@ export default function ApplicantsScreen(): React.JSX.Element {
 
       if (appsError) throw appsError;
 
-      setApplications(appsData as ApplicationWithProfile[]);
+      // PostgREST returns the to-one `applicant` embed as an object at runtime;
+      // the template-literal type inference disagrees, hence via-unknown.
+      setApplications(appsData as unknown as ApplicationWithProfile[]);
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load data';

@@ -30,7 +30,7 @@ interface Job {
   title: string;
   description: string;
   location: string;
-  budget: number;
+  budget_cents: number | null;
   status: 'open' | 'in_progress' | 'completed' | 'cancelled';
   created_at: string;
   proposal_count: number;
@@ -70,11 +70,13 @@ export default function ClientDashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchJobs = async () => {
     if (!session?.user?.id) return;
 
     try {
+      setError(null);
       // Fetch jobs with proposal count
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
@@ -83,7 +85,7 @@ export default function ClientDashboard() {
           title,
           description,
           location,
-          budget,
+          budget_cents,
           status,
           created_at
         `)
@@ -108,8 +110,9 @@ export default function ClientDashboard() {
       );
 
       setJobs(jobsWithCounts);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
+    } catch (err: any) {
+      console.error('Error fetching jobs:', err);
+      setError(err?.message ?? 'Could not load your projects.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -135,18 +138,11 @@ export default function ClientDashboard() {
       <TouchableOpacity
         style={styles.jobCard}
         onPress={() => {
-  const targetId = item.id;
-  console.log('🚨 [NAV DEBUG] کلیک شد! آیدی شغل:', targetId);
-  
-  if (!targetId) {
-    console.error('🚨 [NAV DEBUG] اخطار: آیدی شغل خالیه!');
-    return;
-  }
-  
-  // ★ LANE-A-PHASE-2.6 — Internal ref repointed to canonical /(client)/job.
-  console.log('🚨 [NAV DEBUG] در حال ارسال به مسیر: /(client)/job/' + targetId);
-  router.push(`/(client)/job/${targetId}`);
-}}
+          const targetId = item.id;
+          if (!targetId) return;
+          // ★ LANE-A-PHASE-2.6 — Internal ref repointed to canonical /(client)/job.
+          router.push(`/(client)/job/${targetId}`);
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.jobHeader}>
@@ -171,7 +167,7 @@ export default function ClientDashboard() {
           <View style={styles.metaItem}>
             <DollarSign size={14} color={COLORS.success} />
             <Text style={[styles.metaText, { color: COLORS.success }]}>
-              ${item.budget?.toLocaleString()}
+              ${((item.budget_cents ?? 0) / 100).toLocaleString()}
             </Text>
           </View>
         </View>
@@ -195,22 +191,36 @@ export default function ClientDashboard() {
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Briefcase size={64} color={COLORS.textSecondary} />
-      <Text style={styles.emptyTitle}>No Projects Yet</Text>
-      <Text style={styles.emptySubtitle}>
-        Post your first job to start hiring qualified inspectors
-      </Text>
-      <TouchableOpacity
-        style={styles.emptyButton}
-        onPress={() => router.push('/(client)/create')}
-      >
-        <Plus size={20} color={COLORS.text} />
-        <Text style={styles.emptyButtonText}>Post a Job</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderEmptyState = () => {
+    if (error) {
+      return (
+        <View style={styles.emptyState}>
+          <Briefcase size={64} color="#EF4444" />
+          <Text style={styles.emptyTitle}>Couldn't load projects</Text>
+          <Text style={styles.emptySubtitle}>{error}</Text>
+          <TouchableOpacity style={styles.emptyButton} onPress={onRefresh}>
+            <Text style={styles.emptyButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.emptyState}>
+        <Briefcase size={64} color={COLORS.textSecondary} />
+        <Text style={styles.emptyTitle}>No Projects Yet</Text>
+        <Text style={styles.emptySubtitle}>
+          Post your first job to start hiring qualified inspectors
+        </Text>
+        <TouchableOpacity
+          style={styles.emptyButton}
+          onPress={() => router.push('/(client)/create')}
+        >
+          <Plus size={20} color={COLORS.text} />
+          <Text style={styles.emptyButtonText}>Post a Job</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   if (loading) {
     return (

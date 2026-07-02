@@ -729,15 +729,23 @@ export default function RateInspectorScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Please sign in to submit a review');
 
-      const { error } = await supabase.from('reviews').insert({
-        job_id: jobId,
-        inspector_id: inspector.id,
-        client_id: user.id,
-        rating,
-        comment: comment.trim() || null,
-        would_recommend: wouldRecommend,
-        tags: Array.from(selectedTags),
-        is_public: true,
+      // Canonical review path: submit_review RPC. A raw reviews insert omits
+      // the NOT NULL reviewer_id/reviewee_id columns and always fails; the RPC
+      // validates job completion + party membership and snapshots reviewer
+      // attributes server-side (reviewer = auth.uid()). Recommendation + tags
+      // are folded into the comment since the RPC has no params for them.
+      const tagList = Array.from(selectedTags);
+      const commentParts = [
+        comment.trim(),
+        wouldRecommend ? 'Would recommend.' : null,
+        tagList.length > 0 ? `Tags: ${tagList.join(', ')}` : null,
+      ].filter(Boolean);
+      const { error } = await supabase.rpc('submit_review', {
+        p_job_id: jobId,
+        p_reviewee_id: inspector.id,
+        p_rating: rating,
+        p_comment: commentParts.length > 0 ? commentParts.join(' ') : null,
+        p_is_public: true,
       });
 
       if (error) {
@@ -777,7 +785,8 @@ export default function RateInspectorScreen() {
   };
 
   const handleSuccessDone = () => {
-    router.replace('/(client)/jobs');
+    // '/(client)/jobs' has no index route (dead link) — go to the client home tab.
+    router.replace('/(tabs)/client-dashboard');
   };
 
   // ========================================

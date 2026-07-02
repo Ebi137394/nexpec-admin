@@ -160,7 +160,7 @@ export async function fetchJobApplications(
       .select(
         `
         id, job_id, applicant_id, status, cover_note,
-        bid_amount_cents, created_at,
+        created_at,
         inspector:profiles!applicant_id(
           id,
           rating_average, completed_jobs_count,
@@ -193,10 +193,6 @@ export async function fetchJobApplications(
         applicantId: String(r.applicant_id),
         status: r.status as ApplicationStatus,
         coverNote: (r.cover_note as string | null) ?? null,
-        bidCents:
-          typeof r.bid_amount_cents === 'string'
-            ? Number(r.bid_amount_cents)
-            : (r.bid_amount_cents as number | null) ?? null,
         createdAt: String(r.created_at),
         inspector: insp
           ? {

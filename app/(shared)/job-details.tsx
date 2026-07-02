@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { jobFieldsForRole } from '../../lib/jobsProjection';
-import { assignJobContractor } from '../../lib/assignJob';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 const C = { bg: '#020420', card: '#0A0D2C', border: '#1E293B', primary: '#7C3AED', primaryMuted: 'rgba(124, 58, 237, 0.12)', primaryBorder: 'rgba(124, 58, 237, 0.28)', text: '#FFFFFF', textSec: '#94A3B8', textMuted: '#64748B', inputBg: '#0A0E2E', success: '#10B981', successBg: 'rgba(16, 185, 129, 0.10)', error: '#EF4444', errorBg: 'rgba(239, 68, 68, 0.08)', warning: '#F59E0B', warningBg: 'rgba(245, 158, 11, 0.10)', blue: '#3B82F6' };
@@ -100,12 +99,16 @@ export default function JobDetailsScreen() {
         .single();
       setJob(jobData);
       
+      // Applications → profiles joins via applicant_id (there is no inspector_id
+      // column). Explicit safe columns only — never select('*'): applications
+      // carries admin-only fields (admin_counter_cents/admin_comment/admin_feedback/
+      // admin_attachment) that must not reach buyer surfaces.
       const { data: appData } = await supabase.from('applications')
-        .select(`*, profiles:inspector_id(full_name, city, rating)`)
+        .select(`id, job_id, applicant_id, status, cover_letter, cover_note, bid_amount_cents, bid_type, currency, estimated_duration, availability_date, created_at, updated_at, applicant:profiles (full_name, city, rating)`)
         .eq('job_id', jobId).order('created_at', { ascending: false });
-        
+
       if (appData) {
-        const mapped = appData.map((row: any) => ({ ...row, inspector: row.profiles }));
+        const mapped = appData.map((row: any) => ({ ...row, inspector: row.applicant }));
         setApplicants(mapped);
       }
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -116,26 +119,27 @@ export default function JobDetailsScreen() {
   const handleUpdateStatus = async (appId: string, inspectorId: string, newStatus: string, note: string) => {
     setUpdating(true);
     try {
-      await supabase.from('applications').update({ status: newStatus }).eq('id', appId);
+      // ★ BROKER MODEL: the client/agency NOMINATES; only the NEXPEC admin finalises
+      //   pricing + dispatch. Accept → applications.status='CLIENT_SELECTED' (queues
+      //   the admin /admin/dispatch). We NEVER mutate jobs.contractor_id/status from a
+      //   buyer surface — that bypasses the broker + price-blindness and trips the job
+      //   status-transition guard. Mirrors web selectApplication/rejectApplication.
+      const targetStatus = newStatus === 'accepted' ? 'CLIENT_SELECTED' : newStatus;
+      // outbox-exempt: interactive online buyer nomination decision; failure surfaces via alert.
+      const { error: statusErr } = await supabase.from('applications').update({ status: targetStatus }).eq('id', appId);
+      if (statusErr) throw statusErr;
 
-      // CRITICAL: Atomic open → assigned transition via RPC (Task 3).
-      // The RPC takes a row lock, validates the pre-state, and writes
-      // contractor_id + status in one transaction — no race possible.
-      if (newStatus === 'accepted' && job) {
-        const result = await assignJobContractor(job.id, inspectorId);
-        if (!result.ok) {
-          Alert.alert('Could not assign', result.message);
-          return;
-        }
-        // private_note is informational only — the atomic part is done.
-        if (note) {
-          await supabase.from('jobs').update({ private_note: note }).eq('id', job.id);
-        }
+      if (newStatus === 'accepted' && job && note) {
+        // outbox-exempt: same interactive nomination flow as above.
+        const { error: noteErr } = await supabase.from('jobs').update({ private_note: note }).eq('id', job.id);
+        if (noteErr) throw noteErr;
       }
 
       await fetchData();
       setShowModal(false);
-      Alert.alert('Success', newStatus === 'accepted' ? 'Inspector Assigned Successfully!' : 'Applicant Rejected.');
+      Alert.alert('Success', newStatus === 'accepted'
+        ? 'Inspector nominated — sent to NEXPEC admin to finalise pricing & dispatch.'
+        : 'Applicant Rejected.');
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {

@@ -32,7 +32,6 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
-import { assignJobContractor } from '@/lib/assignJob';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { nxHandle } from '@/src/core/utils/handle';
 // ★ AUDIT PARITY — per-job audit timeline (matches /(client)/jobs/[id]).
@@ -82,11 +81,7 @@ interface Proposal {
 }
 
 export default function JobDetailScreen() {
-  console.log('🟢 [TARGET] صفحه جزئیات شغل با موفقیت باز شد!');
-  
   const params = useLocalSearchParams<{ id: string }>();
-  console.log('🟢 [TARGET] پارامترهای دریافتی:', params);
-  
   const { id } = params;
   const { session } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
@@ -186,70 +181,34 @@ export default function JobDetailScreen() {
   };
 
   const handleHire = async (proposal: Proposal) => {
-    // 🔴 BROKER LOGIC: client pays the client price, NOT the inspector payout.
-    // ★ Task 4: all values are integer cents end-to-end.
-    const clientPaysAmount =
-      (job as any)?.client_price_cents ||
-      (job as any)?.budget_cents ||
-      proposal.bid_amount_cents;
-
     Alert.alert(
-      'Hire Inspector',
-      `Are you sure you want to hire ${nxHandle(proposal.applicant.id)} for $${clientPaysAmount}?`,
+      'Nominate Inspector',
+      `Nominate ${nxHandle(proposal.applicant.id)}? The NEXPEC admin will finalise pricing and dispatch.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Hire',
+          text: 'Nominate',
           onPress: async () => {
             setHiringId(proposal.id);
             try {
-              // Create contract (using the price the client pays)
-              const { error: contractError } = await supabase
-                .from('contracts')
-                .insert({
-                  job_id: id,
-                  client_id: session?.user?.id,
-                  inspector_id: proposal.applicant.id,
-                  amount: clientPaysAmount, // Client pays full price
-                  status: 'draft',
-                  created_at: new Date().toISOString(),
-                });
+              // ★ BROKER MODEL: the client NOMINATES; the NEXPEC admin finalises pricing
+              //   + dispatch and generates the contract (admin_generate_job_contract →
+              //   job_contracts). The buyer surface only sets applications.status=
+              //   'CLIENT_SELECTED' (queues /admin/dispatch). It must NOT insert a legacy
+              //   contract (that table REVOKEs authenticated INSERTs → it was erroring),
+              //   must NOT mutate jobs.contractor_id/status, and does NOT auto-reject the
+              //   others. Mirrors web selectApplication.
+              const { error: selectError } = await supabase
+                .from('applications')
+                .update({ status: 'CLIENT_SELECTED' })
+                .eq('id', proposal.id)
+                .eq('job_id', id);
 
-              if (contractError) throw contractError;
-
-              // Update application status to accepted
-              const { error: acceptError } = await supabase
-                .from('applications') // 🔴 اصلاح شد
-                .update({ status: 'accepted' })
-                .eq('id', proposal.id);
-
-              if (acceptError) throw acceptError;
-
-              // Reject other applications
-              const { error: rejectError } = await supabase
-                .from('applications') // 🔴 اصلاح شد
-                .update({ status: 'rejected' })
-                .eq('job_id', id)
-                .neq('id', proposal.id);
-
-              if (rejectError) throw rejectError;
-
-              // Atomic open → assigned transition via RPC (Task 3).
-              // CRITICAL: state ladder is open → assigned → in_progress
-              // → completed. The job moves to in_progress only when the
-              // inspector actually starts work — never on hire.
-              const result = await assignJobContractor(
-                id as string,
-                proposal.applicant.id,
-              );
-              if (!result.ok) {
-                Alert.alert('Could not hire', result.message);
-                return;
-              }
+              if (selectError) throw selectError;
 
               Alert.alert(
-                'Success',
-                `${nxHandle(proposal.applicant.id)} has been assigned to this job. A contract draft has been created.`,
+                'Inspector nominated',
+                `${nxHandle(proposal.applicant.id)} has been sent to the NEXPEC admin to finalise pricing and dispatch.`,
                 [{ text: 'OK', onPress: fetchJobDetails }]
               );
             } catch (error: any) {
@@ -335,8 +294,11 @@ export default function JobDetailScreen() {
     );
   }
 
-  const pendingProposals = proposals.filter((p) => ['pending', 'submitted', 'under_review'].includes(p.status));
-  const acceptedProposal = proposals.find((p) => p.status === 'accepted');
+  // Real applications statuses (applications_status_check): pending,
+  // shortlisted, offered, CLIENT_SELECTED, hired, rejected, withdrawn,
+  // accepted. 'submitted'/'under_review' never occur.
+  const pendingProposals = proposals.filter((p) => ['pending', 'shortlisted', 'offered'].includes(p.status));
+  const acceptedProposal = proposals.find((p) => ['accepted', 'CLIENT_SELECTED', 'hired'].includes(p.status));
 
   return (
     <>
@@ -428,7 +390,7 @@ export default function JobDetailScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <CheckCircle size={22} color={COLORS.success} />
-                <Text style={styles.sectionHeaderTitle}>Hired Inspector</Text>
+                <Text style={styles.sectionHeaderTitle}>Selected Inspector</Text>
               </View>
               {/* ANTI-POACHING: tappable card → anonymized Trust Card; pseudonymous
                   sigil + NX handle, never the real photo/name (pre-reveal: identity
@@ -490,7 +452,7 @@ export default function JobDetailScreen() {
                   /* Symptom 3 fix — open the dedicated full report viewer
                      (multi-photo, findings, history) instead of the minimal
                      single-photo in-screen modal; parity with /(client)/jobs/[id]. */
-                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/jobs/${params.id}/review-report` as any)}>
+                  <TouchableOpacity style={{ paddingVertical: 12, backgroundColor: '#10B981', borderRadius: 8, alignItems: 'center' }} onPress={() => router.push(`/(client)/jobs/${params.id}/review-report` as any)}>
                     <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>View Full Report</Text>
                   </TouchableOpacity>
                 )}
@@ -598,7 +560,7 @@ export default function JobDetailScreen() {
                       ) : (
                         <>
                           <CheckCircle size={18} color={COLORS.text} />
-                          <Text style={styles.hireButtonText}>Hire</Text>
+                          <Text style={styles.hireButtonText}>Nominate</Text>
                         </>
                       )}
                     </TouchableOpacity>

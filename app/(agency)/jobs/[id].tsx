@@ -55,6 +55,7 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { nxHandle } from '@/src/core/utils/handle';
+import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   ApplicationStatus,
@@ -260,7 +261,7 @@ const BidComparison: React.FC<BidComparisonProps> = ({
           isHigher && styles.bidAmountHigher,
           isLower && styles.bidAmountLower,
         ]}>
-          {getSymbol()}{bidAmount.toLocaleString()}{getTypeLabel()}
+          {getSymbol()}{(bidAmount / 100).toLocaleString()}{getTypeLabel()}
         </Text>
         {(isHigher || isLower) && (
           <View style={[
@@ -391,9 +392,9 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
   };
 
   const handleOffer = () => {
-    Alert.alert('Hire Inspector', `Hire ${getApplicantName(applicant)}? This will initiate the contract.`, [
+    Alert.alert('Nominate Inspector', `Nominate ${getApplicantName(applicant)}? The NEXPEC admin will finalise pricing and dispatch.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Hire', style: 'default', onPress: () => onStatusChange(application.id, 'CLIENT_SELECTED') },
+      { text: 'Nominate', style: 'default', onPress: () => onStatusChange(application.id, 'CLIENT_SELECTED') },
     ]);
   };
 
@@ -435,7 +436,7 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.offerButton} onPress={handleOffer} activeOpacity={0.7}>
               <CheckCircle size={16} color={COLORS.text} />
-              <Text style={styles.offerButtonText}>Hire Inspector</Text>
+              <Text style={styles.offerButtonText}>Nominate</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.rejectButton} onPress={handleReject} activeOpacity={0.7}>
               <XCircle size={16} color={COLORS.error} />
@@ -517,9 +518,16 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
                       borderRadius: 8,
                       alignSelf: 'flex-start',
                     }}
-                    onPress={() =>
-                      Linking.openURL((application as any).admin_attachment as string)
-                    }
+                    onPress={async () => {
+                      // admin_attachment is a chat_attachments PATH (private
+                      // bucket post-lockdown). Mint a signed URL before opening.
+                      const u = await signedUrl({
+                        bucket: 'chat_attachments',
+                        path: (application as any).admin_attachment as string,
+                        ttl: SIGNED_URL_TTL.VIEW,
+                      });
+                      if (u) Linking.openURL(u);
+                    }}
                   >
                     <FileText size={14} color="#F59E0B" style={{ marginRight: 6 }} />
                     <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 13 }}>
@@ -756,7 +764,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
           <TouchableOpacity style={styles.modalShortlistButton} onPress={handleShortlist}><Star size={18} color={COLORS.yellow} /><Text style={styles.modalShortlistButtonText}>Shortlist</Text></TouchableOpacity>
         )}
         {(canTransitionTo(status, 'offered') || isPending) && (
-          <TouchableOpacity style={styles.modalOfferButton} onPress={handleOffer}><CheckCircle size={18} color={COLORS.text} /><Text style={styles.modalOfferButtonText}>Hire Inspector</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.modalOfferButton} onPress={handleOffer}><CheckCircle size={18} color={COLORS.text} /><Text style={styles.modalOfferButtonText}>Nominate</Text></TouchableOpacity>
         )}
         {status === 'offered' && (
           <View style={styles.waitingBanner}><Clock size={18} color={COLORS.primary} /><Text style={styles.waitingText}>Waiting for inspector...</Text></View>
@@ -860,33 +868,16 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
           {/* 🔴 RESUME / CV BUTTON - 100% REAL NATIVE IMPLEMENTATION */}
           <View style={styles.reviewSection}>
             <Text style={styles.reviewSectionTitle}>Resume & Documents</Text>
-            {applicant.cv_url ? (
-              <TouchableOpacity 
-                style={styles.cvButton} 
-                onPress={async () => {
-                  try {
-                    const url = applicant.cv_url as string;
-                    const supported = await Linking.canOpenURL(url);
-                    if (supported) {
-                      await Linking.openURL(url);
-                    } else {
-                      Alert.alert('Error', 'Cannot open this CV link format. Link might be invalid.');
-                    }
-                  } catch (error) {
-                    Alert.alert('Error', 'Failed to open the CV document.');
-                  }
-                }}
-              >
-                <FileText size={20} color={COLORS.primary} />
-                <Text style={styles.cvButtonText}>View Inspector CV</Text>
-                <ChevronRight size={20} color={COLORS.textMuted} style={{marginLeft: 'auto'}} />
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.cvButton, { opacity: 0.5 }]}>
-                <FileText size={20} color={COLORS.textMuted} />
-                <Text style={[styles.cvButtonText, { color: COLORS.textMuted }]}>No CV Uploaded</Text>
-              </View>
-            )}
+            {/* CV intentionally NOT shown to posters pre-hire. A résumé exposes the
+                inspector's real name + contact details (anti-poaching). Credentials
+                are admin-verified; the full CV is released only after an
+                admin-brokered hire / identity reveal. Mirrors the (tabs)/jobs rule. */}
+            <View style={[styles.cvButton, { opacity: 0.7 }]}>
+              <FileText size={20} color={COLORS.textMuted} />
+              <Text style={[styles.cvButtonText, { color: COLORS.textMuted }]}>
+                CV released after hire — verified credentials only
+              </Text>
+            </View>
           </View>
 
           {/* 🔴 MESSAGE BOX ADDED HERE! */}
@@ -1127,7 +1118,7 @@ export default function ApplicantsScreen(): React.JSX.Element {
           //   (NX- handle) until a paid Named-Disclosure reveals identity.
           //   The per-application bid (bid_amount_cents) is on the application
           //   row, not here, so the agency can still evaluate the offer.
-          .select('id, title, bio, years_experience, specialties, location_city, location_province')
+          .select('id, title, bio, years_experience:experience_years, specialties, location_city, location_province')
           .in('id', profileIds);
         if (profErr) throw profErr;
         profilesData = profs ?? [];

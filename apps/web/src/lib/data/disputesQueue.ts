@@ -106,7 +106,8 @@ export async function fetchDisputeTimeline(
   if (!jobId) return [];
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
-    .from('audit_events')
+    // Redacted, job-scoped view (raw audit_events is admin-only after 20260801230000).
+    .from('audit_events_public')
     .select('id, created_at, event_type, severity, summary, actor_label, actor_role')
     .eq('job_id', jobId)
     .order('created_at', { ascending: false })

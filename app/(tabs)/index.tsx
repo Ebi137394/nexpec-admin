@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 
 // --- Secure Chat ---
 import ChatFAB from '../../components/chat/ChatFAB';
@@ -374,13 +375,13 @@ export default function DashboardHome() {
       //    Client info pulled from `profiles` via the `clients` relation alias.
       const { data: realJobs, error } = await supabase
         .from('jobs')
-        .select('*, clients:client_id(full_name, avatar_url)')
+        .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
         .eq('contractor_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (!error && realJobs) {
-        const list = realJobs as JobRow[];
+        const list = realJobs as unknown as JobRow[];
         setJobs(list);
         const active =
           list.find((j) => j.status === 'in_progress') ||
@@ -417,21 +418,17 @@ export default function DashboardHome() {
         /* optional */
       }
 
-      // 5) Earnings — sum of completed work
+      // 5) Earnings — sum of payouts for completed work (GR2-safe: payout only)
       let totalEarnings = 0;
       try {
         const { data: earningsRows } = await supabase
           .from('jobs')
-          .select('total_amount, daily_rate, duration_days')
+          .select('payout_amount_cents')
           .eq('contractor_id', user.id)
           .eq('status', 'completed');
         totalEarnings = (earningsRows || []).reduce(
-          (sum: number, j: any) => {
-            const amount =
-              j.total_amount ??
-              Number(j.daily_rate || 0) * Number(j.duration_days || 0);
-            return sum + Number(amount || 0);
-          },
+          (sum: number, j: any) =>
+            sum + Number(j.payout_amount_cents || 0) / 100,
           0
         );
       } catch (_) {
@@ -445,26 +442,25 @@ export default function DashboardHome() {
         totalEarnings,
       });
 
-      // 6) Unread messages — pure UUID only, never prefixed.
+      // 6) Unread messages — unified conversations model: count unread
+      //    messages sent by the other party across my conversations.
       try {
-        const activeJob =
-          (realJobs as JobRow[] | null)?.find((j) => j.status === 'in_progress') ||
-          (realJobs as JobRow[] | null)?.find((j) => j.status === 'assigned') ||
-          (realJobs as JobRow[] | null)?.[0] ||
-          null;
-        const activeId = cleanUuid(activeJob?.id);
-
-        const baseQuery = supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('receiver_id', user.id)
-          .eq('is_read', false);
-
-        const { count: unread } = activeId
-          ? await baseQuery.eq('job_id', activeId)
-          : await baseQuery;
-
-        setUnreadMessages(unread || 0);
+        const { data: convRows } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('user_id', user.id);
+        const convIds = (convRows || []).map((c: any) => c.id);
+        if (convIds.length === 0) {
+          setUnreadMessages(0);
+        } else {
+          const { count: unread } = await supabase
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .in('conversation_id', convIds)
+            .eq('is_read', false)
+            .neq('sender_id', user.id);
+          setUnreadMessages(unread || 0);
+        }
       } catch (_) {
         /* messages optional */
       }
@@ -817,6 +813,26 @@ export default function DashboardHome() {
                   onPress={() => {
                     try {
                       router.push('/(tabs)/finance' as any);
+                    } catch {}
+                  }}
+                />
+                <ActionItem
+                  icon="compass-outline"
+                  label={t('Discover')}
+                  color={BRAND.primaryBright}
+                  onPress={() => {
+                    try {
+                      router.push('/discover' as any);
+                    } catch {}
+                  }}
+                />
+                <ActionItem
+                  icon="document-text-outline"
+                  label={t('Applications')}
+                  color={BRAND.cyan}
+                  onPress={() => {
+                    try {
+                      router.push('/my-applications' as any);
                     } catch {}
                   }}
                 />
@@ -1571,7 +1587,7 @@ const ActionItem = ({
   <Pressable
     style={({ pressed }) => [
       styles.actionItem,
-      pressed && { transform: [{ scale: 0.96 }] },
+      pressed && styles.actionItemPressed,
     ]}
     onPress={onPress}
   >
@@ -2160,30 +2176,51 @@ const styles = StyleSheet.create({
   },
 
   // ── Quick actions
+  // ── Quick actions — premium 2×3 grid (3 per row, balanced & breathable) ──────
   quickActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 8,
+    rowGap: 12,
   },
   actionItem: {
+    width: '31.5%',
+    minHeight: 110,
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: BRAND.surfaceElev,
+    borderWidth: 1,
+    borderColor: BRAND.border,
+    borderRadius: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 6,
+    // Premium violet lift — subtle depth on the #020420 canvas.
+    shadowColor: '#7C3AED',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  actionItemPressed: {
+    transform: [{ scale: 0.965 }],
+    borderColor: 'rgba(124, 58, 237, 0.5)',
+    backgroundColor: '#121A44',
   },
   actionGrad: {
-    width: '100%',
-    aspectRatio: 1,
-    maxWidth: 78,
-    borderRadius: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
     borderWidth: 1,
   },
   actionLabel: {
-    color: BRAND.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
+    color: BRAND.textPrimary,
+    fontSize: 11.5,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: -0.1,
   },
   actionBadge: {
     position: 'absolute',

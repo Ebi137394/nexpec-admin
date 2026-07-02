@@ -44,6 +44,9 @@ const BUYER_FILES = [
   'app/(tabs)/client-dashboard.tsx',
   'app/(tabs)/agency-dashboard.tsx',
   'app/(tabs)/enterprise-dashboard.tsx',
+  // Root-level buyer surface (filters jobs by client_id) — not under a buyer
+  // route group, so it must be listed explicitly or the GR2 scan misses it.
+  'app/inspectors.tsx',
 ];
 
 // Blank out comments while preserving line count, so wrapped block/JSX

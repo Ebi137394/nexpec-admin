@@ -12,7 +12,7 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack, Redirect } from "expo-router";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -190,6 +190,11 @@ const PRIORITY_CONFIG: Record<string, { color: string; bg: string }> = {
 
 // ─── Component ──────────────────────────────────────────
 export default function ProjectDetailScreen() {
+  // Hardcoded mock-data screen (MOCK_PROJECTS) reachable by deep link —
+  // dev-only. __DEV__ is constant for the app's lifetime, so this early
+  // return never changes hook order between renders.
+  if (!__DEV__) return <Redirect href="/(tabs)" />;
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");

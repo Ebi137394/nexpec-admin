@@ -463,7 +463,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             label="Jobs they posted"
           />
           <LinkChip
-            href={`/admin/jobs?assigned_inspector_id=${profile.id}`}
+            href={`/admin/jobs?inspect=${profile.id}`}
             label="Jobs they're assigned to"
           />
           <LinkChip

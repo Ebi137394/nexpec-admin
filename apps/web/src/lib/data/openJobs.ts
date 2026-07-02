@@ -124,7 +124,9 @@ export async function fetchOpenJobs(
       q = q.lte('scheduled_date', f.scheduledTo);
     }
     if (f.q && f.q.trim().length > 0) {
-      const term = f.q.trim().replace(/[%_]/g, '');
+      // Escape \ % _ so search text can't act as unintended ilike wildcards
+      // (mirrors inspectorBulkList).
+      const term = f.q.trim().replace(/[\\%_]/g, (m) => `\\${m}`);
       q = q.or(`title.ilike.%${term}%,description.ilike.%${term}%`);
     }
 

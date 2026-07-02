@@ -137,6 +137,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
   // Detect role to point the "back" link at the right dashboard.
   let backHref = '/';
   let backLabel = 'Home';
+  let isAdmin = false;
   try {
     const { data: prof } = await supabase
       .from('profiles')
@@ -147,6 +148,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
       .toString()
       .toLowerCase();
     if (role === 'admin' || role === 'super_admin') {
+      isAdmin = true;
       backHref = '/admin/dashboard';
       backLabel = 'Admin dashboard';
     } else if (role === 'inspector') {
@@ -259,12 +261,14 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
                 <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={2} />
                 {backLabel}
               </Link>
-              <Link
-                href="/admin/diagnostics"
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 hover:border-violet/30 hover:text-white"
-              >
-                System diagnostics
-              </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin/diagnostics"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-300 hover:border-violet/30 hover:text-white"
+                >
+                  System diagnostics
+                </Link>
+              )}
             </div>
           </div>
         ) : (

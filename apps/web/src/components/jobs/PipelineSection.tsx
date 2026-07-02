@@ -226,7 +226,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         .from('applications')
         .select('id, job_id, bid_amount_cents, status, updated_at')
         .eq('applicant_id', user.id)
-        .in('status', ['accepted', 'selected'])
+        .in('status', ['accepted', 'CLIENT_SELECTED'])
         .order('updated_at', { ascending: false })
         .limit(15),
       // SAFETY NET: every fully_executed contract for this inspector. We
@@ -385,7 +385,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
       supabase
         .from('applications')
         .select('id, job_id, updated_at, bid_amount_cents, status')
-        .in('status', ['selected', 'accepted'])
+        .in('status', ['CLIENT_SELECTED', 'accepted'])
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase

@@ -525,32 +525,40 @@ function Pagination({
       aria-label="Directory pagination"
       className="mt-10 flex items-center justify-between"
     >
-      <Link
-        href={prevDisabled ? '#' : buildHref(currentPage - 1)}
-        aria-disabled={prevDisabled}
-        className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-          prevDisabled
-            ? 'cursor-not-allowed border-white/[0.04] bg-white/[0.01] text-zinc-600'
-            : 'border-white/[0.08] bg-white/[0.02] text-zinc-300 hover:border-violet-500/40 hover:bg-violet-500/[0.08] hover:text-violet-200'
-        }`}
-      >
-        ← Previous
-      </Link>
+      {prevDisabled ? (
+        <span
+          aria-disabled="true"
+          className="cursor-not-allowed rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-1.5 text-sm text-zinc-600 transition-colors"
+        >
+          ← Previous
+        </span>
+      ) : (
+        <Link
+          href={buildHref(currentPage - 1)}
+          className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-violet-500/40 hover:bg-violet-500/[0.08] hover:text-violet-200"
+        >
+          ← Previous
+        </Link>
+      )}
       <p className="font-mono text-[11px] text-zinc-500">
         Page <span className="text-zinc-300">{currentPage}</span> of{' '}
         <span className="text-zinc-300">{totalPages}</span>
       </p>
-      <Link
-        href={nextDisabled ? '#' : buildHref(currentPage + 1)}
-        aria-disabled={nextDisabled}
-        className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-          nextDisabled
-            ? 'cursor-not-allowed border-white/[0.04] bg-white/[0.01] text-zinc-600'
-            : 'border-white/[0.08] bg-white/[0.02] text-zinc-300 hover:border-violet-500/40 hover:bg-violet-500/[0.08] hover:text-violet-200'
-        }`}
-      >
-        Next →
-      </Link>
+      {nextDisabled ? (
+        <span
+          aria-disabled="true"
+          className="cursor-not-allowed rounded-lg border border-white/[0.04] bg-white/[0.01] px-3 py-1.5 text-sm text-zinc-600 transition-colors"
+        >
+          Next →
+        </span>
+      ) : (
+        <Link
+          href={buildHref(currentPage + 1)}
+          className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-violet-500/40 hover:bg-violet-500/[0.08] hover:text-violet-200"
+        >
+          Next →
+        </Link>
+      )}
     </nav>
   );
 }

@@ -25,13 +25,27 @@ function withQuery(path: string, params: Record<string, string>): string {
   return path.includes('?') ? `${path}&${qs}` : `${path}?${qs}`;
 }
 
+// Open-redirect guard shared by every returnTo: must be an app-internal
+// path ('/x'), never absolute ('https://…') or protocol-relative ('//host').
+const ReturnToSchema = z
+  .string()
+  .min(1)
+  .startsWith('/')
+  .refine((v) => !v.startsWith('//'));
+
+/** Same guard for the parse-failure fallback (raw FormData value). */
+function safeReturnTo(raw: FormDataEntryValue | null): string {
+  const v = typeof raw === 'string' ? raw : '';
+  return v.startsWith('/') && !v.startsWith('//') ? v : '/admin/users';
+}
+
 /* ─── Verify / Reject / Mark pending ─────────────────────────────── */
 
 const VerifySchema = z.object({
   userId: z.string().uuid(),
   status: z.enum(['verified', 'pending', 'rejected', 'unverified']),
   reason: z.string().trim().max(1000).optional().or(z.literal('')),
-  returnTo: z.string().min(1),
+  returnTo: ReturnToSchema,
 });
 
 export async function adminVerifyUser(formData: FormData): Promise<void> {
@@ -41,7 +55,7 @@ export async function adminVerifyUser(formData: FormData): Promise<void> {
     reason: formData.get('reason') ?? '',
     returnTo: formData.get('returnTo'),
   });
-  const fallback = (formData.get('returnTo') as string) || '/admin/users';
+  const fallback = safeReturnTo(formData.get('returnTo'));
   if (!parsed.success) {
     redirect(
       withQuery(fallback, {
@@ -70,7 +84,7 @@ export async function adminVerifyUser(formData: FormData): Promise<void> {
 const SuspendSchema = z.object({
   userId: z.string().uuid(),
   reason: z.string().trim().min(5, { message: 'Reason needs at least 5 characters.' }).max(1000),
-  returnTo: z.string().min(1),
+  returnTo: ReturnToSchema,
 });
 
 export async function adminSuspendUser(formData: FormData): Promise<void> {
@@ -79,7 +93,7 @@ export async function adminSuspendUser(formData: FormData): Promise<void> {
     reason: formData.get('reason'),
     returnTo: formData.get('returnTo'),
   });
-  const fallback = (formData.get('returnTo') as string) || '/admin/users';
+  const fallback = safeReturnTo(formData.get('returnTo'));
   if (!parsed.success) {
     redirect(
       withQuery(fallback, {
@@ -103,7 +117,7 @@ export async function adminSuspendUser(formData: FormData): Promise<void> {
 
 const UnsuspendSchema = z.object({
   userId: z.string().uuid(),
-  returnTo: z.string().min(1),
+  returnTo: ReturnToSchema,
 });
 
 export async function adminUnsuspendUser(formData: FormData): Promise<void> {
@@ -111,7 +125,7 @@ export async function adminUnsuspendUser(formData: FormData): Promise<void> {
     userId: formData.get('userId'),
     returnTo: formData.get('returnTo'),
   });
-  const fallback = (formData.get('returnTo') as string) || '/admin/users';
+  const fallback = safeReturnTo(formData.get('returnTo'));
   if (!parsed.success) redirect(withQuery(fallback, { error: 'Bad request.' }));
   const { userId, returnTo } = parsed.data;
 
@@ -128,7 +142,7 @@ export async function adminUnsuspendUser(formData: FormData): Promise<void> {
 
 const PasswordResetSchema = z.object({
   userId: z.string().uuid(),
-  returnTo: z.string().min(1),
+  returnTo: ReturnToSchema,
 });
 
 export async function adminSendPasswordReset(formData: FormData): Promise<void> {
@@ -136,7 +150,7 @@ export async function adminSendPasswordReset(formData: FormData): Promise<void> 
     userId: formData.get('userId'),
     returnTo: formData.get('returnTo'),
   });
-  const fallback = (formData.get('returnTo') as string) || '/admin/users';
+  const fallback = safeReturnTo(formData.get('returnTo'));
   if (!parsed.success) redirect(withQuery(fallback, { error: 'Bad request.' }));
   const { userId, returnTo } = parsed.data;
 

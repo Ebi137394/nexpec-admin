@@ -246,14 +246,7 @@ export function NotificationBellLive({
             }
           },
         )
-        .subscribe((status, err) => {
-          if (typeof console !== 'undefined') {
-            console.log(
-              `[NotificationBellLive] channel notifications:${userId} →`,
-              status,
-              err ?? '',
-            );
-          }
+        .subscribe((status) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn(
               '[NotificationBellLive] realtime degraded, falling back to 25s polling',

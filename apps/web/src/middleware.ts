@@ -30,6 +30,7 @@ import { createSupabaseMiddlewareClient } from '@/lib/supabase/middleware';
 const ADMIN_PREFIX = '/admin';
 const CLIENT_PREFIX = '/client';
 const INSPECTOR_PREFIX = '/inspector';
+const SUPPLIERS_PREFIX = '/suppliers';
 const AUTH_ROUTES = ['/sign-in', '/sign-up'];
 
 /**
@@ -43,6 +44,7 @@ const PORTAL_ROLES: Record<string, ReadonlyArray<string>> = {
   // client_id = auth.uid() and RLS on jobs.
   [CLIENT_PREFIX]: ['client', 'agency', 'enterprise', 'admin', 'super_admin'],
   [INSPECTOR_PREFIX]: ['inspector', 'admin', 'super_admin'],
+  [SUPPLIERS_PREFIX]: ['supplier', 'admin', 'super_admin'],
 };
 
 /**
@@ -88,14 +90,20 @@ export async function middleware(request: NextRequest) {
   const isInspectorRoute =
     pathname === INSPECTOR_PREFIX ||
     pathname.startsWith(`${INSPECTOR_PREFIX}/`);
-  const isPortalRoute = isAdminRoute || isClientRoute || isInspectorRoute;
+  const isSuppliersRoute =
+    pathname === SUPPLIERS_PREFIX ||
+    pathname.startsWith(`${SUPPLIERS_PREFIX}/`);
+  const isPortalRoute =
+    isAdminRoute || isClientRoute || isInspectorRoute || isSuppliersRoute;
   const portalPrefix = isAdminRoute
     ? ADMIN_PREFIX
     : isClientRoute
       ? CLIENT_PREFIX
       : isInspectorRoute
         ? INSPECTOR_PREFIX
-        : null;
+        : isSuppliersRoute
+          ? SUPPLIERS_PREFIX
+          : null;
   const isAuthRoute = AUTH_ROUTES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );

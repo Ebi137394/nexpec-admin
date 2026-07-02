@@ -24,6 +24,7 @@ import {
   Banknote,
   Landmark,
   Sparkles,
+  EyeOff,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -54,6 +55,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
       { label: 'Audit Trail', href: '/admin/audit', icon: ScrollText },
       { label: 'Predictive Integrity', href: '/admin/integrity', icon: Gauge },
+      { label: 'Integrity Monitor', href: '/admin/integrity/internal-threads', icon: EyeOff },
     ],
   },
   {

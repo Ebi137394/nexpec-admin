@@ -46,7 +46,9 @@ export async function fetchUsersPage(
 
   if (query.role) q = q.eq('role', query.role);
   if (query.search?.trim()) {
-    const s = query.search.trim();
+    // Escape \ % _ so pasted input can't act as unintended ilike wildcards
+    // (mirrors inspectorBulkList).
+    const s = query.search.trim().replace(/[\\%_]/g, (m) => `\\${m}`);
     // ilike on full_name OR email — wrap in `or` filter.
     q = q.or(`full_name.ilike.%${s}%,email.ilike.%${s}%`);
   }

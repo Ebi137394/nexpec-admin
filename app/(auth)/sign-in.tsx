@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Mail, Lock, Eye, EyeOff, ChevronRight, Fingerprint, Scan } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -40,7 +41,7 @@ const LOCAL_COLORS = {
   background:  '#070716',          // Matches sign-up.tsx exactly
   primary:     '#B154F0',          // Vibrant phosphorescent violet (Sign In)
   primaryGlow: 'rgba(177,84,240,0.55)', // Soft outer halo
-  cyanAccent:  '#00FFFF',          // Phosphorescent cyan for the X halo
+  cyanAccent:  '#7C3AED',          // Phosphorescent purple for the X halo
   text:        '#FFFFFF',
   textMuted:   '#9CA3AF',
   inputBg:     'rgba(255, 255, 255, 0.05)',
@@ -379,8 +380,6 @@ export default function SignInScreen() {
         //    On native, expo-auth-session typically handles the redirect;
         //    on web, the browser navigates directly. If url present, open it.
         if (data?.url) {
-          // Lazy import keeps Linking from being required everywhere.
-          const Linking = require('expo-linking');
           await Linking.openURL(data.url);
         }
       } catch (err: any) {
@@ -485,7 +484,16 @@ export default function SignInScreen() {
                 <InputField icon={<Mail size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" />
                 <InputField icon={<Lock size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} rightIcon={showPassword ? <EyeOff size={20} color={LOCAL_COLORS.textMuted} /> : <Eye size={20} color={LOCAL_COLORS.textMuted} />} onRightIconPress={() => setShowPassword(!showPassword)} />
 
-                <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => router.push('/ForgotPassword')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity style={styles.forgotPasswordContainer} onPress={async () => {
+                  const addr = email.trim();
+                  if (!addr) { Alert.alert('Enter your email', 'Type your email above, then tap Forgot Password to get a reset link.'); return; }
+                  // redirectTo brings the email link back to app/(auth)/reset-password.tsx
+                  // (bare path — route-group parens are not part of the deep-link URL).
+                  const { error } = await supabase.auth.resetPasswordForEmail(addr, {
+                    redirectTo: Linking.createURL('reset-password'),
+                  });
+                  Alert.alert(error ? 'Could not send' : 'Check your email', error ? error.message : 'We sent a password reset link to your email.');
+                }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                 </TouchableOpacity>
 
@@ -590,7 +598,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: LOCAL_COLORS.text,
     letterSpacing: 6,
-    textShadowColor: 'rgba(6,182,212,0.5)',
+    textShadowColor: 'rgba(124,58,237,0.5)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 8,
   },
@@ -610,9 +618,9 @@ const styles = StyleSheet.create({
     left: 0,
     fontSize: 32,
     fontWeight: '900',
-    color: '#06B6D4',
+    color: '#7C3AED',
     letterSpacing: 6,
-    textShadowColor: '#06B6D4',
+    textShadowColor: '#7C3AED',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 28,
     paddingHorizontal: 4,
@@ -621,9 +629,9 @@ const styles = StyleSheet.create({
   xCoreSharp: {
     fontSize: 32,
     fontWeight: '900',
-    color: '#06B6D4',
+    color: '#7C3AED',
     letterSpacing: 6,
-    textShadowColor: '#06B6D4',
+    textShadowColor: '#7C3AED',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
     paddingHorizontal: 4,

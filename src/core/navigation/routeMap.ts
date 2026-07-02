@@ -31,6 +31,16 @@ export function isPlatformAdmin(role?: string | null): boolean {
 }
 
 /**
+ * True when a signed-in user has no usable role yet → they must complete the
+ * role-selection wizard before entering any portal. Mirrors the mobile
+ * social-auth checkNeedsRole() and the web role gate.
+ */
+export function needsRole(role?: string | null): boolean {
+  const r = (role ?? '').toString().trim().toLowerCase();
+  return r.length === 0 || ['none', 'pending', 'unknown'].includes(r);
+}
+
+/**
  * The canonical home route for a role. `super_admin` lands on the full admin
  * dashboard; `admin` (operator) lands on the inbox — both inside the (admin)
  * group, which both can enter after the Phase 1 god-mode routing fix.
@@ -38,7 +48,9 @@ export function isPlatformAdmin(role?: string | null): boolean {
 export function roleHome(role?: string | null): string {
   switch (role) {
     case 'super_admin': return ROUTES.adminDashboard;
-    case 'admin':       return ROUTES.adminInbox;
+    // God-mode rule: admin ≡ super_admin everywhere → same landing as super_admin
+    // (mirrors web destinationForUser, which sends both to /admin/dashboard).
+    case 'admin':       return ROUTES.adminDashboard;
     case 'agency':      return ROUTES.agencyDashboard;
     case 'enterprise':  return ROUTES.enterpriseDashboard;
     case 'client':      return ROUTES.clientDashboard;

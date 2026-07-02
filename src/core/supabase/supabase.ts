@@ -16,6 +16,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false, // Disable for better performance in mobile apps
+    // PKCE is REQUIRED for the OAuth deep-link flow: signInWithOAuth must return
+    // ?code=... (not #fragment tokens) so oauth-callback.tsx can call
+    // exchangeCodeForSession(). Default is 'implicit', which silently breaks
+    // Apple/Google/LinkedIn sign-in on native.
+    flowType: 'pkce',
   },
   db: {
     schema: 'public',
@@ -23,6 +28,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'X-Client-Info': 'nexpec-mobile/1.0.0',
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
     },
   },
 });

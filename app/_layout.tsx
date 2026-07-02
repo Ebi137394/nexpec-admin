@@ -35,7 +35,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
 // ★ Phase 3 — canonical role→home map (single source of truth; defrags the
 //   duplicated routing chains in this AuthGate).
-import { roleHome } from '@/src/core/navigation/routeMap';
+import { roleHome, needsRole } from '@/src/core/navigation/routeMap';
 
 function AuthGate() {
   const { session, loading, role, mfaRequired } = useAuth();
@@ -125,6 +125,8 @@ function AuthGate() {
       'review-report',
       'rate-inspector',
       'map',
+      'discover',         // app/discover.tsx — inspector job-discovery feed
+      'my-applications',  // app/my-applications.tsx — inspector's submitted applications
       // Mobile Sprint 1 · Lane 4 — dev-only pre-flight diagnostic at
       // /diagnostics. Read-only schema probe, safe to ship.
       'diagnostics',
@@ -235,7 +237,9 @@ function AuthGate() {
     //  the TOTP challenge until the session is stepped up to AAL2. Covers
     //  every entry path (password, biometric, social OAuth, session restore),
     //  not just the password sign-in screen.
-    const onMfaChallenge = segments[0] === '(auth)' && segments[1] === 'mfa-challenge';
+    // (segments as string[]) — expo-router's generated tuple type varies with
+    // typed-routes state; index-1 access must not depend on it.
+    const onMfaChallenge = segments[0] === '(auth)' && (segments as string[])[1] === 'mfa-challenge';
     if (isAuthenticated && mfaRequired) {
       if (!onMfaChallenge) safeNavigate('/(auth)/mfa-challenge');
       return;
@@ -244,6 +248,14 @@ function AuthGate() {
     // 🛑 STRICT ROLE ENFORCEMENT: platform admins (admin ≡ super_admin) belong in the (admin) group OR allowed shared routes
     if (isAuthenticated && (role === 'super_admin' || role === 'admin') && !inAdminGroup && !inAllowedRoute) {
       safeNavigate('/(admin)/dashboard');
+      return;
+    }
+
+    // ── ROLE-LESS ONBOARDING GATE ──────────────────────────────────────
+    //  A signed-in user who hasn't picked a role yet must finish the role
+    //  wizard — never leak into the default (inspector) tabs layout.
+    if (isAuthenticated && needsRole(role) && !inAuthGroup) {
+      safeNavigate('/(auth)/choose-role');
       return;
     }
 

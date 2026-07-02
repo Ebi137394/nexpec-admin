@@ -100,7 +100,7 @@ const ROLES: RoleSpec[] = [
 
 export default function ChooseRoleScreen() {
   const router = useRouter();
-  const { session, refreshProfile } = useAuth() as any;
+  const { session, refreshOrganization } = useAuth();
   const userId: string | undefined = session?.user?.id;
 
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -124,19 +124,31 @@ export default function ChooseRoleScreen() {
     const role = ROLES[selectedIdx].key;
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role })
-        .eq('id', userId);
+      // A plain `profiles.update({ role })` runs under the user's JWT and is
+      // SILENTLY filtered out by the column-level RLS lockdown on profiles.role
+      // (0 rows, no error) → the social-onboarding loop. apply_onboarding_role
+      // is SECURITY DEFINER: it enforces the role allow-list + the one-way
+      // "no demoting an operator/inspector" guard and returns the canonical role.
+      const { data, error } = await supabase.rpc('apply_onboarding_role', {
+        p_role: role,
+      });
       if (error) throw error;
+
+      const row = Array.isArray(data) ? data[0] : data;
+      const appliedRole = (row?.applied_role ?? role) as string;
+
       buzzSuccess();
-      // Trigger AuthContext to refetch profile so AuthGate routes to dashboard
-      if (typeof refreshProfile === 'function') await refreshProfile();
-      // Belt-and-braces: also push directly. AuthGate will allow this.
-      switch (role) {
+      // Trigger AuthContext to refetch the profile so the AuthGate routes to the
+      // dashboard (AuthContext exposes refreshOrganization, which re-reads role).
+      await refreshOrganization();
+      // Belt-and-braces: also push directly to the applied role's home. The
+      // AuthGate will allow this. Route on the SERVER-confirmed role, not the
+      // tapped one, in case the one-way guard kept a protected role.
+      switch (appliedRole) {
         case 'inspector': router.replace('/(tabs)' as any); break;
         case 'client':    router.replace('/(tabs)/client-dashboard' as any); break;
         case 'agency':    router.replace('/(tabs)/agency-dashboard' as any); break;
+        default:          router.replace('/(tabs)' as any); break;
       }
     } catch (e: any) {
       buzzError();

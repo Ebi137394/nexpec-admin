@@ -45,16 +45,27 @@ async function checkNeedsRole(userId: string): Promise<boolean> {
 }
 
 /**
- * Generic OAuth flow for any provider Supabase supports. The browser
- * opens, the user authenticates with the provider, we receive the
- * tokens in the redirect URL fragment, and we hand them to Supabase
- * to materialize a session.
+ * Generic OAuth flow for any provider Supabase supports.
+ *
+ * supabase-js v2 defaults to the PKCE flow: the provider redirects back
+ * with an authorization `code` in the URL *query string* (`?code=...`),
+ * which we exchange for a session via `exchangeCodeForSession`. The old
+ * implementation parsed `access_token`/`refresh_token` from the URL `#`
+ * fragment — that's the implicit flow and never fires under PKCE, so it
+ * always failed with "Missing tokens in OAuth callback."
+ *
+ * The browser opens, the user authenticates, control returns to the
+ * `oauth-callback` deep link, we pull the `code` and exchange it.
  */
 async function oauthFlow(
   provider: 'apple' | 'google' | 'linkedin_oidc',
 ): Promise<SocialSignInResult> {
   try {
-    const redirectTo = Linking.createURL('/(auth)/oauth-callback');
+    // NOTE: route-group parens are NOT part of the URL. expo-router resolves
+    // `/oauth-callback` to app/(auth)/oauth-callback.tsx, so the redirect
+    // target — and the URL we register with each provider / Supabase — must
+    // be the bare `oauth-callback` path.
+    const redirectTo = Linking.createURL('oauth-callback');
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo, skipBrowserRedirect: true },
@@ -65,24 +76,24 @@ async function oauthFlow(
 
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     if (result.type !== 'success' || !result.url) {
+      // dismiss / cancel / locked — user backed out. Not an error to surface.
       return { ok: false, needs_role: false, error: 'cancelled' };
     }
 
-    // Tokens come back in the URL fragment.
-    const url     = new URL(result.url);
-    const params  = new URLSearchParams(url.hash.replace(/^#/, ''));
-    const access  = params.get('access_token');
-    const refresh = params.get('refresh_token');
-    if (!access || !refresh) {
-      return { ok: false, needs_role: false, error: 'Missing tokens in OAuth callback.' };
+    // PKCE: the authorization code comes back in the query string.
+    const code = new URL(result.url).searchParams.get('code');
+    if (!code) {
+      return { ok: false, needs_role: false, error: 'Missing authorization code in OAuth callback.' };
     }
 
-    const { data: sessionData, error: setErr } = await supabase.auth.setSession({
-      access_token: access,
-      refresh_token: refresh,
-    });
-    if (setErr || !sessionData.user) {
-      return { ok: false, needs_role: false, error: setErr?.message ?? 'Could not set session.' };
+    const { data: sessionData, error: exchangeErr } =
+      await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeErr || !sessionData?.user) {
+      return {
+        ok: false,
+        needs_role: false,
+        error: exchangeErr?.message ?? 'Could not complete sign-in.',
+      };
     }
 
     // Funnel professional claims into our schema (fills profile blanks only;

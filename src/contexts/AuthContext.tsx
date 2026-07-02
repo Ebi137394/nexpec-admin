@@ -64,21 +64,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchOrganization = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('organization_id, role')
-      .eq('id', userId)
-      .single<ProfileData>();
-
-    if (error) {
-      console.error('[AuthContext] Failed to fetch org:', error.message);
-      return { organizationId: null, role: null };
+    // Retry transient failures: a single network blip returning role:null would
+    // bounce a fully-onboarded user back to /(auth)/choose-role (false logout).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('organization_id, role')
+        .eq('id', userId)
+        .single<ProfileData>();
+      if (!error && data) {
+        return {
+          organizationId: data.organization_id ?? null,
+          role: data.role ?? null,
+        };
+      }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
-
-    return {
-      organizationId: data?.organization_id ?? null,
-      role: data?.role ?? null,
-    };
+    console.error('[AuthContext] Failed to fetch org after retries');
+    return { organizationId: null, role: null };
   }, []);
 
   const refreshOrganization = useCallback(async () => {
@@ -138,6 +141,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchOrganization, computeMfaRequired]);
 
   const signOut = useCallback(async () => {
+    // Remove this user's push token first so a shared/resold device never keeps
+    // receiving the prior user's pushes (push_tokens PK = user_id).
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (u.user?.id) {
+        // outbox-exempt: best-effort logout cleanup; queuing a delete post-sign-out is pointless
+        await supabase.from('push_tokens').delete().eq('user_id', u.user.id);
+      }
+    } catch { /* best-effort; never block sign-out */ }
     await supabase.auth.signOut();
   }, []);
 

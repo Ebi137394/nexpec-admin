@@ -1,37 +1,17 @@
 // src/lib/supabase.ts
+//
+// ⚠️ SINGLE-CLIENT RULE: this module must NOT create its own Supabase client.
+// It previously ran a second createClient() against the same AsyncStorage key
+// as src/core/supabase/supabase.ts — two GoTrue instances then raced the same
+// refresh-token family ("Invalid Refresh Token: Already Used" → sporadic forced
+// logouts) and auth events never crossed instances. It now re-exports the one
+// canonical client from src/core/supabase/supabase.ts.
 
-import "react-native-url-polyfill/auto";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../core/supabase/supabase";
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+export { supabase };
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "Missing Supabase environment variables. Check your .env file."
-  );
-}
-
-// NOTE: client intentionally untyped. The hand-written ../types/database.types
-// Database stub covered only ~6 tables (Row-only, no Insert/Update), which forced
-// every other table's queries to resolve to `never`. Restore strong typing via
-// `supabase gen types typescript` (full generated schema) post-launch.
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
-  },
-});
-
-// ✅ Add the readiness guard function
+// ✅ Readiness guard (kept for existing callers)
 export async function supabaseReady(): Promise<void> {
   // Wait for the URL polyfill to be ready
   await new Promise(resolve => {

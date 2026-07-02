@@ -51,13 +51,30 @@ serve(async (req: Request): Promise<Response> => {
 
     // Parse request body
     const payload: WebhookPayload | { consent_id: string } = await req.json();
-    
+
     let consentId: string;
-    
+    // True when this invocation arrived from the DB webhook (record envelope)
+    // AND presented the shared webhook secret — that path is server-to-server
+    // and skips the per-user ownership check below.
+    let isTrustedWebhook = false;
+
     // Handle both webhook payload and direct invocation
     if ('record' in payload && payload.record?.id) {
       consentId = payload.record.id;
       console.log(`Processing webhook for consent: ${consentId}`);
+
+      // AuthZ (webhook path): a DB webhook cannot present a user JWT, so it must
+      // prove itself with the shared secret. Fail closed if WEBHOOK_SECRET is
+      // unset or the header doesn't match.
+      const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
+      const providedSecret = req.headers.get('x-webhook-secret');
+      if (!webhookSecret || providedSecret !== webhookSecret) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      isTrustedWebhook = true;
     } else if ('consent_id' in payload) {
       consentId = payload.consent_id;
       console.log(`Processing direct invocation for consent: ${consentId}`);
@@ -72,6 +89,27 @@ serve(async (req: Request): Promise<Response> => {
         persistSession: false,
       },
     });
+
+    // AuthZ (direct-invocation path): resolve the caller from their JWT. The
+    // receipt (and the user's email) belong to the consent owner, so only the
+    // owner or an admin may trigger it. The webhook path above is already
+    // authenticated by the shared secret and skips this check.
+    let callerId: string | null = null;
+    if (!isTrustedWebhook) {
+      const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+      const authClient = createClient(supabaseUrl, anonKey ?? '', {
+        global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: { user } } = await authClient.auth.getUser();
+      if (!user) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      callerId = user.id;
+    }
 
     // Fetch consent data
     console.log(`Fetching consent data for ID: ${consentId}`);
@@ -91,6 +129,28 @@ serve(async (req: Request): Promise<Response> => {
 
     const consent = consentData as LegalConsent;
     console.log(`Consent found for user: ${consent.user_id}`);
+
+    // AuthZ (direct-invocation path): the consent (and the email about to be
+    // sent) belongs to consent.user_id. Allow only the owner, or an admin.
+    // The webhook path was already authenticated by the shared secret.
+    if (!isTrustedWebhook) {
+      let isOwner = consent.user_id === callerId;
+      if (!isOwner) {
+        const { data: callerProfile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', callerId)
+          .maybeSingle();
+        const role = (callerProfile as { role?: string } | null)?.role;
+        const isAdmin = role === 'admin' || role === 'super_admin';
+        if (!isAdmin) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'forbidden' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      }
+    }
 
     // Fetch user profile
     console.log(`Fetching user profile for: ${consent.user_id}`);

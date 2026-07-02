@@ -229,6 +229,7 @@ Deno.serve(async (req) => {
           const { error: restoreErr } = await supabase.rpc('restore_wallet_balance', {
             p_user_id: userId,
             p_amount_cents: payout.amount,
+            p_event_id: event.id, // idempotency key — credits once per Stripe event
           });
           if (restoreErr) {
             console.error(

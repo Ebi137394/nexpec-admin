@@ -75,10 +75,13 @@ function buildMessage(event: InspectionEvent, tagNumber: string): string {
 serve(async (req: Request) => {
   // ── Auth check ────────────────────────────────────────────
   //    The webhook sends a secret in the Authorization header.
+  //    Fail CLOSED: reject if WEBHOOK_SECRET is unset OR the header does not
+  //    match. (Previously this skipped the check entirely when the secret was
+  //    unset, leaving the endpoint open.)
   const authHeader = req.headers.get("Authorization");
   const expectedToken = Deno.env.get("WEBHOOK_SECRET");
 
-  if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+  if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },

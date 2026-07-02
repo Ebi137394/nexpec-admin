@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error('[verify-affidavit] failed:', e);
-    return json({ ok: false, error: (e as Error).message ?? 'internal error' }, 500);
+    // Internal detail stays server-side (logs only) — never in the response.
+    return json({ ok: false, error: 'Internal error' }, 500);
   }
 });

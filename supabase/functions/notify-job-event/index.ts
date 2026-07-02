@@ -26,11 +26,40 @@ import {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 const supa: SupabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
+
+// AuthZ: this dispatcher fans out notifications using recipients resolved from
+// the event/job (server-side), but it must not be callable by arbitrary users.
+// Allow (a) the trusted pg_net / server-to-server caller via the shared secret,
+// or (b) an admin user JWT. Fails closed.
+async function isAuthorized(req: Request): Promise<boolean> {
+  // Path (a): server-to-server shared secret (pg_net trigger).
+  const internalSecret = Deno.env.get('NOTIFY_SHARED_SECRET');
+  const provided = req.headers.get('x-internal-secret');
+  if (internalSecret && provided && provided === internalSecret) return true;
+
+  // Path (b): admin user JWT.
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (!authHeader) return false;
+  const authClient = createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+    auth: { persistSession: false },
+  });
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return false;
+  const { data: profile } = await supa
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const role = (profile as { role?: string } | null)?.role;
+  return role === 'admin' || role === 'super_admin';
+}
 
 // ─── TYPES ──────────────────────────────────────────────────────────
 
@@ -84,6 +113,11 @@ interface ExpoMessage {
 
 serve(async (req) => {
   try {
+    // Fail closed unless the caller is the trusted internal secret or an admin.
+    if (!(await isAuthorized(req))) {
+      return jsonResp({ error: 'unauthorized' }, 401);
+    }
+
     const { event_id } = await req.json();
     if (!event_id) {
       return jsonResp({ error: 'Missing event_id' }, 400);

@@ -81,12 +81,9 @@ async function uploadToStorage(
 
   if (error) throw new Error(`Failed to upload PDF: ${error.message}`);
 
-  // Get public URL
-  const { data: urlData } = supabase.storage
-    .from(STORAGE_BUCKET)
-    .getPublicUrl(filePath);
-
-  return urlData.publicUrl;
+  // Store the storage PATH — the `contracts` bucket is PRIVATE. Readers mint a
+  // short-lived signed URL via the mint-doc-url edge function, never a public URL.
+  return filePath;
 }
 
 // Save contract record to database
@@ -235,7 +232,9 @@ async function handleContractGeneration(jobId: string): Promise<Response> {
           contract_id: contractRecord.id,
           contract_number: contractId,
           pdf_url: pdfUrl,
-          sent_to: [client.email, inspector.email],
+          // PII: never echo recipient emails. Emails are sent server-side; the
+          // caller only needs a delivery count.
+          sent_to_count: 2,
         },
       }),
       {
@@ -304,8 +303,30 @@ serve(async (req: Request) => {
       );
     }
 
-    // Direct call with job_id
+    // Direct call with job_id — ADMIN ONLY. Clients/inspectors never invoke this
+    // directly (the DB webhook handles the hired→contract path). Gating it closes
+    // the unauthenticated contract-generation + recipient-email-harvest hole.
     if (body.job_id) {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const callerClient = createClient(SUPABASE_URL, process.env.SUPABASE_ANON_KEY!, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: { user: caller } } = await callerClient.auth.getUser();
+      if (!caller) {
+        return new Response(
+          JSON.stringify({ error: "unauthenticated" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const { data: callerProfile } = await getSupabaseClient()
+        .from("profiles").select("role").eq("id", caller.id).single();
+      if (!callerProfile || !["admin", "super_admin"].includes(callerProfile.role as string)) {
+        return new Response(
+          JSON.stringify({ error: "forbidden — admin only" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return await handleContractGeneration(body.job_id);
     }
 

@@ -653,11 +653,11 @@ serve(async (req: Request): Promise<Response> => {
 
   } catch (error) {
     console.error("Unexpected error:", error);
+    // Internal detail stays server-side (logs only) — never in the response.
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: "An unexpected error occurred",
-        details: error.message,
+      JSON.stringify({
+        success: false,
+        error: "Internal error",
       }),
       { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
     );

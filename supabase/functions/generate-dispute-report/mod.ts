@@ -18,7 +18,19 @@ interface DisputeData {
   evidence_files?: string[];
 }
 
+// CORS for the browser caller (src/components/DisputeReportDownloader.tsx).
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
+};
+
 Deno.serve(async (req) => {
+  // Preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     // Parse request body
     const { dispute_id } = await req.json();
@@ -49,6 +61,23 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // AuthZ: resolve the caller from their JWT. Only a party to the dispute
+    // (the project's client or inspector, or whoever raised it) or an admin may
+    // pull the report. Without this, any authenticated user could read any
+    // dispute by id (IDOR) since the service-role client bypasses RLS.
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+      auth: { persistSession: false },
+    });
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // 1. دریافت اطلاعات کامل اختلاف از دیتابیس
     const { data: disputeData, error: disputeError } = await supabase
       .from('disputes')
@@ -66,22 +95,54 @@ Deno.serve(async (req) => {
         resolution_date,
         resolved_by,
         amount_involved,
-        evidence_files
+        evidence_files,
+        raised_by
       `)
       .eq('id', dispute_id)
       .single();
 
     if (disputeError || !disputeData) {
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Dispute not found or error fetching data',
-          details: disputeError?.message 
-        }), 
-        { 
-          status: 404, 
-          headers: { "Content-Type": "application/json" } 
+          details: disputeError?.message
+        }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
+    }
+
+    // AuthZ gate: caller must be a dispute party or an admin. The dispute links
+    // to a project (project_id) whose client_id / inspector_id are the parties,
+    // plus disputes.raised_by. Mirrors the live RLS policy on public.disputes.
+    {
+      let isParty = disputeData.raised_by === user.id;
+      if (!isParty && disputeData.project_id) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('client_id, inspector_id')
+          .eq('id', disputeData.project_id)
+          .maybeSingle();
+        isParty =
+          project?.client_id === user.id || project?.inspector_id === user.id;
+      }
+      if (!isParty) {
+        const { data: callerProfile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        const role = (callerProfile as { role?: string } | null)?.role;
+        const isAdmin = role === 'admin' || role === 'super_admin';
+        if (!isAdmin) {
+          return new Response(
+            JSON.stringify({ error: 'forbidden' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      }
     }
 
     // 2. طراحی ساختار PDF
@@ -251,41 +312,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
+    // The `dispute-reports` bucket is private (owner+admin only). Store the
+    // storage PATH (filename) in the DB; mint a signed URL for the response.
+    const { data: signed } = await supabase.storage
       .from('dispute-reports')
-      .getPublicUrl(filename);
+      .createSignedUrl(filename, 3600);
 
-    const publicUrl = publicUrlData.publicUrl;
-
-    // Update dispute record with report URL
+    // Update dispute record with report PATH
     await supabase
       .from('disputes')
-      .update({ 
-        report_url: publicUrl,
+      .update({
+        report_url: filename,
         report_generated_at: new Date().toISOString()
       })
       .eq('id', dispute_id);
 
-    // Log the report generation
+    // Log the report generation (store PATH, not a public URL)
     await supabase.from('activity_logs').insert({
       action: 'dispute_report_generated',
       resource_type: 'dispute',
       resource_id: dispute_id,
       details: {
-        report_url: publicUrl,
+        report_url: filename,
         filename: filename
       },
       created_at: new Date().toISOString()
     });
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
-        url: publicUrl,
+        url: signed?.signedUrl ?? null,
         filename: filename,
         message: 'Dispute resolution report generated successfully'
-      }), 
+      }),
       { 
         headers: { 
           "Content-Type": "application/json",

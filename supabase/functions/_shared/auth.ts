@@ -57,6 +57,9 @@ export async function requireUser(
  * Enforce that the caller is acting on THEIR OWN resource. If `requestedId` is
  * absent the caller is expected to fall back to their own id; if present and
  * mismatched, THROWS a 403 Response.
+ *
+ * NO-OPs when the body id is absent — callers MUST use the userId returned by
+ * requireAuth (never the raw body value) as the effective identity.
  */
 export function requireSelf(callerId: string, requestedId: unknown): void {
   if (typeof requestedId !== 'string' || requestedId.length === 0) return;

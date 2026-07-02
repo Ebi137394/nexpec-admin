@@ -1,0 +1,13 @@
+-- ════════════════════════════════════════════════════════════════════════════
+--  20260801206000_conversation_kind_team_internal.sql  (Ghost-Mode — Phase 4, 1/2)
+--
+--  Adds the `job_team_internal` conversation kind: a PRIVATE agency/org team thread
+--  per mission that the platform admin is NOT a visible participant of, but CAN
+--  read invisibly (Ghost Mode) for integrity monitoring.
+--
+--  STANDALONE BY NECESSITY: a newly-added enum value cannot be USED (cast to the
+--  type) in the same transaction that adds it. So this migration ONLY adds the
+--  value; the RPC, helpers, RLS and the RESTRICTIVE ghost-block that reference it
+--  live in 20260801208000 (a separate transaction). IF NOT EXISTS → idempotent.
+-- ════════════════════════════════════════════════════════════════════════════
+ALTER TYPE public.conversation_kind ADD VALUE IF NOT EXISTS 'job_team_internal';

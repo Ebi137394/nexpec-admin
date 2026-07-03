@@ -69,7 +69,7 @@ export type ContractStatus =
   | 'fully_executed'
   | 'voided';
 
-async function jobTitleMap(
+export async function jobTitleMap(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   jobIds: string[],
 ): Promise<Map<string, string | null>> {
@@ -89,7 +89,7 @@ async function jobTitleMap(
   return map;
 }
 
-async function profileNameMap(
+export async function profileNameMap(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   ids: string[],
 ): Promise<Map<string, string | null>> {

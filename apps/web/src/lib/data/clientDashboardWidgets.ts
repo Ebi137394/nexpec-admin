@@ -66,18 +66,18 @@ export async function fetchClientDashboardWidgets(): Promise<ClientDashboardWidg
     } = await supabase.auth.getUser();
     if (!user) return empty;
 
-    // Pending — unsigned required contracts
+    // Pending — job contracts awaiting MY signature (V3 job_contracts via the
+    // client-scoped view, which is blind to the inspector payout by design)
     let unsignedContracts = 0;
     try {
       const { count } = await supabase
-        .from('contract_assignments')
+        .from('client_job_contracts_view')
         .select('id', { count: 'exact', head: true })
-        .eq('party_id', user.id)
-        .eq('required', true)
-        .is('signed_at', null);
+        .eq('client_id', user.id)
+        .eq('status', 'pending_client_signature');
       unsignedContracts = count ?? 0;
     } catch {
-      /* table may not exist or RLS denies — keep 0 */
+      /* view may not exist or RLS denies — keep 0 */
     }
 
     // Pending — open disputes I opened

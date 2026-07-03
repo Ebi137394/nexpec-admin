@@ -1,126 +1,68 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  lib/data/contracts.ts — fetchers for contracts + assignments
+//  lib/data/contracts.ts — admin-wide fetcher for V3 job_contracts.
+//
+//  The Sprint-12D document library (contracts + contract_assignments) never
+//  shipped to prod; the live schema is job_contracts. Role-scoped fetchers
+//  (client/inspector projected views, single-job admin lookup) live in
+//  jobContracts.ts — this module hosts the admin-wide list for /admin/contracts.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import type {
-  Contract,
-  ContractAssignment,
-  ContractKind,
-  ContractSource,
-} from './contracts.types';
+import {
+  jobTitleMap,
+  profileNameMap,
+  type AdminJobContractRow,
+  type ContractStatus,
+} from './jobContracts';
 
-export type { Contract, ContractAssignment };
+export type { AdminJobContractRow, ContractStatus };
 
-const BUCKET = 'contracts';
-const TTL_SECONDS = 60 * 10;
-
-export async function fetchContractById(id: string): Promise<Contract | null> {
+/**
+ * Every job contract, newest first. RLS (job_contracts_admin_select) means
+ * only admins get rows back; everyone else sees an empty list.
+ */
+export async function fetchAdminContracts(): Promise<AdminJobContractRow[]> {
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
-      .from('contracts')
+      .from('job_contracts')
       .select(
-        'id, kind, title, body_md, pdf_path, external_url, version, effective_from, is_active, created_by, created_at',
-      )
-      .eq('id', id)
-      .maybeSingle();
-    if (error || !data) return null;
-    return await signOne(supabase, data as unknown as Record<string, unknown>);
-  } catch {
-    return null;
-  }
-}
-
-export async function fetchMyAssignments(): Promise<ContractAssignment[]> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return [];
-    const { data, error } = await supabase
-      .from('contract_assignments')
-      .select(
-        'id, contract_id, party_id, required, signed_at, signer_typed_name, created_at, contracts(title, kind)',
-      )
-      .eq('party_id', user.id)
-      .order('created_at', { ascending: false });
-    if (error || !data) return [];
-    return (data as unknown as Array<Record<string, unknown>>).map(toAssignment);
-  } catch {
-    return [];
-  }
-}
-
-export async function fetchAdminContracts(): Promise<Contract[]> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from('contracts')
-      .select(
-        'id, kind, title, body_md, pdf_path, external_url, version, effective_from, is_active, created_by, created_at',
+        'id, job_id, client_id, inspector_id, client_price_cents, inspector_payout_cents, status, contract_text_md, custom_contract_url, client_signed_at, inspector_signed_at, created_at',
       )
       .order('created_at', { ascending: false });
     if (error || !data) return [];
-    const out: Contract[] = [];
-    for (const r of data as unknown as Array<Record<string, unknown>>) {
-      out.push(await signOne(supabase, r));
-    }
-    return out;
+    const rows = data as Array<Record<string, unknown>>;
+    const titles = await jobTitleMap(
+      supabase,
+      rows.map((r) => String(r.job_id)),
+    );
+    const names = await profileNameMap(supabase, [
+      ...rows.map((r) => String(r.client_id)),
+      ...rows.map((r) => String(r.inspector_id)),
+    ]);
+    return rows.map((r) => {
+      const clientPrice = Number(r.client_price_cents ?? 0);
+      const payout = Number(r.inspector_payout_cents ?? 0);
+      return {
+        id: String(r.id),
+        jobId: String(r.job_id),
+        jobTitle: titles.get(String(r.job_id)) ?? null,
+        clientId: String(r.client_id),
+        clientName: names.get(String(r.client_id)) ?? null,
+        inspectorId: String(r.inspector_id),
+        inspectorName: names.get(String(r.inspector_id)) ?? null,
+        clientPriceCents: clientPrice,
+        inspectorPayoutCents: payout,
+        spreadCents: clientPrice - payout,
+        status: r.status as ContractStatus,
+        contractTextMd: (r.contract_text_md as string | null) ?? null,
+        customContractUrl: (r.custom_contract_url as string | null) ?? null,
+        clientSignedAt: (r.client_signed_at as string | null) ?? null,
+        inspectorSignedAt: (r.inspector_signed_at as string | null) ?? null,
+        createdAt: String(r.created_at ?? ''),
+      };
+    });
   } catch {
     return [];
   }
-}
-
-async function signOne(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  r: Record<string, unknown>,
-): Promise<Contract> {
-  const pdfPath = (r.pdf_path as string | null) ?? null;
-  const externalUrl = (r.external_url as string | null) ?? null;
-  let pdfUrl: string | null = null;
-  if (pdfPath) {
-    const { data: signed } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(pdfPath, TTL_SECONDS);
-    pdfUrl = signed?.signedUrl ?? null;
-  }
-  const source: ContractSource = pdfPath
-    ? 'upload'
-    : externalUrl
-      ? 'external_url'
-      : 'inline';
-  return {
-    id: String(r.id),
-    kind: ((r.kind as string | null) ?? 'other') as ContractKind,
-    title: String(r.title ?? ''),
-    bodyMd: String(r.body_md ?? ''),
-    pdfPath,
-    pdfUrl,
-    externalUrl,
-    source,
-    version: typeof r.version === 'number' ? r.version : 1,
-    effectiveFrom: String(r.effective_from ?? ''),
-    isActive: Boolean(r.is_active),
-    createdBy: (r.created_by as string | null) ?? null,
-    createdAt: String(r.created_at ?? ''),
-  };
-}
-
-function toAssignment(r: Record<string, unknown>): ContractAssignment {
-  const join = (r.contracts ?? null) as
-    | { title?: string | null; kind?: string | null }
-    | null;
-  return {
-    id: String(r.id),
-    contractId: String(r.contract_id),
-    contractTitle: join?.title ?? null,
-    contractKind: ((join?.kind ?? null) as ContractKind | null),
-    partyId: String(r.party_id),
-    required: Boolean(r.required),
-    signedAt: (r.signed_at as string | null) ?? null,
-    signerTypedName: (r.signer_typed_name as string | null) ?? null,
-    createdAt: String(r.created_at ?? ''),
-  };
 }

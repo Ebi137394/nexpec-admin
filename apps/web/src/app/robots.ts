@@ -34,7 +34,6 @@ export default function robots(): MetadataRoute.Robots {
           '/auth/',
           '/sign-in',
           '/sign-up',
-          '/orgs/accept/',
           '/notifications',
         ],
       },

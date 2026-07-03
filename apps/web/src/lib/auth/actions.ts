@@ -30,6 +30,10 @@ const SignInSchema = z.object({
  */
 const PUBLIC_SIGNUP_ROLES = ['client', 'inspector', 'agency', 'enterprise'] as const;
 
+const ResetRequestSchema = z.object({
+  email: z.string().email({ message: 'Enter a valid email address.' }),
+});
+
 const SignUpSchema = z.object({
   email: z.string().email({ message: 'Enter a valid email address.' }),
   password: z
@@ -222,4 +226,47 @@ export async function signInWithOAuth(formData: FormData) {
   }
 
   redirect(data.url);
+}
+
+/* ─── requestPasswordReset ───────────────────────────────────────────── */
+
+/**
+ * Self-serve "forgot password" (mobile parity). Sends the Supabase recovery
+ * email; the link lands on /reset-password where the browser client picks
+ * up the recovery session and lets the user set a new password.
+ */
+export async function requestPasswordReset(formData: FormData) {
+  const parsed = ResetRequestSchema.safeParse({
+    email: formData.get('email'),
+  });
+
+  if (!parsed.success) {
+    const msg = parsed.error.issues[0]?.message ?? 'Enter a valid email address.';
+    redirect(buildErrorRedirect('/forgot-password', msg));
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  // Same origin-resolution precedence as signInWithOAuth above — the
+  // recovery email needs an absolute URL to route back to.
+  const origin =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
+    'http://localhost:3000';
+
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${origin}/reset-password`,
+  });
+
+  if (error) {
+    redirect(
+      buildErrorRedirect('/forgot-password', error.message, {
+        email: parsed.data.email,
+      }),
+    );
+  }
+
+  // Supabase answers success for unknown emails too (anti-enumeration), so
+  // the sent state is intentionally non-committal.
+  redirect(`/forgot-password?sent=1&email=${encodeURIComponent(parsed.data.email)}`);
 }

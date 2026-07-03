@@ -1,8 +1,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  app/client/disputes/page.tsx — list + file a dispute (client side)
 //
-//  Filing one calls the file_dispute() RPC which atomically pauses escrow
-//  AND notifies every admin. The form gates on a job UUID the caller owns;
+//  Filing one calls the flag_job_dispute() RPC which atomically records the
+//  dispute AND notifies admins. The form gates on a job UUID the caller owns;
 //  the RPC + RLS enforce it independently.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -149,7 +149,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
             <select
               name="category"
               required
-              defaultValue="quality"
+              defaultValue="inspection_quality"
               className="rounded-lg border border-white/[0.08] bg-ink-900/60 px-3 py-2 text-sm text-white outline-none focus:border-accent-red/40"
             >
               {DISPUTE_CATEGORIES.map((c) => (

@@ -151,7 +151,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
             <select
               name="category"
               required
-              defaultValue="payment"
+              defaultValue="pricing"
               className="rounded-lg border border-white/[0.08] bg-ink-900/60 px-3 py-2 text-sm text-white outline-none focus:border-accent-red/40"
             >
               {DISPUTE_CATEGORIES.map((c) => (

@@ -2,12 +2,11 @@
 //  lib/actions/disputeFile.ts — file a new dispute (client/inspector flow)
 //
 //  Separate from lib/actions/disputes.ts which is admin-resolve-only and uses
-//  the existing useActionState pattern. This new action calls the
-//  file_dispute() RPC which atomically:
-//    1. inserts the dispute row
-//    2. sets jobs.escrow_paused = true
-//    3. notifies every admin via notify() RPC
-//  All-or-nothing in a single SECURITY DEFINER transaction.
+//  the existing useActionState pattern. This action calls the
+//  flag_job_dispute() RPC (the guarded baseline function — file_dispute() is
+//  broken server-side: it writes legacy columns and fires an unguarded
+//  notify). flag_job_dispute inserts the job_disputes row and notifies
+//  admins in a single SECURITY DEFINER transaction.
 // ════════════════════════════════════════════════════════════════════════════
 
 'use server';
@@ -55,10 +54,10 @@ export async function fileDispute(formData: FormData): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent(returnTo));
 
-  const { error } = await supabase.rpc('file_dispute', {
+  const { error } = await supabase.rpc('flag_job_dispute', {
     p_job_id: jobId,
-    p_category: category,
-    p_body: body,
+    p_reason: body,
+    p_reason_category: category,
   });
 
   if (error) {

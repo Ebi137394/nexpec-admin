@@ -157,6 +157,9 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
     } else if (['client', 'agency', 'enterprise'].includes(role)) {
       backHref = '/client/dashboard';
       backLabel = 'Client dashboard';
+    } else if (role === 'supplier') {
+      backHref = '/suppliers/dashboard';
+      backLabel = 'Supplier dashboard';
     }
   } catch {
     /* fall through to root */

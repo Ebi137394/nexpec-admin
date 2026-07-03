@@ -53,6 +53,34 @@ interface RpcResponse {
 
 const DEBOUNCE_MS = 180;
 
+/**
+ * Baseline global_search still emits stale routes: scope templates moved to
+ * /admin/compliance/templates, job hits can arrive as public-profile paths
+ * (/p/<uuid>), and the admin jobs deep-link param was renamed focus →
+ * inspect. The server-side fix (rewriting the DB function) is deferred to a
+ * future migration, so normalize hrefs client-side wherever they are used.
+ */
+function normalizeHref(kind: string, href: string): string {
+  let out = href;
+  // (a) Scope-template results → compliance templates. Prefix swap keeps any
+  //     trailing segment or #fragment intact. No-op if already correct.
+  if (kind.startsWith('scope') || out.startsWith('/admin/scope-templates')) {
+    out = out.replace(/^\/admin\/scope-templates/, '/admin/compliance/templates');
+  }
+  // (b) Job results emitted as /p/<uuid> profile paths → /jobs/<uuid>.
+  if (kind === 'job') {
+    const m = out.match(
+      /^\/p\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(.*)$/,
+    );
+    if (m) out = `/jobs/${m[1]}${m[2]}`;
+  }
+  // (c) Renamed admin jobs inspector-drawer param.
+  if (out.startsWith('/admin/jobs?focus=')) {
+    out = out.replace('?focus=', '?inspect=');
+  }
+  return out;
+}
+
 export function GlobalSearch() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [open, setOpen] = useState(false);
@@ -160,7 +188,7 @@ export function GlobalSearch() {
       e.preventDefault();
       setActiveIdx((i) => (i - 1 + totalCount) % totalCount);
     } else if (e.key === 'Enter' && flat[activeIdx]) {
-      const href = flat[activeIdx].href;
+      const href = normalizeHref(flat[activeIdx].kind, flat[activeIdx].href);
       setOpen(false);
       // Native nav so the modal unmounts cleanly + focus follows.
       window.location.href = href;
@@ -276,7 +304,7 @@ function ResultGroups({
                 return (
                   <li key={`${r.kind}-${r.id}`}>
                     <Link
-                      href={r.href}
+                      href={normalizeHref(r.kind, r.href)}
                       onClick={onSelect}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
                         isActive

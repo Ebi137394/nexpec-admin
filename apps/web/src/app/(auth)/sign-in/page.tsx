@@ -79,6 +79,15 @@ export default async function SignInPage({ searchParams }: PageProps) {
           placeholder="••••••••••"
         />
 
+        <div className="flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-zinc-400 transition-colors hover:text-violet-glow"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         {error && (
           <p className="rounded-lg border border-accent-red/30 bg-accent-red/10 px-3 py-2 text-xs text-accent-red">
             {error}

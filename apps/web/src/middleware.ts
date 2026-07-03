@@ -31,7 +31,11 @@ const ADMIN_PREFIX = '/admin';
 const CLIENT_PREFIX = '/client';
 const INSPECTOR_PREFIX = '/inspector';
 const SUPPLIERS_PREFIX = '/suppliers';
-const AUTH_ROUTES = ['/sign-in', '/sign-up'];
+// /forgot-password and /reset-password are auth surfaces too. The recovery
+// link's first load carries no session cookie (the browser client exchanges
+// the code after hydration), so the signed-in bounce below doesn't break
+// the reset flow.
+const AUTH_ROUTES = ['/sign-in', '/sign-up', '/forgot-password', '/reset-password'];
 
 /**
  * Roles allowed to enter each portal shell. super_admin + admin can drop

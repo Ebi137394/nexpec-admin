@@ -28,7 +28,8 @@ export async function markNotificationRead(formData: FormData): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent(parsed.data.returnTo));
 
-  await supabase.rpc('mark_notification_read', { p_id: parsed.data.id });
+  const { error } = await supabase.rpc('nx_mark_notification_read', { p_id: parsed.data.id });
+  if (error) console.error('[notifications] nx_mark_notification_read failed:', error.message);
   revalidatePath(parsed.data.returnTo);
   redirect(parsed.data.returnTo);
 }
@@ -40,7 +41,8 @@ export async function markAllNotificationsRead(formData: FormData): Promise<void
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent(returnTo));
-  await supabase.rpc('mark_all_notifications_read');
+  const { error } = await supabase.rpc('nx_mark_all_notifications_read');
+  if (error) console.error('[notifications] nx_mark_all_notifications_read failed:', error.message);
   revalidatePath(returnTo);
   redirect(returnTo);
 }

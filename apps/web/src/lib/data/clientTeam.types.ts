@@ -39,15 +39,16 @@ export interface TeamMember {
   createdAt: string;
 }
 
+export type TeamInvitationStatus = 'pending' | 'accepted' | 'revoked';
+
 export interface TeamInvitation {
   id: string;
   orgId: string;
-  invitedEmail: string;
-  invitedRole: OrgMemberRole;
-  invitationToken: string;
+  email: string;
+  role: OrgMemberRole;
+  status: TeamInvitationStatus;
   invitedBy: string | null;
   expiresAt: string;
   acceptedAt: string | null;
-  revokedAt: string | null;
   createdAt: string;
 }

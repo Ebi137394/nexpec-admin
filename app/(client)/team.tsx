@@ -1,18 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  app/(client)/team.tsx — Mobile Team Management + Invites (web parity)
+//  app/(client)/team.tsx — Mobile Team roster (read-only, web parity)
 //
 //  Mirrors web /client/team. Resolves the caller's orgs via fetch_my_org_memberships,
 //  shows the member roster (org_members + profiles) and pending invitations
-//  (org_invitations), and — for owners / procurement_admins / God-mode admin —
-//  invite + revoke via the verified RPCs invite_org_member / revoke_org_invitation.
-//  All schema verified against migrations (20260521120000 / 20260518220000 /
-//  20260531120000). canManage mirrors the RPC gate; the RPC is the real gate.
+//  (org_invitations: email / role / status / expires_at — baseline schema).
+//  Invitations are provisioned by NEXPEC via the admin console; there is no
+//  self-serve invite / revoke flow until a future migration restores it.
 // ════════════════════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, RefreshControl, StatusBar, SafeAreaView, Alert, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  ActivityIndicator, RefreshControl, StatusBar, SafeAreaView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -37,8 +36,6 @@ const ROLE_LABEL: Record<OrgRole, string> = {
 const ROLE_TONE: Record<OrgRole, string> = {
   owner: C.primary, procurement_admin: C.cyan, project_lead: C.green, viewer: C.textMute,
 };
-const INVITE_ROLES: OrgRole[] = ['viewer', 'project_lead', 'procurement_admin', 'owner'];
-
 interface OrgEntry { id: string; name: string; role: OrgRole; isActive: boolean; }
 interface Member { id: string; userId: string; role: OrgRole; name: string | null; email: string | null; joined: string; }
 interface Invite { id: string; email: string; role: OrgRole; expiresAt: string; }
@@ -53,11 +50,6 @@ export default function TeamScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const [email, setEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<OrgRole>('viewer');
-  const [sending, setSending] = useState(false);
-  const [revoking, setRevoking] = useState<string | null>(null);
 
   const myRole = useMemo(() => orgs.find((o) => o.id === orgId)?.role ?? null, [orgs, orgId]);
   const canManage = useMemo(
@@ -89,7 +81,7 @@ export default function TeamScreen() {
   const loadTeam = useCallback(async (targetOrg: string) => {
     const [memRes, invRes, orgMemRes] = await Promise.all([
       supabase.from('org_members').select('id, user_id, role, created_at').eq('org_id', targetOrg).order('created_at', { ascending: true }),
-      supabase.from('org_invitations').select('id, invited_email, invited_role, expires_at, accepted_at, revoked_at').eq('org_id', targetOrg).order('created_at', { ascending: false }),
+      supabase.from('org_invitations').select('id, email, role, status, expires_at').eq('org_id', targetOrg).order('created_at', { ascending: false }),
       Promise.resolve(null),
     ]);
     if (memRes.error) { setError(memRes.error.message); return; }
@@ -112,8 +104,8 @@ export default function TeamScreen() {
     }));
     const invRows = (invRes.data ?? []) as Array<Record<string, unknown>>;
     setInvites(invRows
-      .filter((r) => !r.accepted_at && !r.revoked_at)
-      .map((r) => ({ id: String(r.id), email: String(r.invited_email ?? ''), role: (r.invited_role as OrgRole) ?? 'viewer', expiresAt: String(r.expires_at ?? '') })));
+      .filter((r) => r.status === 'pending')
+      .map((r) => ({ id: String(r.id), email: String(r.email ?? ''), role: (r.role as OrgRole) ?? 'viewer', expiresAt: String(r.expires_at ?? '') })));
   }, []);
 
   const load = useCallback(async (target?: string) => {
@@ -134,49 +126,6 @@ export default function TeamScreen() {
 
   useEffect(() => { void load(); }, [load]);
   const onRefresh = useCallback(() => { setRefreshing(true); void load(orgId ?? undefined); }, [load, orgId]);
-
-  const sendInvite = useCallback(async () => {
-    const clean = email.trim().toLowerCase();
-    if (!orgId) return;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) { Alert.alert('Invalid email', 'Enter a valid email address.'); return; }
-    setSending(true);
-    try {
-      const { error: rpcErr } = await supabase.rpc('invite_org_member' as never, // outbox-exempt: online org-governance RPC (server-gated, dup-guarded)
-        { p_org_id: orgId, p_email: clean, p_role: inviteRole } as never);
-      if (rpcErr) {
-        Alert.alert('Could not invite', /already|duplicate|pending/i.test(rpcErr.message) ? 'There is already a pending invite for that email.' : rpcErr.message);
-        return;
-      }
-      setEmail(''); setInviteRole('viewer');
-      await loadTeam(orgId);
-    } catch (e: unknown) {
-      Alert.alert('Error', (e as Error)?.message ?? 'Unknown error.');
-    } finally {
-      setSending(false);
-    }
-  }, [email, inviteRole, orgId, loadTeam]);
-
-  const revokeInvite = useCallback((inv: Invite) => {
-    if (!orgId) return;
-    Alert.alert('Revoke invitation', `Revoke the invite for ${inv.email}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Revoke', style: 'destructive', onPress: async () => {
-          setRevoking(inv.id);
-          setInvites((prev) => prev.filter((i) => i.id !== inv.id)); // optimistic
-          try {
-            const { error: rpcErr } = await supabase.rpc('revoke_org_invitation' as never, // outbox-exempt: online org-governance RPC (idempotent)
-              { p_invitation_id: inv.id } as never);
-            if (rpcErr) { Alert.alert('Could not revoke', rpcErr.message); await loadTeam(orgId); }
-          } catch (e: unknown) {
-            Alert.alert('Error', (e as Error)?.message ?? 'Unknown error.'); await loadTeam(orgId);
-          } finally {
-            setRevoking(null);
-          }
-        },
-      },
-    ]);
-  }, [orgId, loadTeam]);
 
   if (loading) {
     return (
@@ -228,36 +177,14 @@ export default function TeamScreen() {
 
             {error ? (<View style={s.errorBanner}><Ionicons name="alert-circle" size={16} color={C.red} /><Text style={s.errorText}>{error}</Text></View>) : null}
 
-            {/* Invite form */}
-            {canManage && (
-              <Animated.View entering={FadeInDown.delay(60).duration(240)} style={s.inviteCard}>
-                <Text style={s.sectionLabel}>INVITE A TEAMMATE</Text>
-                <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="name@company.com"
-                  placeholderTextColor={C.textMute}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  style={s.input}
-                />
-                <View style={s.roleRow}>
-                  {INVITE_ROLES.map((r) => {
-                    const active = inviteRole === r;
-                    return (
-                      <TouchableOpacity key={r} onPress={() => setInviteRole(r)} style={[s.roleChip, active && { backgroundColor: C.primaryDim, borderColor: 'rgba(124,58,237,0.45)' }]} activeOpacity={0.7}>
-                        <Text style={[s.roleChipText, active && { color: C.primary, fontWeight: '700' }]}>{ROLE_LABEL[r]}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                <TouchableOpacity style={[s.sendBtn, (sending || !email.trim()) && { opacity: 0.5 }]} onPress={sendInvite} disabled={sending || !email.trim()} activeOpacity={0.85}>
-                  {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="paper-plane-outline" size={16} color="#fff" />}
-                  <Text style={s.sendBtnText}>Send invitation</Text>
-                </TouchableOpacity>
-                <Text style={s.inviteHint}>Invitations expire after 14 days.</Text>
-              </Animated.View>
-            )}
+            {/* Invitations are managed by NEXPEC */}
+            <Animated.View entering={FadeInDown.delay(60).duration(240)} style={s.inviteCard}>
+              <Text style={s.sectionLabel}>TEAM INVITATIONS</Text>
+              <Text style={s.inviteNote}>
+                Team invitations are handled by NEXPEC — contact support or your
+                account manager to add or remove teammates.
+              </Text>
+            </Animated.View>
 
             {/* Pending invitations */}
             {canManage && invites.length > 0 && (
@@ -270,9 +197,6 @@ export default function TeamScreen() {
                       <Text style={s.inviteEmail} numberOfLines={1}>{inv.email}</Text>
                       <Text style={s.inviteMeta}>{ROLE_LABEL[inv.role]}, expires {formatDate(inv.expiresAt)}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => revokeInvite(inv)} disabled={revoking === inv.id} style={s.revokeBtn} activeOpacity={0.7}>
-                      {revoking === inv.id ? <ActivityIndicator size="small" color={C.red} /> : <Text style={s.revokeText}>Revoke</Text>}
-                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
@@ -344,6 +268,7 @@ const s = StyleSheet.create({
   sectionLabel: { color: C.textMute, fontSize: 10, fontWeight: '700', letterSpacing: 0.9 },
 
   inviteCard: { borderRadius: 16, borderWidth: 1, borderColor: C.border, backgroundColor: C.card, padding: 14, gap: 10 },
+  inviteNote: { color: C.textMute, fontSize: 12, lineHeight: 18 },
   input: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10, borderWidth: 1, borderColor: C.border, color: C.text, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14 },
   roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: 'rgba(255,255,255,0.02)' },

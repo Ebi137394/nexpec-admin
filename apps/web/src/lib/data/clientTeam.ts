@@ -7,6 +7,7 @@ import type {
   ClientOrganization,
   OrgMemberRole,
   TeamInvitation,
+  TeamInvitationStatus,
   TeamMember,
 } from './clientTeam.types';
 
@@ -76,7 +77,7 @@ export async function fetchInvitationsOfOrg(orgId: string): Promise<TeamInvitati
     const { data, error } = await supabase
       .from('org_invitations')
       .select(
-        'id, org_id, invited_email, invited_role, invitation_token, invited_by, expires_at, accepted_at, revoked_at, created_at',
+        'id, org_id, email, role, status, invited_by, expires_at, accepted_at, created_at',
       )
       .eq('org_id', orgId)
       .order('created_at', { ascending: false });
@@ -84,48 +85,15 @@ export async function fetchInvitationsOfOrg(orgId: string): Promise<TeamInvitati
     return (data as unknown as Array<Record<string, unknown>>).map((r) => ({
       id: String(r.id),
       orgId: String(r.org_id),
-      invitedEmail: String(r.invited_email ?? ''),
-      invitedRole: ((r.invited_role as string | null) ?? 'viewer') as OrgMemberRole,
-      invitationToken: String(r.invitation_token ?? ''),
+      email: String(r.email ?? ''),
+      role: ((r.role as string | null) ?? 'viewer') as OrgMemberRole,
+      status: ((r.status as string | null) ?? 'pending') as TeamInvitationStatus,
       invitedBy: (r.invited_by as string | null) ?? null,
       expiresAt: String(r.expires_at ?? ''),
       acceptedAt: (r.accepted_at as string | null) ?? null,
-      revokedAt: (r.revoked_at as string | null) ?? null,
       createdAt: String(r.created_at ?? ''),
     }));
   } catch {
     return [];
-  }
-}
-
-/** Fetch a single invitation by token (used by the accept-page). */
-export async function fetchInvitationByToken(
-  token: string,
-): Promise<TeamInvitation | null> {
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase
-      .from('org_invitations')
-      .select(
-        'id, org_id, invited_email, invited_role, invitation_token, invited_by, expires_at, accepted_at, revoked_at, created_at',
-      )
-      .eq('invitation_token', token)
-      .maybeSingle();
-    if (error || !data) return null;
-    const r = data as unknown as Record<string, unknown>;
-    return {
-      id: String(r.id),
-      orgId: String(r.org_id),
-      invitedEmail: String(r.invited_email ?? ''),
-      invitedRole: ((r.invited_role as string | null) ?? 'viewer') as OrgMemberRole,
-      invitationToken: String(r.invitation_token ?? ''),
-      invitedBy: (r.invited_by as string | null) ?? null,
-      expiresAt: String(r.expires_at ?? ''),
-      acceptedAt: (r.accepted_at as string | null) ?? null,
-      revokedAt: (r.revoked_at as string | null) ?? null,
-      createdAt: String(r.created_at ?? ''),
-    };
-  } catch {
-    return null;
   }
 }

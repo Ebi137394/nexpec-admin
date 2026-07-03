@@ -1,27 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "include": [
-    "app/_layout.tsx",
-    "app/submit-report.tsx",
-    "app/contracts/index.tsx",
-    "app/contracts/[id].tsx",
-    "app/contracts/view.tsx",
-    "app/components/PdfViewer.tsx",
-    "app/expenses/[id].tsx",
-    "app/chat/[job_id].tsx",
-    "app/auth.tsx",
-    "app/map.tsx",
-    "app/debug.tsx",
-    "app/supabase-test.tsx",
-    "app/ml-vision-check.tsx",
-    "app/ml-pipeline-check.tsx",
-    "app/diagnostics.tsx",
-    "app/agency-job-details.tsx",
-    "app/support-chat.tsx",
-    "app/settings.tsx",
-    "app/inspectors.tsx",
-    "app/notifications.tsx",
-    "app/notification-settings.tsx",
-    "app/post-compliance-job.tsx"
-  ]
+  "include": ["app/(client)/team.tsx"]
 }

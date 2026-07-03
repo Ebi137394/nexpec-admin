@@ -27,7 +27,7 @@
 - [ ] **OAuth provider config done** (see §2 — mobile social login can't round-trip until the deep-link redirect URLs are whitelisted).
 - [ ] EAS credentials present (`eas.json`, `app.config.js`). **Replace placeholder Apple/Play submit creds** before `eas submit`.
 - [ ] Staging CI secrets set (money-flow E2E gate): the 3 GitHub secrets for `qa:e2e:money`.
-- [ ] `supabase migration list` shows local-ahead migrations through `20260801248000`.
+- [ ] `supabase migration list` shows local-ahead migrations through `20260801250000`.
 
 ---
 
@@ -117,7 +117,7 @@ New-Architecture is required (Nitro/Skia/fast-tflite); the `withNexpecNewArch` c
 supabase db push                   # applies all pending migrations in order; each self-test gates the push
 ```
 
-Pending migrations apply in numeric order `20260801182000 … 20260801248000`. Each has `BEGIN/COMMIT` + an in-migration self-test that aborts the push on failure. Security/hardening highlights:
+Pending migrations apply in numeric order `20260801182000 … 20260801250000`. Each has `BEGIN/COMMIT` + an in-migration self-test that aborts the push on failure. Security/hardening highlights:
 
 | Migration | What it seals |
 |---|---|
@@ -131,6 +131,7 @@ Pending migrations apply in numeric order `20260801182000 … 20260801248000`. E
 | **`244000` SECDEF + RLS holes** | **pins `search_path` on every owner=postgres `SECURITY DEFINER` fn (escalation primitive); extends the profile guard to block self-grant of `is_verified`/`balance_cents`/ratings; drops cross-user `notification_preferences`; locks `reports`** |
 | **`246000` client_documents bucket** | **private + owner/client/assigned-inspector/admin SELECT (mirrors the table RLS) — zero app-code** |
 | **`248000` profiles party-read** | **drops blanket `USING(true)`; adds `nx_can_read_profile()` + `profiles_read_related` (self / admin / shared-job / same-org / application) — kills bulk PII harvest, zero app-code** |
+| **`250000` phantom-object restore** | **restores `inspector_equipment` + `inspector_work_experience` + `contact_submissions` + `supplier_releases` + `credit_supplier_earnings()` + `notify()` alias — heals prod's `get_inspection_passport()` and `release_supplier_contract()`, un-breaks /inspector/compliance-equipment, /inspector/experience, public /contact, /admin/supplier-payouts** |
 
 > If a self-test aborts, fix forward (do not force). The known gotcha — `pg_get_functiondef` including a function's own comment and tripping a leak scan — is handled by `regexp_replace(def,'--.*','','g')` in the guarded migrations.
 

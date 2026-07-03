@@ -28,6 +28,7 @@
 - [ ] EAS credentials present (`eas.json`, `app.config.js`). **Replace placeholder Apple/Play submit creds** before `eas submit`.
 - [ ] Staging CI secrets set (money-flow E2E gate): the 3 GitHub secrets for `qa:e2e:money`.
 - [ ] `supabase migration list` shows local-ahead migrations through `20260801250000`.
+- [ ] **Vercel project Root Directory = `apps/web`** (Settings → Build & Deployment). The monorepo root is the Expo app and has no `next` dependency — a root-directory build fails with "No Next.js version detected" (seen 2026-07-02 on the branch deploy).
 
 ---
 
@@ -36,6 +37,7 @@
 Mobile OAuth now uses the correct PKCE flow (`exchangeCodeForSession`). It will only complete a round-trip once these deep-link redirect URLs are registered. `<scheme>` = the app's URL scheme from `app.config.js` (e.g. `nexpec`).
 
 - [ ] **Supabase → Authentication → URL Configuration → Redirect URLs:** add `<scheme>://oauth-callback` and `<scheme>://reset-password` (and the web callback if not already present).
+- [ ] **Web password recovery** (new 2026-07-02): also add `https://<web-domain>/reset-password` to the Redirect URLs — the web `/forgot-password` flow sends recovery links there.
 - [ ] **Google Cloud Console** (OAuth client): add the Supabase auth callback + the app redirect.
 - [ ] **Apple Developer** (Sign in with Apple service id): add the return URL.
 - [ ] **LinkedIn Developer** app: add the authorized redirect URL.

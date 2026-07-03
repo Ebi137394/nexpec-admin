@@ -1,14 +1,15 @@
 // src/hooks/useFormTemplate.ts
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { FormField } from '../components/DynamicForm/types';
+// ★ SINGLE-CLIENT RULE — this hook previously ran its own createClient():
+//   a second GoTrueClient racing the canonical one's refresh-token family,
+//   and (worse) session-less, so RLS reads ran as anon. Re-export the one
+//   canonical client for existing `import { supabase } from
+//   '../hooks/useFormTemplate'` callers (e.g. src/screens/FormScreen.tsx).
+import { supabase } from '../lib/supabase';
 
-// Initialize Supabase client
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase };
 
 export interface FormTemplate {
   id: string;

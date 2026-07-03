@@ -77,12 +77,24 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.nexpec.app',
+      // ★ Sign in with Apple (guideline 4.8) — emits the
+      //   com.apple.developer.applesignin entitlement at prebuild.
+      //   expo-apple-authentication is installed for the planned native
+      //   AppleAuthentication.signInAsync path; today Apple sign-in runs via
+      //   Supabase web OAuth, but the entitlement must ship either way so the
+      //   capability is on the App ID before review.
+      usesAppleSignIn: true,
       // ★ NX-ATS-001 closure — No NSAppTransportSecurity block at all is
       //   the canonical Apple posture for an HTTPS-only app. Supabase
       //   serves HTTPS, Stripe serves HTTPS; we have zero plaintext
       //   endpoints. The previous NSAllowsArbitraryLoads=true was a
       //   guaranteed App Store reviewer flag.
       infoPlist: {
+        // ── Export compliance ────────────────────────────────────────────
+        // The app uses only exempt encryption (HTTPS/TLS + Ed25519 signature
+        // verification). Declaring it here skips the App Store Connect
+        // "Export Compliance" questionnaire on every single build upload.
+        ITSAppUsesNonExemptEncryption: false,
         // ── Permission usage strings — only what the app actually does ──
         // Apple's App Store review rejects apps that declare permission
         // strings for APIs they don't use. Every entry below ties to a
@@ -119,8 +131,9 @@ module.exports = {
           'NEXPEC can add reminders for upcoming inspections so you\'re notified before a scheduled site visit.',
         NSMicrophoneUsageDescription:
           'NEXPEC uses your microphone when you record a voice message in the in-app chat with your client or admin.',
-        NSMotionUsageDescription:
-          'NEXPEC reads device motion to render a subtle parallax effect on the splash and inspection-capture screens. No motion data leaves the device.',
+        // NSMotionUsageDescription intentionally ABSENT — audit 2026-07-02
+        // found zero CoreMotion/useAnimatedSensor/expo-sensors call sites, and
+        // per NX-PERM-001 we never declare strings for APIs we don't exercise.
         // ── Map deep-link schemes ──────────────────────────────────────
         LSApplicationQueriesSchemes: [
           'comgooglemaps',
@@ -171,6 +184,7 @@ module.exports = {
         'android.permission.BODY_SENSORS',                 // no heart-rate use
         'android.permission.USE_FINGERPRINT',              // superseded by USE_BIOMETRIC
         'android.permission.ACTIVITY_RECOGNITION',
+        'android.permission.SYSTEM_ALERT_WINDOW',          // Play flags overlays; dev-menu only
       ],
     },
 

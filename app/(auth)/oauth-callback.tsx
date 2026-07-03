@@ -51,16 +51,26 @@ export default function OAuthCallbackScreen() {
 
       try {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error || !data?.user) {
-          router.replace('/(auth)/sign-in');
-          return;
+        let user = data?.user ?? null;
+        if (error || !user) {
+          // The code is single-use. On Android the redirect BOTH deep-links
+          // this screen AND resolves social-auth.ts's openAuthSessionAsync —
+          // whichever exchanges second fails. If a session already exists,
+          // sign-in succeeded; route by role instead of bouncing a freshly
+          // signed-in user back to the sign-in screen.
+          const { data: existing } = await supabase.auth.getSession();
+          user = existing?.session?.user ?? null;
+          if (!user) {
+            router.replace('/(auth)/sign-in');
+            return;
+          }
         }
 
         // Decide destination from the freshly-established session's profile.
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', data.user.id)
+          .eq('id', user.id)
           .maybeSingle();
         const role = (profile?.role ?? '').toString().trim();
 

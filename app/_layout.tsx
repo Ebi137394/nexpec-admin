@@ -246,6 +246,27 @@ function AuthGate() {
       return;
     }
 
+    // ── OAUTH-GATE-001 — (auth) screens that OWN their post-auth routing ────
+    //  oauth-callback exchanges the deep-link code then routes by role;
+    //  choose-role commits the picked role then routes; reset-password holds a
+    //  LIVE recovery session while the user types a new password. The generic
+    //  redirects below used to yank users off these screens mid-flight:
+    //    • reset-password: recovery session + role → bounced to roleHome
+    //      before the new password could be saved (broken reset flow).
+    //    • choose-role / oauth-callback with a role-less OAuth user: the final
+    //      fallback sent them to roleHome(null) = /(tabs), whose gate pass
+    //      sent them back to choose-role — an infinite ping-pong.
+    //  Let these screens finish; each one exits on its own. (MFA step-up above
+    //  still outranks this.)
+    const selfRoutingAuthScreens = ['oauth-callback', 'choose-role', 'reset-password'];
+    if (
+      isAuthenticated &&
+      inAuthGroup &&
+      selfRoutingAuthScreens.includes((segments as string[])[1] ?? '')
+    ) {
+      return;
+    }
+
     // 🛑 STRICT ROLE ENFORCEMENT: platform admins (admin ≡ super_admin) belong in the (admin) group OR allowed shared routes
     if (isAuthenticated && (role === 'super_admin' || role === 'admin') && !inAdminGroup && !inAllowedRoute) {
       safeNavigate('/(admin)/dashboard');

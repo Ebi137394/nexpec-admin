@@ -81,19 +81,43 @@ async function oauthFlow(
     }
 
     // PKCE: the authorization code comes back in the query string.
-    const code = new URL(result.url).searchParams.get('code');
+    const returnUrl = new URL(result.url);
+    const code = returnUrl.searchParams.get('code');
     if (!code) {
-      return { ok: false, needs_role: false, error: 'Missing authorization code in OAuth callback.' };
+      // No code → the provider/Supabase sent back ?error=...&error_description=...
+      // Provider-side consent cancels (Google: access_denied, Apple:
+      // user_cancelled_authorize) arrive this way rather than as a browser
+      // dismiss — treat them like a cancel; surface everything else verbatim.
+      const errCode = returnUrl.searchParams.get('error');
+      const errDesc = returnUrl.searchParams.get('error_description');
+      if (errCode === 'access_denied' || errCode === 'user_cancelled_authorize') {
+        return { ok: false, needs_role: false, error: 'cancelled' };
+      }
+      return {
+        ok: false,
+        needs_role: false,
+        error: errDesc || errCode || 'Missing authorization code in OAuth callback.',
+      };
     }
 
     const { data: sessionData, error: exchangeErr } =
       await supabase.auth.exchangeCodeForSession(code);
-    if (exchangeErr || !sessionData?.user) {
-      return {
-        ok: false,
-        needs_role: false,
-        error: exchangeErr?.message ?? 'Could not complete sign-in.',
-      };
+    let user = sessionData?.user ?? null;
+    if (exchangeErr || !user) {
+      // The code is single-use, and on Android the redirect BOTH resolves
+      // openAuthSessionAsync AND deep-links expo-router into
+      // app/(auth)/oauth-callback.tsx — whichever exchanges second fails.
+      // If a session already exists, sign-in actually succeeded; don't
+      // surface a spurious error over a live session.
+      const { data: existing } = await supabase.auth.getSession();
+      user = existing?.session?.user ?? null;
+      if (!user) {
+        return {
+          ok: false,
+          needs_role: false,
+          error: exchangeErr?.message ?? 'Could not complete sign-in.',
+        };
+      }
     }
 
     // Funnel professional claims into our schema (fills profile blanks only;
@@ -102,13 +126,13 @@ async function oauthFlow(
       try {
         await supabase.rpc('hydrate_identity', {
           p_provider: 'linkedin_oidc',
-          p_claims: (sessionData.user.user_metadata ?? {}) as any,
+          p_claims: (user.user_metadata ?? {}) as any,
         });
       } catch { /* enrichment is best-effort */ }
     }
 
-    const needs_role = await checkNeedsRole(sessionData.user.id);
-    return { ok: true, needs_role, user_id: sessionData.user.id };
+    const needs_role = await checkNeedsRole(user.id);
+    return { ok: true, needs_role, user_id: user.id };
   } catch (e: any) {
     return { ok: false, needs_role: false, error: e?.message ?? `${provider} sign-in failed.` };
   }

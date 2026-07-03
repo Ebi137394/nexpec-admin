@@ -4,8 +4,11 @@ import { useState, useCallback, useRef } from 'react';
 import { useForm, UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createClient } from '@supabase/supabase-js';
-import { 
+// ★ SINGLE-CLIENT RULE — was a private createClient() with no session, so
+//   consent reads/writes ran as anon under RLS (same bug class fixed in
+//   consentService). Use the canonical client.
+import { supabase } from '../lib/supabase';
+import {
   ConsentFormData, 
   ConsentMetadata, 
   SignatureData, 
@@ -29,12 +32,6 @@ const consentSchema = z.object({
     message: 'You must accept liability terms',
   }),
 });
-
-// Supabase Client Setup
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface UseLegalConsentOptions {
   userId: string;

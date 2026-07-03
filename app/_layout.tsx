@@ -146,6 +146,7 @@ function AuthGate() {
       'reviews',       // app/reviews/submit/[jobId]
       'contracts',     // app/contracts/index.tsx
       'contract',      // app/contract/[id].tsx
+      'agreements',    // app/agreements/{index,[id]}/* — agreements hub + detail
       'deals',         // app/deals/[id]/sign.tsx — client_supply deal-signing
                        //  (pushed from contracts/index + rfqs/[id]); unlisted → silent bounce.
       'chat',          // app/chat/[job_id].tsx

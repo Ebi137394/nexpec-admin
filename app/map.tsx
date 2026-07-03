@@ -494,8 +494,16 @@ const MapHeader: React.FC<{
   role: UserRole;
   onRefresh: () => void;
   refreshing: boolean;
-}> = ({ jobCount, role, onRefresh, refreshing }) => (
+  onBack: () => void;
+}> = ({ jobCount, role, onRefresh, refreshing, onBack }) => (
   <View style={headerStyles.container}>
+    <TouchableOpacity
+      style={headerStyles.backBtn}
+      onPress={onBack}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+    </TouchableOpacity>
     <View style={{ flex: 1 }}>
       <Text style={headerStyles.title}>
         {role === 'inspector' ? 'Available Jobs' : 'Your Job Map'}
@@ -560,6 +568,17 @@ const headerStyles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(124, 58, 237, 0.25)',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.25)',
+    marginRight: 12,
   },
 });
 
@@ -960,6 +979,9 @@ export default function InteractiveMapScreen() {
           role={role}
           onRefresh={handleRefresh}
           refreshing={refreshing}
+          onBack={() =>
+            router.canGoBack() ? router.back() : router.replace('/(tabs)')
+          }
         />
 
         {/* ── Legend ───────────────────────────────────────── */}

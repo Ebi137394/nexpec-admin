@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect, useId } from 'react';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity, Text, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,17 @@ import { supabase } from '@/lib/supabase'; // کلاینت سوپابیس خود
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 
 export default function ContractView() {
+  const router = useRouter();
   const { id, uri, contractNumber } = useLocalSearchParams<{ id: string, uri: string, contractNumber: string }>();
   const [downloading, setDownloading] = useState(false);
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/contracts');
+    }
+  };
   const [status, setStatus] = useState({ client: false, inspector: false });
 
   const fetchSignatureStatus = useCallback(async () => {
@@ -93,7 +102,11 @@ export default function ContractView() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color="#7C3AED" />
+          </TouchableOpacity>
           <Text style={styles.headerText}>Contract Details</Text>
+          <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
           <Ionicons name="alert-circle-outline" size={44} color="#7C3AED" />
@@ -111,6 +124,9 @@ export default function ContractView() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack}>
+          <Ionicons name="arrow-back" size={24} color="#7C3AED" />
+        </TouchableOpacity>
         <Text style={styles.headerText}>Contract Details</Text>
         <TouchableOpacity onPress={handleDownload} disabled={downloading}>
           {downloading ? <ActivityIndicator color="#7C3AED" /> : <Ionicons name="download-outline" size={24} color="#7C3AED" />}

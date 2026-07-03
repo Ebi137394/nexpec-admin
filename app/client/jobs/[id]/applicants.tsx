@@ -10,8 +10,10 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 export default function LiteralClientApplicantsRedirect() {
-  return <Redirect href="/(client)/jobs" />;
+  const { id } = useLocalSearchParams<{ id: string }>();
+  if (!id) return <Redirect href={'/(tabs)/client-dashboard' as any} />;
+  return <Redirect href={`/(client)/jobs/${id}/applicants` as any} />;
 }

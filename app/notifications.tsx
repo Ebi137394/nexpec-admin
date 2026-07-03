@@ -120,11 +120,9 @@ export default function NotificationsScreen() {
 
   const markAsRead = async (id: string) => {
     try {
-      // v3 column: is_read
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
+      // Prod-parity: server RPC stamps is_read (+ read_at) under its own
+      // auth check instead of a raw table update.
+      const { error } = await supabase.rpc('nx_mark_notification_read', { p_id: id });
 
       if (!error) {
         setNotifications((prev) =>
@@ -139,12 +137,8 @@ export default function NotificationsScreen() {
   const markAllAsRead = async () => {
     try {
       if (!user?.id) return;
-      // v3 columns: recipient_id, is_read
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('recipient_id', user.id)
-        .eq('is_read', false);
+      // Prod-parity: RPC marks every unread row for auth.uid() server-side.
+      const { error } = await supabase.rpc('nx_mark_all_notifications_read');
 
       if (!error) {
         setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));

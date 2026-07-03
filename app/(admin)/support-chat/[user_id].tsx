@@ -709,7 +709,7 @@ export default function AdminSupportChatScreen() {
         <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
         <View style={s.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(admin)/support-inbox'))}
             style={s.headerBackBtn}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
@@ -730,7 +730,7 @@ export default function AdminSupportChatScreen() {
 
       <View style={s.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(admin)/support-inbox'))}
           style={s.headerBackBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >

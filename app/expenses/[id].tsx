@@ -511,7 +511,7 @@ export default function ExpensesScreen() {
         />
         {/* Custom Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 8, marginRight: 8 }}>
+          <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} style={{ padding: 8, marginRight: 8 }}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           <Text style={{ color: 'white', fontSize: 20, fontWeight: 'bold' }}>

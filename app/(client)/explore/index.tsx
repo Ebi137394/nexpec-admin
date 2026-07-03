@@ -321,7 +321,7 @@ const SortSelector: React.FC<SortSelectorProps> = ({ currentSort, onSortChange, 
         <ChevronDown size={16} color="#64748B" />
       </TouchableOpacity>
 
-      <Modal visible={showDropdown} transparent animationType="fade">
+      <Modal visible={showDropdown} transparent animationType="fade" onRequestClose={() => setShowDropdown(false)}>
         <TouchableOpacity
           style={styles.sortModalOverlay}
           onPress={() => setShowDropdown(false)}
@@ -569,7 +569,7 @@ const FilterModal: React.FC<FilterModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.filterModalContainer}>
         {/* Header */}
         <View style={styles.filterModalHeader}>

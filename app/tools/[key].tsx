@@ -35,7 +35,7 @@ export default function ToolRunnerScreen() {
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
 
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/tools'))} hitSlop={8} style={s.back} accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={T.colors.text} />
         </TouchableOpacity>
         <View style={s.headerTitleWrap}>

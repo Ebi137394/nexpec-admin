@@ -68,7 +68,7 @@ export default function RfqDetailScreen() {
     <SafeAreaView style={s.root} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={T.colors.background} />
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/rfqs'))} hitSlop={8} style={s.back}><Ionicons name="arrow-back" size={24} color={T.colors.text} /></TouchableOpacity>
         <Text style={s.title} numberOfLines={1}>RFQ</Text>
         <View style={{ width: 32 }} />
       </View>

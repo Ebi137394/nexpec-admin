@@ -256,7 +256,7 @@ export default function ChatOversight() {
       )}
 
       {/* ── Message Thread Modal ──────── */}
-      <Modal visible={!!activeConvo} animationType="slide" transparent>
+      <Modal visible={!!activeConvo} animationType="slide" transparent onRequestClose={() => setActiveConvo(null)}>
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
             {/* Header */}

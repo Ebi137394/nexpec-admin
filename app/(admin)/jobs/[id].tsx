@@ -91,7 +91,10 @@ export default function SpreadEditor() {
 
   /* ── Fetch ──────────────────────────────────── */
   const load = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     try {
       setError(null);
 
@@ -1010,7 +1013,7 @@ export default function SpreadEditor() {
       </ScrollView>
 
       {/* --- DRAFT VIEWER MODAL --- */}
-      <Modal visible={viewerVisible} animationType="slide" transparent>
+      <Modal visible={viewerVisible} animationType="slide" transparent onRequestClose={() => setViewerVisible(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(2, 4, 32, 0.95)', justifyContent: 'center', padding: 20 }}>
           <View style={{ backgroundColor: '#0A0D2C', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#1A1D3C', maxHeight: '80%' }}>
             <Text style={{ color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Draft Inspection Report</Text>

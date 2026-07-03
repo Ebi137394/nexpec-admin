@@ -99,7 +99,10 @@ export default function JobDetailScreen() {
   const [commentModalVisible, setCommentModalVisible] = useState(false);
 
   const fetchJobDetails = async () => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       // GR2 (Strict price visibility) — client is a buyer-tier role.

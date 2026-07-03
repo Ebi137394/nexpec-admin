@@ -241,10 +241,9 @@ export default function InspectorNotificationsScreen() {
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', id);
+      // Prod-parity: server RPC stamps is_read (+ read_at) under its own
+      // auth check instead of a raw table update.
+      const { error } = await supabase.rpc('nx_mark_notification_read', { p_id: id });
       if (error) console.log('mark read error', error);
     } catch (e) {
       console.log('mark read error', e);
@@ -261,11 +260,8 @@ export default function InspectorNotificationsScreen() {
       // Optimistic
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
 
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('recipient_id', user.id)
-        .eq('is_read', false);
+      // Prod-parity: RPC marks every unread row for auth.uid() server-side.
+      const { error } = await supabase.rpc('nx_mark_all_notifications_read');
 
       if (error) console.log('mark all read error', error);
     } catch (e) {

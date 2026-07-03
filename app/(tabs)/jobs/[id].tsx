@@ -77,7 +77,10 @@ export default function JobDetailScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchJobDetails = useCallback(async () => {
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     try {
       // GR2 (Strict price visibility) — resolve the caller's role first
       // so we pick the right projection allowlist. Multi-role screen:
@@ -747,7 +750,7 @@ export default function JobDetailScreen() {
           </View>
         </ScrollView>
 
-        <Modal visible={commentModalVisible} transparent animationType="fade">
+        <Modal visible={commentModalVisible} transparent animationType="fade" onRequestClose={() => setCommentModalVisible(false)}>
           <View style={styles.modalOverlay}>
             <View style={styles.commentModalCard}>
               <Text style={styles.modalTitle}>{t('Notify Admin')}</Text>

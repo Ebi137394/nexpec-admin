@@ -11,8 +11,10 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 export default function SuperAdminSupportChatRedirect() {
-  return <Redirect href="/(admin)/support-chat" />;
+  const { user_id } = useLocalSearchParams<{ user_id: string }>();
+  if (!user_id) return <Redirect href={'/(admin)/support-inbox' as any} />;
+  return <Redirect href={`/(admin)/support-chat/${user_id}` as any} />;
 }

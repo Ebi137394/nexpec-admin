@@ -10,8 +10,10 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { Redirect } from 'expo-router';
+import { Slot } from 'expo-router';
 
 export default function LiteralClientProjectLayoutStub() {
-  return <Redirect href="/(client)/project" />;
+  // Layout must render the child route so app/client/project/[id].tsx can
+  // forward the param; redirecting here would swallow the deep link.
+  return <Slot />;
 }

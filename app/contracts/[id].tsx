@@ -200,30 +200,13 @@ export default function ContractDetailsScreen() {
   };
 
   const handleSign = async () => {
-    Alert.alert('Sign Contract', 'Confirm your digital signature?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Now',
-        onPress: async () => {
-          setSigning(true);
-          // Same normalisation as fetchContractDetails: strip the Hub's
-          // `jc:` prefix or the uuid `id` column 22P02s on the raw param.
-          const rawId = String(id ?? '').replace(/^jc:/, '');
-          const { error } = await supabase
-            .from('contracts')
-            .update({ status: 'signed', signed_at: new Date().toISOString() })
-            .eq('id', rawId);
-
-          if (!error) {
-            setContract({ ...contract, status: 'signed', signed_at: new Date().toISOString() });
-            Alert.alert('Success', 'Contract Signed Successfully!');
-          } else {
-            Alert.alert('Signing Failed', error.message ?? 'Could not sign the contract. Please try again.');
-          }
-          setSigning(false);
-        }
-      }
-    ]);
+    // Parity: legacy `contracts`-table signing is retired on mobile — prod
+    // signs job contracts from the job's contract screen. This screen stays
+    // view-only; no write is performed.
+    Alert.alert(
+      'Signing has moved',
+      "This legacy document is view-only. Job contracts are now signed from the job's contract screen (Contracts → your job)."
+    );
   };
 
   if (loading) return (
@@ -342,7 +325,7 @@ export default function ContractDetailsScreen() {
           </View>
         ) : (
           <TouchableOpacity style={styles.signBtn} onPress={handleSign} disabled={signing}>
-            {signing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.signBtnText}>Sign Contract</Text>}
+            {signing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.signBtnText}>View only</Text>}
           </TouchableOpacity>
         )}
       </ScrollView>

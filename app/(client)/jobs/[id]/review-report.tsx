@@ -571,7 +571,7 @@ export default function ReviewReportScreen() {
       )}
 
       {/* Confirmation Modal */}
-      <Modal visible={showConfirmModal} transparent animationType="fade">
+      <Modal visible={showConfirmModal} transparent animationType="fade" onRequestClose={() => setShowConfirmModal(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}><DollarSign size={32} color="#FFF" /></View>
@@ -591,7 +591,7 @@ export default function ReviewReportScreen() {
           or revision-request. Existing modal recipe (modalBg/modalCard/
           modalTitle/modalSub/successBtn) is reused verbatim — only the
           copy + icon differ. */}
-      <Modal visible={showSuccessModal} transparent animationType="slide">
+      <Modal visible={showSuccessModal} transparent animationType="slide" onRequestClose={() => router.replace('/(tabs)/client-dashboard')}>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             {successKind === 'approved' ? (
@@ -617,7 +617,7 @@ export default function ReviewReportScreen() {
       {/* Revision Modal — reuses the same modal recipe so it visually
           matches the Approve & Pay confirmation modal. The only new
           control is a multi-line text input for the revision notes. */}
-      <Modal visible={showRevisionModal} transparent animationType="fade">
+      <Modal visible={showRevisionModal} transparent animationType="fade" onRequestClose={() => { setShowRevisionModal(false); setRevisionNotes(''); }}>
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <View style={[styles.modalIcon, { backgroundColor: '#F59E0B' }]}>

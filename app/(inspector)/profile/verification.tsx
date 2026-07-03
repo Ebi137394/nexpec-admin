@@ -348,7 +348,7 @@ interface DocTypePickerProps {
 const DocTypePicker: React.FC<DocTypePickerProps> = ({ visible, onClose, onSelect }) => {
   const { t } = useLanguage();
   return (
-  <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+  <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
     <SafeAreaView style={styles.modalContainer}>
       <View style={styles.modalHeader}>
         <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
@@ -434,7 +434,7 @@ const AddEquipmentModal: React.FC<AddEquipmentModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { if (!isSubmitting) handleClose(); }}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity
@@ -596,7 +596,7 @@ const UploadDocModal: React.FC<UploadDocModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { if (!isUploading) handleClose(); }}>
       <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <TouchableOpacity

@@ -98,7 +98,11 @@ export default function ChatRoomScreen() {
   }, [signedUrlCache]);
 
   const loadConversation = useCallback(async () => {
-    if (!jobId || !myId) return;
+    if (!jobId) {
+      setIsLoading(false);
+      return;
+    }
+    if (!myId) return;
     setIsLoading(true);
     try {
       // ★ CONVERSATION-READ-PATH — the hardened messages RLS silos rows by

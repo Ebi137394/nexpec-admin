@@ -657,8 +657,8 @@ const fetchApplication = async (uid: string) => {
 
       {/* Manual Header with Back Button */}
       <View style={styles.manualHeader}>
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/jobs'))}
           style={styles.backButtonContainer}
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />

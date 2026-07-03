@@ -122,7 +122,7 @@ export default function MissionInternalChatScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <SafeAreaView style={s.safe} edges={['top']}>
         <View style={s.header}>
-          <Pressable onPress={() => router.back()} style={s.headerBtn} hitSlop={10}>
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(client)/team-missions'))} style={s.headerBtn} hitSlop={10}>
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </Pressable>
           <View style={s.headerCenter}>

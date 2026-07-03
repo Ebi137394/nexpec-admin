@@ -162,7 +162,7 @@ export default function SupplierContractSignScreen() {
       <View style={s.root}>
         <StatusBar barStyle="light-content" backgroundColor={C.bg} />
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-          <Header onBack={() => router.back()} status={null} />
+          <Header onBack={() => (router.canGoBack() ? router.back() : router.replace('/suppliers/contracts'))} status={null} />
           <View style={s.errorWrap}>
             <Lock size={26} color={C.danger} strokeWidth={1.6} />
             <Text style={s.errorTitle}>{t('Agreement not accessible')}</Text>
@@ -181,7 +181,7 @@ export default function SupplierContractSignScreen() {
       <View pointerEvents="none" style={s.glowTopLeft} />
       <View pointerEvents="none" style={s.glowBottomRight} />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        <Header onBack={() => router.back()} status={meta} />
+        <Header onBack={() => (router.canGoBack() ? router.back() : router.replace('/suppliers/contracts'))} status={meta} />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}

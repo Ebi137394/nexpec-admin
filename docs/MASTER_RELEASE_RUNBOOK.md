@@ -49,7 +49,7 @@ Mobile OAuth now uses the correct PKCE flow (`exchangeCodeForSession`). It will 
 
 ```bash
 # Type safety
-npm run typecheck -w @nexpec/web            # apps/web (the real web gate)
+(cd apps/web && npm run typecheck)          # apps/web (the real web gate; -w form can't work — workspaces exclude apps/web by design)
 npx tsc --noEmit                            # mobile (Babel strips types; tsc never gates the EAS binary)
 
 # QA guards

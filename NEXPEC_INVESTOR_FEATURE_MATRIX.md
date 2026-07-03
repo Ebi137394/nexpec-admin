@@ -15,10 +15,10 @@ These invariants are enforced in the database layer itself, not just the UI. Eve
 |---|---|
 | **Brokered Deal Spine** | NEXPEC is a contractual party to every engagement (hub-and-spoke contract graph). Turnkey and direct deals flow through one auditable spine: contract-before-money, always. |
 | **Structural Price Blindness** | Inspectors see only their payout; buyers see only their price. The platform spread is invisible to both sides by construction (row-level security + column allowlists + a CI scanner that fails any build that leaks a payout column to a buyer surface). Marketplace margin is architecturally protected. |
-| **Report Escrow (Quality Gate)** | Field reports reach the client only after NEXPEC review and release. The gate is a database predicate, not a UI convention: an unreviewed report is unreadable by the buyer, even via deep link. |
+| **Report Quality Gate** | Field reports reach the client only after NEXPEC review and release. The gate is a database predicate, not a UI convention: an unreviewed report is unreadable by the buyer, even via deep link. |
 | **Siloed Communications** | Client↔NEXPEC and Inspector↔NEXPEC conversation lanes with zero direct client↔inspector channel pre-engagement. Disintermediation is blocked at the RLS layer. |
-| **Identity Escrow (Anti-Poaching)** | Public and buyer-facing inspector profiles are pseudonymous by construction (NX-handles, trust sigils, zero PII emitted by the public views). Identity reveals are a monetized, contract-bound event. |
-| **Tamper-Evident Escrow Payments** | Internal double-entry ledger with idempotent, replay-protected Stripe webhooks (claim-then-process event ledger), server-trusted amounts, and manual payout release with full audit trail. Clients cannot mint balance; inspectors cannot self-assign work. |
+| **Identity Protection (Anti-Poaching)** | Public and buyer-facing inspector profiles are pseudonymous by construction (NX-handles, trust sigils, zero PII emitted by the public views). Identity reveals are a monetized, contract-bound event. |
+| **Admin-Controlled Treasury & Manual Payouts** | Client funds land on NEXPEC's internal double-entry treasury ledger (Stripe deposit rails with idempotent, replay-protected webhooks and server-trusted amounts). There is deliberately no automated payout: every inspector payment is individually reviewed and manually released by NEXPEC operators after report acceptance, with a full audit trail. Clients cannot mint balance; inspectors cannot self-assign work; money never moves without a human decision. |
 
 ---
 
@@ -28,7 +28,7 @@ These invariants are enforced in the database layer itself, not just the UI. Eve
 |---|---|
 | **Guided Job Posting → Managed Dispatch** | Post inspection scopes with budgets; NEXPEC moderates, prices, and dispatches. Buyers never negotiate alone: admin counter-offer and blinded-shortlist flows built in. |
 | **Blinded Talent Marketplace** | Browse a pseudonymized directory of verified inspectors (credential grade, ratings, coarse rate bands) with zero poaching surface. Invitation-to-job flows through the broker. |
-| **Escrowed, Milestone-Aware Payments** | Prepay, net-terms, and advance structures on an internal escrow ledger; funds release only after report acceptance. Hybrid milestone escrow with deemed-acceptance windows for commercial work. |
+| **Funds-Secured, Milestone-Aware Billing** | Prepay, net-terms, and advance structures held on NEXPEC's admin-controlled treasury ledger; releases are brokered manually after report acceptance. Milestone structures with deemed-acceptance windows for commercial work. |
 | **Reviewed Report Delivery** | Every deliverable passes NEXPEC quality review before release; clients get a clean accept/revise loop with a full revision ledger. |
 | **Real-Time Flash Reports (NCR)** | Critical field findings (non-conformance) escalate immediately through an identity-safe channel, with admin oversight on every raise. |
 | **Dispute & Freeze Protection** | One-tap dispute filing freezes the job and its funds pending NEXPEC arbitration, with an evidence trail. |

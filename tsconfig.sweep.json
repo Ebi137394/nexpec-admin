@@ -1,4 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["app/(client)/team.tsx"]
+  "include": ["src/lib/social-auth.ts", "app/(auth)/sign-in.tsx", "app/(auth)/oauth-callback.tsx"]
 }

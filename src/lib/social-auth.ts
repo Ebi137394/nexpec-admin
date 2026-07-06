@@ -16,14 +16,16 @@
 //            Supabase shows you to the Google Cloud OAuth consent screen
 //    Apple:  enable, configure the Services ID + Team ID + Key ID + .p8
 //
-//  FUTURE: when ready for App Store submission, install
-//  `expo-apple-authentication` and swap `signInWithApple()` to use
-//  `AppleAuthentication.signInAsync` + `supabase.auth.signInWithIdToken`.
-//  Per Apple HIG that's required when other social providers are offered.
+//  Apple uses the NATIVE flow on iOS (AppleAuthentication.signInAsync +
+//  signInWithIdToken with a hashed/raw nonce pair) with the browser OAuth
+//  flow as automatic fallback; Google/LinkedIn use browser OAuth everywhere.
 // ════════════════════════════════════════════════════════════════════════════
 
+import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { supabase } from '@/lib/supabase';
 
 export interface SocialSignInResult {
@@ -150,7 +152,67 @@ export async function isAppleSignInAvailable(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Native Sign in with Apple (iOS): AppleAuthentication.signInAsync +
+ * supabase.auth.signInWithIdToken. Apple receives the SHA-256 of the nonce;
+ * Supabase receives the RAW nonce and verifies the pair inside the identity
+ * token. Falls back to the browser OAuth flow on Android, on devices where
+ * the native sheet is unavailable, or if the native path errors for any
+ * non-cancel reason — sign-in never hard-fails on a single path.
+ *
+ * CONFIG: the native token's audience is the APP BUNDLE ID (com.nexpec.app),
+ * so Supabase → Auth → Providers → Apple → Client IDs must list BOTH
+ * com.nexpecapp.signin (web Services ID) AND com.nexpec.app.
+ */
 export async function signInWithApple(): Promise<SocialSignInResult> {
+  if (Platform.OS === 'ios' && (await AppleAuthentication.isAvailableAsync().catch(() => false))) {
+    try {
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce,
+      );
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      if (!credential.identityToken) {
+        return oauthFlow('apple'); // no token from the sheet — try the web path
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce: rawNonce,
+      });
+      if (error || !data?.user) {
+        return { ok: false, needs_role: false, error: error?.message ?? 'Apple sign-in failed.' };
+      }
+
+      // Apple sends fullName ONLY on the very first authorization — persist it
+      // best-effort or it is lost forever. Never blocks sign-in.
+      const givenName = credential.fullName?.givenName ?? '';
+      const familyName = credential.fullName?.familyName ?? '';
+      if (givenName || familyName) {
+        try {
+          await supabase.auth.updateUser({
+            data: { full_name: `${givenName} ${familyName}`.trim() },
+          });
+        } catch { /* best-effort */ }
+      }
+
+      const needs_role = await checkNeedsRole(data.user.id);
+      return { ok: true, needs_role, user_id: data.user.id };
+    } catch (e: any) {
+      if (e?.code === 'ERR_REQUEST_CANCELED') {
+        return { ok: false, needs_role: false, error: 'cancelled' };
+      }
+      return oauthFlow('apple'); // native path failed — fall back to web OAuth
+    }
+  }
   return oauthFlow('apple');
 }
 

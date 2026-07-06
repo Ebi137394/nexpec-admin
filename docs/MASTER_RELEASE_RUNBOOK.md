@@ -27,7 +27,7 @@
 - [ ] **OAuth provider config done** (see §2 — mobile social login can't round-trip until the deep-link redirect URLs are whitelisted).
 - [ ] EAS credentials present (`eas.json`, `app.config.js`). **Replace placeholder Apple/Play submit creds** before `eas submit`.
 - [ ] Staging CI secrets set (money-flow E2E gate): the 3 GitHub secrets for `qa:e2e:money`.
-- [ ] `supabase migration list` shows local-ahead migrations through `20260801250000`.
+- [ ] `supabase migration list` shows local-ahead migrations through `20260801252000`.
 - [ ] **Vercel project Root Directory = `apps/web`** (Settings → Build & Deployment). The monorepo root is the Expo app and has no `next` dependency — a root-directory build fails with "No Next.js version detected" (seen 2026-07-02 on the branch deploy).
 
 ---
@@ -119,7 +119,7 @@ New-Architecture is required (Nitro/Skia/fast-tflite); the `withNexpecNewArch` c
 supabase db push                   # applies all pending migrations in order; each self-test gates the push
 ```
 
-Pending migrations apply in numeric order `20260801182000 … 20260801250000`. Each has `BEGIN/COMMIT` + an in-migration self-test that aborts the push on failure. Security/hardening highlights:
+Pending migrations apply in numeric order `20260801182000 … 20260801252000`. Each has `BEGIN/COMMIT` + an in-migration self-test that aborts the push on failure. Security/hardening highlights:
 
 | Migration | What it seals |
 |---|---|

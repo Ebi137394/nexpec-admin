@@ -129,9 +129,12 @@ CREATE POLICY "reports_select_party_admin" ON public.reports FOR SELECT TO authe
     inspector_id = auth.uid()
     OR public.nx_is_admin()
     OR EXISTS (
-      SELECT 1 FROM public.projects p
-       WHERE p.id = reports.project_id
-         AND p.client_id = auth.uid()
+      -- reports.project_id is an FK to public.work_orders(id) (NOT public.projects,
+      -- which is the org/budget table and has no client_id). Resolve the buyer
+      -- through work_orders.client_id.
+      SELECT 1 FROM public.work_orders w
+       WHERE w.id = reports.project_id
+         AND w.client_id = auth.uid()
     )
   );
 

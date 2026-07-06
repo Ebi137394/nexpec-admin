@@ -30,6 +30,44 @@
 
 BEGIN;
 
+-- ── 0. Clear any prior nx_can_access_doc definition (overload / param-rename) ─
+--    ROOT CAUSE of the earlier failed `supabase db push`: the target database
+--    already carried an nx_can_access_doc definition that CREATE OR REPLACE
+--    could NOT overwrite in place —
+--      • a DIFFERENT-arity overload (Postgres keeps it as a separate function,
+--        so the canonical (uuid,text,text) body silently went stale and the
+--        self-test resolved the wrong signature), and/or
+--      • the SAME (uuid,text,text) types but different parameter NAMES, which
+--        makes CREATE OR REPLACE raise "cannot change name of input parameter"
+--        and abort the whole atomic migration.
+--    Dropping every existing overload first guarantees the CREATE below installs
+--    exactly ONE canonical definition, so the self-test's
+--    '(uuid,text,text)'::regprocedure resolves the new body and the mint-doc-url
+--    RPC (called with {p_uid,p_bucket,p_path}) can never bind a stale candidate.
+--    SAFE: no SQL object (policy / view / trigger / column default) references
+--    this function — only the service_role `mint-doc-url` edge function calls it
+--    by name at runtime, and it is recreated below inside this same transaction.
+DO $drop_overloads$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure::text AS sig
+      FROM pg_proc p
+     WHERE p.proname = 'nx_can_access_doc'
+       AND p.pronamespace = 'public'::regnamespace
+  LOOP
+    RAISE NOTICE 'dropping prior nx_can_access_doc overload: %', r.sig;
+    EXECUTE format('DROP FUNCTION IF EXISTS %s CASCADE', r.sig);
+  END LOOP;
+END
+$drop_overloads$;
+
+-- Explicit belt-and-suspenders for the exact old 3-arg signature the launch
+-- playbook calls out. Redundant after the loop above, but documents intent and
+-- is a guaranteed no-op if the function is already gone.
+DROP FUNCTION IF EXISTS public.nx_can_access_doc(uuid, text, text) CASCADE;
+
 -- ── 1. nx_can_access_doc: full body + new dispute-reports party branch ───────
 --    Owner + admin branches already authorise the owner (uploader) and admin
 --    for receipts / inspector-docs / certifications / resumes — no extra branch
@@ -205,8 +243,12 @@ BEGIN
   END IF;
 
   -- Confirm the dispute-reports party branch is present (strip comments first so
-  -- the check matches code, not prose).
-  v_def := regexp_replace(pg_get_functiondef('public.nx_can_access_doc(uuid,text,text)'::regprocedure), '--.*', '', 'g');
+  -- the check matches code, not prose). The 'n' flag is REQUIRED: without
+  -- newline-sensitive matching, PostgreSQL's '.' also matches newlines, so
+  -- '--.*' would greedily delete everything from the first inline comment to the
+  -- end of the function body — including the real `FROM public.disputes` line —
+  -- making this assertion fail on every run regardless of the body.
+  v_def := regexp_replace(pg_get_functiondef('public.nx_can_access_doc(uuid,text,text)'::regprocedure), '--.*', '', 'gn');
   IF position('public.disputes' IN v_def) = 0 THEN
     RAISE EXCEPTION 'SELFTEST FAILED: dispute-reports party branch missing from nx_can_access_doc';
   END IF;

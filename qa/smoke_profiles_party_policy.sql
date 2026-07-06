@@ -50,13 +50,26 @@ BEGIN
   v_client     := v_job.client_id;
   v_contractor := v_job.contractor_id;
 
+  -- A true "stranger" must be NON-admin (admins read everyone by design) and
+  -- share NO job, org, OR application with the inspector — otherwise
+  -- nx_can_read_profile legitimately allows the read and TEST 4 false-alarms.
   SELECT p.id INTO v_stranger
     FROM public.profiles p
    WHERE p.id <> v_contractor AND p.id <> v_client
+     AND COALESCE(p.role,'') NOT IN ('admin','super_admin')
      AND NOT EXISTS (
        SELECT 1 FROM public.jobs j
         WHERE p.id IN (j.client_id, j.agency_id, j.contractor_id)
           AND v_contractor IN (j.client_id, j.agency_id, j.contractor_id))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.org_members m1
+         JOIN public.org_members m2 ON m1.org_id = m2.org_id
+        WHERE m1.user_id = p.id AND m2.user_id = v_contractor)
+     AND NOT EXISTS (
+       SELECT 1 FROM public.applications a
+         JOIN public.jobs j ON j.id = a.job_id
+        WHERE (a.applicant_id = v_contractor AND p.id IN (j.client_id, j.agency_id))
+           OR (a.applicant_id = p.id AND v_contractor IN (j.client_id, j.agency_id)))
    LIMIT 1;
 
   -- TEST 1 — shared-job: client reads assigned inspector

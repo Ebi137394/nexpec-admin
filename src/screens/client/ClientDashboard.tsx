@@ -58,6 +58,10 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+// ANTI-POACHING: buyer surfaces render the pseudonymous NX- handle, never the
+// inspector's real name/photo (identity is escrowed until an admin-brokered
+// reveal). Byte-identical to the web handle so the same id renders the same.
+import { nxHandle } from '@/src/core/utils/handle';
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 
 // ─────────────────────────────────────────────────────────────
@@ -125,6 +129,7 @@ interface Job {
   location?: string | null;
   status?: JobStatus | string | null;
   budget_cents?: number | null;           // ★ Task 4
+  client_price_cents?: number | null;     // admin-set buyer price (authoritative)
   total_amount_cents?: number | null;     // ★ Task 4
   daily_rate?: number | null;
   duration_days?: number | null;
@@ -162,8 +167,15 @@ const dateLabel = (d: Date) =>
 // ★ Task 4: returns integer CENTS. daily_rate is dollars × duration_days, so
 //   multiply by 100 to keep the unit consistent.
 const computeJobAmount = (
-  j: Pick<Job, 'total_amount_cents' | 'daily_rate' | 'duration_days' | 'budget_cents'>,
+  j: Pick<Job, 'client_price_cents' | 'total_amount_cents' | 'daily_rate' | 'duration_days' | 'budget_cents'>,
 ): number => {
+  // ★ $0-BUG FIX — the admin-set client_price_cents is the authoritative buyer
+  //   figure (GR2-safe: buyers see client_price_cents, never payout/spread).
+  //   Web reads it; mobile omitted it, so priced jobs with no budget_cents
+  //   rendered "$0" while web showed the real amount.
+  if (j.client_price_cents && Number.isFinite(Number(j.client_price_cents))) {
+    return Number(j.client_price_cents);
+  }
   if (j.total_amount_cents && Number.isFinite(Number(j.total_amount_cents))) {
     return Number(j.total_amount_cents);
   }
@@ -183,19 +195,17 @@ const formatMoney = (cents: number) => {
   return `$${Math.round(n)}`;
 };
 
+// ANTI-POACHING: the buyer sees the assigned inspector's pseudonymous NX-
+// handle, never the real full_name (which the RLS party-policy DOES let the
+// client read — pseudonymity is a UI-construction rule, enforced here). Returns
+// null when no inspector is assigned so the caller shows "Inspector pending".
 const resolveContractorName = (j: Job): string | null => {
-  const r = j.contractor;
-  if (!r) return null;
-  if (Array.isArray(r)) return r[0]?.full_name ?? null;
-  return (r as any).full_name ?? null;
+  return j.contractor_id ? nxHandle(j.contractor_id) : null;
 };
 
-const resolveContractorAvatar = (j: Job): string | null => {
-  const r = j.contractor;
-  if (!r) return null;
-  if (Array.isArray(r)) return r[0]?.avatar_url ?? null;
-  return (r as any).avatar_url ?? null;
-};
+// The inspector's real avatar is identity too — never render it pre-reveal.
+// Returning null forces the NX-initial placeholder (same as the job-details card).
+const resolveContractorAvatar = (_j: Job): string | null => null;
 
 const statusMeta = (s?: string | null) => {
   switch (s) {
@@ -332,7 +342,7 @@ export default function ClientDashboardScreen() {
       try {
         const { data: completedJobs } = await supabase
           .from('jobs')
-          .select('total_amount_cents, daily_rate, duration_days, budget_cents')
+          .select('client_price_cents, total_amount_cents, daily_rate, duration_days, budget_cents')
           .eq('client_id', userId)
           .eq('status', 'completed');
         totalInvestment = (completedJobs ?? []).reduce(

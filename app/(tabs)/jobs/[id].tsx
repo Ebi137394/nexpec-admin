@@ -587,6 +587,11 @@ export default function JobDetailScreen() {
           </View>
           {/* ----------------------------------- */}
 
+          {/* ★ PROPOSALS-MISMATCH FIX — once an inspector is hired, a lone
+              "Proposals (0)" beneath the Hired Inspector card reads as a bug.
+              Hide the section when someone is hired and nothing is pending;
+              still render it (with any genuinely pending proposals) otherwise. */}
+          {!(acceptedProposal && pendingProposals.length === 0) && (
           <View style={styles.section}>
             <Text style={styles.sectionHeaderTitle}>{t('Proposals')} ({pendingProposals.length})</Text>
             {pendingProposals.map((proposal) => (
@@ -725,6 +730,7 @@ export default function JobDetailScreen() {
               </View>
             )}
           </View>
+          )}
 
           {/* ★ Symptom 4 fix — Activity & Audit Trail (RLS-filtered to this job's
               events), parity with /(client)/jobs/[id] + web. */}

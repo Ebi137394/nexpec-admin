@@ -228,7 +228,7 @@ function AssignmentCard({
             primary ? 'text-cyan-glow' : 'text-violet-glow'
           }`}
         >
-          {formatPayout(a.inspectorPayoutCents)}
+          {formatPayout(a.inspectorPayoutCents, a.jobStatus)}
         </p>
       </div>
 
@@ -345,9 +345,17 @@ function Pill({
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
 
-function formatPayout(cents: number | null): string {
-  if (cents === null || cents === undefined || cents === 0)
+function formatPayout(cents: number | null, jobStatus?: JobStatus): string {
+  if (cents === null || cents === undefined || cents === 0) {
+    // "Pending admin price" only makes sense pre-dispatch (open/assigned), when
+    // the admin genuinely hasn't set the payout yet. On an in_progress /
+    // completed / disputed job a missing payout is a data gap, not a pending
+    // quote — showing "Pending admin price" there is a logical contradiction.
+    if (jobStatus === 'in_progress' || jobStatus === 'completed' || jobStatus === 'disputed') {
+      return 'Not recorded';
+    }
     return 'Pending admin price';
+  }
   const dollars = cents / 100;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

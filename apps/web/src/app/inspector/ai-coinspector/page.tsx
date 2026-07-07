@@ -142,9 +142,12 @@ export default function AiCoinspectorPage() {
           <Cpu size={13} /> On-device model ready, {modelRef.slug} v{modelRef.version}
         </div>
       ) : modelStatus === 'unconfigured' ? (
-        <div className="flex items-start gap-2 rounded-xl border border-accent-amber/30 bg-accent-amber/10 px-4 py-3 text-sm text-accent-amber">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>On-device inference isn&rsquo;t configured. Set <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_MODEL_URL</code> (a TFJS <code className="font-mono text-[12px]">model.json</code>), plus optional <code className="font-mono text-[12px]">NEXT_PUBLIC_VISION_LABELS</code>, to enable browser analysis. You can still review recorded findings below.</span>
+        // On-device AI runs natively in the mobile app (TFLite, private on-device).
+        // On web the model is optional; present its absence as an intentional
+        // state, never a developer config error, and never leak env-var names.
+        <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-400">
+          <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
+          <span>Live AI Co-Inspector analysis runs in the NEXPEC mobile app, where imagery is processed privately on your device. Here you can review and manage all recorded findings below.</span>
         </div>
       ) : modelStatus === 'error' ? (
         <div className="flex items-center gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red"><AlertCircle className="h-4 w-4" /> Could not load the on-device model.</div>

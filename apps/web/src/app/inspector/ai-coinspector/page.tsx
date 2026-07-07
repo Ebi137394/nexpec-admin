@@ -132,7 +132,7 @@ export default function AiCoinspectorPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Inspector, Vision</p>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">AI Co-inspector</h1>
-          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Drop high-res or drone imagery and the model runs <span className="text-zinc-200">entirely in your browser</span> (TensorFlow.js, on your CPU/GPU). Accepted findings are sealed to the signed model, no data leaves for inference.</p>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-400">Upload high-resolution or drone imagery for automated anomaly detection. All processing is <span className="text-zinc-200">strictly confidential and securely handled</span>.</p>
         </div>
       </header>
 
@@ -147,7 +147,7 @@ export default function AiCoinspectorPage() {
         // state, never a developer config error, and never leak env-var names.
         <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-400">
           <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
-          <span>Live AI Co-Inspector analysis runs in the NEXPEC mobile app, where imagery is processed privately on your device. Here you can review and manage all recorded findings below.</span>
+          <span>Automated AI analysis is currently in manual mode. You can still upload imagery and manually record findings for this job below.</span>
         </div>
       ) : modelStatus === 'error' ? (
         <div className="flex items-center gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red"><AlertCircle className="h-4 w-4" /> Could not load the on-device model.</div>

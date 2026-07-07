@@ -685,12 +685,25 @@ export async function fetchSupplierWallet(): Promise<SupplierWallet> {
   };
 }
 // Stripe Connect Express onboarding — same EF as inspectors.
-export async function startSupplierConnectOnboarding(): Promise<string | null> {
+export async function startSupplierConnectOnboarding(): Promise<{ url: string | null; error?: string }> {
   const uid = await getUserId();
-  if (!uid) return null;
+  if (!uid) return { url: null, error: 'Please sign in again.' };
   const { data, error } = await sb().functions.invoke('create-stripe-connect-link', { body: { user_id: uid } });
-  if (error) return null;
-  return (data as { url?: string } | null)?.url ?? null;
+  if (error) {
+    // functions.invoke collapses any non-2xx into a generic error and the UI
+    // then showed a blank "try again". Read the edge function's JSON body so
+    // the REAL reason surfaces (e.g. missing STRIPE_SECRET_KEY, or the function
+    // not yet redeployed with supplier support). The EF already accepts role
+    // 'supplier'; failures here are almost always deploy/config — make it visible.
+    let detail = error.message ?? 'Could not start onboarding.';
+    try {
+      const body = await (error as { context?: Response }).context?.json?.();
+      if (body?.error) detail = String(body.error);
+    } catch { /* body wasn't JSON */ }
+    console.error('[supplier onboarding] failed:', detail);
+    return { url: null, error: detail };
+  }
+  return { url: (data as { url?: string } | null)?.url ?? null };
 }
 // Request a MANUAL payout (NX-STRIPE-004). Reserves available → pending_payouts
 // via request_withdrawal; an admin settles it in the Treasury Control Tower

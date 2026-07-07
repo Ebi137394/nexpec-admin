@@ -69,7 +69,11 @@ export async function fetchClientJob(
         ].join(', '),
       )
       .eq('id', jobId)
-      .eq('client_id', user.id)
+      // A job is client_id XOR agency_id (jobs_owner_xor constraint): agency /
+      // enterprise buyers own via agency_id, so a client_id-only filter matched
+      // NOTHING for them → null → the job-details page crashed. Match either
+      // buyer column; RLS still scopes the row to the caller's own jobs.
+      .or(`client_id.eq.${user.id},agency_id.eq.${user.id}`)
       .is('deleted_at', null)
       .maybeSingle();
 

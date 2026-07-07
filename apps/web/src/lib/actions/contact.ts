@@ -89,5 +89,40 @@ export async function submitContact(formData: FormData): Promise<void> {
     );
   }
 
+  // Best-effort operator notification via Resend (the platform's email
+  // provider — same as the edge functions). The contact_submissions row above
+  // is the source of truth; this email is a convenience ping and must NEVER
+  // break the form, so every failure is logged and swallowed.
+  // HOST CONFIG (Vercel env): RESEND_API_KEY, CONTACT_INBOX_EMAIL (where these
+  // land — set this to your real inbox), optional RESEND_FROM_EMAIL.
+  try {
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const inbox = process.env.CONTACT_INBOX_EMAIL;
+    if (resendApiKey && inbox) {
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@nexpec.app';
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `NEXPEC Contact <${fromEmail}>`,
+          to: [inbox],
+          reply_to: parsed.data.email,
+          subject: `[${parsed.data.channel}] New contact from ${parsed.data.name}`,
+          text:
+            `Channel: ${parsed.data.channel}\n` +
+            `From: ${parsed.data.name} <${parsed.data.email}>\n\n` +
+            `${parsed.data.message}`,
+        }),
+      });
+    } else {
+      console.warn('[contact] email skipped: RESEND_API_KEY or CONTACT_INBOX_EMAIL not set');
+    }
+  } catch (e) {
+    console.error('[contact] email dispatch failed (submission still saved):', e);
+  }
+
   redirect('/contact?sent=1');
 }

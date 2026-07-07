@@ -28,9 +28,9 @@ export function SupplierPayoutCard() {
   const onboard = async () => {
     setBusy(true); setMsg(null);
     try {
-      const url = await startSupplierConnectOnboarding();
-      if (url) window.location.href = url;
-      else setMsg({ kind: 'err', text: 'Could not start onboarding. Try again shortly.' });
+      const res = await startSupplierConnectOnboarding();
+      if (res.url) window.location.href = res.url;
+      else setMsg({ kind: 'err', text: res.error ?? 'Could not start onboarding. Try again shortly.' });
     } finally { setBusy(false); }
   };
 

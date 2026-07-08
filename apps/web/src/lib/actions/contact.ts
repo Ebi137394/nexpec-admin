@@ -99,8 +99,13 @@ export async function submitContact(formData: FormData): Promise<void> {
     const resendApiKey = process.env.RESEND_API_KEY;
     const inbox = process.env.CONTACT_INBOX_EMAIL;
     if (resendApiKey && inbox) {
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@nexpec.app';
-      await fetch('https://api.resend.com/emails', {
+      // The `from` MUST be on a Resend-verified domain, or Resend rejects with
+      // 403 "domain not verified". Default to Resend's shared sandbox sender
+      // (onboarding@resend.dev — always deliverable without domain setup) so
+      // the pipe works out of the box; override with RESEND_FROM_EMAIL once
+      // your own domain is verified in the Resend dashboard.
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+      const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${resendApiKey}`,
@@ -117,6 +122,16 @@ export async function submitContact(formData: FormData): Promise<void> {
             `${parsed.data.message}`,
         }),
       });
+      // fetch does NOT throw on 4xx/5xx — the previous code ignored the response
+      // and swallowed every Resend rejection (unverified domain, bad key, …).
+      // Inspect the status + body so the real reason is always logged.
+      if (!res.ok) {
+        const body = await res.text().catch(() => '<no body>');
+        console.error(
+          `[contact] Resend rejected the email (status ${res.status}). ` +
+          `Common cause: "${fromEmail}" is not a verified sender/domain in Resend. Body: ${body}`,
+        );
+      }
     } else {
       console.warn('[contact] email skipped: RESEND_API_KEY or CONTACT_INBOX_EMAIL not set');
     }

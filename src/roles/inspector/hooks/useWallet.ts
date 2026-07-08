@@ -48,20 +48,35 @@ export function useWallet(): UseWalletReturn {
         setError(null);
 
         // 1. Fetch wallet data
+        //   New accounts have no wallets row yet. .single() throws PGRST116
+        //   (0 rows) → redbox, so use .maybeSingle() and fall back to a
+        //   zeroed wallet so the hook never crashes and the balance UI reads $0.
         const { data: walletData, error: walletError } = await supabase
           .from('wallets')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (walletError) {
           throw walletError;
         }
 
-        // .single() can resolve data=null/error=null under some RLS/PostgREST
-        // edge cases; guard before dereferencing walletData.id below.
         if (!walletData) {
-          setWallet(null);
+          // No wallet row yet — present a $0 wallet rather than null so
+          // consumers (available/pending/earned reads) render zeros cleanly.
+          setWallet({
+            user_id: user.id,
+            balance: 0,
+            available_balance: 0,
+            pending_amount: 0,
+            pending_payouts: 0,
+            escrow_amount: 0,
+            total_earned: 0,
+            total_spent: 0,
+            total_volume: 0,
+            agency_revenue: 0,
+            currency: 'CAD',
+          } as Wallet);
           setTransactions([]);
           return;
         }

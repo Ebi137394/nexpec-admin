@@ -519,12 +519,18 @@ export function useSupplierWallet() {
   useEffect(() => { load(); }, [load]);
   return { data, loading, refetch: load };
 }
-export async function startSupplierConnectOnboarding(): Promise<string | null> {
+export async function startSupplierConnectOnboarding(): Promise<{ url: string | null; error?: string }> {
   const { data: u } = await supabase.auth.getUser();
-  const uid = u.user?.id; if (!uid) return null;
+  const uid = u.user?.id; if (!uid) return { url: null, error: 'Not signed in.' };
   const { data, error } = await supabase.functions.invoke('create-stripe-connect-link', { body: { user_id: uid } });
-  if (error) return null;
-  return (data as any)?.url ?? null;
+  if (error) {
+    // Surface the Edge function's JSON error body instead of a generic string.
+    let detail = (error as any).message ?? 'Could not start onboarding.';
+    try { const body = await (error as any).context?.json?.(); if (body?.error) detail = String(body.error); } catch { /* keep */ }
+    console.error('[supplier] create-stripe-connect-link failed:', detail);
+    return { url: null, error: detail };
+  }
+  return { url: (data as any)?.url ?? null };
 }
 export async function supplierWithdraw(amountCents: number): Promise<{ ok: boolean; error?: string }> {
   // NX-STRIPE-004: manual payout flow — request_withdrawal reserves funds; an

@@ -1118,7 +1118,7 @@ const ActionCard = ({
       style={[s.actionLabel, primary && { color: '#FFFFFF', fontWeight: '900' }]}
       numberOfLines={1}
       adjustsFontSizeToFit
-      minimumFontScale={0.85}
+      minimumFontScale={0.7}
     >
       {label}
     </Text>
@@ -1777,10 +1777,11 @@ const s = StyleSheet.create({
   },
   actionCard: {
     flex: 1,
+    minWidth: 0, // ★ let flex children shrink so labels stay inside their card
     aspectRatio: 0.92,
     borderRadius: 20,
     paddingVertical: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6, // ★ tighter side padding → more room for the label
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: C.surfaceElev,
@@ -1833,6 +1834,8 @@ const s = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
     letterSpacing: 0.2,
+    width: '100%', // ★ clamp text to the card's own width so labels can't collide
+    alignSelf: 'stretch',
   },
 
   // Filter chips

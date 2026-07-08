@@ -42,9 +42,9 @@ export default function SupplierFinance() {
   const onboard = async () => {
     setWBusy(true); setWMsg(null); setWOk(false);
     try {
-      const url = await startSupplierConnectOnboarding();
+      const { url, error } = await startSupplierConnectOnboarding();
       if (url) await WebBrowser.openBrowserAsync(url);
-      else setWMsg(t('Could not start onboarding. Try again shortly.'));
+      else setWMsg(error || t('Could not start onboarding. Try again shortly.'));
       await refetchWallet();
     } finally { setWBusy(false); }
   };

@@ -88,14 +88,14 @@ export default function SkillsScreen() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_type')
+        .select('role')
         .eq('id', currentUser.id)
         .single();
 
       if (error) throw error;
 
       // Redirect agencies to company overview instead of skills
-      if (data?.user_type === 'agency') {
+      if (data?.role === 'agency') {
         router.replace('/profile/edit');
         return;
       }

@@ -57,10 +57,14 @@ interface AppRow {
   job: JobLite | null;
 }
 
-// Price-blind projection: applications carry the inspector's OWN bid only; the
-// embedded job is identity/price-free (NO budget_cents/client_price_cents/spread).
-const COLS =
-  'id, job_id, status, bid_amount_cents, bid_type, created_at, job:jobs!job_id(id, title, domain, location_city, status, scheduled_date)';
+// Price-blind projection: applications carry the inspector's OWN bid only.
+// NOTE: applications has NO job_id FK in the schema, so a PostgREST embed
+// (jobs!…) fails with "Could not find a relationship". We fetch applications
+// then the referenced jobs separately and merge in TS (same two-step pattern
+// as app/(tabs)/jobs/[id].tsx). The job projection is identity/price-free
+// (title/domain/location/status/date only — NO budget/client_price/spread).
+const APP_COLS = 'id, job_id, status, bid_amount_cents, bid_type, created_at';
+const JOB_COLS = 'id, title, domain, location_city, status, scheduled_date';
 
 function timeAgo(iso?: string | null): string {
   if (!iso) return '';
@@ -112,19 +116,36 @@ export default function MyApplicationsScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setItems([]); setLoading(false); setRefreshing(false); return; }
 
-      const { data, error: qErr } = await supabase
+      // Step 1: the inspector's own applications.
+      const { data: appData, error: qErr } = await supabase
         .from('applications')
-        .select(COLS)
+        .select(APP_COLS)
         .eq('applicant_id', user.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(100);
       if (qErr) throw qErr;
 
-      // Supabase embeds can return the relation as an array — normalise to object.
-      const rows = (data ?? []).map((r: any) => ({
-        ...r,
-        job: Array.isArray(r.job) ? (r.job[0] ?? null) : (r.job ?? null),
+      // Step 2: fetch the referenced jobs (price-blind columns) and merge.
+      const apps = appData ?? [];
+      const jobIds = Array.from(
+        new Set(apps.map((a: any) => a.job_id).filter(Boolean))
+      );
+      let jobsMap: Record<string, JobLite> = {};
+      if (jobIds.length > 0) {
+        const { data: jobData, error: jErr } = await supabase
+          .from('jobs')
+          .select(JOB_COLS)
+          .in('id', jobIds);
+        if (jErr) throw jErr;
+        (jobData ?? []).forEach((j: any) => {
+          if (j?.id) jobsMap[j.id] = j as JobLite;
+        });
+      }
+
+      const rows = apps.map((a: any) => ({
+        ...a,
+        job: (a.job_id && jobsMap[a.job_id]) || null,
       })) as AppRow[];
       setItems(rows);
     } catch (e: any) {

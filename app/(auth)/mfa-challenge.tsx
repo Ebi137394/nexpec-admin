@@ -137,8 +137,11 @@ export default function MfaChallengeScreen() {
             </>
           )}
 
+          {/* signOut() clears the partial (AAL1) session, so this returns the
+              user to the sign-in screen. Labeled as a back action because
+              "Sign out" read as a trap to users stuck on the MFA step. */}
           <TouchableOpacity style={st.signOutBtn} onPress={() => signOut()} activeOpacity={0.7}>
-            <Text style={st.signOutText}>Sign out</Text>
+            <Text style={st.signOutText}>Back to Sign In</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

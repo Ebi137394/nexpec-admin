@@ -26,7 +26,7 @@ interface PageProps {
   }>;
 }
 
-const PUBLIC_ROLES = new Set(['inspector', 'client', 'agency']);
+const PUBLIC_ROLES = new Set(['inspector', 'client', 'agency', 'supplier']);
 
 export default async function SignInPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -52,7 +52,7 @@ export default async function SignInPage({ searchParams }: PageProps) {
       }
     >
       <RoleTabs
-        active={role as 'inspector' | 'client' | 'agency' | '' | undefined}
+        active={role as 'inspector' | 'client' | 'agency' | 'supplier' | '' | undefined}
         basePath="/sign-in"
       />
       <OAuthRow />

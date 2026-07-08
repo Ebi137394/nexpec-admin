@@ -1,15 +1,15 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  components/auth/RoleTabs.tsx — 3-way pathway selector for /sign-up
+//  components/auth/RoleTabs.tsx — 4-way pathway selector for /sign-up
 //
-//  Inspector / Client / Agency. The active tab is encoded as ?role=<v> in the
+//  Inspector / Client / Agency / Vendor. The active tab is encoded as ?role=<v> in the
 //  URL and submitted as a hidden field by the signUp action. Matches the
 //  mobile app's onboarding pathway picker.
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
-import { HardHat, Building2, Briefcase } from 'lucide-react';
+import { HardHat, Building2, Briefcase, Store } from 'lucide-react';
 
-type RoleKey = 'inspector' | 'client' | 'agency';
+type RoleKey = 'inspector' | 'client' | 'agency' | 'supplier';
 
 const TABS: ReadonlyArray<{
   key: RoleKey;
@@ -35,6 +35,12 @@ const TABS: ReadonlyArray<{
     caption: 'Manage a roster',
     Icon: Briefcase,
   },
+  {
+    key: 'supplier',
+    label: 'Vendor',
+    caption: 'Bid on RFQs',
+    Icon: Store,
+  },
 ];
 
 export function RoleTabs({
@@ -49,7 +55,7 @@ export function RoleTabs({
     <div
       role="tablist"
       aria-label="Account type"
-      className="mb-6 grid grid-cols-3 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.02] p-1.5"
+      className="mb-6 grid grid-cols-4 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.02] p-1.5"
     >
       {TABS.map((t) => {
         const isActive = active === t.key;

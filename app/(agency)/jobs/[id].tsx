@@ -102,6 +102,7 @@ interface ApplicantProfile {
   // 🔴 GUARANTEED SECURITY: No 'email' or 'phone' in this interface
   avatar_url: string | null;
   title: string | null;
+  professional_title: string | null;
   bio: string | null;
   years_experience: number | null;
   hourly_rate_cents: number | null;   // ★ Task 4
@@ -594,7 +595,7 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
               <Text style={styles.applicantName} numberOfLines={1}>{getApplicantName(applicant)}</Text>
               <Shield size={14} color={COLORS.success} />
             </View>
-            <Text style={styles.applicantTitle} numberOfLines={1}>{applicant.title || 'Inspector'}</Text>
+            <Text style={styles.applicantTitle} numberOfLines={1}>{applicant.professional_title || applicant.title || 'Inspector'}</Text>
             {applicant.years_experience && (
               <View style={styles.experienceRow}>
                 <Briefcase size={12} color={COLORS.textMuted} />
@@ -1118,7 +1119,7 @@ export default function ApplicantsScreen(): React.JSX.Element {
           //   (NX- handle) until a paid Named-Disclosure reveals identity.
           //   The per-application bid (bid_amount_cents) is on the application
           //   row, not here, so the agency can still evaluate the offer.
-          .select('id, title, bio, years_experience:experience_years, specialties, location_city, location_province')
+          .select('id, title, professional_title, bio, years_experience:experience_years, specialties, location_city, location_province')
           .in('id', profileIds);
         if (profErr) throw profErr;
         profilesData = profs ?? [];

@@ -163,7 +163,7 @@ export async function signUpWithProfileAndMagicLink(
 
 export async function signUpWithProfileAndOAuth(formData: FormData): Promise<void> {
   const provider = String(formData.get('provider') ?? 'google').toLowerCase();
-  if (provider !== 'google' && provider !== 'apple') {
+  if (provider !== 'google' && provider !== 'apple' && provider !== 'linkedin_oidc') {
     redirect(backToWizardWithError({ error: 'Unsupported provider.' }));
   }
   const parsed = ProfileSchema.safeParse(readFormData(formData));
@@ -194,7 +194,7 @@ export async function signUpWithProfileAndOAuth(formData: FormData): Promise<voi
     'http://localhost:3000';
 
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: provider as 'google' | 'apple',
+    provider: provider as 'google' | 'apple' | 'linkedin_oidc',
     options: { redirectTo: `${origin}/auth/callback` },
   });
   if (error || !data?.url) {

@@ -15,6 +15,7 @@ import type { User, Session } from '@supabase/supabase-js';
 interface ProfileData {
   organization_id: string | null;
   role: string | null;
+  terms_accepted_at: string | null;
 }
 
 interface AuthState {
@@ -22,6 +23,10 @@ interface AuthState {
   session: Session | null;
   organizationId: string | null;
   role: string | null;
+  // Legal gateway: false until the user has accepted the Master ToS + Privacy
+  // Policy (profiles.terms_accepted_at). The AuthGate blocks app entry until
+  // this is true. Enforced in app/_layout.tsx.
+  termsAccepted: boolean;
   loading: boolean;
   // 2FA: true when the session is AAL1 but the user has a verified TOTP factor
   // (nextLevel === 'aal2'), i.e. they must complete a TOTP challenge before
@@ -46,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session: null,
     organizationId: null,
     role: null,
+    termsAccepted: false,
     loading: true,
     mfaRequired: false,
   });
@@ -69,19 +75,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     for (let attempt = 0; attempt < 3; attempt++) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('organization_id, role')
+        .select('organization_id, role, terms_accepted_at')
         .eq('id', userId)
         .single<ProfileData>();
       if (!error && data) {
         return {
           organizationId: data.organization_id ?? null,
           role: data.role ?? null,
+          termsAccepted: !!data.terms_accepted_at,
         };
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
     console.error('[AuthContext] Failed to fetch org after retries');
-    return { organizationId: null, role: null };
+    return { organizationId: null, role: null, termsAccepted: false };
   }, []);
 
   const refreshOrganization = useCallback(async () => {
@@ -130,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             session: null,
             organizationId: null,
             role: null,
+            termsAccepted: false,
             mfaRequired: false,
             loading: false,
           });

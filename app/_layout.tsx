@@ -38,7 +38,7 @@ import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
 import { roleHome, needsRole } from '@/src/core/navigation/routeMap';
 
 function AuthGate() {
-  const { session, loading, role, mfaRequired } = useAuth();
+  const { session, loading, role, mfaRequired, termsAccepted } = useAuth();
   const { isDarkMode } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -277,6 +277,29 @@ function AuthGate() {
     //  A signed-in user who hasn't picked a role yet must finish the role
     //  wizard — never leak into the default (inspector) tabs layout.
     if (isAuthenticated && needsRole(role) && !inAuthGroup) {
+      safeNavigate('/(auth)/choose-role');
+      return;
+    }
+
+    // ── LEGAL GATEWAY — ToS + Privacy acceptance before ANY app access ──
+    //  A user WITH a role but WITHOUT recorded acceptance (legacy accounts,
+    //  or an OAuth user who never passed choose-role) is sent to choose-role,
+    //  which records consent on confirm; refreshOrganization() then flips
+    //  termsAccepted and this gate releases. choose-role is already exempt via
+    //  selfRoutingAuthScreens above, so there is no mid-flight ping-pong. The
+    //  MFA step-up gate above still outranks this.
+    //  Operators (admin/super_admin) are EXEMPT: they are internal, not
+    //  end-users subject to the marketplace ToS flow, and apply_onboarding_role
+    //  refuses to write for a protected role that picks a different lane — so
+    //  gating them would brick the account in an unrecoverable loop.
+    if (
+      isAuthenticated &&
+      !needsRole(role) &&
+      !termsAccepted &&
+      role !== 'admin' &&
+      role !== 'super_admin' &&
+      !inAuthGroup
+    ) {
       safeNavigate('/(auth)/choose-role');
       return;
     }

@@ -49,6 +49,11 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W   = Math.min(SCREEN_W - 64, 320);
 const CARD_GAP = 14;
 
+// Bump when the Master ToS / Privacy Policy materially changes — a new version
+// forces re-acceptance (the gate treats any stored older acceptance as valid
+// for now; re-acceptance policy can key off this string later).
+const TERMS_VERSION = 'v1-2026-07';
+
 type Role = 'inspector' | 'client' | 'agency';
 
 interface RoleSpec {
@@ -129,8 +134,13 @@ export default function ChooseRoleScreen() {
       // (0 rows, no error) → the social-onboarding loop. apply_onboarding_role
       // is SECURITY DEFINER: it enforces the role allow-list + the one-way
       // "no demoting an operator/inspector" guard and returns the canonical role.
+      // LEGAL GATEWAY: role confirmation is the onboarding consent point.
+      // Record ToS + Privacy acceptance here so no user can reach the app
+      // without it (the AuthGate blocks entry until terms_accepted_at is set).
       const { data, error } = await supabase.rpc('apply_onboarding_role', {
         p_role: role,
+        p_terms_accepted_at: new Date().toISOString(),
+        p_terms_version: TERMS_VERSION,
       });
       if (error) throw error;
 
@@ -168,6 +178,14 @@ export default function ChooseRoleScreen() {
         <Text style={s.heroTitle}>Choose your stance</Text>
         <Text style={s.heroSub}>
           You can change this later. For now, pick the lane that best matches how you'll use NEXPEC.
+        </Text>
+        {/* Informed-consent notice — confirming a role records ToS + Privacy
+            acceptance (legal gateway). Links open the existing legal screens. */}
+        <Text style={s.heroSub}>
+          By continuing, you agree to our{' '}
+          <Text style={s.heroLink} onPress={() => router.push('/profile/terms' as any)}>Terms of Service</Text>
+          {' '}and{' '}
+          <Text style={s.heroLink} onPress={() => router.push('/profile/legal' as any)}>Privacy Policy</Text>.
         </Text>
       </View>
 
@@ -275,6 +293,10 @@ const s = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 340,
     lineHeight: 19,
+  },
+  heroLink: {
+    color: aegis.palette.iris,
+    fontWeight: '600',
   },
 
   card: {

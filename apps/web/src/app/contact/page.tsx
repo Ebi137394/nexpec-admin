@@ -157,8 +157,12 @@ export default async function ContactPage({ searchParams }: PageProps) {
                 <p className="mt-2 text-pretty text-sm leading-relaxed text-zinc-400">
                   {c.body}
                 </p>
+                {/* In-page scroll to the form below (globals.css sets
+                    scroll-behavior: smooth). Replaces mailto: which dead-clicks
+                    on devices with no configured mail client. The address stays
+                    visible as copyable text. */}
                 <a
-                  href={`mailto:${c.email}`}
+                  href="#form"
                   className="mt-5 inline-flex items-center gap-2 font-mono text-sm text-violet-glow transition-colors hover:text-white"
                 >
                   {c.email}

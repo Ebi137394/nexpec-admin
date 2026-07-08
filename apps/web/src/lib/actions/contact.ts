@@ -99,12 +99,28 @@ export async function submitContact(formData: FormData): Promise<void> {
     const resendApiKey = process.env.RESEND_API_KEY;
     const inbox = process.env.CONTACT_INBOX_EMAIL;
     if (resendApiKey && inbox) {
-      // The `from` MUST be on a Resend-verified domain, or Resend rejects with
-      // 403 "domain not verified". Default to Resend's shared sandbox sender
-      // (onboarding@resend.dev — always deliverable without domain setup) so
-      // the pipe works out of the box; override with RESEND_FROM_EMAIL once
-      // your own domain is verified in the Resend dashboard.
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+      // This is a Node server action (the /contact page has no `edge` runtime),
+      // so server-only env vars like RESEND_API_KEY resolve normally.
+      //
+      // ⚠️ The `from` domain decides whether delivery works at all:
+      //   • A verified-domain sender (set RESEND_FROM_EMAIL, e.g.
+      //     "notify@nexpec.app" after verifying nexpec.app in Resend) delivers
+      //     to ANY recipient — this is what production needs.
+      //   • The shared sandbox sender "onboarding@resend.dev" is TEST-ONLY:
+      //     Resend delivers it ONLY to YOUR OWN Resend-account email and
+      //     silently 403s every other recipient. So if CONTACT_INBOX_EMAIL is
+      //     not your Resend signup address, the sandbox sender will never
+      //     arrive. That is the most likely cause of "success in UI, no email".
+      const fromEmail = process.env.RESEND_FROM_EMAIL;
+      if (!fromEmail) {
+        console.warn(
+          '[contact] RESEND_FROM_EMAIL is not set — falling back to the ' +
+          'onboarding@resend.dev SANDBOX sender, which only delivers to your ' +
+          'own Resend-account email. Set RESEND_FROM_EMAIL to a verified-domain ' +
+          'address to deliver to CONTACT_INBOX_EMAIL.',
+        );
+      }
+      const sender = fromEmail || 'onboarding@resend.dev';
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -112,7 +128,7 @@ export async function submitContact(formData: FormData): Promise<void> {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `NEXPEC Contact <${fromEmail}>`,
+          from: `NEXPEC Contact <${sender}>`,
           to: [inbox],
           reply_to: parsed.data.email,
           subject: `[${parsed.data.channel}] New contact from ${parsed.data.name}`,
@@ -122,14 +138,17 @@ export async function submitContact(formData: FormData): Promise<void> {
             `${parsed.data.message}`,
         }),
       });
-      // fetch does NOT throw on 4xx/5xx — the previous code ignored the response
-      // and swallowed every Resend rejection (unverified domain, bad key, …).
-      // Inspect the status + body so the real reason is always logged.
-      if (!res.ok) {
-        const body = await res.text().catch(() => '<no body>');
+      // fetch does NOT throw on 4xx/5xx — inspect the parsed body so BOTH the
+      // success id and the real failure reason land in the Vercel runtime log.
+      const payload = await res.json().catch(() => null);
+      if (res.ok) {
+        console.log(`[contact] Resend accepted the email (id=${payload?.id ?? 'unknown'}, from=${sender}, to=${inbox}).`);
+      } else {
         console.error(
-          `[contact] Resend rejected the email (status ${res.status}). ` +
-          `Common cause: "${fromEmail}" is not a verified sender/domain in Resend. Body: ${body}`,
+          `[contact] Resend REJECTED the email (status ${res.status}, from=${sender}, to=${inbox}). ` +
+          `If from=onboarding@resend.dev this is the sandbox restriction (recipient must be your ` +
+          `Resend-account email); otherwise "${sender}" is not a verified sender/domain. Response:`,
+          payload,
         );
       }
     } else {

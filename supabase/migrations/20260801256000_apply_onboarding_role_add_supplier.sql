@@ -35,7 +35,7 @@ BEGIN
     RAISE EXCEPTION 'apply_onboarding_role: no auth.uid() — caller is not authenticated';
   END IF;
 
-  -- Self-service onboarding lanes. 'supplier' added 2026-07 (mobile Vendor card).
+  -- Self-service onboarding lanes (Vendor lane added 2026-07).
   IF p_role IS NULL
      OR p_role NOT IN ('client', 'inspector', 'agency', 'enterprise', 'supplier')
   THEN
@@ -105,9 +105,12 @@ ALTER FUNCTION public.apply_onboarding_role(text, text, text, text, text[], time
 -- Self-test: the allow-list must include 'supplier' (and still email-on-insert).
 DO $test$
 DECLARE
-  v_def text := regexp_replace(
-    pg_get_functiondef('public.apply_onboarding_role(text,text,text,text,text[],timestamp with time zone,text)'::regprocedure),
-    '--.*', '', 'g');
+  -- Search the RAW definition (no comment-strip). Postgres regex '.' matches
+  -- newlines by default, so a greedy '--.*' strip would swallow the whole body
+  -- after the first comment — that false-failed the initial push. The inline
+  -- comment above no longer contains a quoted 'supplier', so the only match for
+  -- '''supplier''' below is the allow-list code itself.
+  v_def text := pg_get_functiondef('public.apply_onboarding_role(text,text,text,text,text[],timestamp with time zone,text)'::regprocedure);
 BEGIN
   IF position('''supplier''' IN v_def) = 0 THEN
     RAISE EXCEPTION 'SELFTEST FAILED: apply_onboarding_role does not accept supplier';

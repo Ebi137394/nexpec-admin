@@ -39,6 +39,12 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
+// Platform-tier legal docs (TOS-001 + PRIV-001) — the ones the onboarding
+// consent line names. We mirror this acceptance into the per-document ledger
+// so the in-app Terms & Privacy cards show "Accepted" and the doc viewer skips
+// its Accept CTA. Versions come from the registry so they auto-sync.
+import { getLegalDocument } from '@/src/legal/registry';
+import type { LegalDocumentId } from '@/src/legal/types';
 import {
   aegis,
   LucentButton,
@@ -172,6 +178,35 @@ export default function ChooseRoleScreen() {
 
       const row = Array.isArray(data) ? data[0] : data;
       const appliedRole = (row?.applied_role ?? role) as string;
+
+      // Mirror the onboarding consent into the per-document acceptance ledger
+      // (legal_document_acceptances) — the source of truth for the Terms &
+      // Privacy cards + doc viewer. Best-effort + idempotent (unique constraint
+      // → 23505 swallowed); NEVER blocks or fails the role save. profiles
+      // .terms_accepted_at remains the compliance gate; this is the per-doc
+      // display/record so the user isn't asked to re-accept what they just did.
+      try {
+        const platformDocs = (['TOS-001', 'PRIV-001'] as LegalDocumentId[])
+          .map((id) => getLegalDocument(id))
+          .filter((d): d is NonNullable<typeof d> => !!d);
+        for (const d of platformDocs) {
+          const { error: ledgerErr } = await supabase
+            .from('legal_document_acceptances')
+            // outbox-exempt: interactive online onboarding consent record; best-effort + idempotent, never queued.
+            .insert({
+              user_id: userId,
+              document_id: d.id,
+              document_version: d.version,
+              language: 'en',
+              role_at_acceptance: appliedRole,
+            });
+          if (ledgerErr && (ledgerErr as any).code !== '23505') {
+            console.warn('[choose-role] legal ledger insert failed (non-fatal):', ledgerErr.message);
+          }
+        }
+      } catch (ledgerErr) {
+        console.warn('[choose-role] legal ledger mirror error (non-fatal):', ledgerErr);
+      }
 
       buzzSuccess();
       // Trigger AuthContext to refetch the profile so the AuthGate routes to the

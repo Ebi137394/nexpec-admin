@@ -5,10 +5,16 @@
 --  was already accepted; this widens apply_onboarding_role's role allow-list to
 --  also accept 'supplier' so a self-service Vendor signup can save its role.
 --
---  profiles.role already permits 'supplier' (profiles_role_allowed CHECK), so
---  no table change is needed — only the function's internal guard.
+--  ALSO fixes a second latent NOT-NULL crash on the INSERT path (brand-new
+--  account, no profile row yet): the function set specialty_slugs to the NULL
+--  parameter, overriding its '{}' default → "null value in column
+--  specialty_slugs violates not-null". Now COALESCEd to '{}' on INSERT; the
+--  UPDATE path uses the raw param so an existing user's specialties are kept.
+--  (Every other NOT-NULL profiles column is either supplied or absent from the
+--  INSERT column list and so takes its own table default — verified.)
 --
---  Identical to 254000 (email-on-insert fix) except the allow-list. Idempotent.
+--  profiles.role already permits 'supplier' (profiles_role_allowed CHECK), so
+--  no table change is needed — only the function body. Idempotent.
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -78,7 +84,11 @@ BEGIN
     NULLIF(trim(coalesce(p_full_name, '')), ''),
     NULLIF(trim(coalesce(p_company_name, '')), ''),
     NULLIF(trim(coalesce(p_contact_person_name, '')), ''),
-    p_specialty_slugs,
+    -- specialty_slugs is NOT NULL (default '{}'). choose-role omits it, so the
+    -- param is NULL — coalesce to an empty array so the INSERT path satisfies
+    -- the constraint. (Only the INSERT listed this column; the other NOT-NULL
+    -- profile columns are absent from the list and take their table defaults.)
+    COALESCE(p_specialty_slugs, '{}'::text[]),
     p_terms_accepted_at,
     p_terms_version,
     now()
@@ -90,7 +100,9 @@ BEGIN
     full_name               = COALESCE(EXCLUDED.full_name, p.full_name),
     company_name            = COALESCE(EXCLUDED.company_name, p.company_name),
     contact_person_name     = COALESCE(EXCLUDED.contact_person_name, p.contact_person_name),
-    specialty_slugs         = COALESCE(EXCLUDED.specialty_slugs, p.specialty_slugs),
+    -- Use the raw param (NULL when not supplied), NOT the coalesced INSERT
+    -- value, so re-confirming a role never wipes an existing user's specialties.
+    specialty_slugs         = COALESCE(p_specialty_slugs, p.specialty_slugs),
     terms_accepted_at       = COALESCE(EXCLUDED.terms_accepted_at, p.terms_accepted_at),
     terms_version           = COALESCE(EXCLUDED.terms_version, p.terms_version),
     onboarding_completed_at = COALESCE(p.onboarding_completed_at, EXCLUDED.onboarding_completed_at);
@@ -118,7 +130,10 @@ BEGIN
   IF position('v_email' IN v_def) = 0 THEN
     RAISE EXCEPTION 'SELFTEST FAILED: apply_onboarding_role lost the email-on-insert fix';
   END IF;
-  RAISE NOTICE 'apply_onboarding_role now accepts supplier + still inserts email — mobile Vendor onboarding enabled.';
+  IF position('COALESCE(p_specialty_slugs' IN v_def) = 0 THEN
+    RAISE EXCEPTION 'SELFTEST FAILED: apply_onboarding_role does not coalesce specialty_slugs (NOT-NULL crash on new accounts)';
+  END IF;
+  RAISE NOTICE 'apply_onboarding_role: supplier accepted, email + specialty_slugs coalesced — new-account onboarding fixed.';
 END
 $test$;
 

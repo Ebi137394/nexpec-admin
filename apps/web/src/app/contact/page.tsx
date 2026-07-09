@@ -58,6 +58,8 @@ const CHANNELS = [
     icon: Mail,
     label: 'Sales',
     email: 'sales@nexpecapp.com',
+    // Maps the card to the form's <select> value so a click pre-selects it.
+    value: 'sales',
     body: 'Dispatching enterprise inspections, agency rollouts, custom integrations. Expect a reply within one business day.',
     tone: 'violet',
   },
@@ -65,6 +67,7 @@ const CHANNELS = [
     icon: LifeBuoy,
     label: 'Support',
     email: 'support@nexpecapp.com',
+    value: 'support',
     body: 'Active jobs, payment queries, account access. Available 7 days a week. Use in-app chat for fastest resolution.',
     tone: 'cyan',
   },
@@ -72,6 +75,7 @@ const CHANNELS = [
     icon: ShieldAlert,
     label: 'Responsible disclosure',
     email: 'security@nexpecapp.com',
+    value: 'security',
     body: 'Found a vulnerability? Email here with details. We acknowledge within 24 hours and follow the IETF security.txt standard.',
     tone: 'amber',
   },
@@ -157,12 +161,13 @@ export default async function ContactPage({ searchParams }: PageProps) {
                 <p className="mt-2 text-pretty text-sm leading-relaxed text-zinc-400">
                   {c.body}
                 </p>
-                {/* In-page scroll to the form below (globals.css sets
-                    scroll-behavior: smooth). Replaces mailto: which dead-clicks
-                    on devices with no configured mail client. The address stays
-                    visible as copyable text. */}
+                {/* Navigates to /contact?channel=<value>#form: the server
+                    re-renders with `initialChannel` (pre-selecting the form's
+                    dropdown) and the #form hash smooth-scrolls down to it
+                    (globals.css sets scroll-behavior: smooth). Replaces the
+                    dead-clicking mailto:. The address stays visible as text. */}
                 <a
-                  href="#form"
+                  href={`?channel=${c.value}#form`}
                   className="mt-5 inline-flex items-center gap-2 font-mono text-sm text-violet-glow transition-colors hover:text-white"
                 >
                   {c.email}

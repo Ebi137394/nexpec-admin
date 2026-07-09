@@ -20,6 +20,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -30,15 +31,16 @@ import { Stack, useRouter } from 'expo-router';
 import {
   ArrowRight,
   Briefcase,
+  Building,
   Building2,
   HardHat,
+  Store,
   CheckCircle2,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   aegis,
-  AegisLogo,
   LucentButton,
   select,
   buzzSuccess,
@@ -54,7 +56,7 @@ const CARD_GAP = 14;
 // for now; re-acceptance policy can key off this string later).
 const TERMS_VERSION = 'v1-2026-07';
 
-type Role = 'inspector' | 'client' | 'agency';
+type Role = 'inspector' | 'client' | 'agency' | 'enterprise' | 'supplier';
 
 interface RoleSpec {
   key: Role;
@@ -99,6 +101,30 @@ const ROLES: RoleSpec[] = [
       'Win compliance jobs your team is tier-qualified for',
       'Distribute work, track live dispatch, audit volume',
       'Issue trust certificates under your brand',
+    ],
+  },
+  {
+    key: 'enterprise',
+    title: 'Enterprise',
+    pitch: 'Govern inspection programs across your organization',
+    icon: Building,
+    bullets: [
+      'Centralize compliance across teams and sites',
+      'Set budgets, approval policies, and seats',
+      'Standardize trust reporting org-wide',
+      'Audit every engagement from one console',
+    ],
+  },
+  {
+    key: 'supplier',
+    title: 'Vendor',
+    pitch: 'Supply certified goods and services to the network',
+    icon: Store,
+    bullets: [
+      'Respond to RFQs across every discipline',
+      'Sign brokered supply agreements in-app',
+      'Get paid on release through NEXPEC',
+      'Build a verified vendor track record',
     ],
   },
 ];
@@ -155,10 +181,12 @@ export default function ChooseRoleScreen() {
       // AuthGate will allow this. Route on the SERVER-confirmed role, not the
       // tapped one, in case the one-way guard kept a protected role.
       switch (appliedRole) {
-        case 'inspector': router.replace('/(tabs)' as any); break;
-        case 'client':    router.replace('/(tabs)/client-dashboard' as any); break;
-        case 'agency':    router.replace('/(tabs)/agency-dashboard' as any); break;
-        default:          router.replace('/(tabs)' as any); break;
+        case 'inspector':  router.replace('/(tabs)' as any); break;
+        case 'client':     router.replace('/(tabs)/client-dashboard' as any); break;
+        case 'agency':     router.replace('/(tabs)/agency-dashboard' as any); break;
+        case 'enterprise': router.replace('/(tabs)/enterprise-dashboard' as any); break;
+        case 'supplier':   router.replace('/(tabs)/supplier-dashboard' as any); break;
+        default:           router.replace('/(tabs)' as any); break;
       }
     } catch (e: any) {
       buzzError();
@@ -173,7 +201,14 @@ export default function ChooseRoleScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={s.hero}>
-        <AegisLogo size={64} noHalo />
+        {/* Official app logo (assets/images/logo.png) — same mark used on
+            sign-in / sign-up / splash. Replaces the AegisLogo sigil so
+            onboarding matches the rest of the platform. */}
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={s.heroLogo}
+          resizeMode="contain"
+        />
         <Text style={s.heroEyebrow}>WELCOME TO NEXPEC</Text>
         <Text style={s.heroTitle}>Choose your stance</Text>
         <Text style={s.heroSub}>
@@ -297,6 +332,11 @@ const s = StyleSheet.create({
   heroLink: {
     color: aegis.palette.iris,
     fontWeight: '600',
+  },
+  heroLogo: {
+    width: 96,
+    height: 96,
+    marginBottom: 4,
   },
 
   card: {

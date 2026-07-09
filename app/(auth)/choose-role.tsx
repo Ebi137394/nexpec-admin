@@ -131,7 +131,7 @@ const ROLES: RoleSpec[] = [
 
 export default function ChooseRoleScreen() {
   const router = useRouter();
-  const { session, refreshOrganization } = useAuth();
+  const { session, refreshOrganization, signOut } = useAuth();
   const userId: string | undefined = session?.user?.id;
 
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -297,6 +297,16 @@ export default function ChooseRoleScreen() {
           onPress={handleConfirm}
           loading={submitting}
         />
+        {/* Escape hatch — never trap the user here if role-save fails.
+            signOut() clears the session; the AuthGate then routes to sign-in. */}
+        <Pressable
+          onPress={() => signOut()}
+          disabled={submitting}
+          hitSlop={12}
+          style={s.signOutBtn}
+        >
+          <Text style={s.signOutText}>Sign out</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -401,5 +411,16 @@ const s = StyleSheet.create({
   cta: {
     paddingHorizontal: aegis.space.xl,
     paddingBottom: aegis.space.xl,
+  },
+  signOutBtn: {
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  signOutText: {
+    color: aegis.palette.inkDim,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -718,11 +718,15 @@ export default function FinanceScreen() {
     return ( <SafeAreaView style={s.loadingWrap}><StatusBar barStyle="light-content" backgroundColor={COLORS.background} /><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.loadingText}>{t('Loading Finance…')}</Text></SafeAreaView> );
   }
 
+  // ★ PAYER vs PAYEE rails. Payers (Client/Agency/Enterprise) DEPOSIT funds, so
+  //   they need a chargeable instrument — Stripe card only. PayPal/Wise/Payoneer/
+  //   Stripe-Connect are PAYOUT DESTINATIONS (money going OUT); storing a payer's
+  //   PayPal email can't charge them, so exposing those to buyers was a UX flaw.
+  //   Payees (Inspector/Vendor) see the payout rails and never the card-deposit.
+  const isPayer =
+    userRole === 'client' || userRole === 'agency' || userRole === 'enterprise';
   const availableProviders = PAYMENT_PROVIDERS.filter(p =>
-    p.targetRole === 'all' ||
-    p.targetRole === userRole ||
-    // Buyer-tier roles share the same client-targeted payment providers.
-    (p.targetRole === 'client' && (userRole === 'agency' || userRole === 'enterprise'))
+    isPayer ? p.id === 'stripe' : p.id !== 'stripe'
   );
 
   return (

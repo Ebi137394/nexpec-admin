@@ -137,12 +137,17 @@ export default function EditProfileScreen() {
 
     try {
       const base64 = await FileSystem.readAsStringAsync(avatarUri, { encoding: 'base64' });
-      const filePath = `avatars/${user?.id}/${Date.now()}.jpg`;
-      
-      // We assume bucket 'avatars' exists. If not, create it in Supabase dashboard.
+      // ★ RLS: the object name must NOT be prefixed with the bucket name. The
+      //   owner-folder storage policy checks (storage.foldername(name))[1] =
+      //   auth.uid(), so the FIRST path segment has to be the user id. The old
+      //   `avatars/${uid}/…` made segment[1] = 'avatars' → "new row violates
+      //   row-level security policy". Path is <uid>/<ts>.jpg (bucket is 'avatars').
+      const filePath = `${user?.id}/${Date.now()}.jpg`;
+
       const { error: uploadError } = await supabase.storage
-        .from('avatars') 
-        .upload(filePath, decode(base64), { contentType: 'image/jpeg' });
+        .from('avatars')
+        // outbox-exempt: interactive online profile-photo upload; failure surfaces inline, not a field-capture op.
+        .upload(filePath, decode(base64), { contentType: 'image/jpeg', upsert: true });
 
       if (uploadError) throw uploadError;
 

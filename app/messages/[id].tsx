@@ -59,11 +59,9 @@ function mimeForFile(name: string, kind: 'image' | 'document'): string {
   if (ext === 'pdf') return 'application/pdf'; if (ext === 'doc' || ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   return 'application/octet-stream';
 }
-function resolveOtherUserId(job: { client_id: string | null; agency_id: string | null; contractor_id: string | null; hired_inspector_id: string | null; }, myId: string): string | null {
-  // contractor_id is the canonical assignment column; hired_inspector_id is a legacy fallback.
-  const inspectorId = job.contractor_id ?? job.hired_inspector_id;
-  return inspectorId === myId ? (job.client_id ?? job.agency_id ?? null) : (inspectorId ?? null);
-}
+// (HEADER-COUNTERPARTY) resolveOtherUserId() removed — job chats are
+// admin-brokered and siloed, so the thread counterparty is always the NEXPEC
+// Admin, never the client↔inspector directly. See loadConversation() below.
 
 export default function ChatRoomScreen() {
   const { id: jobId } = useLocalSearchParams<{ id: string }>();
@@ -141,23 +139,19 @@ export default function ChatRoomScreen() {
       // data we already have; neither depends on the other. Mark-read
       // goes through the RPC (direct messages UPDATEs are RLS-blocked
       // in the siloed model; the RPC also carries the ghost belt).
-      const otherId = resolveOtherUserId(job, myId);
-      const profilePromise = otherId
-        ? supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url, role')
-            .eq('id', otherId)
-            .single()
-        : Promise.resolve({ data: null, error: null } as const);
+      // ★ HEADER-COUNTERPARTY — job chats are admin-brokered and siloed
+      //   (job_client_admin / job_inspector_admin), so the other end of the
+      //   thread is ALWAYS the NEXPEC Admin, never the client↔inspector
+      //   directly. The old profile fetch resolved the *inspector* id, which is
+      //   NULL before an inspector is assigned → the header hung on "Loading…";
+      //   it would also have leaked the counterparty's real name/avatar
+      //   (anti-poaching pseudonymity). Show the broker identity — no network
+      //   fetch here, so the header can never hang.
+      setOtherUser({ id: 'nexpec-admin', full_name: 'NEXPEC Admin', avatar_url: null, role: 'admin' });
 
       const hasUnread = messageList.some((m) => m.sender_id !== myId && !m.is_read);
-      const markReadPromise = hasUnread
-        ? supabase.rpc('mark_conversation_read', { p_conv_id: conversationId })
-        : Promise.resolve();
-
-      const [profRes] = await Promise.all([profilePromise, markReadPromise]);
-      if (profRes && (profRes as { data: unknown }).data) {
-        setOtherUser((profRes as { data: Profile }).data);
+      if (hasUnread) {
+        await supabase.rpc('mark_conversation_read', { p_conv_id: conversationId });
       }
 
       await ensureSignedUrls(messageList);

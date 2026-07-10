@@ -140,7 +140,7 @@ export default async function InspectorApplyPage({
             min={50}
             max={1_000_000}
             placeholder="(optional) e.g. 2750"
-            hint="Whole USD. Kept confidential."
+            hint="Whole USD."
           />
         </Section>
 

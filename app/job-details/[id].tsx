@@ -40,7 +40,6 @@ export default function JobDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [approvalData, setApprovalData] = useState<any>(null);
-  const [debugError, setDebugError] = useState<string | null>(null);
 
   useEffect(() => {
     if (jobId) fetchJob();
@@ -48,10 +47,7 @@ export default function JobDetailsScreen() {
 
   useEffect(() => {
     const checkApproval = async () => {
-      if (!jobId) {
-          setDebugError("No ID found in params");
-          return;
-      }
+      if (!jobId) return;
       try {
         const { data, error } = await supabase
           .from('inspection_reports')
@@ -61,14 +57,14 @@ export default function JobDetailsScreen() {
           .maybeSingle();
 
         if (error) throw error;
+        // A job with no report yet is NORMAL (pending/approved/awaiting the
+        // inspector's submission) — not an error. Only set approval data when
+        // a report actually exists.
         if (data) {
           setApprovalData(data);
-        } else {
-          setDebugError("No report found in DB for this Job ID");
         }
       } catch (err: any) {
-        console.error("Fetch error:", err);
-        setDebugError(err.message);
+        console.error('[job-details] report lookup failed:', err?.message ?? err);
       }
     };
     checkApproval();
@@ -215,14 +211,6 @@ export default function JobDetailsScreen() {
              <Text style={styles.statusText}>
                This job is currently {job?.status.replace('_', ' ')}.
              </Text>
-           </View>
-         )}
-
-         {/* X-RAY DEBUGGER */}
-         {debugError && (
-           <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.9)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-             <Text style={{ color: 'white', fontWeight: 'bold' }}>⚠️ DEBUG ERROR:</Text>
-             <Text style={{ color: 'white' }}>{debugError}</Text>
            </View>
          )}
 

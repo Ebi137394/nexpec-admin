@@ -292,61 +292,52 @@ export default function InspectorNotificationsScreen() {
   const handleNotificationPress = (n: NotificationRow) => {
     if (!isRead(n)) markAsRead(n.id);
 
-    // ── 1) v3 canonical: top-level link_href + job_id ──
-    //   nx_notify writes these directly on the row. Prefer them over the
-    //   legacy `data` blob whenever they're populated.
-    if (n.link_href) {
-      try {
-        router.push(n.link_href as any);
-        return;
-      } catch (e) {
-        console.log('notification link_href routing error', e);
-      }
-    }
-    if (n.job_id) {
-      try {
-        router.push(`/job-details/${n.job_id}` as any);
-        return;
-      } catch (e) {
-        console.log('notification job_id routing error', e);
-      }
-    }
+    // NX-DEEPLINK-003 — nx_notify writes the target on the ROW (v3: kind +
+    // top-level job_id + link_href). link_href is a WEB path (e.g.
+    // `/client/jobs/<id>`, `/inspector/messages/<conv>`) with no matching mobile
+    // route, so pushing it verbatim dead-ended every tap (router.push does not
+    // throw on an unknown route). Route off the v3 columns instead; only follow
+    // link_href when it is already an in-app path.
+    const kind = kindOf(n) ?? '';
 
-    // ── 2) Legacy data-based routing (preserved verbatim for back-compat) ──
+    // Legacy JSON payload (older rows only) — tolerate string or object.
     let parsedData: any = n.data;
     if (typeof parsedData === 'string') {
-      try {
-        parsedData = JSON.parse(parsedData);
-      } catch (e) {
-        parsedData = {};
-      }
+      try { parsedData = JSON.parse(parsedData); } catch (e) { parsedData = null; }
     }
 
-    try {
-      if (parsedData?.job_id) {
-        router.push(`/job-details/${parsedData.job_id}` as any);
-        return;
-      } else if (parsedData?.contract_id) {
-        router.push(`/contracts/${parsedData.contract_id}` as any);
-        return;
-      } else if (parsedData?.report_id) {
-        // ★ NX-DEEPLINK-002 — on-disk folder is `app/report/[id].tsx`.
-        //   The legacy `/report-detail/<id>` path 404'd silently.
-        router.push(`/report/${parsedData.report_id}` as any);
-        return;
-      }
-    } catch (e) {
-      console.log('notification data routing error', e);
+    const jobId = n.job_id ?? parsedData?.job_id ?? null;
+
+    // 1) Message → open the thread. The mobile thread route is keyed on JOB id
+    //    (it resolves the siloed conversation itself), so route by job_id, never
+    //    the web conversation link. No job → the messages inbox.
+    if (kind === 'message') {
+      router.push((jobId ? `/messages/${jobId}` : '/messages') as any);
+      return;
     }
 
-    // ── 3) Forward-compatible fallback for newer payloads (legacy) ──
-    const target = n.route || n.link;
-    if (target) {
-      try {
-        router.push(target as any);
-      } catch (e) {
-        console.log('notification deep link error', e);
-      }
+    // 2) Any job-linked notification (job_moderated, assignment, …) → details.
+    if (jobId) {
+      router.push(`/job-details/${jobId}` as any);
+      return;
+    }
+
+    // 3) Typed deep-links carried in the legacy `data` blob.
+    if (parsedData?.contract_id) {
+      router.push(`/contracts/${parsedData.contract_id}` as any);
+      return;
+    }
+    if (parsedData?.report_id) {
+      // ★ NX-DEEPLINK-002 — on-disk folder is `app/report/[id].tsx`.
+      router.push(`/report/${parsedData.report_id}` as any);
+      return;
+    }
+
+    // 4) Last resort: only follow an explicit path if it is ALREADY a valid
+    //    in-app route (never a web path like `/client/jobs/…`, which 404s here).
+    const target = n.link_href || n.route || n.link || '';
+    if (/^\/(job-details|messages|contracts|report)\//.test(target)) {
+      router.push(target as any);
     }
   };
 

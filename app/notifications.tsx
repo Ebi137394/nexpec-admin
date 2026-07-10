@@ -148,33 +148,54 @@ export default function NotificationsScreen() {
     }
   };
 
-  // 🟢 رفع باگ اساسی: پارس کردن امن دیتای Supabase و هدایت به پوشه‌های درست
+  // NX-DEEPLINK-003 — notifications from nx_notify carry their target on the
+  // ROW (v3 columns: kind + top-level job_id + link_href), NOT in a `data` blob.
+  // The old `if (!parsedData) return;` therefore bailed on every real
+  // notification, making taps dead. Route off the v3 columns; fall back to any
+  // legacy `data`. Never push a raw link_href — it is a WEB path (e.g.
+  // `/client/jobs/<id>`) with no matching mobile route.
   const handleNotificationPress = (item: Notification) => {
     markAsRead(item.id);
 
-    let parsedData = item.data;
-    
-    // اگر سوپابیس دیتا رو به صورت متن (String) فرستاده بود، تبدیلش کن به آبجکت
+    // Legacy JSON payload (older rows only) — tolerate string or object.
+    let parsedData: any = item.data;
     if (typeof parsedData === 'string') {
-      try {
-        parsedData = JSON.parse(parsedData);
-      } catch (e) {
-        parsedData = {};
-      }
+      try { parsedData = JSON.parse(parsedData); } catch (e) { parsedData = null; }
     }
 
-    if (!parsedData) return;
+    const kind = item.kind ?? item.type ?? '';
+    const jobId = item.job_id ?? parsedData?.job_id ?? null;
 
-    if (parsedData.job_id) {
-      router.push(`/job-details/${parsedData.job_id}`);
-    } 
-    else if (parsedData.contract_id) {
-      router.push(`/contracts/${parsedData.contract_id}`);
-    } 
-    else if (parsedData.report_id) {
-      // ★ NX-DEEPLINK-002 — on-disk folder is `app/report/[id].tsx`, not
-      //   `report-detail/`. Pre-fix path 404'd on every report push tap.
+    // 1) Message → open the thread. The mobile thread route is keyed on JOB id
+    //    (it resolves the siloed conversation itself), so route by job_id, never
+    //    the web conversation link. No job → the messages inbox.
+    if (kind === 'message') {
+      router.push((jobId ? `/messages/${jobId}` : '/messages') as any);
+      return;
+    }
+
+    // 2) Any job-linked notification (job_moderated, assignment, …) → details.
+    if (jobId) {
+      router.push(`/job-details/${jobId}` as any);
+      return;
+    }
+
+    // 3) Typed deep-links carried in the legacy `data` blob.
+    if (parsedData?.contract_id) {
+      router.push(`/contracts/${parsedData.contract_id}` as any);
+      return;
+    }
+    if (parsedData?.report_id) {
+      // ★ NX-DEEPLINK-002 — on-disk folder is `app/report/[id].tsx`.
       router.push(`/report/${parsedData.report_id}` as any);
+      return;
+    }
+
+    // 4) Last resort: only follow link_href if it is ALREADY a valid in-app path
+    //    (never a web route like `/client/jobs/…`, which 404s on mobile).
+    const href = item.link_href ?? '';
+    if (/^\/(job-details|messages|contracts|report)\//.test(href)) {
+      router.push(href as any);
     }
   };
 

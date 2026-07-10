@@ -173,6 +173,11 @@ export async function fetchJobApplications(
         `,
       )
       .eq('job_id', jobId)
+      // Anti-bypass gate (migration 272000): clients only ever see applications
+      // an admin has forwarded. RLS enforces this server-side; this explicit
+      // filter is defense-in-depth so the client surface never shows un-forwarded
+      // proposals even if RLS is ever loosened.
+      .not('forwarded_to_client_at', 'is', null)
       .order('created_at', { ascending: false });
 
     if (error || !data) {

@@ -337,7 +337,8 @@ export function JobModerationPanel({
                   {(a.negotiation_status === 'counter_accepted' ||
                     a.negotiation_status === null ||
                     a.negotiation_status === 'none') &&
-                    a.status === 'pending' && (
+                    a.status === 'pending' &&
+                    !a.forwarded_to_client_at && (
                       <form
                         action={adminForwardApplication}
                         className="mt-2"
@@ -352,6 +353,14 @@ export function JobModerationPanel({
                         </button>
                       </form>
                     )}
+
+                  {/* Once forwarded, the client can see + decide on this inspector;
+                      the gate can't be re-sent (admin_forward RPC is idempotent). */}
+                  {a.forwarded_to_client_at && (
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-industrial text-accent-green">
+                      ✓ Forwarded to client
+                    </p>
+                  )}
 
                   {/* Generate job contract — enabled for CLIENT_SELECTED apps */}
                   {a.status === 'CLIENT_SELECTED' && (

@@ -174,6 +174,10 @@ export default function JobDetailScreen() {
           cover_letter: p.cover_letter || p.cover_note || '',
           status: p.status ? String(p.status).toLowerCase() : 'pending',
           created_at: p.created_at,
+          // Anti-bypass gate (migration 272000): only admin-forwarded apps are
+          // client-visible. RLS already hides un-forwarded rows server-side; this
+          // carries the flag for the defense-in-depth filter below.
+          forwarded_to_client_at: p.forwarded_to_client_at ?? null,
           admin_feedback: p.admin_feedback || null,     // 🔴 Added
           admin_attachment: p.admin_attachment || null, // 🔴 Added
           applicant: {
@@ -393,6 +397,10 @@ export default function JobDetailScreen() {
   //   Do NOT change this filter to uppercase without also removing the
   //   .toLowerCase() in fetchJobDetails (intentional out-of-scope of HIRE-001).
   const pendingProposals = proposals.filter((p) =>
+    // Defense-in-depth for the anti-bypass gate: never surface an application the
+    // admin hasn't forwarded (RLS enforces this server-side; this guards the UI
+    // even if a raw/service query ever returns un-forwarded rows).
+    !!p.forwarded_to_client_at &&
     ['pending', 'submitted', 'under_review', 'client_selected'].includes(p.status)
   );
   // ★ Canonical workflow ends in status='hired' (set by the admin's
@@ -596,8 +604,18 @@ export default function JobDetailScreen() {
             <Text style={styles.sectionHeaderTitle}>{t('Proposals')} ({pendingProposals.length})</Text>
             {pendingProposals.map((proposal) => (
               <View key={proposal.id} style={styles.proposalCard}>
-                <View style={styles.proposalHeader}>
-                  {/* ANTI-POACHING: pseudonymous sigil + NX handle only. */}
+                <TouchableOpacity
+                  style={styles.proposalHeader}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    proposal.applicant?.id &&
+                    router.push(`/(client)/inspector/${proposal.applicant.id}` as any)
+                  }
+                >
+                  {/* ANTI-POACHING: pseudonymous sigil + NX handle only. Tapping
+                      opens the REDACTED inspector profile (competencies, compliance,
+                      experience — no real name/photo/contact), same target as the
+                      hired-inspector card. */}
                   <View style={[styles.proposalAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
                     <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                   </View>
@@ -605,7 +623,7 @@ export default function JobDetailScreen() {
                     <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
                     <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || t('Inspector')}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* CV intentionally NOT shown pre-reveal: a résumé exposes the
                     inspector's real name/email/phone/employer (anti-poaching).

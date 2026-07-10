@@ -172,6 +172,9 @@ export interface ModerationApplicant {
   inspector_decision_note: string | null;
   inspector_decision_at: string | null;
   created_at: string | null;
+  // Anti-bypass gate (migration 272000): set when an admin has released this
+  // application to the client. Drives the "Forward to client" button state.
+  forwarded_to_client_at: string | null;
 }
 
 /**
@@ -195,9 +198,9 @@ export async function fetchModerationApplicants(
     // why the admin moderation panel showed every inspector bid as
     // "no counter" even when the inspector had proposed a figure.
     const WIDE =
-      'id, applicant_id, status, bid_amount_cents, cover_note, admin_counter_cents, admin_comment, negotiation_status, inspector_decision, inspector_decision_note, inspector_decision_at, created_at';
+      'id, applicant_id, status, bid_amount_cents, cover_note, admin_counter_cents, admin_comment, negotiation_status, inspector_decision, inspector_decision_note, inspector_decision_at, created_at, forwarded_to_client_at';
     const MID =
-      'id, applicant_id, status, bid_amount_cents, cover_note, created_at';
+      'id, applicant_id, status, bid_amount_cents, cover_note, created_at, forwarded_to_client_at';
     const NARROW = 'id, applicant_id, status, created_at';
 
     let data: Array<Record<string, unknown>> | null = null;
@@ -270,6 +273,7 @@ export async function fetchModerationApplicants(
         inspector_decision_note: (r.inspector_decision_note as string | null) ?? null,
         inspector_decision_at: (r.inspector_decision_at as string | null) ?? null,
         created_at: (r.created_at as string | null) ?? null,
+        forwarded_to_client_at: (r.forwarded_to_client_at as string | null) ?? null,
       };
     });
   } catch (e) {

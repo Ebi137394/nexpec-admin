@@ -114,7 +114,14 @@ function validateForm(form: FormData): FormErrors {
   if (!form.description.trim() || form.description.trim().length < 30) e.description = 'Please provide at least 30 characters';
   if (!form.location.trim()) e.location = 'Location is required';
   const price = parseFloat(form.proposedBudget);
-  if (!form.proposedBudget.trim() || isNaN(price) || price <= 0) e.proposedBudget = 'Enter a valid amount';
+  if (!form.proposedBudget.trim() || isNaN(price) || price <= 0) {
+    e.proposedBudget =
+      form.budgetType === 'hourly'
+        ? 'Enter a valid hourly rate'
+        : form.budgetType === 'daily'
+        ? 'Enter a valid daily rate'
+        : 'Enter a valid fixed amount';
+  }
   // ★ JURISDICTION-002: job country is required. The DB column is
   //   nullable in Phase 1 to protect legacy rows, but every NEW job
   //   posted via this screen MUST declare its country so the matcher

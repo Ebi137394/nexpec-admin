@@ -610,7 +610,13 @@ export default function CreateJobScreen() {
 
               {/* 🔴 THE FIX IS HERE: SINGLE PROPOSED BUDGET FIELD */}
               <View style={st.fieldWrap}>
-                <Text style={st.fieldLabel}>Proposed Budget (Total)</Text>
+                <Text style={st.fieldLabel}>
+                  {form.budgetType === 'hourly'
+                    ? 'Hourly Rate'
+                    : form.budgetType === 'daily'
+                    ? 'Daily Rate'
+                    : 'Proposed Budget (Total)'}
+                </Text>
                 <View style={[st.inputRow, touched.has('proposedBudget') && errors.proposedBudget ? st.inputRowError : null]}>
                   <Text style={st.inputPrefix}>$</Text>
                   <TextInput 
@@ -621,8 +627,19 @@ export default function CreateJobScreen() {
                     onChangeText={(t) => updateField('proposedBudget', t)} 
                     keyboardType="decimal-pad" 
                   />
-                  <Text style={st.inputSuffix}>USD</Text>
+                  <Text style={st.inputSuffix}>
+                    {form.budgetType === 'hourly'
+                      ? 'USD / hr'
+                      : form.budgetType === 'daily'
+                      ? 'USD / day'
+                      : 'USD'}
+                  </Text>
                 </View>
+                {form.budgetType !== 'fixed' && !(touched.has('proposedBudget') && errors.proposedBudget) ? (
+                  <Text style={st.helperTxt}>
+                    {form.budgetType === 'hourly' ? 'Rate per hour.' : 'Rate per day.'} NEXPEC estimates the total from your Estimated Duration and finalizes it on review.
+                  </Text>
+                ) : null}
                 {touched.has('proposedBudget') && errors.proposedBudget && (
                   <View style={st.errorRow}>
                     <AlertCircle size={12} color={C.error} strokeWidth={2} />

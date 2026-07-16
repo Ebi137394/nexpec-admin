@@ -20,6 +20,15 @@ export interface DefectDetection {
   severity?: string;
   severityScale?: string;
   standardRefs?: string[];
+  /** Instance-segmentation geometry (YOLO-seg). Normalized [0,1] to the source
+   *  image; absent for classifier models. box = [x1,y1,x2,y2]; polygon = mask ring. */
+  box?: [number, number, number, number];
+  polygon?: Array<[number, number]>;
+  /** HITL flywheel: true once a human deleted or adjusted the AI's geometry — the
+   *  corrected box/polygon above then becomes ground-truth for the 6-month retrain. */
+  isUserCorrected?: boolean;
+  /** Geometry provenance: 'ai' (model output) or 'user' (human-edited/drawn). */
+  source?: 'ai' | 'user';
 }
 
 export interface DefectAnalysis {

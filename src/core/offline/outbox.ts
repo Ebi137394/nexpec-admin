@@ -17,7 +17,8 @@ export type OperationKind =
   | 'message_send'
   // #QA — compliance field capture routed through the outbox (offline-safe).
   | 'capture_save' // inspection_captures row (+ optional deferred file upload)
-  | 'ai_detection' // pi_record_ai_detection RPC
+  | 'ai_detection' // pi_record_ai_detection RPC (attested — folds into the seal)
+  | 'ai_feedback' // pi_record_ai_feedback RPC (unattested flywheel training signal)
   // #QA — flash report / NCR raise (report + all evidence) as one ordered,
   // idempotent unit. Composite because the attachments reference the report's
   // client-known id, so they must never drain before the create lands.

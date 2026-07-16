@@ -51,7 +51,7 @@ export function buildAiAssist(
 export function aiAssistToRpcArgs(
   a: AiAssist,
   jobId: string,
-  opts?: { reportId?: string; captureId?: string },
+  opts?: { reportId?: string; captureId?: string; raw?: Record<string, unknown> },
 ): Record<string, unknown> {
   return {
     p_job_id: jobId,
@@ -67,6 +67,32 @@ export function aiAssistToRpcArgs(
     p_severity_scale: a.severityScale ?? null,
     p_standard_refs: a.standardRefs ?? null,
     p_accepted: a.acceptedByHuman,
-    p_raw: {},
+    // Flywheel: the inspector's correction rides in `raw` (jsonb) — no schema
+    // change. e.g. { verdict:'reclassified', ai_defect_id, corrected_defect_id }.
+    p_raw: opts?.raw ?? {},
+  };
+}
+
+/** Snake-case args for the LIGHTWEIGHT pi_record_ai_feedback RPC — the flywheel
+ *  path that skips model attestation (collect training signal from day one).
+ *  `a` is built from the FINAL (possibly reclassified) detection; pass the AI's
+ *  original class as `aiDefectId`. corrected_defect_id is null for false positives. */
+export function aiFeedbackToRpcArgs(
+  a: AiAssist,
+  jobId: string,
+  verdict: 'accepted' | 'false_positive' | 'reclassified',
+  opts?: { captureId?: string; aiDefectId?: string; raw?: Record<string, unknown> },
+): Record<string, unknown> {
+  return {
+    p_job_id: jobId,
+    p_capture_id: opts?.captureId ?? null,
+    p_model_slug: a.modelSlug,
+    p_model_version: a.modelVersion,
+    p_ai_defect_id: opts?.aiDefectId ?? a.defectId,
+    p_verdict: verdict,
+    p_corrected_defect_id: verdict === 'false_positive' ? null : a.defectId,
+    p_label: a.label,
+    p_confidence: a.confidence,
+    p_raw: opts?.raw ?? {},
   };
 }

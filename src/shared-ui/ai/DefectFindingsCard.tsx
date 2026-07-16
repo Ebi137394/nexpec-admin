@@ -11,7 +11,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DefectAnalysis, DefectDetection } from '@nexpec/shared-core';
 
@@ -39,9 +39,11 @@ interface Props {
   loading?: boolean;
   onAddFinding?: (detection: DefectDetection) => void;
   onDismiss?: (detection: DefectDetection) => void;
+  /** Long-press a finding row to reclassify it (the label morphs in place). */
+  onReclassify?: (detection: DefectDetection) => void;
 }
 
-export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss }: Props) {
+export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss, onReclassify }: Props) {
   if (!loading && (!analysis || analysis.detections.length === 0)) {
     // Render nothing-of-substance when there's no analysis → no layout intrusion.
     if (!analysis) return null;
@@ -59,7 +61,7 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss 
       <Header />
       {loading && <Text style={styles.empty}>Analyzing on-device…</Text>}
       {analysis?.detections.map((d) => (
-        <View key={d.defectId} style={styles.row}>
+        <Pressable key={d.defectId} style={styles.row} onLongPress={() => onReclassify?.(d)} delayLongPress={300}>
           <View style={styles.rowTop}>
             <Text style={styles.defectLabel}>{d.label}</Text>
             {!!d.severity && (
@@ -97,7 +99,7 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss 
               <Text style={styles.btnText}>Dismiss</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Pressable>
       ))}
       {analysis && <Attribution analysis={analysis} />}
     </View>
@@ -111,7 +113,7 @@ function Header() {
         <Ionicons name="sparkles-outline" size={14} color={COLORS.violet} />
       </View>
       <Text style={styles.headerTitle}>AI Co-Inspector</Text>
-      <Text style={styles.headerHint}>drafts, you verify & seal</Text>
+      <Text style={styles.headerHint}>hold to reclassify, you seal</Text>
     </View>
   );
 }

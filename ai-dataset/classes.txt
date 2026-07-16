@@ -1,0 +1,4 @@
+corrosion       | metal corrosion, rust on steel, industrial corrosion
+crack           | metal crack, concrete crack, weld crack
+coating_flaking | paint peeling metal, coating flaking, paint delamination
+normal          | clean steel surface, undamaged pipe surface

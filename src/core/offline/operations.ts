@@ -323,6 +323,26 @@ async function handleAiDetection(row: OutboxRow): Promise<void> {
   }
 }
 
+// ── ai_feedback ────────────────────────────────────────────────────
+//
+// Records the inspector's verdict (accepted / false_positive / reclassified)
+// via pi_record_ai_feedback — the LIGHTWEIGHT flywheel path that SKIPS model
+// attestation, so training signal is collected from day one (even before the
+// on-device model is registered/signed). Offline-safe + idempotent (client_op_id).
+//
+// Payload: { args: <aiFeedbackToRpcArgs output> }
+async function handleAiFeedback(row: OutboxRow): Promise<void> {
+  const { args } = JSON.parse(row.payload_json) as { args: Record<string, unknown> };
+  const { error } = await supabase.rpc('pi_record_ai_feedback', {
+    ...args,
+    p_client_op_id: row.client_op_id,
+  });
+  if (error) {
+    if (isDuplicateKey(error)) return; // already recorded — idempotent
+    throw error;
+  }
+}
+
 // ── flash_report_raise ─────────────────────────────────────────────
 //
 // #QA — raising a Flash Report (NCR) used to do three DIRECT writes from the
@@ -537,6 +557,7 @@ export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> 
   message_send: handleMessageSend,
   capture_save: handleCaptureSave,
   ai_detection: handleAiDetection,
+  ai_feedback: handleAiFeedback,
   flash_report_raise: handleFlashReportRaise,
   flash_report_transition: handleFlashReportTransition,
   withdrawal_request: handleWithdrawalRequest,

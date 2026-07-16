@@ -300,6 +300,24 @@ export async function enqueueAiDetection(args: Record<string, unknown>): Promise
   return opId;
 }
 
+/**
+ * Enqueue an AI Co-Inspector feedback verdict (pi_record_ai_feedback) — the
+ * LIGHTWEIGHT flywheel path that skips model attestation, so corrections
+ * (accepted / false_positive / reclassified) are collected from day one, even
+ * before the model is registered/signed. Offline-safe + idempotent (client_op_id
+ * → p_client_op_id). `args` is aiFeedbackToRpcArgs() output. Returns the op id.
+ */
+export async function enqueueAiFeedback(args: Record<string, unknown>): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'ai_feedback',
+    payload: { args },
+  });
+  if (isOnline()) flushQueue();
+  return opId;
+}
+
 // ── #QA · flash report (NCR) raise — offline-safe composite ────────
 
 export interface FlashReportRaiseInput {

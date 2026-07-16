@@ -1,0 +1,91 @@
+{
+  "format": "LiteRT/TFLite",
+  "task": "instance-segmentation",
+  "precision": "FP32",
+  "input_image_size": 1024,
+  "batch_size": 1,
+  "sha256": "d0f086e0f5896dc430624960b59ca09f610cd8c33e9a04f82748077b6238e703",
+  "model_path": "/content/drive/MyDrive/nexpec_ai/exported_models/wda_fissures_yolo26s_seg/wda_fissures_yolo26s_seg_1024_fp32.tflite",
+  "input_count": 1,
+  "output_count": 2,
+  "inputs": [
+    {
+      "name": "serving_default_args_0",
+      "index": 0,
+      "shape": [
+        1,
+        3,
+        1024,
+        1024
+      ],
+      "shape_signature": [
+        1,
+        3,
+        1024,
+        1024
+      ],
+      "dtype": "float32",
+      "quantization": [
+        0.0,
+        0
+      ],
+      "quantization_parameters": {
+        "scales": [],
+        "zero_points": [],
+        "quantized_dimension": 0
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "serving_default_output_0_output",
+      "index": 815,
+      "shape": [
+        1,
+        300,
+        38
+      ],
+      "shape_signature": [
+        1,
+        300,
+        38
+      ],
+      "dtype": "float32",
+      "quantization": [
+        0.0,
+        0
+      ],
+      "quantization_parameters": {
+        "scales": [],
+        "zero_points": [],
+        "quantized_dimension": 0
+      }
+    },
+    {
+      "name": "serving_default_output_1_output",
+      "index": 839,
+      "shape": [
+        1,
+        32,
+        256,
+        256
+      ],
+      "shape_signature": [
+        1,
+        32,
+        256,
+        256
+      ],
+      "dtype": "float32",
+      "quantization": [
+        0.0,
+        0
+      ],
+      "quantization_parameters": {
+        "scales": [],
+        "zero_points": [],
+        "quantized_dimension": 0
+      }
+    }
+  ]
+}

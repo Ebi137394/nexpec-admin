@@ -1,0 +1,12 @@
+# This dataset folder is self-contained and NOT meant to live in the app's git
+# history. Keep scripts + config; never commit images, venvs, or caches.
+data/
+*.zip
+*.tar
+*.tar.gz
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.cache/

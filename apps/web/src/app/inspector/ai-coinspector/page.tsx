@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import {
   fetchInspectorJobs, fetchJobDetections, recordDetection, fetchVisionModelRef,
+  recordSegFeedback,
   type InspectorJobLite, type AiDetection, type VisionModelRef,
 } from '@/lib/data/aiCoinspector';
-import { classify, loadModel } from '@/lib/ai/visionModel';
+import { classify, segment, loadModel } from '@/lib/ai/visionModel';
+import { SegEditorOverlay, type SegEditDetection } from '@/components/inspector/SegEditorOverlay';
 
 interface Staged { id: string; url: string; name: string }
 interface Suggestion { id: string; stagedId: string; thumbUrl: string; defectId: string; label: string; confidence: number }
@@ -44,6 +46,8 @@ export default function AiCoinspectorPage() {
   const [camOn, setCamOn] = useState(false);
   const [modelRef, setModelRef] = useState<VisionModelRef | null>(null);
   const [modelStatus, setModelStatus] = useState<ModelStatus>('checking');
+  // Seg polygons per staged image (empty for classifier models → overlay is inert).
+  const [segByStaged, setSegByStaged] = useState<Record<string, SegEditDetection[]>>({});
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,6 +79,7 @@ export default function AiCoinspectorPage() {
   const removeStaged = (id: string) => setStaged((prev) => {
     const t = prev.find((x) => x.id === id); if (t) URL.revokeObjectURL(t.url);
     setSuggestions((sg) => sg.filter((x) => x.stagedId !== id));
+    setSegByStaged((m) => { const n = { ...m }; delete n[id]; return n; });
     return prev.filter((x) => x.id !== id);
   });
   useEffect(() => () => { staged.forEach((s) => URL.revokeObjectURL(s.url)); streamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
@@ -101,6 +106,18 @@ export default function AiCoinspectorPage() {
     setAnalyzingId(s.id); setMsg(null);
     try {
       const img = await imgFromUrl(s.url);
+      // Instance-seg (YOLO26-seg) → interactive polygons; classifier models return
+      // [] (safe no-op). Same decodeYoloSeg as mobile → identical geometry.
+      try {
+        const segs = await segment(img, modelRef.url);
+        setSegByStaged((prev) => ({
+          ...prev,
+          [s.id]: segs.map((d) => ({
+            classId: d.classId, score: d.score, box: d.box, polygon: d.polygon,
+            label: modelRef.labels[d.classId], aiBox: d.box, aiPolygon: d.polygon,
+          })),
+        }));
+      } catch { /* seg is optional and must never block classification */ }
       const cands = await classify(img, modelRef.url, modelRef.labels);
       if (cands.length === 0) { setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' }); return; }
       setSuggestions((prev) => [
@@ -203,6 +220,21 @@ export default function AiCoinspectorPage() {
               {staged.map((s) => (
                 <div key={s.id} className="group relative overflow-hidden rounded-xl border border-white/[0.08] bg-ink-950">
                   <img src={s.url} alt={s.name} className="aspect-square w-full object-cover" />
+                  <SegEditorOverlay
+                    imageUrl={s.url}
+                    detections={segByStaged[s.id] ?? []}
+                    fitMode="cover"
+                    onPersist={(d, v, poly) => {
+                      if (!jobId || !modelRef) return;
+                      void recordSegFeedback(
+                        jobId,
+                        { classId: d.classId, score: d.score, box: d.box, polygon: poly, label: d.label },
+                        v,
+                        modelRef,
+                        { box: d.aiBox ?? d.box, polygon: d.aiPolygon ?? d.polygon },
+                      );
+                    }}
+                  />
                   <button onClick={() => removeStaged(s.id)} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100"><X size={13} /></button>
                   <button onClick={() => analyzeOne(s)} disabled={modelStatus !== 'ready' || !jobId || analyzingId === s.id}
                     className="absolute inset-x-1 bottom-1 inline-flex items-center justify-center gap-1 rounded-md bg-violet/90 py-1 text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100 disabled:opacity-60">

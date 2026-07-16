@@ -53,6 +53,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { SegModelManager, type SegMode } from '@/src/core/ml/vision/segModelManager';
+import { SegOverlay, type SegOverlayDetection } from '@/src/core/ml/vision/SegOverlay';
 import * as Location from 'expo-location';
 import {
   Camera as CameraIcon,
@@ -83,7 +85,7 @@ import {
 } from '@/src/features/compliance/lib/capture';
 // #QA — every capture/detection routes through the offline outbox (never a
 // direct supabase mutation), so field captures survive zero-signal conditions.
-import { enqueueCaptureSave, enqueueAiDetection } from '@/lib/offline';
+import { enqueueCaptureSave, enqueueAiFeedback } from '@/lib/offline';
 
 // AI Co-Inspector (B.3) — on-device defect analysis of the just-captured photo.
 // First-class in the real capture flow; runtime-flag-gated so it is completely
@@ -91,7 +93,8 @@ import { enqueueCaptureSave, enqueueAiDetection } from '@/lib/offline';
 // published AND the app runs with the native ML runtime enabled.
 import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
 import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
-import { buildAiAssist, aiAssistToRpcArgs, type DefectDetection } from '@nexpec/shared-core';
+import { buildAiAssist, aiFeedbackToRpcArgs, getDefectMeta, DEFECT_TAXONOMY, type DefectDetection } from '@nexpec/shared-core';
+import * as Haptics from 'expo-haptics';
 
 // ─────────────────────────────────────────────────────────────
 //  Palette
@@ -190,9 +193,19 @@ export default function ComplianceCaptureWizard() {
   //   the runtime is disabled (it no-ops).
   const da = useDefectAnalysis({ kind: 'vision_defect', slug: 'universal-detector' });
   const [aiImageUri, setAiImageUri] = useState<string | null>(null);
+  // Instance-seg overlay detections (normalized geometry). HITL-editable in place.
+  const [segDetections, setSegDetections] = useState<SegOverlayDetection[]>([]);
+  const [segMode, setSegMode] = useState<SegMode | null>(null);
   const [aiCaptureId, setAiCaptureId] = useState<string | null>(null);
   const [aiRecorded, setAiRecorded] = useState<string[]>([]);
   const [aiNote, setAiNote] = useState<string | null>(null);
+  // Editable copy of the AI's findings — the inspector reclassifies (long-press)
+  // or rejects (Dismiss) BEFORE recording. The card renders THIS (identical
+  // layout, corrected data); each row keeps the model's original class (aiDefectId).
+  const [aiFindings, setAiFindings] = useState<(DefectDetection & { aiDefectId?: string; aiLabel?: string })[] | null>(null);
+  useEffect(() => {
+    setAiFindings(da.analysis?.detections.map((d) => ({ ...d, aiDefectId: d.defectId, aiLabel: d.label })) ?? null);
+  }, [da.analysis]);
 
   // ─── Load ──────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -405,6 +418,21 @@ export default function ComplianceCaptureWizard() {
         setAiNote(null);
         da.reset();
         void da.analyze(capturedUri);
+        // Instance-seg polygons (bundled YOLO26-seg, offline). Mode derived from
+        // the job scope — no new toggle. Best-effort; never blocks the capture.
+        setSegDetections([]);
+        const segHay = `${(job as any)?.scope?.slug ?? ''} ${(job as any)?.scope?.name ?? ''} ${job?.inspection_type ?? ''}`.toLowerCase();
+        const detectedMode: SegMode | null = /weld|fissure|crack|ndt/.test(segHay)
+          ? 'weld'
+          : /corros|rust|coat|paint|blister/.test(segHay)
+            ? 'corrosion'
+            : null;
+        setSegMode(detectedMode);
+        if (detectedMode && SegModelManager.available()) {
+          SegModelManager.analyze(capturedUri, detectedMode)
+            .then((r) => setSegDetections(r.detections))
+            .catch(() => { /* seg optional — the findings card still renders */ });
+        }
       }
     } catch (e: any) {
       console.error('[capture-wizard] persist photo failed:', e);
@@ -626,14 +654,70 @@ export default function ComplianceCaptureWizard() {
         { slug: da.analysis?.modelSlug ?? 'universal-detector', version: da.analysis?.modelVersion ?? 1 },
         true,
       );
-      const args = aiAssistToRpcArgs(assist, job.id, { captureId: aiCaptureId ?? undefined });
-      // Route through the outbox — offline-safe + idempotent (client_op_id). #QA
-      await enqueueAiDetection(args as Record<string, unknown>);
+      // Flywheel (lightweight, no attestation — collect from day one): record the
+      // FINAL (possibly reclassified) class + the AI's original as the
+      // (prediction, correction) pair. Offline-safe + idempotent via the outbox.
+      const aiId = (d as any).aiDefectId ?? d.defectId;
+      const verdict = aiId !== d.defectId ? 'reclassified' : 'accepted';
+      const args = aiFeedbackToRpcArgs(assist, job.id, verdict, {
+        captureId: aiCaptureId ?? undefined,
+        aiDefectId: aiId,
+      });
+      await enqueueAiFeedback(args as Record<string, unknown>);
       setAiRecorded((r) => (r.includes(d.defectId) ? r : [...r, d.defectId]));
       setAiNote(`Recorded "${d.label}", provably tied to ${assist.modelSlug} v${assist.modelVersion}; it folds into this inspection's seal.`);
     } catch (e: any) {
       setAiNote('Save failed: ' + (e?.message ?? 'error'));
     }
+  }, [job?.id, aiCaptureId, da.analysis]);
+
+  // ─── AI Co-Inspector — reclassify a finding (long-press cycles the class) ──
+  //   Pure in-place edit of the displayed findings; the label morphs, the AI's
+  //   original class is preserved (aiDefectId) for the flywheel. No network here.
+  const reclassifyAiFinding = useCallback((d: DefectDetection) => {
+    Haptics.selectionAsync().catch(() => {});
+    setAiFindings((list) => {
+      if (!list) return list;
+      // Candidates: other detected defects first, then the rest of the taxonomy,
+      // so the inspector can label the TRUE class (even one the model can't emit).
+      const pool = Array.from(new Set([...list.map((x) => x.defectId), ...Object.keys(DEFECT_TAXONOMY)]));
+      return list.map((x) => {
+        if (x.defectId !== d.defectId) return x;
+        const next = pool[(pool.indexOf(x.defectId) + 1) % pool.length];
+        const m = getDefectMeta(next);
+        return {
+          ...x,
+          aiDefectId: x.aiDefectId ?? x.defectId,
+          aiLabel: x.aiLabel ?? x.label,
+          defectId: next,
+          label: m?.label ?? next,
+          severityScale: m?.severityScale ?? x.severityScale,
+          standardRefs: m?.standardRefs ?? x.standardRefs,
+        };
+      });
+    });
+  }, []);
+
+  // ─── AI Co-Inspector — reject a finding as a false positive (Dismiss) ──────
+  //   Records the NEGATIVE sample (accepted=false) — the highest-value training
+  //   signal, previously discarded — then collapses just that row.
+  const dismissAiFinding = useCallback(async (d: DefectDetection) => {
+    const origId = (d as any).aiDefectId ?? d.defectId;
+    if (job?.id) {
+      try {
+        const assist = buildAiAssist(
+          { ...d, defectId: origId, label: (d as any).aiLabel ?? d.label },
+          { slug: da.analysis?.modelSlug ?? 'universal-detector', version: da.analysis?.modelVersion ?? 1 },
+          false,
+        );
+        const args = aiFeedbackToRpcArgs(assist, job.id, 'false_positive', {
+          captureId: aiCaptureId ?? undefined,
+          aiDefectId: origId,
+        });
+        await enqueueAiFeedback(args as Record<string, unknown>);
+      } catch { /* outbox is retry-safe */ }
+    }
+    setAiFindings((list) => (list ? list.filter((x) => ((x as any).aiDefectId ?? x.defectId) !== origId) : list));
   }, [job?.id, aiCaptureId, da.analysis]);
 
   // ─── Renderers ─────────────────────────────────────────
@@ -802,10 +886,11 @@ export default function ComplianceCaptureWizard() {
               <Text style={s.aiHeadText}>AI Co-Inspector, review &amp; accept</Text>
             </View>
             <DefectFindingsCard
-              analysis={da.analysis}
+              analysis={da.analysis && aiFindings ? { ...da.analysis, detections: aiFindings } : da.analysis}
               loading={da.status === 'analyzing'}
               onAddFinding={acceptAiFinding}
-              onDismiss={() => { setAiImageUri(null); da.reset(); }}
+              onReclassify={reclassifyAiFinding}
+              onDismiss={dismissAiFinding}
             />
             {da.status === 'unavailable' && (
               <Text style={s.aiNote}>
@@ -903,7 +988,16 @@ export default function ComplianceCaptureWizard() {
             </>
           ) : (
             <>
-              <Image source={{ uri: preview.uri }} style={{ flex: 1 }} resizeMode="contain" />
+              <View style={{ flex: 1 }}>
+                <Image source={{ uri: preview.uri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
+                <SegOverlay
+                  imageUri={preview.uri}
+                  detections={segDetections}
+                  jobId={String(jobId)}
+                  captureId={aiCaptureId}
+                  mode={segMode ?? undefined}
+                />
+              </View>
               <View style={s.camControls}>
                 <Pressable onPress={() => setPreview(null)} style={[s.camIconBtn, { backgroundColor: 'rgba(239,68,68,0.18)' }]}>
                   <RotateCcw size={20} color="#FFF" />

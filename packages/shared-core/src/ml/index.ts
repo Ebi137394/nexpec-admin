@@ -14,4 +14,5 @@ export * from './schemas';
 export * from './registryClient';
 export * from './defectTaxonomy';
 export * from './defectResult';
+export * from './segDecode';
 export * from './aiAssist';

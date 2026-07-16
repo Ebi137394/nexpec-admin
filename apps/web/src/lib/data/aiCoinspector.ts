@@ -14,6 +14,37 @@
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const sb = () => createSupabaseBrowserClient();
+
+/** HITL: persist a reviewer's polygon correction via the SAME pi_record_ai_feedback
+ *  flywheel as mobile (geometry in `raw`, no migration). polygon=null → deletion. */
+export async function recordSegFeedback(
+  jobId: string,
+  det: { classId: number; score: number; box: [number, number, number, number]; polygon: Array<[number, number]> | null; label?: string },
+  verdict: 'accepted' | 'false_positive',
+  model: VisionModelRef,
+  ai: { box: [number, number, number, number]; polygon: Array<[number, number]> },
+): Promise<{ ok: boolean; error?: string }> {
+  const label = det.label ?? `class ${det.classId}`;
+  const defectId = label.toLowerCase().replace(/\s+/g, '_');
+  const { error } = await sb().rpc('pi_record_ai_feedback', {
+    p_job_id: jobId,
+    p_capture_id: null,
+    p_model_slug: model.slug,
+    p_model_version: model.version,
+    p_ai_defect_id: defectId,
+    p_verdict: verdict,
+    p_corrected_defect_id: verdict === 'false_positive' ? null : defectId,
+    p_label: label,
+    p_confidence: det.score,
+    p_raw: {
+      is_user_corrected: true, source: 'user', class_id: det.classId,
+      ai_box: ai.box, ai_polygon: ai.polygon,
+      corrected_box: det.polygon ? det.box : null, corrected_polygon: det.polygon,
+    },
+    p_client_op_id: null,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
 async function uid(): Promise<string | null> {
   const { data } = await sb().auth.getUser();
   return data.user?.id ?? null;

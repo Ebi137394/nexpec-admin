@@ -1,0 +1,5 @@
+# Optional seed list for class 'corrosion'.
+# One item per line. A line may be:
+#   - a direct image URL (https://.../photo.jpg) → downloaded as-is
+#   - a search phrase → used by 01_fetch_images.py (icrawler)
+# Default search phrases (from classes.txt): metal corrosion, rust on steel, pipeline rusting, industrial corrosion

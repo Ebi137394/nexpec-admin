@@ -70,7 +70,7 @@ const parseEscrowError = (error: any): EscrowError => {
   
   return {
     type: 'UNKNOWN',
-    message: error?.details || 'An unexpected error occurred during escrow setup.',
+    message: error?.details || 'An unexpected error occurred during payment setup.',
   };
 };
 
@@ -101,7 +101,7 @@ const InsufficientFundsModal: React.FC<{
 
           <Text style={styles.modalTitle}>Insufficient Funds</Text>
           <Text style={styles.modalDescription}>
-            The client's wallet does not have enough balance to lock the escrow for this job.
+            The client's wallet does not have enough balance to place the payment hold for this job.
           </Text>
 
           <View style={styles.balanceDetails}>
@@ -172,7 +172,7 @@ export const AcceptOfferButton: React.FC<AcceptOfferButtonProps> = ({
       // مرحله دوم: اعلام موفقیت پس از اجرای موفق تریگر و جابجایی پول
       showAlert(
         '🎉 Success!',
-        `You have accepted "${jobTitle}". Payment of ${formatCurrency(jobPrice)} is now held in escrow.`,
+        `You have accepted "${jobTitle}". Payment of ${formatCurrency(jobPrice)} is now held for payout.`,
         () => onSuccess?.()
       );
 

@@ -1132,7 +1132,7 @@ export default function FinancialDashboard() {
             bg={C.primaryBg}
           />
           <KpiCard
-            label="ESCROW IN-FLIGHT"
+            label="HELD IN-FLIGHT"
             valueCents={kpis.escrowCents}
             deltaPct={null}
             icon="lock-closed"
@@ -1308,7 +1308,7 @@ export default function FinancialDashboard() {
                 <Ionicons name="git-branch-outline" size={20} color={C.cyan} />
               </View>
               <Text style={s.reportTitle}>Job Pipeline</Text>
-              <Text style={s.reportSubtitle}>Status counts, escrow rollups</Text>
+              <Text style={s.reportSubtitle}>Status counts, payout rollups</Text>
               <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={s.reportChevron} />
             </TouchableOpacity>
 

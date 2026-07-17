@@ -19,6 +19,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import { confirmDialog } from '@/components/ui/AppDialog';
 import {
   ShieldCheck,
   Shield,
@@ -241,13 +242,9 @@ export function MfaSection({ initial }: Props) {
   }
 
   /* ─── Disable ────────────────────────────────────────────────────── */
-  function onDisable() {
+  async function onDisable() {
     if (state.kind !== 'enrolled') return;
-    if (
-      !window.confirm(
-        'Disable two-factor authentication? Your recovery codes will be invalidated.',
-      )
-    ) {
+    if (!(await confirmDialog({ body: 'Disable two-factor authentication? Your recovery codes will be invalidated.', tone: 'danger', confirmText: 'Disable 2FA' }))) {
       return;
     }
     const { factorId } = state;
@@ -281,13 +278,9 @@ export function MfaSection({ initial }: Props) {
   }
 
   /* ─── Regenerate codes (already enrolled) ────────────────────────── */
-  function onRegenerate() {
+  async function onRegenerate() {
     if (state.kind !== 'enrolled') return;
-    if (
-      !window.confirm(
-        'Regenerate recovery codes? Any existing recovery codes will be invalidated.',
-      )
-    ) {
+    if (!(await confirmDialog({ body: 'Regenerate recovery codes? Any existing recovery codes will be invalidated.', tone: 'danger', confirmText: 'Regenerate' }))) {
       return;
     }
     setBanner(null);

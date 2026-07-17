@@ -76,7 +76,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             if (error.message?.includes('INSUFFICIENT_BALANCE')) {
               showAlert(
                 'Payment Not Secured',
-                'The client does not have enough balance to cover the escrow. Please contact the client to top up their wallet.'
+                'The client does not have enough balance to cover the payment hold. Please contact the client to top up their wallet.'
               );
             } else {
               throw error;
@@ -87,7 +87,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           // موفقیت در قفل شدن پول در Escrow
           showAlert(
             '🎉 Congratulations!',
-            'Offer accepted. The payment is now securely held in escrow and will be released upon completion.',
+            'Offer accepted. The payment is now securely held for payout and will be released upon completion.',
             () => onAcceptSuccess()
           );
         } catch (error) {
@@ -106,7 +106,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#3B82F6" />
         <Text style={styles.loadingText}>
-          {isAccepting ? 'Processing Escrow...' : 'Updating...'}
+          {isAccepting ? 'Processing Payout...' : 'Updating...'}
         </Text>
       </View>
     );

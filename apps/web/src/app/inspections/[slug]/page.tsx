@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${demandTitle(job)}${where ? ` — ${where}` : ''}`;
   const description = `Open ${demandTitle(job).toLowerCase()}${
     where ? ` in ${where}` : ''
-  }${job.timeframe ? `, ${job.timeframe}` : ''}. Vetted inspectors engage through NEXPEC — brokered, escrowed, and audit-grade.`;
+  }${job.timeframe ? `, ${job.timeframe}` : ''}. Vetted inspectors engage through NEXPEC — brokered, protected, and audit-grade.`;
   return {
     title: `${title}, NEXPEC`,
     description,
@@ -85,7 +85,7 @@ export default async function InspectionPage({ params }: PageProps) {
       `<p>Open ${dLabel} inspection engagement${where ? ` in ${where}` : ''}${
         job.timeframe ? `, scheduled ${job.timeframe}` : ''
       }.</p>` +
-      `<p>NEXPEC is an industrial inspection marketplace: vetted, verified inspectors are matched to client work, with every engagement brokered, contracted, and escrowed through the platform. Client and inspector identities are protected by design.</p>` +
+      `<p>NEXPEC is an industrial inspection marketplace: vetted, verified inspectors are matched to client work, with every engagement brokered, contracted, and protected through the platform. Client and inspector identities are protected by design.</p>` +
       (specs.length ? `<p>Relevant scope: ${specs.map(humanizeSlug).join(', ')}.</p>` : ''),
     datePosted: posted ? posted.toISOString() : undefined,
     validThrough: validThrough ? validThrough.toISOString() : undefined,
@@ -175,8 +175,8 @@ export default async function InspectionPage({ params }: PageProps) {
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <Info
               icon={<ShieldCheck className="h-5 w-5 text-cyan-glow" aria-hidden />}
-              title="Brokered & escrowed"
-              body="Contracting and payment run through NEXPEC. Funds are held in escrow until the report is approved."
+              title="Brokered & protected"
+              body="Contracting and payment run through NEXPEC. Funds are held for payout until the report is approved."
             />
             <Info
               icon={<Lock className="h-5 w-5 text-violet-glow" aria-hidden />}

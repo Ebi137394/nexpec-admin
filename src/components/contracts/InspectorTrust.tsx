@@ -180,7 +180,7 @@ export function VipDisclosureGate({
                 <Text style={vp.title}>Amendment signed</Text>
                 <View style={vp.okBox}>
                   <Text style={vp.okTitle}>Sealed amendment executed. One step left.</Text>
-                  <Text style={vp.okBody}>To lift identity escrow, complete your booking deposit on the NEXPEC web app. Secure card payment isn&apos;t available in-app. The inspector&apos;s verified identity unlocks the moment your payment confirms. Your sealed amendment is verifiable at /passport.</Text>
+                  <Text style={vp.okBody}>To lift the identity hold, complete your booking deposit on the NEXPEC web app. Secure card payment isn&apos;t available in-app. The inspector&apos;s verified identity unlocks the moment your payment confirms. Your sealed amendment is verifiable at /passport.</Text>
                 </View>
                 <TouchableOpacity style={[vp.cta, { backgroundColor: T.colors.primary }]} onPress={close} activeOpacity={0.85}><Text style={[vp.ctaTxt, { color: '#fff' }]}>Done</Text></TouchableOpacity>
               </>

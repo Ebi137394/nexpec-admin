@@ -26,6 +26,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { isRTL } from '@/i18n/config';
 import { GlobalSearchMountPoint } from '@/components/search/GlobalSearchMountPoint';
+import { AppDialogHost } from '@/components/ui/AppDialog';
 import './globals.css';
 
 const fontSans = Inter({
@@ -52,12 +53,12 @@ export const metadata: Metadata = {
     template: '%s, NEXPEC',
   },
   description:
-    'Hire vetted industrial inspectors. Escrow protects every dollar. Every report is cryptographically signed and audit-grade.',
+    'Hire vetted industrial inspectors. Payment holds protect every dollar. Every report is cryptographically signed and audit-grade.',
   // Default openGraph + twitter for any route that doesn't override.
   openGraph: {
     title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description:
-      'Hire vetted industrial inspectors. Escrow protects every dollar. Every report is cryptographically signed and audit-grade.',
+      'Hire vetted industrial inspectors. Payment holds protect every dollar. Every report is cryptographically signed and audit-grade.',
     url: SITE_URL,
     siteName: 'NEXPEC',
     type: 'website',
@@ -73,7 +74,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
-    description: 'Hire vetted industrial inspectors. Escrow protects every dollar.',
+    description: 'Hire vetted industrial inspectors. Payment holds protect every dollar.',
     images: ['/og/landing.png'],
   },
   icons: {
@@ -114,6 +115,8 @@ export default async function RootLayout({
           {/* Sprint 13.4, global Cmd+K search overlay. Self-suppresses
               when closed; client-side keystroke listener handles open. */}
           <GlobalSearchMountPoint />
+          {/* Themed replacement for native alert/confirm/prompt. Invisible until invoked. */}
+          <AppDialogHost />
         </NextIntlClientProvider>
       </body>
     </html>

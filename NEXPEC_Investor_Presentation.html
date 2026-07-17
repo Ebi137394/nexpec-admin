@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NEXPEC — Industrial Inspection, Reimagined</title>
+<style>
+  :root{
+    --ink:#020420; --ink-2:#070a1c; --panel:#0d1226; --panel-2:#121935;
+    --violet:#7C3AED; --violet-glow:#a78bfa; --violet-deep:#5b21b6;
+    --amber:#FBBF24; --emerald:#34d399; --sky:#38bdf8; --rose:#fb7185;
+    --text:#Eef1f8; --muted:#9aa4c0; --faint:#5f6b8f;
+    --line:rgba(255,255,255,.08);
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--ink); color:var(--text); font-family:var(--font);
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  /* ambient background */
+  .bg{position:fixed;inset:0;z-index:0;overflow:hidden}
+  .bg::before{content:"";position:absolute;inset:-20%;
+    background:
+      radial-gradient(60% 50% at 18% 12%, rgba(124,58,237,.22), transparent 60%),
+      radial-gradient(50% 45% at 85% 20%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(55% 55% at 75% 90%, rgba(251,191,36,.10), transparent 60%);
+    filter:blur(10px)}
+  .bg::after{content:"";position:absolute;inset:0;opacity:.5;
+    background-image:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size:44px 44px; mask-image:radial-gradient(circle at 50% 40%, #000 20%, transparent 75%)}
+
+  .deck{position:relative;z-index:1;height:100vh;width:100vw}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:clamp(28px,6vw,110px); opacity:0; transform:translateY(14px) scale(.995);
+    transition:opacity .55s ease, transform .55s cubic-bezier(.2,.7,.2,1)}
+  .slide.active{display:flex;opacity:1;transform:none}
+  .slide.leaving{opacity:0;transform:translateY(-10px) scale(.995)}
+
+  .kicker{font-size:clamp(11px,1vw,13px);letter-spacing:.28em;text-transform:uppercase;
+    color:var(--violet-glow);font-weight:700;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+  .kicker::before{content:"";width:28px;height:2px;background:linear-gradient(90deg,var(--violet),transparent);border-radius:2px}
+  h1{font-size:clamp(34px,6.4vw,86px);line-height:1.02;font-weight:800;letter-spacing:-.03em;
+    background:linear-gradient(180deg,#fff 30%,#c9cff0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  h2{font-size:clamp(26px,4.4vw,56px);line-height:1.05;font-weight:800;letter-spacing:-.025em;margin-bottom:8px}
+  h3{font-size:clamp(17px,1.7vw,22px);font-weight:700;letter-spacing:-.01em}
+  .lead{font-size:clamp(16px,1.8vw,25px);color:var(--muted);max-width:60ch;line-height:1.5;margin-top:14px;font-weight:420}
+  .accent{color:var(--violet-glow)} .amber{color:var(--amber)} .em{color:var(--emerald)}
+  strong{color:#fff;font-weight:750}
+
+  /* fragments */
+  .frag{opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+  .frag.in{opacity:1;transform:none}
+
+  /* grids & cards */
+  .grid{display:grid;gap:16px;margin-top:34px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:820px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+    border:1px solid var(--line);border-radius:20px;padding:22px 22px 20px;backdrop-filter:blur(6px);position:relative;overflow:hidden}
+  .card .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px;
+    background:rgba(124,58,237,.14);border:1px solid rgba(124,58,237,.3)}
+  .card p{color:var(--muted);font-size:14.5px;line-height:1.5;margin-top:6px}
+  .card.amber .ic{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.3)}
+  .card.sky .ic{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.3)}
+  .card.em .ic{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.3)}
+
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:13px;color:var(--muted);font-weight:600}
+  .pillrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+
+  .stat{font-size:clamp(30px,4vw,50px);font-weight:850;letter-spacing:-.03em;
+    background:linear-gradient(180deg,#fff,#b9c0e6);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat-l{color:var(--faint);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+
+  .split{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center}
+  @media(max-width:900px){.split{grid-template-columns:1fr;gap:28px}}
+
+  ul.clean{list-style:none;margin-top:22px;display:flex;flex-direction:column;gap:14px}
+  ul.clean li{display:flex;gap:14px;align-items:flex-start;font-size:clamp(15px,1.5vw,18px);color:var(--text)}
+  ul.clean li .dot{flex:none;width:22px;height:22px;border-radius:7px;background:rgba(124,58,237,.16);
+    border:1px solid rgba(124,58,237,.4);display:grid;place-items:center;margin-top:2px}
+  ul.clean li b{color:#fff} ul.clean li span{color:var(--muted)}
+
+  /* device mockups */
+  .phone{width:min(300px,74%);aspect-ratio:9/19;border-radius:40px;margin:0 auto;
+    background:linear-gradient(160deg,#141a33,#0a0e20);border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 40px 90px -30px rgba(124,58,237,.5),inset 0 1px 0 rgba(255,255,255,.08);padding:12px;position:relative}
+  .phone::before{content:"";position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    width:90px;height:22px;background:#05060f;border-radius:0 0 14px 14px;z-index:3}
+  .screen{height:100%;border-radius:30px;overflow:hidden;position:relative;background:#05060f;display:flex;flex-direction:column}
+  .cam{flex:1;background:
+    linear-gradient(135deg,#1a2036,#0c1122);position:relative;overflow:hidden}
+  .cam svg{position:absolute;inset:0;width:100%;height:100%}
+  .capbar{height:70px;background:#080b18;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:center;gap:16px}
+  .shutter{width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(255,255,255,.15)}
+  .chip{position:absolute;top:24px;left:14px;z-index:4;font-size:10px;font-weight:700;color:#fff;
+    background:rgba(124,58,237,.35);border:1px solid rgba(167,139,250,.6);padding:5px 9px;border-radius:8px;backdrop-filter:blur(4px)}
+  .chip.r{left:auto;right:14px;background:rgba(52,211,153,.22);border-color:rgba(52,211,153,.55)}
+
+  .browser{border-radius:16px;overflow:hidden;border:1px solid var(--line);
+    box-shadow:0 40px 90px -35px rgba(0,0,0,.7);background:var(--panel)}
+  .chrome{height:38px;background:#0a0f22;display:flex;align-items:center;gap:7px;padding:0 14px;border-bottom:1px solid var(--line)}
+  .chrome i{width:11px;height:11px;border-radius:50%;display:block}
+  .chrome .u{margin-left:14px;flex:1;height:20px;border-radius:6px;background:rgba(255,255,255,.05);
+    font-size:10px;color:var(--faint);display:flex;align-items:center;padding:0 10px}
+  .dash{padding:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;background:
+    radial-gradient(70% 90% at 20% 0%,rgba(124,58,237,.10),transparent)}
+  .tile{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:74px}
+  .tile .n{font-size:22px;font-weight:800;margin-top:6px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:46px;margin-top:8px}
+  .bars span{flex:1;background:linear-gradient(180deg,var(--violet-glow),var(--violet));border-radius:3px;opacity:.9}
+
+  /* footer / chrome */
+  .foot{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+    padding:14px clamp(20px,4vw,48px);pointer-events:none}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em;font-size:15px}
+  .logo{width:26px;height:26px;border-radius:8px;background:conic-gradient(from 200deg,var(--violet),var(--sky),var(--amber),var(--violet));
+    position:relative;box-shadow:0 0 20px rgba(124,58,237,.6)}
+  .logo::after{content:"";position:absolute;inset:5px;border-radius:4px;background:var(--ink)}
+  .count{color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.05em}
+  .progress{position:fixed;top:0;left:0;height:3px;z-index:6;
+    background:linear-gradient(90deg,var(--violet),var(--violet-glow),var(--amber));transition:width .45s ease;box-shadow:0 0 12px rgba(124,58,237,.8)}
+  .hint{position:fixed;right:20px;bottom:56px;z-index:6;color:var(--faint);font-size:11px;opacity:.7}
+  .navzones{position:fixed;inset:0;z-index:4;display:flex}
+  .navzones div{flex:1;cursor:pointer}.navzones .l{flex:.32}
+
+  .cta-btn{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:14px;font-weight:750;font-size:16px;
+    background:linear-gradient(180deg,var(--violet),var(--violet-deep));color:#fff;border:1px solid rgba(167,139,250,.5);
+    box-shadow:0 20px 40px -16px rgba(124,58,237,.8);margin-top:8px}
+  .muted-btn{background:transparent;border:1px solid var(--line);color:var(--text);box-shadow:none}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px;align-items:center}
+
+  .tag{font-size:12px;color:var(--faint);letter-spacing:.14em;text-transform:uppercase}
+  .rule{height:1px;background:var(--line);margin:26px 0}
+  .cols{columns:2;column-gap:40px}@media(max-width:820px){.cols{columns:1}}
+  .feat{break-inside:avoid;margin-bottom:14px}
+  .feat b{display:block;font-size:15px}.feat span{font-size:13.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="progress" id="prog"></div>
+<div class="deck" id="deck">
+
+  <!-- 1 · COVER -->
+  <section class="slide">
+    <div class="kicker">Industrial NDT &amp; Compliance Marketplace</div>
+    <h1>Inspection,<br>reimagined for the field.</h1>
+    <p class="lead">NEXPEC connects the companies that need industrial inspections with the experts who perform them — powered by an <span class="accent">on‑device AI co‑inspector</span> that works even where the internet doesn't.</p>
+    <div class="pillrow">
+      <span class="pill">📱 Native mobile field app</span>
+      <span class="pill">🖥️ Web command center</span>
+      <span class="pill">🧠 Offline on‑device AI</span>
+    </div>
+  </section>
+
+  <!-- 2 · VISION -->
+  <section class="slide">
+    <div class="kicker">Vision</div>
+    <h2>A single trusted layer for the world's<br>industrial inspection work.</h2>
+    <p class="lead">Every weld, pipeline, tank, and structure that keeps industry safe is inspected by someone. Today that work is booked over email, verified on paper, and impossible to audit. <strong>NEXPEC turns it into software</strong> — matched, guided by AI, sealed, and provable.</p>
+    <div class="pillrow frag">
+      <span class="pill">🛢️ Oil &amp; gas</span><span class="pill">⚡ Energy</span>
+      <span class="pill">🏗️ Construction</span><span class="pill">🚢 Marine</span>
+      <span class="pill">✈️ Aerospace</span><span class="pill">🏭 Manufacturing</span>
+    </div>
+  </section>
+
+  <!-- 3 · PROBLEM -->
+  <section class="slide">
+    <div class="kicker">The Problem</div>
+    <h2>Critical inspections run on<br>email, spreadsheets, and trust.</h2>
+    <div class="grid g3">
+      <div class="card frag"><div class="ic">🕰️</div><h3>Slow, manual sourcing</h3><p>Finding a qualified, certified inspector for a specific code and site means days of calls and referrals — with no visibility into availability or price.</p></div>
+      <div class="card frag amber"><div class="ic">📄</div><h3>Unverifiable results</h3><p>Findings arrive as PDFs and photos. There's no tamper‑evident chain, no standard, and no way to prove an inspection actually happened as claimed.</p></div>
+      <div class="card frag sky"><div class="ic">📵</div><h3>Zero connectivity</h3><p>The work happens on rigs and in refineries with no signal — exactly where today's cloud tools stop working entirely.</p></div>
+    </div>
+    <p class="lead frag" style="margin-top:26px">The result: <strong>wasted time, disputed reports, poached relationships, and safety‑critical data trapped on someone's phone.</strong></p>
+  </section>
+
+  <!-- 4 · SOLUTION -->
+  <section class="slide">
+    <div class="kicker">The Solution</div>
+    <div class="split">
+      <div>
+        <h2>A two‑sided marketplace<br>with an AI co‑inspector<br>built in.</h2>
+        <ul class="clean">
+          <li class="frag"><span class="dot">✳</span><span><b>Match &amp; book</b> — clients post work; certified inspectors and agencies are matched, quote, and get hired.</span></li>
+          <li class="frag"><span class="dot">✳</span><span><b>Capture with AI</b> — the field app runs custom segmentation models fully on‑device to detect welds, corrosion, and coating defects.</span></li>
+          <li class="frag"><span class="dot">✳</span><span><b>Seal &amp; prove</b> — every AI finding is cryptographically bound to a signed model version; reports are tamper‑evident.</span></li>
+          <li class="frag"><span class="dot">✳</span><span><b>Sync when ready</b> — offline‑first by design; nothing is lost in a dead zone.</span></li>
+        </ul>
+      </div>
+      <div class="frag">
+        <div class="phone">
+          <div class="screen">
+            <div class="cam">
+              <div class="chip">● WELD · on‑device</div>
+              <div class="chip r">2 defects</div>
+              <svg viewBox="0 0 200 380" preserveAspectRatio="none">
+                <polygon points="46,150 96,132 132,168 118,220 60,214" fill="rgba(124,58,237,.28)" stroke="#a78bfa" stroke-width="2.2"/>
+                <circle cx="46" cy="150" r="4" fill="#fff"/><circle cx="96" cy="132" r="4" fill="#fff"/>
+                <circle cx="132" cy="168" r="4" fill="#fff"/><circle cx="118" cy="220" r="4" fill="#fff"/><circle cx="60" cy="214" r="4" fill="#fff"/>
+                <polygon points="120,250 156,244 162,286 128,296" fill="rgba(251,191,36,.26)" stroke="#FBBF24" stroke-width="2"/>
+              </svg>
+            </div>
+            <div class="capbar"><div class="shutter"></div></div>
+          </div>
+        </div>
+        <p style="text-align:center;color:var(--faint);font-size:12px;margin-top:14px">Tap to select · drag a node to correct · long‑press to delete</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · WORKFLOW -->
+  <section class="slide">
+    <div class="kicker">How It Works</div>
+    <h2>One workflow, end to end.</h2>
+    <div class="grid g4" style="margin-top:40px">
+      <div class="card frag"><div class="ic">1</div><h3>Post</h3><p>Client posts a compliance job; admin approves and it auto‑publishes to the marketplace.</p></div>
+      <div class="card frag"><div class="ic">2</div><h3>Match</h3><p>Inspectors and agencies bid; identity stays protected until the client is ready to engage.</p></div>
+      <div class="card frag"><div class="ic">3</div><h3>Inspect</h3><p>On‑site capture with the on‑device AI co‑inspector; corrections feed the model.</p></div>
+      <div class="card frag"><div class="ic">4</div><h3>Seal &amp; settle</h3><p>Tamper‑evident report delivered; funds released on client acceptance via Stripe.</p></div>
+    </div>
+    <p class="lead frag" style="margin-top:28px">Client, inspector, agency, and admin each see exactly the slice they should — enforced all the way down to the database.</p>
+  </section>
+
+  <!-- 6 · MOBILE HIGHLIGHT -->
+  <section class="slide">
+    <div class="kicker">Product · Field App</div>
+    <div class="split">
+      <div class="frag">
+        <div class="phone"><div class="screen">
+          <div class="cam">
+            <div class="chip">● CORROSION</div><div class="chip r">offline ✓</div>
+            <svg viewBox="0 0 200 380" preserveAspectRatio="none">
+              <polygon points="30,120 90,96 140,120 150,190 96,230 40,196" fill="rgba(251,191,36,.20)" stroke="#FBBF24" stroke-width="2.2"/>
+              <polygon points="70,250 150,240 158,300 96,320 66,292" fill="rgba(124,58,237,.24)" stroke="#a78bfa" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="capbar"><div class="shutter"></div></div>
+        </div></div>
+      </div>
+      <div>
+        <h2>The whole job,<br>in your pocket.</h2>
+        <ul class="clean">
+          <li class="frag"><span class="dot">◆</span><span><b>Offline‑first outbox</b> — every field action is queued locally and syncs later. Proven: 100% of field writes route through it.</span></li>
+          <li class="frag"><span class="dot">◆</span><span><b>Dual AI models, bundled</b> — Weld &amp; Corrosion segmentation ship inside the app. No network, no cloud GPU, $0 inference.</span></li>
+          <li class="frag"><span class="dot">◆</span><span><b>Wallet, earnings &amp; tax</b> — inspectors track payouts, statements, and certifications in one place.</span></li>
+          <li class="frag"><span class="dot">◆</span><span><b>Contracts &amp; e‑signature</b> — negotiate, sign, and seal reports without leaving the app.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · WEB HIGHLIGHT -->
+  <section class="slide">
+    <div class="kicker">Product · Command Center</div>
+    <div class="split">
+      <div>
+        <h2>Run the whole<br>operation from the web.</h2>
+        <ul class="clean">
+          <li class="frag"><span class="dot">▤</span><span><b>Role dashboards</b> for clients, inspectors, agencies, suppliers, enterprise, and admins.</span></li>
+          <li class="frag"><span class="dot">▤</span><span><b>The same AI, in the browser</b> — the identical model runs client‑side via WebAssembly; images never leave the device.</span></li>
+          <li class="frag"><span class="dot">▤</span><span><b>Moderation, dispatch, payouts, disputes</b> — a full operations console with live radar and audit trails.</span></li>
+        </ul>
+      </div>
+      <div class="frag">
+        <div class="browser">
+          <div class="chrome"><i style="background:#fb7185"></i><i style="background:#FBBF24"></i><i style="background:#34d399"></i><div class="u">app.nexpec.com/admin/dashboard</div></div>
+          <div class="dash">
+            <div class="tile"><span class="tag">Active jobs</span><div class="n">128</div><div class="bars"><span style="height:40%"></span><span style="height:70%"></span><span style="height:55%"></span><span style="height:90%"></span><span style="height:65%"></span></div></div>
+            <div class="tile"><span class="tag">Inspectors</span><div class="n em" style="color:var(--emerald)">1,204</div><div class="bars"><span style="height:60%"></span><span style="height:50%"></span><span style="height:80%"></span><span style="height:72%"></span><span style="height:95%"></span></div></div>
+            <div class="tile"><span class="tag">AI findings</span><div class="n" style="color:var(--amber)">8,640</div><div class="bars"><span style="height:30%"></span><span style="height:55%"></span><span style="height:60%"></span><span style="height:85%"></span><span style="height:100%"></span></div></div>
+            <div class="tile" style="grid-column:span 3;min-height:52px"><span class="tag">Pipeline · funded → in‑progress → delivered → released</span><div class="bars" style="height:22px;margin-top:10px"><span style="height:100%"></span><span style="height:82%"></span><span style="height:64%"></span><span style="height:48%"></span><span style="height:70%;background:linear-gradient(180deg,#FBBF24,#d97706)"></span><span style="height:90%"></span><span style="height:58%"></span><span style="height:76%"></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · AI MOAT -->
+  <section class="slide">
+    <div class="kicker">The Moat · AI Co‑inspector</div>
+    <h2>An AI that gets smarter<br>from every inspection.</h2>
+    <div class="grid g3">
+      <div class="card frag"><div class="ic">🧠</div><h3>On‑device segmentation</h3><p>Custom YOLO‑seg models detect defects as precise polygons — running fully offline on the phone and in the browser via one shared decoder.</p></div>
+      <div class="card frag em"><div class="ic">✋</div><h3>Human‑in‑the‑loop</h3><p>"The polygon <em>is</em> the toolbar." Inspectors tap, drag, and delete masks directly — every correction is captured invisibly.</p></div>
+      <div class="card frag amber"><div class="ic">🔁</div><h3>Data flywheel</h3><p>Corrections harvest into a retraining set. Real field signal, not lab data — a compounding accuracy advantage no competitor can copy.</p></div>
+    </div>
+    <div class="pillrow frag">
+      <span class="pill">🔒 Provable: findings bound to a signed, SHA‑pinned model</span>
+      <span class="pill">⚙️ One decoder, mobile + web — guaranteed parity</span>
+    </div>
+  </section>
+
+  <!-- 9 · FEATURES -->
+  <section class="slide">
+    <div class="kicker">Capabilities</div>
+    <h2>A complete platform, not a demo.</h2>
+    <div class="cols" style="margin-top:26px">
+      <div class="feat frag"><b>🔐 Multi‑role auth</b><span>OAuth, email, MFA, role selection across 7 personas.</span></div>
+      <div class="feat frag"><b>📋 Job lifecycle</b><span>Post → approve → auto‑publish → bid → counter‑bid → hire.</span></div>
+      <div class="feat frag"><b>🤝 Protected proposals</b><span>Inspector identity gated behind admin forward‑to‑client.</span></div>
+      <div class="feat frag"><b>💬 Messaging &amp; coordination</b><span>In‑app chat, vendor bridges, notifications with real tap routing.</span></div>
+      <div class="feat frag"><b>📸 AI capture</b><span>Dual on‑device seg models + gesture polygon editor.</span></div>
+      <div class="feat frag"><b>📑 Sealed reports</b><span>Flash reports, findings, tamper‑evident delivery.</span></div>
+      <div class="feat frag"><b>💳 Payments</b><span>Stripe Connect, funded jobs, acceptance‑window release.</span></div>
+      <div class="feat frag"><b>🏦 Wallets &amp; tax</b><span>Earnings, statements, withdrawals, tax center.</span></div>
+      <div class="feat frag"><b>🗂️ Vault &amp; compliance</b><span>Secure documents, certifications, compliance templates.</span></div>
+      <div class="feat frag"><b>🛰️ Admin console</b><span>Moderation, dispatch, disputes, payouts, live radar, audit.</span></div>
+      <div class="feat frag"><b>🏢 Org &amp; enterprise</b><span>Teams, structures, agencies, supplier onboarding.</span></div>
+      <div class="feat frag"><b>📡 Offline‑first</b><span>Durable outbox; nothing lost without a signal.</span></div>
+    </div>
+  </section>
+
+  <!-- 10 · ROLES -->
+  <section class="slide">
+    <div class="kicker">User Roles</div>
+    <h2>Every stakeholder, one platform.</h2>
+    <div class="grid g3">
+      <div class="card frag"><div class="ic">🏢</div><h3>Client</h3><p>Posts &amp; funds work, reviews reports, rates inspectors, manages budgets, teams, and org structure.</p></div>
+      <div class="card frag sky"><div class="ic">🦺</div><h3>Inspector</h3><p>Discovers jobs, negotiates, captures with AI, submits sealed reports, manages wallet &amp; tax.</p></div>
+      <div class="card frag"><div class="ic">👥</div><h3>Agency</h3><p>Multi‑inspector orgs posting and staffing jobs across a roster.</p></div>
+      <div class="card frag amber"><div class="ic">📦</div><h3>Supplier</h3><p>Bids on opportunities, manages contracts, documents, and finance.</p></div>
+      <div class="card frag em"><div class="ic">🏭</div><h3>Enterprise</h3><p>Large‑org dashboards, structured team missions, governance.</p></div>
+      <div class="card frag"><div class="ic">🛡️</div><h3>Admin</h3><p>Moderation, dispatch, verification, payouts, disputes, integrity tooling.</p></div>
+    </div>
+  </section>
+
+  <!-- 11 · TECH -->
+  <section class="slide">
+    <div class="kicker">Technology</div>
+    <h2>Built like a product<br>meant to last.</h2>
+    <div class="grid g2">
+      <div class="card frag"><div class="ic">📱</div><h3>Clients</h3><p><strong>Mobile:</strong> Expo / React Native, Reanimated, Skia, react‑native‑fast‑tflite.<br><strong>Web:</strong> Next.js App Router, TensorFlow.js + self‑hosted WASM.</p></div>
+      <div class="card frag sky"><div class="ic">🧩</div><h3>Shared core</h3><p>Framework‑agnostic TypeScript — the ML decoder and AI contracts are imported from source, so mobile and web physically share one implementation.</p></div>
+      <div class="card frag em"><div class="ic">🗄️</div><h3>Backend</h3><p>Supabase / Postgres: 165 RPCs (SECURITY DEFINER), 147 RLS‑governed tables, triggers, Edge Functions. RPC‑first, idempotent, offline‑safe.</p></div>
+      <div class="card frag amber"><div class="ic">✅</div><h3>Quality gates</h3><p>CI guards enforce DB‑reference integrity, offline‑write routing, RLS‑admin coverage, and buyer‑surface price‑blindness — on every change.</p></div>
+    </div>
+  </section>
+
+  <!-- 12 · SECURITY -->
+  <section class="slide">
+    <div class="kicker">Security &amp; Trust</div>
+    <h2>Trust is a feature,<br>enforced in code.</h2>
+    <ul class="clean">
+      <li class="frag"><span class="dot">🔒</span><span><b>Row‑level security everywhere</b> — 147 governed tables; a CI guard proves admin coverage on all of them.</span></li>
+      <li class="frag"><span class="dot">🕵️</span><span><b>Anti‑poaching by construction</b> — inspector identity &amp; payout economics are structurally hidden from client surfaces; a guard scans every buyer screen for leakage.</span></li>
+      <li class="frag"><span class="dot">🧾</span><span><b>Provable AI</b> — findings bound to a published, signed, SHA‑pinned model version. Tamper‑evident by design.</span></li>
+      <li class="frag"><span class="dot">🫥</span><span><b>PII scrubbing</b> — a dedicated redaction layer keeps secrets and personal data out of logs.</span></li>
+      <li class="frag"><span class="dot">💠</span><span><b>Stripe‑handled money</b> — Stripe is the licensed processor; NEXPEC never touches funds as a bank or remitter.</span></li>
+    </ul>
+  </section>
+
+  <!-- 13 · BUSINESS MODEL -->
+  <section class="slide">
+    <div class="kicker">Business Model</div>
+    <h2>Aligned with every<br>successful job.</h2>
+    <div class="split">
+      <div>
+        <ul class="clean">
+          <li class="frag"><span class="dot">%</span><span><b>10% platform &amp; technology fee</b> on gross contract value — for matching, software, coordination, and infrastructure.</span></li>
+          <li class="frag"><span class="dot">↑</span><span><b>Scales with GMV</b> — revenue grows directly with inspection volume flowing through the platform.</span></li>
+          <li class="frag"><span class="dot">+</span><span><b>Expansion surfaces</b> — enterprise seats, agency tooling, supplier marketplace, and premium AI domains.</span></li>
+        </ul>
+      </div>
+      <div class="grid frag" style="grid-template-columns:1fr 1fr;gap:16px">
+        <div class="card"><div class="stat">10%</div><div class="stat-l">Take rate</div></div>
+        <div class="card"><div class="stat">$0</div><div class="stat-l">AI inference cost</div></div>
+        <div class="card"><div class="stat">7‑day</div><div class="stat-l">Acceptance &amp; release</div></div>
+        <div class="card"><div class="stat">3</div><div class="stat-l">Comp models supported</div></div>
+      </div>
+    </div>
+    <p style="color:var(--faint);font-size:12px;margin-top:20px">Payment terminology is being finalized with counsel; figures illustrate the model, not committed guidance.</p>
+  </section>
+
+  <!-- 14 · ADVANTAGES -->
+  <section class="slide">
+    <div class="kicker">Why We Win</div>
+    <h2>Advantages competitors<br>can't easily copy.</h2>
+    <div class="grid g2">
+      <div class="card frag"><div class="ic">🧠</div><h3>Proprietary data flywheel</h3><p>Every correction from a real inspection improves the models. The moat compounds with usage.</p></div>
+      <div class="card frag sky"><div class="ic">📵</div><h3>Truly offline AI</h3><p>Full on‑device inference where cloud tools fail — the exact environments this industry works in.</p></div>
+      <div class="card frag em"><div class="ic">🔗</div><h3>One codebase, two clients</h3><p>Shared‑core parity means mobile and web never drift — half the maintenance, none of the inconsistency.</p></div>
+      <div class="card frag amber"><div class="ic">🛡️</div><h3>Integrity as moat</h3><p>Provable findings + anti‑poaching enforced in the database build a trust layer incumbents lack.</p></div>
+    </div>
+  </section>
+
+  <!-- 15 · STATUS -->
+  <section class="slide">
+    <div class="kicker">Where We Are</div>
+    <h2>Not a prototype —<br>a production platform.</h2>
+    <div class="grid g4" style="margin-top:36px">
+      <div class="card frag" style="text-align:center"><div class="stat">2</div><div class="stat-l">Native clients shipped</div></div>
+      <div class="card frag" style="text-align:center"><div class="stat">400+</div><div class="stat-l">Screens &amp; pages</div></div>
+      <div class="card frag" style="text-align:center"><div class="stat">165</div><div class="stat-l">Backend RPCs</div></div>
+      <div class="card frag" style="text-align:center"><div class="stat">147</div><div class="stat-l">Secured tables</div></div>
+    </div>
+    <p class="lead frag" style="margin-top:30px">Type‑checked, guard‑enforced, and audited pre‑launch. The mobile app and web dashboard are <strong>synchronized down to the shared ML decoder.</strong></p>
+  </section>
+
+  <!-- 16 · ROADMAP -->
+  <section class="slide">
+    <div class="kicker">Roadmap</div>
+    <h2>From launch to standard.</h2>
+    <div class="grid g4" style="margin-top:34px">
+      <div class="card frag"><div class="ic">◐</div><h3>Now</h3><p>Public launch: marketplace, field AI, sealed reports, payments.</p></div>
+      <div class="card frag sky"><div class="ic">◑</div><h3>Next</h3><p>More AI domains (structural, thermal), consolidated defect taxonomy from the flywheel.</p></div>
+      <div class="card frag amber"><div class="ic">◒</div><h3>Then</h3><p>Enterprise controls, API &amp; integrations, analytics &amp; benchmarking.</p></div>
+      <div class="card frag em"><div class="ic">●</div><h3>Vision</h3><p>The verifiable system of record for industrial inspection worldwide.</p></div>
+    </div>
+  </section>
+
+  <!-- 17 · CTA -->
+  <section class="slide">
+    <div class="kicker">Let's Talk</div>
+    <h1 style="font-size:clamp(32px,6vw,74px)">Back the layer that<br>makes inspection provable.</h1>
+    <p class="lead">We're opening conversations with investors, enterprise clients, and inspection agencies. If you keep industry safe — or fund the people who do — let's build this together.</p>
+    <div class="row">
+      <span class="cta-btn">Request the full deck &amp; demo →</span>
+      <span class="cta-btn muted-btn">partnerships@nexpec.com</span>
+    </div>
+    <div class="pillrow" style="margin-top:34px">
+      <span class="pill">🚀 Launching 2026</span><span class="pill">🌍 Global from day one</span><span class="pill">🧠 AI‑native</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="foot">
+  <div class="brand"><span class="logo"></span> NEXPEC</div>
+  <div class="count" id="count">01 / 17</div>
+</div>
+<div class="hint">← → or Space to navigate · F for fullscreen</div>
+<div class="navzones"><div class="l" id="prev"></div><div id="next"></div></div>
+
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  var i=0, f=0, prog=document.getElementById('prog'), count=document.getElementById('count');
+  function frags(s){return [].slice.call(s.querySelectorAll('.frag'));}
+  function render(dir){
+    slides.forEach(function(s,idx){s.classList.toggle('active',idx===i);});
+    var fr=frags(slides[i]);
+    fr.forEach(function(el,idx){el.classList.toggle('in',idx<f);});
+    prog.style.width=((i)/(slides.length-1)*100)+'%';
+    count.textContent=String(i+1).padStart(2,'0')+' / '+String(slides.length).padStart(2,'0');
+  }
+  function next(){
+    var fr=frags(slides[i]);
+    if(f<fr.length){f++;render();return;}
+    if(i<slides.length-1){i++;f=frags(slides[i]).length?0:0;
+      // auto-reveal fragments progressively; start hidden
+      render();}
+  }
+  function prev(){
+    if(f>0){f--;render();return;}
+    if(i>0){i--; f=frags(slides[i]).length; render();}
+  }
+  function go(n){i=Math.max(0,Math.min(slides.length-1,n));f=0;render();}
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){e.preventDefault();next();}
+    else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();prev();}
+    else if(e.key==='Home'){go(0);} else if(e.key==='End'){go(slides.length-1);}
+    else if(e.key==='f'||e.key==='F'){ if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();} else {document.exitFullscreen&&document.exitFullscreen();} }
+  });
+  document.getElementById('next').addEventListener('click',next);
+  document.getElementById('prev').addEventListener('click',prev);
+  // reveal first fragment set immediately on each slide entry for pacing
+  render();
+})();
+</script>
+</body>
+</html>

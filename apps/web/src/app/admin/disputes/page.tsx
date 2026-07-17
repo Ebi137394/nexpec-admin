@@ -58,7 +58,7 @@ export default async function DisputesPage({ searchParams }: PageProps) {
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Open disputes" value={String(total)} tone={total > 0 ? 'amber' : 'default'} />
         <Stat
-          label="Total escrow at stake"
+          label="Total held at stake"
           value={formatCents(totalEscrowCents)}
           tone={totalEscrowCents > 0 ? 'amber' : 'default'}
         />

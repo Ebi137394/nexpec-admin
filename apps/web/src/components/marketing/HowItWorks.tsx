@@ -30,14 +30,14 @@ const STEPS: readonly Step[] = [
     n: '02',
     icon: Users,
     title: 'Match in minutes',
-    body: 'Pick an inspector or award a vendor, escrow funds the moment both parties sign, and on award NEXPEC auto-spawns the matching source/FAT inspection. Coordinate every party in a NEXPEC-brokered war room, while the SLA Sentinel keeps report deadlines honest.',
+    body: 'Pick an inspector or award a vendor, the payment hold funds the moment both parties sign, and on award NEXPEC auto-spawns the matching source/FAT inspection. Coordinate every party in a NEXPEC-brokered war room, while the SLA Sentinel keeps report deadlines honest.',
     imageSlot: HOW_IT_WORKS_MATCH,
   },
   {
     n: '03',
     icon: FileCheck,
     title: 'Audit-grade delivery',
-    body: 'Photos, findings and signatures land in a cryptographically-sealed report, and vendor certificates are sealed the same way, fingerprinted and blockchain-anchored through our Trust Spine. Approve to release escrow.',
+    body: 'Photos, findings and signatures land in a cryptographically-sealed report, and vendor certificates are sealed the same way, fingerprinted and blockchain-anchored through our Trust Spine. Approve to release payment hold.',
     imageSlot: HOW_IT_WORKS_AUDIT,
   },
 ];

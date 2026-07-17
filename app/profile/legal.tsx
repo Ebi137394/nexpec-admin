@@ -5,7 +5,7 @@
 //    1. Acceptable Use Policy (AUP-001) + the user's role-resolved Tier-2
 //       Role Agreement (inspector → INSP-AGR-001, agency → AGN-AGR-001, etc.)
 //       + the Country Addendum Framework.
-//    2. "Job Contract Documents" subsection — JOB-TPL-001 + ESCROW-001 as
+//    2. "Job Contract Documents" subsection — JOB-TPL-001 + PAYOUT-001 as
 //       reference docs so users can see exactly what a Job Contract looks
 //       like before they have one.
 //    3. (Reserved for Compliance Notices sub-page — Checkpoint 5.)

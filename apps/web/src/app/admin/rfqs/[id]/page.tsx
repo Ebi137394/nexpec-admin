@@ -3,6 +3,7 @@
 // present a curated offer. Admin sees EVERYTHING (cost, supplier identity,
 // margin); the client only ever sees what admin presents.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { confirmDialog } from '@/components/ui/AppDialog';
 import Link from 'next/link';
 import { ArrowLeft, Store, Send, CheckCircle2, ShieldCheck, Rocket } from 'lucide-react';
 import {
@@ -108,7 +109,7 @@ function QuoteCard({ q, awardable, onChange, onError }: {
   };
 
   const awardOnBehalf = async () => {
-    if (!window.confirm('Award this offer on the client&rsquo;s behalf? This dispatches the engagement.')) return;
+    if (!(await confirmDialog('Award this offer on the client&rsquo;s behalf? This dispatches the engagement.'))) return;
     onError(null); setBusy(true);
     try {
       const { error } = await awardQuote(q.id);

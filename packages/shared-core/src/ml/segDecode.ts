@@ -26,6 +26,14 @@ export interface SegLayout {
   protoSize: number; // e.g. 256
   boxFormat?: 'xywh' | 'xyxy'; // default 'xywh'
   coordsNormalized?: boolean; // default false (pixel coords)
+  /** output0 memory order.
+   *  'det-major'      → [numDet, vecLen]: one contiguous row per detection (an
+   *                     already-NMS'd/end2end export).
+   *  'channels-first' → [vecLen, numDet]: the attribute axis is outermost, so
+   *                     each attribute is a contiguous run across all detections.
+   *                     This is the RAW Ultralytics head (`nms=False`) and MUST be
+   *                     strided ("transposed") to read a detection. Default 'det-major'. */
+  order?: 'det-major' | 'channels-first';
 }
 
 export interface SegOptions {
@@ -137,25 +145,30 @@ export function decodeYoloSeg(
   const coordsNormalized = layout.coordsNormalized ?? false;
   const clsOff = 4;
   const coeffOff = 4 + numClasses;
+  // out0 element accessor, agnostic to memory order (see SegLayout.order):
+  //   det-major:      at(i,k) = out0[i*vecLen + k]
+  //   channels-first: at(i,k) = out0[k*numDet + i]   (raw Ultralytics, transposed)
+  const channelsFirst = layout.order === 'channels-first';
+  const detStride = channelsFirst ? 1 : vecLen;
+  const attrStride = channelsFirst ? numDet : 1;
+  const at = (i: number, k: number): number => out0[i * detStride + k * attrStride] as number;
 
   // 1) confidence filter → candidates (box kept in INPUT-PIXEL space)
   const cands: Cand[] = [];
   for (let i = 0; i < numDet; i++) {
-    const base = i * vecLen;
     let best = -Infinity, bc = 0;
     for (let c = 0; c < numClasses; c++) {
-      const s = out0[base + clsOff + c] as number;
+      const s = at(i, clsOff + c);
       if (s > best) { best = s; bc = c; }
     }
     if (best < o.confThreshold) continue;
-    let a = out0[base] as number, b = out0[base + 1] as number,
-      cc = out0[base + 2] as number, d = out0[base + 3] as number;
+    let a = at(i, 0), b = at(i, 1), cc = at(i, 2), d = at(i, 3);
     if (coordsNormalized) { a *= inputSize; b *= inputSize; cc *= inputSize; d *= inputSize; }
     let x1: number, y1: number, x2: number, y2: number;
     if (boxFormat === 'xywh') { x1 = a - cc / 2; y1 = b - d / 2; x2 = a + cc / 2; y2 = b + d / 2; }
     else { x1 = a; y1 = b; x2 = cc; y2 = d; }
     const coeffs = new Float32Array(numCoeffs);
-    for (let k = 0; k < numCoeffs; k++) coeffs[k] = out0[base + coeffOff + k] as number;
+    for (let k = 0; k < numCoeffs; k++) coeffs[k] = at(i, coeffOff + k);
     cands.push({ x1, y1, x2, y2, score: best, cls: bc, coeffs });
   }
 
@@ -214,4 +227,34 @@ export function decodeYoloSeg(
     });
   }
   return results;
+}
+
+/**
+ * Derive the full SegLayout from the two RAW output tensor lengths alone, so the
+ * same model file drives both platforms with zero hardcoded class counts (which
+ * differ per model and have proven easy to get wrong).
+ *
+ * Assumes the standard Ultralytics YOLO-seg head exported with `nms=False`:
+ *   • 32 mask prototypes  → 32 mask coefficients      (pins proto/coeff dims)
+ *   • mask stride 4       → inputSize = protoSize * 4
+ *   • detection strides 8/16/32 (P3–P5) → numDet = Σ (inputSize/stride)²
+ *   • boxes xywh in input-pixel space, output0 channels-first ([vecLen, numDet]).
+ * vecLen (hence numClasses = vecLen − 4 − 32) then follows from out0.length/numDet.
+ *
+ * Example: out0.length 1 010 688, out1.length 2 097 152
+ *   → protoSize 256, inputSize 1024, numDet 21 504, vecLen 47, numClasses 11.
+ */
+export function inferSegLayout(out0Len: number, out1Len: number): SegLayout {
+  const protoChannels = 32;
+  const numCoeffs = 32;
+  const protoSize = Math.round(Math.sqrt(out1Len / protoChannels));
+  const inputSize = protoSize * 4;
+  const s8 = inputSize / 8, s16 = inputSize / 16, s32 = inputSize / 32;
+  const numDet = s8 * s8 + s16 * s16 + s32 * s32;
+  const vecLen = Math.round(out0Len / numDet);
+  const numClasses = vecLen - 4 - numCoeffs;
+  return {
+    numDet, vecLen, numClasses, numCoeffs, inputSize, protoChannels, protoSize,
+    boxFormat: 'xywh', coordsNormalized: false, order: 'channels-first',
+  };
 }

@@ -209,7 +209,7 @@ export default function ComplianceNoticesScreen() {
               colors={colors}
               row={{
                 label: 'Stripe, Inc.',
-                value: 'Payments, escrow, payout, currency conversion, tax',
+                value: 'Payments, payout holds, payout, currency conversion, tax',
               }}
             />
             <KvRow
@@ -272,7 +272,7 @@ export default function ComplianceNoticesScreen() {
               'CLI-AGR-001',
               'ORG-AGR-001',
               'JOB-TPL-001',
-              'ESCROW-001',
+              'PAYOUT-001',
               'ADDENDUM-FRAMEWORK-001',
             ].map((id) => (
               <KvRow

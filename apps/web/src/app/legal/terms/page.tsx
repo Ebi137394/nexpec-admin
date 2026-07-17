@@ -63,10 +63,10 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section title="4. Funds + escrow">
+      <Section title="4. Funds + payouts">
         <p>
           All payments are processed through Stripe. Client funds are
-          held in escrow until both NEXPEC and the client confirm the
+          held for payout until both NEXPEC and the client confirm the
           inspector&apos;s report. Inspector payouts are released via
           Stripe Connect; NEXPEC never holds inspector funds directly.
         </p>
@@ -103,7 +103,7 @@ export default function TermsPage() {
       <Section title="8. Disputes">
         <p>
           Disputes between client and inspector are mediated by NEXPEC
-          operations. Funds remain in escrow during mediation. Final
+          operations. Funds remain on payout hold during mediation. Final
           allocation is at NEXPEC&apos;s reasonable discretion; recourse
           to courts is available only after the internal dispute process
           has been exhausted.

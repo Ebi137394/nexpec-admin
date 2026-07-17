@@ -10,7 +10,7 @@ import { MagneticButton } from '@/components/ui/MagneticButton';
  *   - 7-layer cinematic background (Stamp loop + atmospheric layers).
  *   - Animated eyebrow + word-by-word headline + subhead.
  *   - Two CTAs (primary magnetic, secondary outlined).
- *   - Three trust chips beneath (escrow / compliance / audit).
+ *   - Three trust chips beneath (payment hold / compliance / audit).
  *
  * ── 7-LAYER BACKGROUND COMPOSITION ────────────────────────────────────
  *
@@ -119,7 +119,7 @@ export function Hero() {
           <RevealWords>Hire vetted inspectors. Any engineering field.</RevealWords>
           <br />
           <span className="headline-gradient">
-            <RevealWords delay={0.4}>Escrow holds every dollar.</RevealWords>
+            <RevealWords delay={0.4}>Payment holds protect every dollar.</RevealWords>
           </span>
         </h1>
 
@@ -159,7 +159,7 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 1.2, ease: 'easeOut' }}
           className="mx-auto mt-16 flex max-w-3xl flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t border-white/[0.06] pt-8"
         >
-          <Chip icon={<ShieldCheck className="h-4 w-4" />} label="Stripe-backed escrow" />
+          <Chip icon={<ShieldCheck className="h-4 w-4" />} label="Stripe-backed payment holds" />
           <Chip icon={<ScanLine className="h-4 w-4" />} label="SOC 2 aligned controls" />
           <Chip icon={<FileCheck2 className="h-4 w-4" />} label="Cryptographically signed reports" />
         </motion.ul>

@@ -105,7 +105,7 @@ export default function PipelineScreen() {
         <View style={ss.remainingFooter}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
             <Ionicons name="lock-closed" size={14} color={C.amber} />
-            <Text style={[ss.balanceStatLabel, { fontWeight: '700' }]}>Locked in escrow</Text>
+            <Text style={[ss.balanceStatLabel, { fontWeight: '700' }]}>Locked for payout</Text>
           </View>
           <Text style={[ss.balanceStatValue, { fontWeight: '800' }]}>{formatUSD(escrowCents)}</Text>
         </View>

@@ -61,7 +61,7 @@ export default async function ClientDashboardPage() {
           Welcome.
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
-          Post inspections, review applications, fund escrow, download signed
+          Post inspections, review applications, fund payment holds, download signed
           reports. Everything you need to operate is on this one screen.
         </p>
       </header>
@@ -77,7 +77,7 @@ export default async function ClientDashboardPage() {
       {/* Metric tiles */}
       <section aria-label="Your workspace" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricTile label="Active jobs" value={formatCount(metrics.activeJobs)} sub="open + assigned + in_progress" />
-        <MetricTile label="Held in escrow" value={formatCurrency(metrics.escrowHeldCents)} sub="across your active jobs" tone="violet" />
+        <MetricTile label="Held for payout" value={formatCurrency(metrics.escrowHeldCents)} sub="across your active jobs" tone="violet" />
         <MetricTile label="Pending review" value={formatCount(metrics.pendingApplications)} sub="applications awaiting your decision" tone="cyan" />
         <MetricTile label="Reports, last 30d" value={formatCount(metrics.reportsLast30d)} sub="admin-approved + handed off" />
       </section>
@@ -118,7 +118,7 @@ export default async function ClientDashboardPage() {
                       <p className="truncate text-[10px] text-zinc-500">{j.status}, {formatRelative(j.createdAt)}</p>
                     </div>
                     {j.escrowPaused && (
-                      <span className="rounded-full border border-accent-red/40 bg-accent-red/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-accent-red">escrow paused</span>
+                      <span className="rounded-full border border-accent-red/40 bg-accent-red/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-industrial text-accent-red">hold paused</span>
                     )}
                     <ArrowUpRight className="h-3 w-3 shrink-0 text-zinc-500 group-hover:text-violet-glow" strokeWidth={1.75} />
                   </Link>
@@ -207,7 +207,7 @@ export default async function ClientDashboardPage() {
 /* ─── pieces ──────────────────────────────────────────────────────── */
 
 const NEXT_ACTIONS = [
-  { label: 'Post a new inspection', href: '/client/jobs/new', icon: PlusCircle, helper: 'Define scope, location, budget. Funds land in escrow.' },
+  { label: 'Post a new inspection', href: '/client/jobs/new', icon: PlusCircle, helper: 'Define scope, location, budget. Funds land in a payment hold.' },
   { label: 'My active jobs', href: '/client/jobs', icon: Briefcase, helper: 'Track applications, in-progress work, scheduled visits.' },
   { label: 'Download a completed report', href: '/client/reports', icon: FileCheck2, helper: 'Signed PDFs, photos, audit hash.' },
 ];

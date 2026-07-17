@@ -133,7 +133,7 @@ export default async function AdminDashboardPage() {
           sub="assigned + in_progress"
         />
         <MetricTile
-          label="Held in escrow"
+          label="Held for payout"
           value={formatCurrency(metrics.escrowCents)}
           sub="across active jobs"
           tone="violet"

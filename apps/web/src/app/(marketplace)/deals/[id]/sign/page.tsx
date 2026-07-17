@@ -1,10 +1,11 @@
 'use client';
 // /deals/[id]/sign — Review & sign the Client↔NEXPEC supply agreement.
-//   Signing executes the agreement and HOLDS the client price in escrow
+//   Signing executes the agreement and HOLDS the client price on payout hold
 //   (contract-before-money), which dispatches the brokered inspection.
 //   The client contracts only with NEXPEC; the supplier/inspector legs are
 //   separate and never exposed here.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { promptDialog } from '@/components/ui/AppDialog';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, ShieldCheck, Lock, CheckCircle2, Eye, Flag, BadgeCheck, Wallet, FileWarning, Users, Crown } from 'lucide-react';
@@ -61,10 +62,10 @@ export default function DealSignPage() {
           <div className="rounded-2xl border border-accent-green/30 bg-accent-green/[0.06] p-6">
             <div className="flex items-center gap-2 text-accent-green">
               <CheckCircle2 size={20} />
-              <h1 className="text-lg font-bold">Signed and escrow funded</h1>
+              <h1 className="text-lg font-bold">Signed and payment hold funded</h1>
             </div>
             <p className="mt-2 text-sm text-white/70">
-              Your 30% mobilization deposit is held in escrow against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection and will assign a credential-verified inspector. Funds release only as contracted milestones clear.
+              Your 30% mobilization deposit is held for payout against the {formatUsd(agr.amount_cents)} contract price; the 70% balance is due at FAT/Inspection-Readiness (see your payment schedule below). NEXPEC is dispatching your inspection and will assign a credential-verified inspector. Funds release only as contracted milestones clear.
             </p>
             <Link href="/rfqs" className="mt-4 inline-flex rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white hover:bg-violet-deep">Back to RFQs</Link>
           </div>
@@ -121,7 +122,7 @@ export default function DealSignPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Jane A. Client" className={inp} />
             <label className="flex items-start gap-2 text-sm text-white/80">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-violet" />
-              I have read and agree to this Agreement, and authorise NEXPEC to hold the 30% mobilization deposit in escrow.
+              I have read and agree to this Agreement, and authorise NEXPEC to hold the 30% mobilization deposit on payout hold.
             </label>
             {err && <p className="text-sm text-accent-red">{err}</p>}
             <button onClick={sign} disabled={busy || !name.trim() || !agreed} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet py-3 font-bold hover:bg-violet-deep disabled:opacity-60">
@@ -138,7 +139,7 @@ export default function DealSignPage() {
   );
 }
 
-// ── Assigned-inspector trust panel (A/B/C dossier + D review gate + F identity escrow) ──
+// ── Assigned-inspector trust panel (A/B/C dossier + D review gate + F identity payment hold) ──
 const REVIEW_LABEL: Record<string, string> = {
   pending: 'Awaiting your review', approved: 'Approved by you',
   objected: 'Objection raised', auto_approved: 'Auto-approved',
@@ -332,7 +333,7 @@ function MilestoneFundingCard({ dealId }: { dealId: string }) {
   };
 
   const reportNcr = async () => {
-    const citation = window.prompt('Report a non-conformance — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):');
+    const citation = await promptDialog({ body: 'Report a non-conformance — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):', minLength: 20, confirmText: 'Report' });
     if (citation == null) return;
     setBusy(true); setErr(null);
     const { error } = await raiseNonconformance(dealId, 'goods', citation);

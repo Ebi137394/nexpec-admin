@@ -76,7 +76,7 @@ export default async function ClientFinancePage() {
         />
         <MetricTile
           icon={<Wallet className="h-4 w-4" strokeWidth={1.75} />}
-          label="Held in escrow"
+          label="Held for payout"
           value={formatCurrency(metrics.heldInEscrowCents)}
           sub="across active jobs"
           tone="cyan"
@@ -96,7 +96,7 @@ export default async function ClientFinancePage() {
       </section>
 
       {/* Escrow vs Credit — the crux: locked cash vs borrowed headroom */}
-      <section aria-label="Escrow versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section aria-label="Payout hold versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <EscrowPanel lockedCents={metrics.heldInEscrowCents} />
         <CreditPanel credit={credit} />
       </section>
@@ -249,7 +249,7 @@ export default async function ClientFinancePage() {
         <ol className="space-y-3 text-sm text-zinc-400">
           <Step
             n={1}
-            text="Prepay: you fund a job's escrow when you post it, and the amount is held in a dedicated escrow ledger, ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
+            text="Prepay: you fund a job's payment hold when you post it, and the amount is held in a dedicated payout-hold ledger, ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
           />
           <Step
             n={2}
@@ -257,11 +257,11 @@ export default async function ClientFinancePage() {
           />
           <Step
             n={3}
-            text="You approve the report. That approval releases the held escrow to the inspector's wallet; for net-terms jobs it issues the invoice on your agreed terms."
+            text="You approve the report. That approval releases the held funds to the inspector's wallet; for net-terms jobs it issues the invoice on your agreed terms."
           />
           <Step
             n={4}
-            text="If you dispute the report, escrow holds until our team mediates. Funds only release on mutual agreement; cancellations are refunded from escrow."
+            text="If you dispute the report, the payment hold remains until our team mediates. Funds only release on mutual agreement; cancellations are refunded from the hold."
           />
         </ol>
       </section>
@@ -542,7 +542,7 @@ function Step({ n, text }: { n: number; text: string }) {
 function labelForKind(kind: FinanceActivityKind): string {
   switch (kind) {
     case 'job_posted':
-      return 'Job posted, escrow funded';
+      return 'Job posted, payment hold funded';
     case 'job_assigned':
       return 'Inspector assigned, work in progress';
     case 'report_received':

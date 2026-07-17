@@ -47,11 +47,11 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nexpecapp.com';
 export const metadata: Metadata = {
   title: 'Industrial Inspection, Engineered for Trust',
   description:
-    'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
+    'Hire vetted industrial inspectors. Payment holds protect every dollar. Every report is cryptographically signed and audit-grade.',
   openGraph: {
     title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
     description:
-      'Hire vetted industrial inspectors. Escrow holds every dollar. Every report is cryptographically signed and audit-grade.',
+      'Hire vetted industrial inspectors. Payment holds protect every dollar. Every report is cryptographically signed and audit-grade.',
     url: SITE_URL,
     siteName: 'NEXPEC',
     type: 'website',
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'NEXPEC, Industrial Inspection, Engineered for Trust',
-    description: 'Hire vetted industrial inspectors. Escrow holds every dollar.',
+    description: 'Hire vetted industrial inspectors. Payment holds protect every dollar.',
     images: ['/og/landing.png'],
   },
 };

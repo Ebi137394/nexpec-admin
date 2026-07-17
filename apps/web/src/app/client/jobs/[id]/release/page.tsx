@@ -255,7 +255,7 @@ function DecisionCard({ jobId }: { jobId: string }) {
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
           You accept the inspector&apos;s report as delivered. This signals
-          our team to release the funds from escrow. We
+          our team to release the funds from the payment hold. We
           move the funds, you don&apos;t handle Stripe yourself.
         </p>
         <button
@@ -352,11 +352,11 @@ function ProcessExplainer() {
         />
         <Step
           n={3}
-          text="Your approval signals admin. Our team executes the release from escrow. You never see card forms, escrow buttons, or Stripe sheets."
+          text="Your approval signals admin. Our team executes the release from the payment hold. You never see card forms, payment hold buttons, or Stripe sheets."
         />
         <Step
           n={4}
-          text="If something's off, request a revision. Funds stay in escrow until you and admin agree the work is complete."
+          text="If something's off, request a revision. Funds stay on payout hold until you and admin agree the work is complete."
         />
       </ol>
     </section>

@@ -6,6 +6,7 @@
 //   SUPPLIER: sees their OWN bid (raw, their own number) + submit form.
 // Mirrors mobile app/rfqs/[id].tsx.
 import { useCallback, useEffect, useState } from 'react';
+import { confirmDialog } from '@/components/ui/AppDialog';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Ribbon, Send, Rocket, ShieldCheck, Sparkles, Hourglass } from 'lucide-react';
@@ -76,7 +77,7 @@ export default function RfqDetailPage() {
   };
 
   const doAccept = async (offer: ClientOffer) => {
-    if (!window.confirm('Accept this offer? You will review and sign the NEXPEC supply agreement, then we hold your payment in escrow and dispatch the inspection.')) return;
+    if (!(await confirmDialog('Accept this offer? You will review and sign the NEXPEC supply agreement, then we place your payment on hold and dispatch the inspection.'))) return;
     setMsg(null); setAwarding(offer.id);
     try {
       const { data, error } = await awardAndDispatch(offer.id);

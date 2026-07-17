@@ -5,7 +5,7 @@
 //  current userRole and resolves the documents that should appear in:
 //    - Terms & Privacy      (Tier-1, universal: TOS-001, PRIV-001)
 //    - Legal & Compliance   (AUP-001 + Tier-2 role agreement + Framework)
-//    - Job Contract Refs    (JOB-TPL-001, ESCROW-001 — read-only reference)
+//    - Job Contract Refs    (JOB-TPL-001, PAYOUT-001 — read-only reference)
 //
 //  This mirrors the Tier-2 cross-linking map laid out in the Checkpoint 2
 //  posture audit: a user activating a role transitively accepts the Tier-1
@@ -69,7 +69,7 @@ export function useResolvedLegalStack(
     // Tier-3 reference docs surfaced as "What's in your Job Contract?" cards.
     const jobContractReference: LegalDocument[] = [
       required('JOB-TPL-001'),
-      required('ESCROW-001'),
+      required('PAYOUT-001'),
     ];
 
     // Country Addenda — surfaced as a separate subsection for transparency.

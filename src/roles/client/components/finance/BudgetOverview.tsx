@@ -127,7 +127,7 @@ const CreditCardVisual: React.FC = () => {
 
         {/* Escrow Balance */}
         <View style={styles.balanceBlock}>
-          <Text style={styles.balanceLabel}>ESCROW BALANCE</Text>
+          <Text style={styles.balanceLabel}>HELD BALANCE</Text>
           <Text style={styles.balanceAmount}>
             ${BUDGET_SUMMARY.availableBalance.toLocaleString()}
             <Text style={styles.balanceCents}>.00</Text>

@@ -47,7 +47,7 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
             <th className="px-4 py-3 font-semibold">Job</th>
             <th className="px-4 py-3 font-semibold">Client</th>
             <th className="px-4 py-3 font-semibold">Inspector</th>
-            <th className="px-4 py-3 text-right font-semibold">Escrow</th>
+            <th className="px-4 py-3 text-right font-semibold">Payment hold</th>
             <th className="px-4 py-3 text-right font-semibold">Payout</th>
           </tr>
         </thead>

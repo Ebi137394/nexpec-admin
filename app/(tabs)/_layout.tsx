@@ -60,7 +60,6 @@ export default function TabLayout() {
       {/* Hidden Routes */}
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="inspector-dashboard" options={{ href: null }} />
-      <Tabs.Screen name="job-details-example" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,5 +1,5 @@
 'use client';
-import { decodeYoloSeg, type SegDetection, type SegLayout } from '@nexpec/shared-core';
+import { decodeYoloSeg, inferSegLayout, type SegDetection } from '@nexpec/shared-core';
 // lib/ai/visionModel.ts — $0 CLIENT-SIDE vision inference for the web AI
 // Co-inspector, running the EXACT SAME .tflite model the Expo app uses, directly
 // in the browser via @tensorflow/tfjs-tflite (WebAssembly + XNNPACK). No
@@ -112,14 +112,12 @@ export async function classify(
     .map((x) => ({ defectId: `cls_${x.i}`, label: labels[x.i] ?? `Class ${x.i}`, confidence: x.p }));
 }
 
-const SEG_LAYOUT: SegLayout = {
-  numDet: 300, vecLen: 38, numClasses: 2, numCoeffs: 32,
-  inputSize: 1024, protoChannels: 32, protoSize: 256, boxFormat: 'xywh', coordsNormalized: false,
-};
+const SEG_INPUT_SIZE = 1024; // seg models are 1024²; classifiers (e.g. 224) → no-op
 
 // Run the YOLO26-seg .tflite in-browser and decode with the SAME shared
-// decodeYoloSeg as mobile → guaranteed parity. Returns [] for non-seg
-// (classifier) models, so it is a safe no-op on the current registry model.
+// decodeYoloSeg (+ inferSegLayout) as mobile → guaranteed parity, and the layout
+// self-configures from the two output tensors so per-model class counts never
+// need hardcoding. Returns [] for non-seg (classifier) models — a safe no-op.
 export async function segment(
   img: HTMLImageElement,
   modelUrl: string,
@@ -128,11 +126,11 @@ export async function segment(
   const { tf } = await loadDeps();
   const model = await loadModel(modelUrl);
   const inShape: number[] = (model.inputs?.[0]?.shape ?? []) as number[];
-  if (!inShape.includes(SEG_LAYOUT.inputSize)) return []; // not a 1024 seg model
+  if (!inShape.includes(SEG_INPUT_SIZE)) return []; // not a 1024 seg model
 
   const outs: number[][] = tf.tidy(() => {
     // tfjs is NHWC-native; the model is channels-first → transpose to NCHW.
-    const input = tf.browser.fromPixels(img).resizeBilinear([1024, 1024]).toFloat().div(255)
+    const input = tf.browser.fromPixels(img).resizeBilinear([SEG_INPUT_SIZE, SEG_INPUT_SIZE]).toFloat().div(255)
       .transpose([2, 0, 1]).expandDims(0);
     let out: any = model.predict(input);
     if (!Array.isArray(out)) out = out && typeof out.dataSync !== 'function' ? Object.values(out) : [out];
@@ -142,5 +140,5 @@ export async function segment(
   const a = outs[0], b = outs[1];
   if (!a || !b) return [];
   const [det, proto] = a.length <= b.length ? [a, b] : [b, a];
-  return decodeYoloSeg(det, proto, SEG_LAYOUT, opts);
+  return decodeYoloSeg(det, proto, inferSegLayout(det.length, proto.length), opts);
 }

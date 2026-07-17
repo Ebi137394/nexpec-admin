@@ -75,7 +75,7 @@ function ReportsTable({ rows }: { rows: ClientReportRow[] }) {
             <Th>Job</Th>
             <Th>Inspector</Th>
             <Th>Handed off</Th>
-            <Th>Escrow</Th>
+            <Th>On hold</Th>
             <Th className="text-right">Price</Th>
             <th className="sr-only">Open</th>
           </tr>

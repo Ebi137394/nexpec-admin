@@ -65,7 +65,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 export const metadata: Metadata = {
   title: 'Budget Overview',
   description:
-    'Live spend tracker, committed budget, escrow holds, paid-out amounts, and a 12-month trend.',
+    'Live spend tracker, committed budget, payout holds, paid-out amounts, and a 12-month trend.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -237,7 +237,7 @@ export async function BudgetOverviewView(
         />
         <HeroTile
           icon={<Wallet className="h-4 w-4" strokeWidth={1.75} />}
-          label="In escrow"
+          label="On hold"
           value={formatBudgetCents(summary.inEscrowCents)}
           sub="Funded, awaiting completion"
           tone="cyan"

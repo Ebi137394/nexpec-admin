@@ -6,9 +6,9 @@ import { Lock, Fingerprint, Eye } from 'lucide-react';
 const PILLARS = [
   {
     icon: Lock,
-    title: 'Stripe-backed escrow',
+    title: 'Stripe-backed payment holds',
     headline: 'Money is held until the job is signed.',
-    body: 'Funds enter escrow at dispatch and release only when the report is approved. No deposits, no chasing invoices, no leverage games.',
+    body: 'Funds enter payment hold at dispatch and release only when the report is approved. No deposits, no chasing invoices, no leverage games.',
     accent: 'violet',
   },
   {

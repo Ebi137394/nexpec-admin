@@ -40,14 +40,14 @@ const RESOLUTION_OPTIONS: ResolutionOption[] = [
   {
     value: 'completed',
     label: 'Pay inspector',
-    copy: 'Rules in favour of the inspector. Job moves to completed. Escrow releases via the payouts pipeline.',
+    copy: 'Rules in favour of the inspector. Job moves to completed. Payment hold releases via the payouts pipeline.',
     icon: CheckCircle2,
     tone: 'green',
   },
   {
     value: 'cancelled',
     label: 'Refund client',
-    copy: 'Rules in favour of the client. Job moves to cancelled. Escrow returns to the buyer via the refunds pipeline.',
+    copy: 'Rules in favour of the client. Job moves to cancelled. Payment hold returns to the buyer via the refunds pipeline.',
     icon: XCircle,
     tone: 'red',
   },
@@ -139,7 +139,7 @@ export function DisputesDrawer({ job, timeline }: DisputesDrawerProps) {
                   {job.title ?? 'Untitled job'}
                 </h2>
                 <p className="mt-1 truncate text-xs text-zinc-500">
-                  Escrow at stake,{' '}
+                  Payment hold at stake,{' '}
                   <span className="font-mono font-semibold text-accent-amber">
                     {formatCents(job.client_price_cents)}
                   </span>

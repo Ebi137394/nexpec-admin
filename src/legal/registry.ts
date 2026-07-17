@@ -145,25 +145,25 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'The auto-generated contract between Client and Inspector for one Job. Supports three compensation models: fixed lump-sum, sequenced milestones, or recurring periodic billing for long-term engagements. NEXPEC is not a party — we host the contract and the escrow.',
+      'The auto-generated contract between Client and Inspector for one Job. Supports three compensation models: fixed lump-sum, sequenced milestones, or recurring periodic billing for long-term engagements. NEXPEC is not a party — we host the contract and the payout hold.',
     incorporates: [
       { id: 'TOS-001', version: '1.0' },
       { id: 'INSP-AGR-001', version: '1.0' },
       { id: 'CLI-AGR-001', version: '1.0' },
-      { id: 'ESCROW-001', version: '1.0' },
+      { id: 'PAYOUT-001', version: '1.0' },
     ],
   }),
   buildDoc({
-    id: 'ESCROW-001',
+    id: 'PAYOUT-001',
     version: '1.0',
     language: 'en',
-    title: 'Payment & Escrow Rider',
+    title: 'Payment & Payout Rider',
     tier: 3,
     role: null,
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'How the money works across three compensation models. Fixed: full upfront escrow, single 7-day acceptance window. Milestone: staged funding, per-milestone 7-day acceptance. Recurring: rolling forward-funding for long-term retainers, per-period 7-day acceptance. Day-3 / Day-5 reminders and Day-7 auto-release apply to every disbursement-unit.',
+      'How the money works across three compensation models. Fixed: full upfront payout hold, single 7-day acceptance window. Milestone: staged funding, per-milestone 7-day acceptance. Recurring: rolling forward-funding for long-term retainers, per-period 7-day acceptance. Day-3 / Day-5 reminders and Day-7 auto-release apply to every disbursement-unit.',
     incorporates: [
       { id: 'TOS-001', version: '1.0' },
       { id: 'CLI-AGR-001', version: '1.0' },

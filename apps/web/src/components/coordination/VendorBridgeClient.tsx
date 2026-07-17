@@ -21,6 +21,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { alertDialog } from '@/components/ui/AppDialog';
 
 interface BridgeState {
   bridge: {
@@ -355,7 +356,7 @@ function ScheduleSlot({
       await callBridge(token, 'accept_schedule', { slot_id: slot.id });
       onMutate();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -363,7 +364,7 @@ function ScheduleSlot({
 
   const counter = async () => {
     if (!counterDate) {
-      alert('Pick a date and time first.');
+      void alertDialog('Pick a date and time first.');
       return;
     }
     setBusy(true);
@@ -375,7 +376,7 @@ function ScheduleSlot({
       });
       onMutate();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -493,7 +494,7 @@ function DocumentSlot({
 
       onMutate();
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
+      void alertDialog(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
       setStage(null);
@@ -589,7 +590,7 @@ function SiteAccessSlot({
       });
       onMutate();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -644,7 +645,7 @@ function ArrivalSlot({
 
   const sign = async () => {
     if (!name.trim()) {
-      alert('Please type your full name to sign.');
+      void alertDialog('Please type your full name to sign.');
       return;
     }
     setBusy(true);
@@ -655,7 +656,7 @@ function ArrivalSlot({
       });
       onMutate();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -716,7 +717,7 @@ function PreInspectionAckSlot({
       await callBridge(token, 'acknowledge_scope', { slot_id: slot.id, scope: {} });
       onMutate();
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

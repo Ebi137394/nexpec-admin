@@ -145,7 +145,7 @@ export function FeeScheduleEditor({ initial }: Props) {
             label="Dispute fee"
             name="disputeFeeDollars"
             defaultValue={(live.dispute_fee_cents / 100).toFixed(2)}
-            hint="Flat fee deducted from escrow when a dispute is opened."
+            hint="Flat fee deducted from the payment hold when a dispute is opened."
           />
         </div>
 

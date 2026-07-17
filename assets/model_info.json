@@ -1,0 +1,56 @@
+{
+  "name": "NEXPEC Corrosion YOLO26s Segmentation",
+  "task": "instance-segmentation",
+  "format": "LiteRT/TFLite FP32",
+  "end2end": false,
+  "nms": false,
+  "output_contract": "raw-yolo26-one-to-many-segmentation-heads",
+  "input_shapes": [
+    [
+      1,
+      3,
+      1024,
+      1024
+    ]
+  ],
+  "output_shapes": [
+    [
+      1,
+      47,
+      21504
+    ],
+    [
+      1,
+      32,
+      256,
+      256
+    ]
+  ],
+  "input_shape": [
+    1,
+    1024,
+    1024,
+    3
+  ],
+  "input_size": 1024,
+  "batch": 1,
+  "source_checkpoint": "/content/drive/MyDrive/nexpec_ai/training/corrosion_yolo26s_seg/run/weights/best.pt",
+  "ultralytics_version": "8.4.95",
+  "classes": {
+    "0": "rust",
+    "1": "Rust",
+    "2": "car",
+    "3": "copper corrosion",
+    "4": "corroded-part",
+    "5": "corrosion",
+    "6": "iron rust",
+    "7": "mild-corrosion",
+    "8": "moderate-corrosion",
+    "9": "rust",
+    "10": "severe-corrosion"
+  },
+  "tflite_file": "corrosion_yolo26s_seg_1024_fp32.tflite",
+  "tflite_size_bytes": 42004695,
+  "tflite_sha256": "21c98fd8d1aab087560ab06183e9e996889aa9b4b6e2ca828f28d779f0aec205",
+  "exported_at_utc": "2026-07-16T23:22:33.547819+00:00"
+}

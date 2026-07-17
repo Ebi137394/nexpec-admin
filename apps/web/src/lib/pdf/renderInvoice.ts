@@ -140,7 +140,7 @@ export async function renderInvoicePdf(opts: InvoiceOptions): Promise<Uint8Array
   // Footer
   const footerCopy = client.useCustomBranding && client.reportFooterText
     ? client.reportFooterText
-    : 'Funds held in Stripe-backed escrow until you release on a signed report. Questions? support@nexpecapp.com';
+    : 'Funds held in Stripe-backed payment holds until you release on a signed report. Questions? support@nexpecapp.com';
   page.drawText(footerCopy, { x: 48, y, size: 8, font: fontRegular, color: subText, maxWidth: width - 96 });
   y -= 14;
   page.drawText(`Audit hash: see signed report. Invoice generated ${new Date().toISOString()}`, {

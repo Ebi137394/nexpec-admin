@@ -151,7 +151,7 @@ function DirectoryHeader({ total }: { total: number }) {
       <p className="max-w-2xl text-pretty text-sm leading-relaxed text-zinc-400">
         Browse NEXPEC-verified industrial, civil, electrical, mechanical, and
         chemical inspectors. Identity is protected, you compare verified
-        competencies and performance, then engage through NEXPEC with escrow.{' '}
+        competencies and performance, then engage through NEXPEC with payout protection.{' '}
         <strong className="text-zinc-200">{total.toLocaleString()}</strong>{' '}
         active inspector{total === 1 ? '' : 's'} indexed.
       </p>
@@ -572,7 +572,7 @@ function Footnote() {
       <code className="font-mono text-zinc-400">public.inspectors_directory</code>{' '}
       view, an anonymized, column-projected public surface that emits no name,
       photo, or contact. Identity is protected by NEXPEC; engagement happens
-      through the platform with escrow and dispute protection.
+      through the platform with payout protection and dispute protection.
     </p>
   );
 }

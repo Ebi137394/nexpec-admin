@@ -21,7 +21,7 @@ export type LegalDocumentId =
   | 'ORG-AGR-001'
   // ───── Tier-3 Per-Job ─────
   | 'JOB-TPL-001'
-  | 'ESCROW-001'
+  | 'PAYOUT-001'
   // ───── Framework + Country Addenda ─────
   | 'ADDENDUM-FRAMEWORK-001'
   | 'ADDENDUM-CA-001'
@@ -96,7 +96,7 @@ export interface LegalDocumentAcceptance {
 export interface ResolvedLegalStack {
   termsPrivacy: LegalDocument[];        // Tier-1 viewer surface
   legalCompliance: LegalDocument[];     // AUP + role agreement + framework
-  jobContractReference: LegalDocument[]; // JOB-TPL + ESCROW reference docs
+  jobContractReference: LegalDocument[]; // JOB-TPL + PAYOUT reference docs
   countryAddenda: LegalDocument[];      // 9 country-specific overlays
   enterpriseDocuments: LegalDocument[]; // DPA + Order Form (org users only)
 }

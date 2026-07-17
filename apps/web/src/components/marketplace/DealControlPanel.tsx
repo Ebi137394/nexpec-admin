@@ -5,6 +5,7 @@
 //   each payout — every release gated server-side (contract-before-money +
 //   milestone). Shows "no deal yet" until the client signs the supply agreement.
 import { useCallback, useEffect, useState } from 'react';
+import { promptDialog } from '@/components/ui/AppDialog';
 import { ShieldCheck, UserPlus, FileSignature, PackageCheck, Banknote, Search, Check, AlertTriangle, Wallet, Truck, FileWarning, Clock, Sparkles, Users } from 'lucide-react';
 import {
   fetchDealByRfq, fetchDealAgreements, fetchDealMoneyLegs, assignInspector, presentAgreement,
@@ -64,8 +65,8 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
     await load();
   };
 
-  const fileNcr = (kind: 'goods' | 'report') => {
-    const citation = window.prompt(`Substantive Non-Conformance (${kind}) — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):`);
+  const fileNcr = async (kind: 'goods' | 'report') => {
+    const citation = await promptDialog({ body: `Substantive Non-Conformance (${kind}) — cite the specific Schedule A spec or ASME/API code deviation (min 20 chars):`, minLength: 20, confirmText: 'File NCR' });
     if (citation == null || !deal) return;
     void run(`ncr-${kind}`, () => raiseNonconformance(deal.id, kind, citation));
   };
@@ -121,7 +122,7 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
         <div className="flex items-center justify-between">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-white"><Wallet className="h-3.5 w-3.5 text-violet-glow/80" /> Escrow &amp; milestone funding</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-white"><Wallet className="h-3.5 w-3.5 text-violet-glow/80" /> Payout &amp; milestone funding</p>
           <span className="text-[11px] text-zinc-500">{formatUsd(deal.client_price_cents)} total</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
@@ -294,7 +295,7 @@ export function DealControlPanel({ rfqId }: { rfqId: string }) {
 
       {ncrs.length > 0 && (
         <div className="rounded-xl border border-accent-red/30 bg-accent-red/[0.06] p-3">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-red"><FileWarning className="h-3.5 w-3.5" /> Open non-conformances freeze escrow release</p>
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-red"><FileWarning className="h-3.5 w-3.5" /> Open non-conformances freeze payout release</p>
           <ul className="mt-1 space-y-1">
             {ncrs.map((n) => (
               <li key={n.id} className="text-[11px] text-zinc-300"><span className="font-semibold uppercase">{n.kind}</span> <span className="text-zinc-500">({n.status})</span> — {n.citation}{n.code_ref ? ` [${n.code_ref}]` : ''}</li>

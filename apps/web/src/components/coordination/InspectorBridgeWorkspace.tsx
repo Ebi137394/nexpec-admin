@@ -15,6 +15,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { alertDialog, confirmDialog, promptDialog } from '@/components/ui/AppDialog';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 const PORTAL_BASE =
@@ -142,7 +143,7 @@ function CreateForm({ jobId, onCreated }: { jobId: string; onCreated: (id: strin
       setCreatedUrl(`${PORTAL_BASE}/${token}`);
       onCreated(row.bridge_id as string);
     } catch (e) {
-      alert(e instanceof Error ? e.message : String(e));
+      void alertDialog(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -276,7 +277,7 @@ function ScheduleSlot({ slot, bridgeId, disabled, onMutate }: {
   const run = async (fn: () => PromiseLike<{ error: unknown }>) => {
     setBusy(true);
     try { const { error } = await fn(); if (error) throw error; setIso(''); onMutate(); }
-    catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+    catch (e) { void alertDialog(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
 
@@ -333,13 +334,13 @@ function DocActions({ docId, onMutate }: { docId: string; onMutate: () => void }
         const { error } = await sb().rpc('bridge_accept_document', { p_document_id: docId });
         if (error) throw error;
       } else {
-        const reason = prompt('Reason for rejecting (≥ 3 chars):')?.trim();
+        const reason = (await promptDialog({ body: 'Reason for rejecting (≥ 3 chars):', minLength: 3, confirmText: 'Reject' }))?.trim();
         if (!reason || reason.length < 3) { setBusy(false); return; }
         const { error } = await sb().rpc('bridge_reject_document', { p_document_id: docId, p_reason: reason });
         if (error) throw error;
       }
       onMutate();
-    } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { void alertDialog(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   return (
@@ -361,7 +362,7 @@ function AddDocRequest({ bridgeId, onMutate }: { bridgeId: string; onMutate: () 
       });
       if (error) throw error;
       setTitle(''); onMutate();
-    } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { void alertDialog(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   return (
@@ -384,10 +385,10 @@ function AddDocRequest({ bridgeId, onMutate }: { bridgeId: string; onMutate: () 
 function ControlsCard({ view, onMutate }: { view: BridgeView; onMutate: () => void }) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => PromiseLike<{ error: unknown }>, confirmMsg?: string) => {
-    if (confirmMsg && !confirm(confirmMsg)) return;
+    if (confirmMsg && !(await confirmDialog({ body: confirmMsg, tone: 'danger' }))) return;
     setBusy(true);
     try { const { error } = await fn(); if (error) throw error; onMutate(); }
-    catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+    catch (e) { void alertDialog(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   const rotate = async () => {
@@ -398,7 +399,7 @@ function ControlsCard({ view, onMutate }: { view: BridgeView; onMutate: () => vo
       const row = Array.isArray(data) ? data[0] : data;
       await sb().rpc('bridge_send_invitation', { p_bridge_id: view.bridge.id, p_raw_token: String(row.raw_token), p_portal_base: PORTAL_BASE });
       onMutate();
-    } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { void alertDialog(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
   return (
@@ -407,7 +408,7 @@ function ControlsCard({ view, onMutate }: { view: BridgeView; onMutate: () => vo
       <div className="mt-2 flex flex-wrap gap-2">
         <button disabled={busy} onClick={rotate} className="rounded-md border border-violet-500/40 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/10 disabled:opacity-50">Rotate link &amp; resend</button>
         <button disabled={busy} onClick={() => run(() => sb().rpc('bridge_complete', { p_bridge_id: view.bridge.id }), 'Mark this bridge complete? The vendor link is revoked.')} className="rounded-md border border-emerald-500/40 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50">Mark complete</button>
-        <button disabled={busy} onClick={() => run(() => sb().rpc('bridge_cancel', { p_bridge_id: view.bridge.id, p_reason: prompt('Reason for cancelling?') ?? '' }), 'Cancel this bridge? The vendor link is revoked.')} className="rounded-md border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">Cancel bridge</button>
+        <button disabled={busy} onClick={async () => { const reason = (await promptDialog('Reason for cancelling?')) ?? ''; run(() => sb().rpc('bridge_cancel', { p_bridge_id: view.bridge.id, p_reason: reason }), 'Cancel this bridge? The vendor link is revoked.'); }} className="rounded-md border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 disabled:opacity-50">Cancel bridge</button>
       </div>
     </Panel>
   );

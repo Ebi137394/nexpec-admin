@@ -13,7 +13,7 @@ export const LEGAL_BODIES: Record<LegalDocumentId, string> = {
   // ─────────── TOS-001 v1.0 ───────────
   'TOS-001': `# NEXPEC — Master Platform Terms of Service
 
-> **Plain-English summary.** NEXPEC is a marketplace that helps Clients find Inspectors and helps Inspectors find work. We are not an employer, not an inspection firm, not an insurer. The actual inspection contract is between the Client and the Inspector — we just run the platform that connects them and we hold the payment in escrow while the work happens. We charge a 10% Platform Facilitation and Technology Fee on the contract value for running the software, the matching, and the escrow. By using NEXPEC, you agree to the terms below.
+> **Plain-English summary.** NEXPEC is a marketplace that helps Clients find Inspectors and helps Inspectors find work. We are not an employer, not an inspection firm, not an insurer. The actual inspection contract is between the Client and the Inspector — we just run the platform that connects them and we hold the payment on payout hold while the work happens. We charge a 10% Platform Facilitation and Technology Fee on the contract value for running the software, the matching, and the payout hold. By using NEXPEC, you agree to the terms below.
 
 **Operator:** NEXPEC Technologies, Montréal, Québec, Canada.
 **Contact:** legal@nexpec.com.
@@ -26,7 +26,7 @@ NEXPEC operates an online marketplace (the "Platform") connecting Clients seekin
 You must be at least 18 years old and legally able to contract in your jurisdiction. You must keep your account information accurate and your credentials secure. You accept these Terms once at signup and, upon activating a role (Inspector, Agency, Client, or Organization), the applicable Tier-2 Role Agreement governing that role. You are responsible for all activity on your account.
 
 ## 3. Platform Fees
-NEXPEC charges a flat **ten percent (10%) Platform Facilitation and Technology Fee** (the "**PFT Fee**") on the gross value of each Job Contract. The PFT Fee compensates NEXPEC for software access, matching, escrow facilitation via Stripe Connect, in-app communications, dispute support, and platform infrastructure. The PFT Fee is **not** a deduction from the Inspector's labour, **not** consideration paid to NEXPEC for inspection services, and **not** a placement or staffing fee. Fees and net payouts are itemized in each Job Contract.
+NEXPEC charges a flat **ten percent (10%) Platform Facilitation and Technology Fee** (the "**PFT Fee**") on the gross value of each Job Contract. The PFT Fee compensates NEXPEC for software access, matching, payout hold facilitation via Stripe Connect, in-app communications, dispute support, and platform infrastructure. The PFT Fee is **not** a deduction from the Inspector's labour, **not** consideration paid to NEXPEC for inspection services, and **not** a placement or staffing fee. Fees and net payouts are itemized in each Job Contract.
 
 ## 4. Vetting Disclosure
 NEXPEC performs only a **baseline administrative check** on Inspector-uploaded certificates and documents — namely, validity and expiration. NEXPEC does not interview, examine, audit, or warrant the competence, skill, judgment, training, or work product of any Inspector or Agency. The Client is solely responsible for reviewing each Inspector's submitted credentials, experience, and CV, and for making the final hiring decision. NEXPEC's administrative check is provided "as is" as a convenience and creates no warranty or duty of care to any party.
@@ -37,8 +37,8 @@ Inspection reports, photos, findings, recommendations, certifications referenced
 ## 6. No Employment Relationship
 Nothing in these Terms or any feature of the Platform creates an employment, agency, joint venture, partnership, or franchise relationship between NEXPEC and any Inspector, Agency, Client, or Organization. Inspectors are independent contractors of the Client (or Agency) that engages them. Each user is solely responsible for its own tax, insurance, social-charge, immigration, work-authorization, and benefits obligations.
 
-## 7. Payments & Escrow
-Payment processing is provided by **Stripe, Inc.** and its affiliates under Stripe's own terms, which apply directly between you and Stripe. NEXPEC is not a money services business, bank, payment institution, or licensed remitter. NEXPEC instructs Stripe to release escrowed funds in accordance with the Job Contract and the Payment & Escrow Rider (ESCROW-001). Currency conversion, payout timing, and chargeback handling follow Stripe's published rules.
+## 7. Payments & Payout
+Payment processing is provided by **Stripe, Inc.** and its affiliates under Stripe's own terms, which apply directly between you and Stripe. NEXPEC is not a money services business, bank, payment institution, or licensed remitter. NEXPEC instructs Stripe to release held funds in accordance with the Job Contract and the Payment & Payout Rider (PAYOUT-001). Currency conversion, payout timing, and chargeback handling follow Stripe's published rules.
 
 ## 8. Indemnity
 You will defend, indemnify, and hold harmless NEXPEC and its affiliates, officers, directors, and personnel from and against any claim, loss, liability, or expense (including reasonable legal fees) arising out of or relating to (a) your use of the Platform, (b) any User Output you generate, publish, or rely on, (c) your breach of these Terms, any Role Agreement, or any Job Contract, or (d) your violation of any applicable law.
@@ -161,7 +161,7 @@ Clients must not:
 2. **Engage in Circumvention** — that is, attempt to engage an Inspector or Agency off-platform after a Platform-mediated introduction with the intent to avoid the PFT Fee. **Where Circumvention is established**, NEXPEC is entitled to claim the **10% PFT Fee on the off-platform contract value as liquidated damages**, plus reasonable collection costs and legal fees, and may terminate the offending account.
 3. **Coerce, pressure, or retaliate** against an Inspector for honest findings, for refusing to falsify a report, or for raising a safety concern.
 4. **Misrepresent site conditions, hazards, scope, or access** at the time of posting or during a Job.
-5. **Withhold or delay escrow release** in bad faith or in retaliation for honest findings.
+5. **Withhold or delay payout release** in bad faith or in retaliation for honest findings.
 
 ## 4. Off-Platform Communication & Solicitation
 Direct contact details — personal phone numbers, personal email addresses, social-media handles, or third-party messengers — must **not** be exchanged through Platform messaging during the matching, application, or active-Job phases, except where the Platform itself surfaces those details as part of the workflow. Soliciting any user to leave the Platform for the same scope of work is a Circumvention violation and is treated under Section 3(2).
@@ -174,7 +174,7 @@ Suspected violations of this AUP, the Terms, or any Role Agreement should be rep
 
 1. remove or restrict content;
 2. limit, suspend, or terminate the account;
-3. **withhold escrowed funds during investigation** as permitted by the Payment & Escrow Rider (ESCROW-001);
+3. **withhold held funds during investigation** as permitted by the Payment & Payout Rider (PAYOUT-001);
 4. report the conduct to law enforcement or other regulators;
 5. claim PFT Fees, liquidated damages, and recovery of costs as provided in this AUP and the Terms;
 6. cooperate with civil discovery and litigation-hold requests.
@@ -189,7 +189,7 @@ NEXPEC's failure to enforce any provision of this AUP is not a waiver of any fut
   // ─────────── INSP-AGR-001 v1.0 ───────────
   'INSP-AGR-001': `# NEXPEC — Inspector Agreement
 
-> **Plain-English summary.** You are an independent contractor — not a NEXPEC employee. You decide where, when, and how you work, and you carry your own insurance, training, taxes, equipment, and PPE. NEXPEC just runs the platform. The Client hires you and you deliver honest inspections directly to them. We hold the payment in escrow during the Job and release it under the Job Contract.
+> **Plain-English summary.** You are an independent contractor — not a NEXPEC employee. You decide where, when, and how you work, and you carry your own insurance, training, taxes, equipment, and PPE. NEXPEC just runs the platform. The Client hires you and you deliver honest inspections directly to them. We hold the payment on payout hold during the Job and release it under the Job Contract.
 
 This **Inspector Agreement** layers on top of the Master Terms of Service (TOS-001), the Privacy Policy (PRIV-001), and the Acceptable Use Policy (AUP-001).
 
@@ -212,7 +212,7 @@ You are solely responsible for:
 You will perform each Job with the skill, care, and judgment ordinarily exercised by qualified inspectors in your field. Your inspection reports must reflect honest, evidence-based findings. **NEXPEC does not warrant, supervise, audit for quality, or stand behind your work.** Your work product is yours; the Client relies on it directly. You will not falsify, fabricate, backdate, or omit material findings.
 
 ## 4. Compensation, Stripe & the PFT Fee
-You receive compensation as defined in each Job Contract, paid via **Stripe Connect Express** under Stripe's own terms. NEXPEC withholds the **10% Platform Facilitation & Technology Fee** at source from the gross Job value before releasing your net payout. The PFT Fee is consideration for software access, matching, escrow facilitation, and Platform infrastructure — not consideration for inspection services and not a deduction from your labour earnings. Currency conversion, payout timing, and chargeback handling follow Stripe's published rules. Taxes on your earnings are your responsibility.
+You receive compensation as defined in each Job Contract, paid via **Stripe Connect Express** under Stripe's own terms. NEXPEC withholds the **10% Platform Facilitation & Technology Fee** at source from the gross Job value before releasing your net payout. The PFT Fee is consideration for software access, matching, payout hold facilitation, and Platform infrastructure — not consideration for inspection services and not a deduction from your labour earnings. Currency conversion, payout timing, and chargeback handling follow Stripe's published rules. Taxes on your earnings are your responsibility.
 
 ## 5. Intellectual Property in Inspector Work Product
 You own the copyright in inspection reports, photos, and findings you produce ("**Inspector Work Product**"), subject to the following non-exclusive licences:
@@ -263,7 +263,7 @@ You represent and warrant that the personnel who operate your Agency account hav
 The Agency shall at all times maintain (a) commercial general liability insurance, (b) professional liability insurance covering errors and omissions in inspection services, and (c) any further coverage required by law or by a specific Client for a given Job. The Agency shall ensure each Roster Inspector meets the certification and licensing requirements applicable to each Job they perform and that their documents on the Platform are current.
 
 ## 5. Compensation Flow
-For each Job performed by a Roster Inspector, the gross payment held in **Stripe Connect Express** escrow is released to the **Agency** account, less the **10% Platform Facilitation & Technology Fee** withheld at source. The Agency is solely responsible for paying, taxing, and reporting the Roster Inspector's share in accordance with applicable law.
+For each Job performed by a Roster Inspector, the gross payment held in **Stripe Connect Express** payout hold is released to the **Agency** account, less the **10% Platform Facilitation & Technology Fee** withheld at source. The Agency is solely responsible for paying, taxing, and reporting the Roster Inspector's share in accordance with applicable law.
 
 ## 6. Vicarious Liability
 The Agency is **fully responsible** for the acts, omissions, work product, and Platform conduct of each Roster Inspector while operating under the Agency account, as if those acts had been performed by the Agency itself. This includes — without limitation — falsified credentials, fabricated or backdated reports, AUP violations, off-platform circumvention, breach of Client confidentiality, and bodily injury or property damage caused on a Client site.
@@ -288,7 +288,7 @@ TOS-001 §10 governs disputes (mediation → exclusive Montréal courts). Sectio
   // ─────────── CLI-AGR-001 v1.0 (with sector expansion) ───────────
   'CLI-AGR-001': `# NEXPEC — Client Agreement
 
-> **Plain-English summary.** You hire Inspectors directly through NEXPEC's platform — we just make the match. You decide who to hire, you accept responsibility for that decision, and you understand that NEXPEC does **not** warrant the Inspector's work. You are responsible for site safety. You pay through escrow, and we release funds when the Job is delivered. You cannot withhold payment to punish an Inspector for an honest unfavourable finding.
+> **Plain-English summary.** You hire Inspectors directly through NEXPEC's platform — we just make the match. You decide who to hire, you accept responsibility for that decision, and you understand that NEXPEC does **not** warrant the Inspector's work. You are responsible for site safety. You pay through payout hold, and we release funds when the Job is delivered. You cannot withhold payment to punish an Inspector for an honest unfavourable finding.
 
 This **Client Agreement** layers on top of TOS-001, PRIV-001, and AUP-001.
 
@@ -310,11 +310,11 @@ Inspector Output is the work product of an independent third party. **You rely o
 ## 4. Site Safety, Access & Hazard Disclosure
 You represent and warrant that, for each Job: (a) you have the lawful right to procure the inspection and to grant Inspector access to the site; (b) you have **disclosed all material hazards** known or reasonably knowable to you — including chemical, electrical, structural, atmospheric, biological, radiological, and security hazards; (c) you will provide safe access and necessary cooperation; and (d) you will comply with applicable occupational-health-and-safety law as the controlling party of the site. **Responsibility for site conditions and on-site safety rests with you, not with NEXPEC.**
 
-## 5. Payment, Escrow & PFT Fee
-You will fund the Job's gross price into Stripe Connect Express escrow as required by the Platform before work commences. The **10% Platform Facilitation & Technology Fee** is withheld at source by NEXPEC and is **non-refundable** once the Inspector has commenced performance, except as expressly stated in the Payment & Escrow Rider (ESCROW-001). Escrow release is governed by the Job Contract and ESCROW-001.
+## 5. Payment, Payout & PFT Fee
+You will fund the Job's gross price into Stripe Connect Express payout hold as required by the Platform before work commences. The **10% Platform Facilitation & Technology Fee** is withheld at source by NEXPEC and is **non-refundable** once the Inspector has commenced performance, except as expressly stated in the Payment & Payout Rider (PAYOUT-001). Payout Hold release is governed by the Job Contract and PAYOUT-001.
 
 ## 6. Honest-Findings Protection
-You **may not** withhold, delay, or seek refund of escrowed payment in retaliation for an Inspector's honest unfavourable findings, refusal to falsify a report, or escalation of a safety concern. Any such withholding is **bad-faith withholding** under the AUP, may be overridden by NEXPEC in the dispute pathway, and exposes you to the indemnities in Section 8.
+You **may not** withhold, delay, or seek refund of held payment in retaliation for an Inspector's honest unfavourable findings, refusal to falsify a report, or escalation of a safety concern. Any such withholding is **bad-faith withholding** under the AUP, may be overridden by NEXPEC in the dispute pathway, and exposes you to the indemnities in Section 8.
 
 ## 7. Confidentiality & Data
 The inspection report and findings are produced for your use under the licence granted by the Inspector. Site information you disclose to the Inspector, and personal data of your personnel transmitted through the Platform, are processed by NEXPEC per the Privacy Policy.
@@ -388,9 +388,9 @@ This Agreement is effective on acceptance and continues for so long as the Organ
   // ─────────── JOB-TPL-001 v1.0 ───────────
   'JOB-TPL-001': `# NEXPEC — Job Contract (Auto-Generated Template)
 
-> **Plain-English summary.** This is the contract between you (the Client) and the Inspector (or the Agency that employs them) for one specific Job. It is generated automatically when the Client confirms a hire on NEXPEC, with the parties and Job details filled in from the platform. NEXPEC is **not a party** — we are the platform that hosts the contract and holds the escrow.
+> **Plain-English summary.** This is the contract between you (the Client) and the Inspector (or the Agency that employs them) for one specific Job. It is generated automatically when the Client confirms a hire on NEXPEC, with the parties and Job details filled in from the platform. NEXPEC is **not a party** — we are the platform that hosts the contract and holds the payout hold.
 
-This Job Contract is generated automatically from variable inputs (see the JSON schema referenced in the metadata block) and is **electronically accepted** by both Parties through the NEXPEC platform at confirmation of hire. It is the **Tier-3 per-Job agreement** and incorporates by reference TOS-001, PRIV-001, AUP-001, INSP-AGR-001, CLI-AGR-001, ESCROW-001, and — where applicable — AGN-AGR-001 (where an Agency is involved) and ORG-AGR-001 (where the Client is an Organization Seat).
+This Job Contract is generated automatically from variable inputs (see the JSON schema referenced in the metadata block) and is **electronically accepted** by both Parties through the NEXPEC platform at confirmation of hire. It is the **Tier-3 per-Job agreement** and incorporates by reference TOS-001, PRIV-001, AUP-001, INSP-AGR-001, CLI-AGR-001, PAYOUT-001, and — where applicable — AGN-AGR-001 (where an Agency is involved) and ORG-AGR-001 (where the Client is an Organization Seat).
 
 **Conflict rule.** In case of conflict between this Job Contract and any incorporated document, the **incorporated document controls** — **except** as to scope, schedule, deliverables, payout, and per-Job jurisdiction, which are governed by this Job Contract.
 
@@ -399,7 +399,7 @@ This Job Contract is generated automatically from variable inputs (see the JSON 
 - **Inspector:** \`{{parties.inspector.legal_name}}\`, of \`{{parties.inspector.country}}\` (account ID \`{{parties.inspector.id}}\`).
 - **Agency** *(if applicable)*: \`{{parties.agency.legal_name}}\`, of \`{{parties.agency.country}}\` (account ID \`{{parties.agency.id}}\`), engaging the Inspector as a Roster Inspector — the **Agency, not the Inspector, is the Inspector counterparty** for purposes of this Job Contract.
 
-**NEXPEC Technologies is not a party to this Job Contract** and is named only as platform operator, escrow facilitator, and dispute coordinator.
+**NEXPEC Technologies is not a party to this Job Contract** and is named only as platform operator, payout hold facilitator, and dispute coordinator.
 
 ## 2. Scope of Work
 - **Title:** \`{{scope.title}}\`
@@ -427,7 +427,7 @@ Applies where \`compensation.model = 'fixed'\`.
 - **Net Payout to Inspector / Agency:** \`{{compensation.net_payout_minor}}\`
 - **Rate Type:** \`{{compensation.rate_type}}\`
 
-Funding is held in **Stripe Connect Express** escrow upfront per ESCROW-001 §2.1; release follows the triggers in ESCROW-001 §3.
+Funding is held in **Stripe Connect Express** payout hold upfront per PAYOUT-001 §2.1; release follows the triggers in PAYOUT-001 §3.
 
 ### 4.2 Milestone model — sequenced / scheduled payouts
 Applies where \`compensation.model = 'milestone'\`. Each milestone is funded and released **independently**; a disputed milestone does not pause release of already-accepted milestones.
@@ -436,7 +436,7 @@ Applies where \`compensation.model = 'milestone'\`. Each milestone is funded and
 - **Total Contract Value:** sum of milestone gross amounts (platform-computed; itemized below)
 - **Milestones:** \`{{compensation.milestones}}\` — each entry carries: \`milestone_id\`, \`title\`, \`sequence\`, \`gross_amount_minor\`, \`pft_fee_minor\` (10% of milestone gross), \`net_payout_minor\`, \`trigger\` (one of \`client_acceptance\` / \`scheduled_date\` / \`inspector_marks_complete\`), optional \`scheduled_date\`, \`deliverables\`, and \`status\`.
 
-Each milestone has its own 7-day acceptance review window, with mandatory Day-3 and Day-5 reminders, per ESCROW-001 §3.5. Funding rules — per-milestone or upfront-deposit-with-staged-release — are governed by ESCROW-001 §2.2. Mid-contract cancellation, default for non-funding, and partial release are governed by ESCROW-001 §5.2.
+Each milestone has its own 7-day acceptance review window, with mandatory Day-3 and Day-5 reminders, per PAYOUT-001 §3.5. Funding rules — per-milestone or upfront-deposit-with-staged-release — are governed by PAYOUT-001 §2.2. Mid-contract cancellation, default for non-funding, and partial release are governed by PAYOUT-001 §5.2.
 
 ### 4.3 Recurring model — periodic billing for ongoing engagements
 Applies where \`compensation.model = 'recurring'\`. Typical use: 6-month or 12-month inspection retainers, monthly compliance auditing, ongoing turnaround-readiness inspections.
@@ -448,10 +448,10 @@ Applies where \`compensation.model = 'recurring'\`. Typical use: 6-month or 12-m
 - **Net Payout per Period to Inspector / Agency:** \`{{compensation.recurring.net_payout_per_period_minor}}\`
 - **Total Periods:** \`{{compensation.recurring.total_periods}}\` *(null = open-ended; terminable by notice)*
 - **First Period Start:** \`{{compensation.recurring.first_period_start}}\`
-- **Funded Periods Ahead:** \`{{compensation.recurring.funded_periods_ahead}}\` — Client maintains this many periods in **rolling escrow** at all times. Mandatory Day-7 and Day-3 top-up reminders.
+- **Funded Periods Ahead:** \`{{compensation.recurring.funded_periods_ahead}}\` — Client maintains this many periods in **rolling payout hold** at all times. Mandatory Day-7 and Day-3 top-up reminders.
 - **Termination Notice:** \`{{compensation.recurring.termination_notice_days}}\` days
 
-Each period auto-releases at period close + 7 days, with mandatory Day-3 and Day-5 reminders during the review window, per ESCROW-001 §3.6. Termination semantics — notice, default-for-non-funding, prorated final period — are governed by ESCROW-001 §5.3.
+Each period auto-releases at period close + 7 days, with mandatory Day-3 and Day-5 reminders during the review window, per PAYOUT-001 §3.6. Termination semantics — notice, default-for-non-funding, prorated final period — are governed by PAYOUT-001 §5.3.
 
 ### 4.4 Cross-model rules
 - The **10% PFT Fee** is applied uniformly across all three models, withheld at source at each funding/release event. It is not waived for milestone or recurring contracts.
@@ -459,7 +459,7 @@ Each period auto-releases at period close + 7 days, with mandatory Day-3 and Day
 - The Job Contract records the resolved model and its specific amounts at contract generation; subsequent amendments to scope, schedule, or compensation require both Parties' written acceptance through the Platform.
 - A **disputed milestone or period does not pause release** of milestones or periods already accepted. The dispute is scoped narrowly to the specific disbursement-unit in question; the rest of the contract continues.
 
-Payment for all three models is held in **Stripe Connect Express** escrow. NEXPEC is not a money services business (TOS-001 §7); Stripe is the licensed payment facilitator.
+Payment for all three models is held in **Stripe Connect Express** payout hold. NEXPEC is not a money services business (TOS-001 §7); Stripe is the licensed payment facilitator.
 
 ## 5. Inspector Status & Standards
 The Inspector (or Agency) performs the Job as an **independent contractor** under INSP-AGR-001 (and AGN-AGR-001 where applicable). NEXPEC does not warrant the Inspector's work product. The Inspector will perform with the skill and care of a qualified inspector and will not falsify, fabricate, or backdate findings.
@@ -468,14 +468,14 @@ The Inspector (or Agency) performs the Job as an **independent contractor** unde
 The Client performs its obligations under CLI-AGR-001 — including site safety, hazard disclosure, lawful authority, payment funding, the honest-findings protection, and the no-warranty-on-Inspector-Output acknowledgement.
 
 ## 7. Deliverables & Acceptance
-On the Inspector marking the Job complete and uploading deliverables through the platform, the Client has **\`{{acceptance.review_window_days}}\` calendar day(s)** to either (a) accept the delivery, triggering escrow release, or (b) raise a dispute as provided in ESCROW-001 §4. If neither action is taken within that window, **escrow auto-releases** under ESCROW-001 §3(c) after mandatory Day-3 and Day-5 reminders.
+On the Inspector marking the Job complete and uploading deliverables through the platform, the Client has **\`{{acceptance.review_window_days}}\` calendar day(s)** to either (a) accept the delivery, triggering payout release, or (b) raise a dispute as provided in PAYOUT-001 §4. If neither action is taken within that window, **the held funds auto-release** under PAYOUT-001 §3(c) after mandatory Day-3 and Day-5 reminders.
 
 ## 8. Confidentiality
 The Inspector treats Client site information as Client Confidential Information. The Client treats the Inspector's proprietary methodology and any non-deliverable trade secrets as Inspector Confidential Information.
 
 ## 9. Cancellation & Dispute
-- **Cancellation before commencement:** per ESCROW-001 §5 (refund less Stripe processing fees).
-- **Cancellation after commencement:** per ESCROW-001 §5.
+- **Cancellation before commencement:** per PAYOUT-001 §5 (refund less Stripe processing fees).
+- **Cancellation after commencement:** per PAYOUT-001 §5.
 - **Disputes:** TOS-001 §10 — mandatory 30-day mediation through NEXPEC support, then exclusive Montréal courts — **unless** a Country Addendum applicable to either Party's jurisdiction mandates a different forum.
 
 ## 10. Governing Law, Language & Electronic Acceptance
@@ -483,34 +483,34 @@ This Job Contract is governed by **\`{{jurisdiction.governing_law}}\`**. The lan
 
 — End of JOB-TPL-001 v1.0 —`,
 
-  // ─────────── ESCROW-001 v1.0 (with Day-3 / Day-5 reminder cadence) ───────────
-  'ESCROW-001': `# NEXPEC — Payment & Escrow Rider
+  // ─────────── PAYOUT-001 v1.0 (with Day-3 / Day-5 reminder cadence) ───────────
+  'PAYOUT-001': `# NEXPEC — Payment & Payout Rider
 
-> **Plain-English summary.** Here's how the money works. You (the Client) pay the gross Job price upfront into a Stripe-managed escrow. When the Inspector finishes and delivers, you have a short window to accept. We send automated reminders on Day 3 and Day 5 to make sure you don't miss it. If you don't act by Day 7, funds release automatically. If something goes wrong, NEXPEC can hold the funds while it's worked out. NEXPEC is **not a bank** — Stripe is the licensed entity that handles the actual money under its own rules.
+> **Plain-English summary.** Here's how the money works. You (the Client) pay the gross Job price upfront into a a Stripe-managed payout hold. When the Inspector finishes and delivers, you have a short window to accept. We send automated reminders on Day 3 and Day 5 to make sure you don't miss it. If you don't act by Day 7, funds release automatically. If something goes wrong, NEXPEC can hold the funds while it's worked out. NEXPEC is **not a bank** — Stripe is the licensed entity that handles the actual money under its own rules.
 
-This **Payment & Escrow Rider** governs payment, escrow, release, dispute holds, refunds, and chargebacks for every Job Contract on the NEXPEC platform. It is incorporated into TOS-001, CLI-AGR-001, INSP-AGR-001, AGN-AGR-001, and every Job Contract generated under JOB-TPL-001.
+This **Payment & Payout Rider** governs payment, payout hold, release, dispute holds, refunds, and chargebacks for every Job Contract on the NEXPEC platform. It is incorporated into TOS-001, CLI-AGR-001, INSP-AGR-001, AGN-AGR-001, and every Job Contract generated under JOB-TPL-001.
 
 ## 1. Payment Facilitator
-Payment processing, escrow custody, currency conversion, and payout are provided by **Stripe, Inc.** and its affiliates ("**Stripe**") through Stripe Connect Express, under Stripe's terms (stripe.com/legal), which apply directly between you and Stripe. **NEXPEC is not a money services business, bank, payment institution, or licensed remitter.** NEXPEC issues release instructions to Stripe in accordance with this Rider and the applicable Job Contract.
+Payment processing, payout-hold custody, currency conversion, and payout are provided by **Stripe, Inc.** and its affiliates ("**Stripe**") through Stripe Connect Express, under Stripe's terms (stripe.com/legal), which apply directly between you and Stripe. **NEXPEC is not a money services business, bank, payment institution, or licensed remitter.** NEXPEC issues release instructions to Stripe in accordance with this Rider and the applicable Job Contract.
 
 ## 2. Funding
 
 Funding mechanics depend on the **compensation model** defined in the Job Contract (JOB-TPL-001 §4). The 10% PFT Fee is withheld at source at every funding/release event across all three models.
 
 ### 2.1 Fixed model — single upfront deposit
-Where \`compensation.model = 'fixed'\`: at confirmation of hire, the Client funds the **full gross Contract Value** (inclusive of the 10% PFT Fee) into Stripe-held escrow. **Work does not commence, and the Inspector is not obligated to commence, until funding is confirmed by Stripe.**
+Where \`compensation.model = 'fixed'\`: at confirmation of hire, the Client funds the **full gross Contract Value** (inclusive of the 10% PFT Fee) into a Stripe-managed payout hold. **Work does not commence, and the Inspector is not obligated to commence, until funding is confirmed by Stripe.**
 
 ### 2.2 Milestone model — staged funding
-Where \`compensation.model = 'milestone'\`: at confirmation of hire, the Client funds **at minimum the first milestone's gross amount** into Stripe-held escrow. Each subsequent milestone must be funded **at least seven (7) days before its scheduled date or before the prior milestone's release, whichever is later**. NEXPEC sends **Day-7 and Day-3 funding-due reminders** to the Client before each milestone-funding obligation; failure to fund a milestone by its due date is a **Client default** under §5.2, permitting the Inspector to suspend further performance.
+Where \`compensation.model = 'milestone'\`: at confirmation of hire, the Client funds **at minimum the first milestone's gross amount** into a Stripe-managed payout hold. Each subsequent milestone must be funded **at least seven (7) days before its scheduled date or before the prior milestone's release, whichever is later**. NEXPEC sends **Day-7 and Day-3 funding-due reminders** to the Client before each milestone-funding obligation; failure to fund a milestone by its due date is a **Client default** under §5.2, permitting the Inspector to suspend further performance.
 
-The Client may, at its option, elect to **fund all milestones in a single upfront deposit**; in that case, each milestone's funds are held in escrow and released per §3.5 as the milestone is accepted. Long-term projects (6-month / 12-month) typically use staged funding rather than upfront-all to avoid extended escrow exposure for the Client.
+The Client may, at its option, elect to **fund all milestones in a single upfront deposit**; in that case, each milestone's funds are held on payout hold and released per §3.5 as the milestone is accepted. Long-term projects (6-month / 12-month) typically use staged funding rather than upfront-all to avoid extended payout-hold exposure for the Client.
 
 ### 2.3 Recurring model — rolling forward-funding
-Where \`compensation.model = 'recurring'\`: at confirmation of hire, the Client funds the first **N periods ahead** into Stripe-held escrow, where N = \`compensation.recurring.funded_periods_ahead\` (default 1). Throughout the engagement, the Client must **maintain N periods of forward funding at all times**. NEXPEC sends **Day-7 and Day-3 top-up reminders** to the Client before each forward-funding obligation; failure to top up by the due date is a **Client default** under §5.3, permitting the Inspector to suspend performance.
+Where \`compensation.model = 'recurring'\`: at confirmation of hire, the Client funds the first **N periods ahead** into a Stripe-managed payout hold, where N = \`compensation.recurring.funded_periods_ahead\` (default 1). Throughout the engagement, the Client must **maintain N periods of forward funding at all times**. NEXPEC sends **Day-7 and Day-3 top-up reminders** to the Client before each forward-funding obligation; failure to top up by the due date is a **Client default** under §5.3, permitting the Inspector to suspend performance.
 
 ## 3. Release Triggers
 
-Release triggers apply **per disbursement-unit**: the whole contract for \`fixed\`, per-milestone for \`milestone\`, per-period for \`recurring\`. Escrowed funds for each disbursement-unit release on the **first** of the following events:
+Release triggers apply **per disbursement-unit**: the whole contract for \`fixed\`, per-milestone for \`milestone\`, per-period for \`recurring\`. Held funds for each disbursement-unit release on the **first** of the following events:
 
 1. **Client acceptance.** Client clicks "Accept Delivery" (for \`fixed\` / \`milestone\`) or the period closes without dispute (for \`recurring\`) within the seven-day review window.
 2. **Mediated resolution.** A dispute is resolved through NEXPEC's mandatory mediation step (TOS-001 §10), issuing a release instruction. Mediated resolutions may direct **partial release** (e.g., 60% of the disbursement-unit's gross + adjustment).
@@ -523,7 +523,7 @@ On release, Stripe transmits the net payout to the Inspector or Agency (as appli
 - The 7-day acceptance window for each milestone starts when the Inspector marks the milestone complete and uploads deliverables (unless the milestone's \`trigger\` field is \`scheduled_date\` or \`client_acceptance\`, in which case the window starts at that event).
 - A **disputed milestone does not pause release** of milestones already accepted. The dispute is scoped narrowly to the specific milestone.
 - **Already-released milestones cannot be clawed back** except by court order, mediated written settlement, or proven fraud under AUP-001 §2.
-- Milestones may be **partially released** by mediated resolution; the unreleased balance returns to escrow pending settlement or further proceedings.
+- Milestones may be **partially released** by mediated resolution; the unreleased balance returns to payout hold pending settlement or further proceedings.
 - The 10% PFT Fee is computed and withheld on each milestone's gross at the time of that milestone's release.
 
 ### 3.6 Recurring-specific release rules
@@ -533,7 +533,7 @@ On release, Stripe transmits the net payout to the Inspector or Agency (as appli
 - For open-ended engagements (where \`recurring.total_periods\` is null), release continues period-by-period until terminated by notice under §5.3.
 
 ## 4. Dispute Hold
-If either Party files a dispute through the platform within the review window, **NEXPEC may instruct Stripe to hold the escrowed funds** until: (a) the Parties settle in writing, (b) NEXPEC's mediation step concludes, or (c) a competent court or arbitrator orders disposition. **NEXPEC is not liable for interest or loss of opportunity caused by a good-faith dispute hold.**
+If either Party files a dispute through the platform within the review window, **NEXPEC may instruct Stripe to hold the held funds** until: (a) the Parties settle in writing, (b) NEXPEC's mediation step concludes, or (c) a competent court or arbitrator orders disposition. **NEXPEC is not liable for interest or loss of opportunity caused by a good-faith dispute hold.**
 
 ## 5. Cancellation, Termination & Refunds
 
@@ -573,10 +573,10 @@ Inspector and Agency payouts follow **Stripe Connect Express** payout schedules,
 ## 10. Tax
 Tax obligations are the responsibility of each Party. **VAT/GST registration, indirect-tax invoicing, and withholding obligations are administered through Stripe's tax infrastructure** where Stripe supports the relevant jurisdiction. NEXPEC issues no tax invoices on behalf of any Party.
 
-## 11. Termination Effects on Escrow
-Termination of any user's Platform access does **not** affect funds already in escrow for active Jobs; those funds remain governed by §3 and §4 until released or refunded.
+## 11. Termination Effects on Payout Hold
+Termination of any user's Platform access does **not** affect funds already on payout hold for active Jobs; those funds remain governed by §3 and §4 until released or refunded.
 
-— End of ESCROW-001 v1.0 —`,
+— End of PAYOUT-001 v1.0 —`,
 
   // ─────────── ADDENDUM-FRAMEWORK-001 v1.0 ───────────
   'ADDENDUM-FRAMEWORK-001': `# NEXPEC — Country Addendum Framework
@@ -818,7 +818,7 @@ This Addendum applies whenever the user is resident in, or registered as a busin
 For KSA-resident consumers, an Arabic version of the consumer-facing legal pack is provided. For UAE and Qatar, Arabic on request; in conflict, the executed Arabic version controls.
 
 ## 4. Sharia Overlay — Late-Payment Interest & Penalties
-NEXPEC does **not** charge late-payment interest, **riba**, or compound penalties. The 10% PFT Fee is a fixed platform-facilitation-and-technology fee — not consideration for the use of money. Refunds operate on a return-of-principal basis under ESCROW-001 §5.
+NEXPEC does **not** charge late-payment interest, **riba**, or compound penalties. The 10% PFT Fee is a fixed platform-facilitation-and-technology fee — not consideration for the use of money. Refunds operate on a return-of-principal basis under PAYOUT-001 §5.
 
 ## 5. Employment & Visa
 - **Independent contractor status reaffirmed.** NEXPEC does not sponsor any Inspector's visa.
@@ -992,7 +992,7 @@ Activation requires: (1) PRC-qualified counsel engagement; (2) PRC operating-str
 This DPA is entered into between the Customer ("**Controller**") that accepted ORG-AGR-001 and **NEXPEC Technologies** ("**Processor**"), of Montréal, Québec, Canada. It applies to processing of personal data of identified or identifiable individuals ("**Personal Data**") that the Controller transmits to or has processed through the Platform. In force for so long as ORG-AGR-001 is in force, plus the post-termination retention period in §10.
 
 ## 2. Nature, Purpose & Scope of Processing
-NEXPEC processes Personal Data only to: (1) provide the Platform services described in TOS-001 and ORG-AGR-001; (2) facilitate Jobs (matching, contract generation, escrow, communications, audit); (3) comply with applicable laws and reasonable Controller instructions; (4) exercise legitimate interests in Platform security, fraud prevention, and improvement (limited to anonymized/aggregated use). Categories of data, Data Subjects, and operations are in **Annex A**.
+NEXPEC processes Personal Data only to: (1) provide the Platform services described in TOS-001 and ORG-AGR-001; (2) facilitate Jobs (matching, contract generation, payout hold, communications, audit); (3) comply with applicable laws and reasonable Controller instructions; (4) exercise legitimate interests in Platform security, fraud prevention, and improvement (limited to anonymized/aggregated use). Categories of data, Data Subjects, and operations are in **Annex A**.
 
 ## 3. Controller / Processor Roles
 The Controller determines the purposes and means of processing of data uploaded by its Seats and warrants lawful basis. **NEXPEC is the Processor** for that data, processing only on documented instructions. Where NEXPEC is independently the Controller of certain data (account credentials, fraud signals, security telemetry), PRIV-001 governs.
@@ -1034,7 +1034,7 @@ Laws of Québec, Canada, except where mandatory data-protection law of the Contr
 ## Annex A — Categories
 **Data Subjects:** Controller personnel and Seats; Inspector and Agency users matched with Controller's Jobs; on-site personnel in Inspector Output.
 **Personal Data:** Identification and contact; professional credentials; Job-related communications; geolocation; reports and findings; ratings; device, log, security telemetry.
-**Purposes:** Job matching, contract generation, escrow facilitation, communications, dispute support, audit, security, statutory recordkeeping.
+**Purposes:** Job matching, contract generation, payout hold facilitation, communications, dispute support, audit, security, statutory recordkeeping.
 
 ## Annex B — TOMs
 TLS 1.2+ in transit, AES-256 at rest, Supabase RLS, RBAC, audited admin actions, secret rotation, SSO, least privilege, formal incident-response, vendor risk reviews. Current TOMs at nexpec.com/legal/security.
@@ -1078,12 +1078,12 @@ TLS 1.2+ in transit, AES-256 at rest, Supabase RLS, RBAC, audited admin actions,
 
 **True-up cadence:** quarterly / annually / none.
 
-## §3. Payment Terms (overrides ESCROW-001 §2 default)
+## §3. Payment Terms (overrides PAYOUT-001 §2 default)
 - **Funding method:** card / ACH / wire / purchase-order with net invoicing.
 - **Net invoice terms:** Net ____ days.
 - **Currency:** CAD / USD / EUR / GBP / AED / SAR / other: ______.
 - **Credit limit (if PO/net):** $ ______.
-- **Late-payment treatment:** per TOS-001 §3 + ESCROW-001; no riba/interest under ADDENDUM-GCC-001 §4.
+- **Late-payment treatment:** per TOS-001 §3 + PAYOUT-001; no riba/interest under ADDENDUM-GCC-001 §4.
 
 ## §4. Service Levels (overrides ORG-AGR-001 §6 "as available" default)
 - **Platform uptime:** ____ % monthly.

@@ -70,7 +70,7 @@ const ROLE_CARDS: ReadonlyArray<{
     tone: 'violet',
     bullets: [
       'Vetted, certified inspectors on demand',
-      'Escrow until report is signed, no Net 60 risk',
+      'Payment hold until report is signed, no Net 60 risk',
       'Audit-grade evidence packs by default',
     ],
   },

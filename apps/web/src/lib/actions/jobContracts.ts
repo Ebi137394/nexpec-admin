@@ -63,12 +63,12 @@ The engagement covers the inspection described in the job posting, delivered as
 an audit-grade report through the NEXPEC platform. Work outside that scope
 requires a separate written change order.
 
-## 2. Compensation, escrow & release
-The Client's fees are held in escrow by NEXPEC and are released only after both
+## 2. Compensation, payout hold & release
+The Client's fees are held for payout by NEXPEC and are released only after both
 the Client and NEXPEC sign off on the final report AND the engagement is
 completed free of any unresolved defect, damage, claim, or dispute
 ("zero-liability completion"). Until those conditions are met, NEXPEC may
-continue to hold the escrowed funds. The fees payable are those set out in this
+continue to hold the funds. The fees payable are those set out in this
 Agreement.
 
 ## 3. Limitation of liability

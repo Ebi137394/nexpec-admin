@@ -14,7 +14,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { InteractionManager } from 'react-native';
-import { decodeYoloSeg, type SegDetection, type SegLayout, type SegOptions } from '@nexpec/shared-core';
+import { decodeYoloSeg, inferSegLayout, type SegDetection, type SegOptions } from '@nexpec/shared-core';
 import { imageUriToTensor, isVisionPreprocessAvailable, type VisionParams } from './preprocess';
 
 // fast-tflite is require-guarded (null in Expo Go); untyped → `any`, like tfliteVision.
@@ -38,18 +38,32 @@ const SEG_ASSETS: Record<SegMode, number> = {
   corrosion: require('../../../../assets/corrosion_yolo26s_seg_1024_fp32.tflite'),
 };
 
-/** classId → human label (overlay-facing; no taxonomy dependency). */
+/** classId → human label (overlay-facing; no taxonomy dependency).
+ *  Index position IS the model's classId, so order is verbatim from each model's
+ *  exported labels.json — do NOT reorder or dedupe. The corrosion export shipped
+ *  with 11 unmerged raw-COCO categories (duplicate 'rust'/'Rust', a stray 'car',
+ *  severity tiers); the HITL flywheel harvests the integer class_id in `raw` and
+ *  consolidates these into the clean taxonomy for the next training cycle. */
 export const SEG_CLASSES: Record<SegMode, string[]> = {
   weld: ['Fissure', 'Weld Line'],
-  corrosion: ['Rust', 'Paint Blister/Coating Defect'],
+  corrosion: [
+    'rust',               // 0
+    'Rust',               // 1
+    'car',                // 2  (dataset pollution — flagged for HITL cleanup)
+    'copper corrosion',   // 3
+    'corroded-part',      // 4
+    'corrosion',          // 5
+    'iron rust',          // 6
+    'mild-corrosion',     // 7
+    'moderate-corrosion', // 8
+    'rust',               // 9
+    'severe-corrosion',   // 10
+  ],
 };
 
-// Both models share the verified tensor contract.
-const SEG_LAYOUT: SegLayout = {
-  numDet: 300, vecLen: 38, numClasses: 2, numCoeffs: 32,
-  inputSize: 1024, protoChannels: 32, protoSize: 256,
-  boxFormat: 'xywh', coordsNormalized: false,
-};
+// The tensor contract (numDet / vecLen / class count) is derived per-run from the
+// two output tensor lengths via inferSegLayout — the two models carry DIFFERENT
+// class counts (corrosion=11, weld=2), so nothing is hardcoded here.
 
 // YOLO preprocessing: RGB /255, channels-first [1,3,1024,1024].
 const SEG_INPUT: VisionParams = {
@@ -112,16 +126,18 @@ class SegModelManagerImpl {
     const outputs = await model.run([data]); // native, off the JS thread
     const inferenceMs = Date.now() - t0;
 
-    // Disambiguate outputs by length, NOT index order (300*38 vs 32*256*256).
+    // Disambiguate outputs by length, NOT index order: the detection grid
+    // (vecLen*numDet, e.g. 47*21504) is shorter than the proto (32*256*256).
     const a = outputs?.[0] as ArrayLike<number> | undefined;
     const b = outputs?.[1] as ArrayLike<number> | undefined;
     if (!a || !b) throw new Error('seg model returned <2 outputs');
     const det = a.length <= b.length ? a : b;
     const proto = a.length <= b.length ? b : a;
+    const layout = inferSegLayout(det.length, proto.length); // self-configures per model
 
     // Heavy pure-TS decode — yield first so it never blocks the capture transition.
     const detections = await new Promise<SegDetection[]>((resolve) => {
-      InteractionManager.runAfterInteractions(() => resolve(decodeYoloSeg(det, proto, SEG_LAYOUT, opts)));
+      InteractionManager.runAfterInteractions(() => resolve(decodeYoloSeg(det, proto, layout, opts)));
     });
 
     const names = SEG_CLASSES[mode];

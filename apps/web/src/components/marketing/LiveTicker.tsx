@@ -28,7 +28,7 @@ export function LiveTicker({ stats }: LiveTickerProps) {
             value={formatCount(stats.jobs30d)}
           />
           <Stat
-            label="Held in escrow"
+            label="Held for payout"
             value={formatCurrency(stats.escrowCents)}
             tone="violet"
           />

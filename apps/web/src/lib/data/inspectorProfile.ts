@@ -32,13 +32,21 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
     // query 400s and PostgREST returns an error. We fall through to a
     // narrower projection so the page can still render. This is the same
     // pattern used by fetchConversationDetail.
+    // NOTE (2026-07-18): the seven "rich rates" columns (currency,
+    // travel_rate_cents, overtime_multiplier, weekend_multiplier,
+    // holiday_multiplier, payment_terms, minimum_engagement_hours) are
+    // defined only in the ARCHIVED migration 20260518140000 and do NOT
+    // exist in the live baseline schema. Including them made this wide
+    // select 400 on every production request (logging a warning and
+    // silently degrading to the MID projection, which drops
+    // professional_title / sponsorship / Stripe / stats fields). They are
+    // intentionally excluded; the mapper below defaults them (USD / null).
+    // If the rates migration is ever promoted out of the archive, re-add
+    // them here.
     const WIDE = [
       'id', 'email', 'full_name', 'headline', 'bio',
       'professional_title', 'phone', 'avatar_url',
       'years_of_experience', 'hourly_rate_cents', 'response_time_hours',
-      'currency', 'travel_rate_cents', 'overtime_multiplier',
-      'weekend_multiplier', 'holiday_multiplier', 'payment_terms',
-      'minimum_engagement_hours',
       'resume_url', 'resume_path',
       'specialty_slugs', 'ndt_methods', 'certifications',
       'location_city', 'location_province', 'travel_radius_km',

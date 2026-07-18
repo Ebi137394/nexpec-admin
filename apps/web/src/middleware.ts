@@ -63,6 +63,10 @@ const OWNER_EMAILS = (process.env.OWNER_EMAILS ?? '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+// Keys stripped from production logs — Vercel runtime logs must carry no PII.
+const PII_LOG_KEYS = ['userEmail', 'userId'];
+
 function logMiddleware(
   level: 'info' | 'warn' | 'error',
   msg: string,
@@ -70,7 +74,15 @@ function logMiddleware(
 ) {
   // Visible in Vercel's runtime logs. Prefix lets us grep [middleware] in
   // the dashboard.
-  const line = `[middleware] ${msg} ${JSON.stringify(data)}`;
+  //
+  // Production policy (2026-07-18): verbose info-level gate traces are
+  // dev-only, and warn/error lines are PII-redacted (no email, no user id).
+  // Pathname, portal, role, and error codes remain — enough to diagnose a
+  // gate denial without identifying the user.
+  if (IS_PROD && level === 'info') return;
+  const safe: Record<string, unknown> = { ...data };
+  if (IS_PROD) for (const k of PII_LOG_KEYS) delete safe[k];
+  const line = `[middleware] ${msg} ${JSON.stringify(safe)}`;
   if (level === 'error') console.error(line);
   else if (level === 'warn') console.warn(line);
   else console.log(line);

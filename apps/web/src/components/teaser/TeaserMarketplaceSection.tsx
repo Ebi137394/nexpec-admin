@@ -53,7 +53,7 @@ export async function TeaserMarketplaceSection({
             </h2>
             <p className="mt-4 max-w-xl text-pretty text-zinc-400">
               Real inspection demand and vetted specialists — identities protected, every
-              engagement brokered and escrowed through NEXPEC.
+              engagement brokered through NEXPEC with payments protected.
             </p>
           </div>
           {variant === 'section' && (

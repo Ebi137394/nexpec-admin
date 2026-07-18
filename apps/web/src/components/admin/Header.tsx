@@ -78,7 +78,16 @@ export function Header({
           <span className="hidden font-mono text-[10px] uppercase tracking-industrial text-zinc-600 md:inline">
             live,{' '}
             <span className="text-cyan-glow">
-              {process.env.NEXT_PUBLIC_ENV ?? 'development'}
+              {/* Cosmetic env badge only — nothing behavioral reads this.
+                  NEXT_PUBLIC_ENV was never set in Vercel, so the old
+                  `?? 'development'` fallback rendered "LIVE · DEVELOPMENT"
+                  in production. Fall back to Vercel's auto-injected env,
+                  then the build-time NODE_ENV (always 'production' in a
+                  prod build). */}
+              {process.env.NEXT_PUBLIC_ENV ??
+                process.env.NEXT_PUBLIC_VERCEL_ENV ??
+                process.env.NODE_ENV ??
+                'development'}
             </span>
           </span>
         </div>

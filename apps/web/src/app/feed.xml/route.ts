@@ -43,7 +43,7 @@ export async function GET() {
 
   const channelTitle = 'NEXPEC, Open Inspections & RFQs';
   const channelDesc =
-    'Live industrial inspection demand on NEXPEC — vetted inspectors apply through the platform. Brokered, escrowed, audit-grade.';
+    'Live industrial inspection demand on NEXPEC — vetted inspectors apply through the platform. Brokered, payment-protected, audit-grade.';
 
   const body = items
     .map((j) => {
@@ -54,7 +54,7 @@ export async function GET() {
         `Open ${demandTitle(j).toLowerCase()}` +
         (where ? ` in ${where}` : '') +
         (j.timeframe ? `, ${j.timeframe}` : '') +
-        `. Vetted inspectors engage through NEXPEC — brokered, escrowed, audit-grade.` +
+        `. Vetted inspectors engage through NEXPEC — brokered, payment-protected, audit-grade.` +
         (specs.length ? ` Scope: ${specs.join(', ')}.` : '');
       const pub = j.posted_at ? new Date(j.posted_at).toUTCString() : now;
       return [

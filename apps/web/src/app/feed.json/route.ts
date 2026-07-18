@@ -36,7 +36,7 @@ export async function GET() {
     home_page_url: `${origin}/discover`,
     feed_url: `${origin}/feed.json`,
     description:
-      'Live industrial inspection demand on NEXPEC — vetted inspectors apply through the platform. Brokered, escrowed, audit-grade.',
+      'Live industrial inspection demand on NEXPEC — vetted inspectors apply through the platform. Brokered, payment-protected, audit-grade.',
     language: 'en',
     items: items.map((j) => {
       const url = `${origin}/inspections/${inspectionSlug(j)}`;
@@ -50,7 +50,7 @@ export async function GET() {
           `Open ${demandTitle(j).toLowerCase()}` +
           (where ? ` in ${where}` : '') +
           (j.timeframe ? `, ${j.timeframe}` : '') +
-          '. Vetted inspectors engage through NEXPEC — brokered, escrowed, audit-grade.' +
+          '. Vetted inspectors engage through NEXPEC — brokered, payment-protected, audit-grade.' +
           (specs.length ? ` Scope: ${specs.join(', ')}.` : ''),
         ...(j.posted_at ? { date_published: new Date(j.posted_at).toISOString() } : {}),
         tags: [domainLabel(j.domain), ...specs],

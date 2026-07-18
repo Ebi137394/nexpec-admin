@@ -95,7 +95,7 @@ export function CTASection() {
               <span className="headline-gradient">in under five minutes.</span>
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-zinc-400">
-              Post a scope, pick a vetted inspector, fund escrow. We&apos;ll keep
+              Post a scope, pick a vetted inspector, fund the payment hold. We&apos;ll keep
               every signature, every photo, and every dollar accounted for.
             </p>
 

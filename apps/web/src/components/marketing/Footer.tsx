@@ -35,7 +35,7 @@ export function Footer() {
             <Logo variant="wordmark" size="md" />
             <p className="mt-4 max-w-xs text-pretty text-sm leading-relaxed text-zinc-400">
               Industrial inspection, engineered for trust. Vetted inspectors,
-              escrow-backed payments, audit-grade reports.
+              protected payments, audit-grade reports.
             </p>
           </div>
 

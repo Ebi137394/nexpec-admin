@@ -75,8 +75,8 @@ export async function SocialProofCTA() {
                 dispatched, and counting.
               </h2>
               <p className="mt-3 text-pretty text-base leading-relaxed text-zinc-400">
-                Vetted inspectors are getting hired and paid through escrow on
-                NEXPEC. Create your free inspector profile, get verified, and
+                Vetted inspectors are getting hired and paid through protected
+                payment holds on NEXPEC. Create your free inspector profile, get verified, and
                 start bidding on live, paid work, today.
               </p>
             </div>

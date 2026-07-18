@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation';
 import {
   Store, FileCheck2, Wallet, MessageCircle, ShieldCheck, Mail, BadgeCheck, CircleDot, ArrowRight,
 } from 'lucide-react';
+import { DangerZone } from '@/components/account/DangerZone';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'Supplier, Settings' };
@@ -90,6 +91,9 @@ export default async function SupplierSettingsPage() {
         <LinkCard href="/suppliers/messages" icon={<MessageCircle size={18} />} title="Messages" body="Coordination Bridge with admin" />
         <LinkCard href="/suppliers/support" icon={<ShieldCheck size={18} />} title="Help & Support" body="Guides + contact the team" />
       </section>
+
+      {/* Danger Zone — account deletion entry point (links to /account/delete) */}
+      <DangerZone />
     </div>
   );
 }

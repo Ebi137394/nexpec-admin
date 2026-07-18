@@ -10,6 +10,7 @@ import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { AlertCircle, CheckCircle2, Lock, Camera } from 'lucide-react';
 import Image from 'next/image';
+import { DangerZone } from '@/components/account/DangerZone';
 import { fetchClientSettings } from '@/lib/data/clientSettings';
 import { updateClientSettings } from '@/lib/actions/clientSettings';
 import { uploadAvatar } from '@/lib/actions/uploadAvatar';
@@ -231,6 +232,9 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
       {/* Sprint 13.3, Two-factor authentication. Strictly additive at
           the tail of the existing layout. */}
       <MfaSection initial={mfaStatus} />
+
+      {/* Danger Zone — account deletion entry point (links to /account/delete) */}
+      <DangerZone />
     </div>
   );
 }

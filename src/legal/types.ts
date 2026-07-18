@@ -19,6 +19,7 @@ export type LegalDocumentId =
   | 'AGN-AGR-001'
   | 'CLI-AGR-001'
   | 'ORG-AGR-001'
+  | 'SUP-AGR-001'
   // ───── Tier-3 Per-Job ─────
   | 'JOB-TPL-001'
   | 'PAYOUT-001'
@@ -40,7 +41,12 @@ export type LegalDocumentId =
 /** 0 = Framework, 1 = Platform-level, 2 = Role agreement, 3 = Per-Job */
 export type LegalDocumentTier = 0 | 1 | 2 | 3;
 
-export type LegalUserRole = 'inspector' | 'agency' | 'client' | 'organization';
+export type LegalUserRole =
+  | 'inspector'
+  | 'agency'
+  | 'client'
+  | 'organization'
+  | 'supplier';
 
 export type LegalDocumentStatus = 'draft' | 'active' | 'superseded';
 

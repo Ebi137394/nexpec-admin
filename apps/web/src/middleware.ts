@@ -97,7 +97,32 @@ export async function middleware(request: NextRequest) {
   //    server-rendered navigations.
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // ── Stale-session hygiene (2026-07-18) ────────────────────────────────
+  //  A browser can keep auth cookies for a login the server has since
+  //  revoked — the account-deletion flow BANS the auth user, so a lingering
+  //  cookie makes every request retry a refresh that fails with an
+  //  AuthApiError (visible as noise in Vercel logs). When the failure is a
+  //  definitive API rejection (400/401/403 — invalid/revoked/banned), drop
+  //  the sb-* auth cookies from the outgoing response so the browser stops
+  //  resubmitting them. A plain "no session" (AuthSessionMissingError) has
+  //  no status and is left alone.
+  const authStatus = (authError as { status?: number } | null)?.status;
+  const staleAuthCookies =
+    !user &&
+    typeof authStatus === 'number' &&
+    [400, 401, 403].includes(authStatus)
+      ? request.cookies
+          .getAll()
+          .filter((c) => c.name.startsWith('sb-'))
+          .map((c) => c.name)
+      : [];
+  const withCookieHygiene = (res: NextResponse): NextResponse => {
+    for (const name of staleAuthCookies) res.cookies.delete(name);
+    return res;
+  };
 
   const isAdminRoute =
     pathname === ADMIN_PREFIX || pathname.startsWith(`${ADMIN_PREFIX}/`);
@@ -133,7 +158,7 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/sign-in';
       url.search = `?next=${encodeURIComponent(pathname + request.nextUrl.search)}`;
-      return NextResponse.redirect(url);
+      return withCookieHygiene(NextResponse.redirect(url));
     }
 
     const userEmail = (user.email ?? '').toLowerCase();
@@ -248,7 +273,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return getResponse();
+  return withCookieHygiene(getResponse());
 }
 
 /**

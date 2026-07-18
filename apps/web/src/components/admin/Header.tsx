@@ -79,13 +79,17 @@ export function Header({
             live,{' '}
             <span className="text-cyan-glow">
               {/* Cosmetic env badge only — nothing behavioral reads this.
-                  NEXT_PUBLIC_ENV was never set in Vercel, so the old
-                  `?? 'development'` fallback rendered "LIVE · DEVELOPMENT"
-                  in production. Fall back to Vercel's auto-injected env,
-                  then the build-time NODE_ENV (always 'production' in a
-                  prod build). */}
-              {process.env.NEXT_PUBLIC_ENV ??
-                process.env.NEXT_PUBLIC_VERCEL_ENV ??
+                  This is a server component, so it can read Vercel's
+                  server-side system var VERCEL_ENV ('production' | 'preview'
+                  | 'development'), which is authoritative for the deployment
+                  target and CANNOT be shadowed by a stale manual var. It is
+                  read FIRST for exactly that reason: production showed
+                  "LIVE · DEVELOPMENT" because a dashboard var
+                  NEXT_PUBLIC_ENV=development was winning the old `??` chain.
+                  NEXT_PUBLIC_ENV is kept only as a non-Vercel/local fallback,
+                  after VERCEL_ENV and before build-time NODE_ENV. */}
+              {process.env.VERCEL_ENV ??
+                process.env.NEXT_PUBLIC_ENV ??
                 process.env.NODE_ENV ??
                 'development'}
             </span>

@@ -25,7 +25,7 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
   // ─────────── Tier 1 — Platform ───────────
   buildDoc({
     id: 'TOS-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Master Platform Terms of Service',
     tier: 1,
@@ -33,12 +33,12 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'NEXPEC is a marketplace that connects Clients with Inspectors. We are a neutral platform — not an employer or inspection firm. 10% Platform Facilitation & Technology Fee on every contract.',
+      'NEXPEC is a marketplace that connects Clients with Inspectors. We are a neutral platform — not an employer or inspection firm. 10% Platform Facilitation & Technology Fee on every contract. v1.1 adds a De-Identified Data & Platform-Improvement (AI/ML) licence.',
     incorporates: [],
   }),
   buildDoc({
     id: 'PRIV-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Privacy Policy',
     tier: 1,
@@ -46,7 +46,7 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'We collect only what we need to run the platform. We do not sell your data. International transfers use Standard Contractual Clauses and equivalent mechanisms.',
+      'We collect only what we need to run the platform. We do not sell your data. International transfers use Standard Contractual Clauses and equivalent mechanisms. v1.1 details account deletion and de-identified technical-data retention.',
     incorporates: [],
   }),
   buildDoc({
@@ -60,13 +60,13 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     effectiveDate: null,
     plainEnglishSummary:
       'Use NEXPEC honestly. No fake credentials, fabricated reports, off-platform circumvention, or abusive behaviour.',
-    incorporates: [{ id: 'TOS-001', version: '1.0' }],
+    incorporates: [{ id: 'TOS-001', version: '1.1' }],
   }),
 
   // ─────────── Tier 2 — Role Agreements ───────────
   buildDoc({
     id: 'INSP-AGR-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Inspector Agreement',
     tier: 2,
@@ -74,16 +74,16 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'You are an independent contractor — not a NEXPEC employee. You decide where, when, and how you work, and you carry your own insurance, training, taxes, and PPE.',
+      'You are an independent contractor — not a NEXPEC employee. You decide where, when, and how you work, and you carry your own insurance, training, taxes, and PPE. v1.1 adds the De-Identified Technical Data clause.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'PRIV-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
       { id: 'AUP-001', version: '1.0' },
     ],
   }),
   buildDoc({
     id: 'AGN-AGR-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Agency Agreement',
     tier: 2,
@@ -91,16 +91,16 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'Your Agency is responsible for everyone on its roster — vetting, training, insuring, paying, and standing behind their work. NEXPEC does not vet your Inspectors.',
+      'Your Agency is responsible for everyone on its roster — vetting, training, insuring, paying, and standing behind their work. NEXPEC does not vet your Inspectors. v1.1 adds the De-Identified Technical Data clause.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'PRIV-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
       { id: 'AUP-001', version: '1.0' },
     ],
   }),
   buildDoc({
     id: 'CLI-AGR-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Client Agreement',
     tier: 2,
@@ -108,16 +108,16 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'You hire Inspectors directly — NEXPEC just makes the match. NEXPEC does not warrant Inspector work. You are responsible for site safety and your hiring decisions.',
+      'You hire Inspectors directly — NEXPEC just makes the match. NEXPEC does not warrant Inspector work. You are responsible for site safety and your hiring decisions. v1.1 adds the De-Identified Technical Data clause.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'PRIV-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
       { id: 'AUP-001', version: '1.0' },
     ],
   }),
   buildDoc({
     id: 'ORG-AGR-001',
-    version: '1.0',
+    version: '1.1',
     language: 'en',
     title: 'Organization Agreement',
     tier: 2,
@@ -125,12 +125,29 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     status: 'draft',
     effectiveDate: null,
     plainEnglishSummary:
-      'Enterprise account terms — multi-seat management, audit rights, data processing, and custom commercial Order Forms. Applies on top of the Client Agreement.',
+      'Enterprise account terms — multi-seat management, audit rights, data processing, and custom commercial Order Forms. Applies on top of the Client Agreement. v1.1 adds the processor-independent De-Identified Technical Data clause.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'PRIV-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
       { id: 'AUP-001', version: '1.0' },
-      { id: 'CLI-AGR-001', version: '1.0' },
+      { id: 'CLI-AGR-001', version: '1.1' },
+    ],
+  }),
+  buildDoc({
+    id: 'SUP-AGR-001',
+    version: '1.0',
+    language: 'en',
+    title: 'Supplier Agreement',
+    tier: 2,
+    role: 'supplier',
+    status: 'draft',
+    effectiveDate: null,
+    plainEnglishSummary:
+      'You supply goods or services through NEXPEC’s brokered, contract-first marketplace as an independent business. Prices are confidential and administered; you are paid through the payout-hold ledger after obligations are met. Accounts with open contracts, quotes, deliveries, payouts, disputes, or org ownership cannot be deleted.',
+    incorporates: [
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
+      { id: 'AUP-001', version: '1.0' },
     ],
   }),
 
@@ -147,9 +164,9 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     plainEnglishSummary:
       'The auto-generated contract between Client and Inspector for one Job. Supports three compensation models: fixed lump-sum, sequenced milestones, or recurring periodic billing for long-term engagements. NEXPEC is not a party — we host the contract and the payout hold.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'INSP-AGR-001', version: '1.0' },
-      { id: 'CLI-AGR-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'INSP-AGR-001', version: '1.1' },
+      { id: 'CLI-AGR-001', version: '1.1' },
       { id: 'PAYOUT-001', version: '1.0' },
     ],
   }),
@@ -165,10 +182,10 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     plainEnglishSummary:
       'How the money works across three compensation models. Fixed: full upfront payout hold, single 7-day acceptance window. Milestone: staged funding, per-milestone 7-day acceptance. Recurring: rolling forward-funding for long-term retainers, per-period 7-day acceptance. Day-3 / Day-5 reminders and Day-7 auto-release apply to every disbursement-unit.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'CLI-AGR-001', version: '1.0' },
-      { id: 'INSP-AGR-001', version: '1.0' },
-      { id: 'AGN-AGR-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'CLI-AGR-001', version: '1.1' },
+      { id: 'INSP-AGR-001', version: '1.1' },
+      { id: 'AGN-AGR-001', version: '1.1' },
       { id: 'JOB-TPL-001', version: '1.0' },
     ],
   }),
@@ -339,9 +356,9 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     plainEnglishSummary:
       'Controller-processor DPA between Customer (Controller) and NEXPEC (Processor). GDPR Article 28 + UK GDPR + Law 25 + PIPEDA compatible. SCCs Module Two by reference. 60-day deletion-or-return election window.',
     incorporates: [
-      { id: 'TOS-001', version: '1.0' },
-      { id: 'PRIV-001', version: '1.0' },
-      { id: 'ORG-AGR-001', version: '1.0' },
+      { id: 'TOS-001', version: '1.1' },
+      { id: 'PRIV-001', version: '1.1' },
+      { id: 'ORG-AGR-001', version: '1.1' },
     ],
   }),
   buildDoc({
@@ -357,7 +374,7 @@ export const LEGAL_DOCUMENTS: ReadonlyArray<LegalDocument> = [
     plainEnglishSummary:
       'Fill-in-the-blank Order Form for enterprise customers — overrides Master Stack on PFT discount, payment terms, SLA, data residency, dispute forum.',
     incorporates: [
-      { id: 'ORG-AGR-001', version: '1.0' },
+      { id: 'ORG-AGR-001', version: '1.1' },
       { id: 'DPA-001', version: '1.0' },
     ],
   }),

@@ -53,6 +53,9 @@ export function useResolvedLegalStack(
       case 'client':
         legalCompliance.push(required('CLI-AGR-001'));
         break;
+      case 'supplier':
+        legalCompliance.push(required('SUP-AGR-001'));
+        break;
       case 'organization':
         // Org Clients accept both CLI-AGR (in full) AND ORG-AGR layered on top.
         legalCompliance.push(required('CLI-AGR-001'));

@@ -30,6 +30,17 @@ const nextConfig = {
   //  the root's react@18 tree. Pin the tracing/resolution root to apps/web:
   outputFileTracingRoot: __dirname,
 
+  // ── Build/version stamp exposed to the CLIENT bundle ───────────────────────
+  //  VERCEL_GIT_COMMIT_SHA / VERCEL_ENV are server-only system vars — a Client
+  //  Component reading them gets `undefined`, which is why the sidebar footer
+  //  showed "build-local" even in production. Inline them at BUILD time as
+  //  NEXT_PUBLIC_* so both server and client components can read a real value.
+  //  On Vercel Git deploys VERCEL_GIT_COMMIT_SHA is populated; locally it's ''.
+  env: {
+    NEXT_PUBLIC_BUILD_SHA: process.env.VERCEL_GIT_COMMIT_SHA ?? '',
+    NEXT_PUBLIC_APP_ENV: process.env.VERCEL_ENV ?? '',
+  },
+
   // apps/web is an isolated install; @nexpec/shared-core is linked via `file:`
   // (a symlink). Tell webpack NOT to follow that symlink during resolution, so
   // shared-core's own imports (e.g. `zod`) resolve from apps/web/node_modules —

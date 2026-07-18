@@ -380,7 +380,7 @@ export default function SecuritySettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
-      "This deactivates your account and permanently anonymizes your personal data. Financial and contract records are retained as required by law. You can't delete while you have active jobs or an unsettled wallet balance.",
+      "This permanently disables your login and anonymizes your personal profile data (name, email, phone, photo, CV). Business and financial records — contracts, reports, invoices, payments, disputes, tax, and audit history — are retained in de-identified form as legally required, linked to a neutral label like \"Former Inspector\". De-identified technical inspection data may be retained under the NEXPEC Terms. You can't delete while you have active jobs, an unsettled balance, pending payouts, open disputes, or (suppliers) open contracts/quotes.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -397,7 +397,9 @@ export default function SecuritySettingsScreen() {
               const r = (data ?? {}) as { ok?: boolean; error?: string };
               if (!r.ok) throw new Error(r.error || 'Account deletion was blocked.');
 
-              await supabase.auth.signOut();
+              // Local scope: the auth login is already banned server-side, so a
+              // global sign-out would call /logout with a dead token → 403.
+              await supabase.auth.signOut({ scope: 'local' });
               Alert.alert("Account Deleted", "Your account has been deactivated and your personal data anonymized.");
               router.replace('/(auth)/sign-in');
             } catch (err: any) {

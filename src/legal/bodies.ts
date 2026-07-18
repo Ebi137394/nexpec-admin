@@ -55,7 +55,10 @@ NEXPEC may suspend or terminate any account — with or without notice — for b
 ## 12. Changes, Notices & Language
 NEXPEC may amend these Terms by posting an updated version and notifying users in-app or by email. Continued use after the effective date constitutes acceptance. A French version of these Terms is maintained in compliance with the Charter of the French Language (Bill 96); in case of conflict between language versions, the version you accepted controls.
 
-— End of TOS-001 v1.0 —`,
+## 13. De-Identified Data & Platform-Improvement License
+You grant NEXPEC a worldwide, perpetual, irrevocable, royalty-free, sublicensable licence to create and use **De-Identified Technical Data** — inspection imagery, sensor readings, defect detections, findings, and derived features, in each case with direct and indirect identifiers of any natural person removed or obscured — for platform operation, security, fraud prevention, analytics, quality improvement, benchmarking, and the development, training, evaluation, and improvement of machine-learning and artificial-intelligence models. NEXPEC does **not** acquire ownership of your personal information or of your underlying User Output; this is a licence limited to De-Identified Technical Data and de-identified operational data. **This licence, and NEXPEC's rights in De-Identified Technical Data already created, survive termination or deletion of your account.** Once data is De-Identified it is no longer personal data, and a request to erase personal data does not require deletion of De-Identified Technical Data. NEXPEC will not attempt to re-identify De-Identified Technical Data except as required to meet a legal obligation or to investigate a security or fraud incident. This Section 13 is incorporated by reference into every Role Agreement (Inspector, Agency, Client, Organization, Supplier).
+
+— End of TOS-001 v1.1 —`,
 
   // ─────────── PRIV-001 v1.0 ───────────
   'PRIV-001': `# NEXPEC — Privacy Policy
@@ -112,6 +115,11 @@ Submit requests to **privacy@nexpec.com**. We respond within **30 days** where r
 - **Job Data:** at least **seven (7) years** after the Job is closed, to support dispute, audit, regulatory, and litigation-hold requirements.
 - **Logs and security telemetry:** **twelve (12) months**.
 - **Backups:** rolling **thirty (30) days**.
+- **De-Identified Technical Data:** retained **indefinitely**. Once identifiers are removed it is no longer personal data; it is used for platform and AI/ML improvement under the licence in TOS-001 §13.
+- **Legal-basis and consent records** (agreement identifier, version, and acceptance timestamp): retained for the life of the record they justify.
+
+## 8a. What happens when you delete your account
+When you delete your account, your login is **permanently disabled** and your personal profile information is **erased or anonymized**. Business and financial records we are legally required to keep — contracts, inspection reports, technical findings, invoices, payments, tax, dispute, audit, and fraud/security records — are **retained** in de-identified form, linked to a stable internal record identifier and a neutral label such as "Former Inspector" rather than your name, so those records stay valid and verifiable. **De-Identified Technical Data** already created may be retained and used as described in TOS-001 §13. We do not retain your contact details, photo, résumé/CV, or other identifying profile fields after anonymization, except where a specific legal obligation requires a longer hold. Requesting erasure of your personal data does not require deletion of De-Identified Technical Data, which is no longer personal data.
 
 ## 9. Security
 We use encryption in transit (TLS 1.2 or higher) and at rest, role-based access controls, audited Supabase Row-Level Security policies, secret rotation, and an incident-response process. No system is perfectly secure; we will notify affected users and, where required, the applicable regulators of any qualifying personal-data breach in the timelines mandated by the applicable law.
@@ -122,7 +130,7 @@ The Platform is not directed at, and we do not knowingly collect personal data f
 ## 11. Changes & Language
 We update this Policy as needed. Material changes are notified in-app or by email and take effect on the new posted effective date. A **French version** of this Policy is maintained in compliance with the Charter of the French Language (Bill 96); in case of conflict between language versions, the version you accepted controls.
 
-— End of PRIV-001 v1.0 —`,
+— End of PRIV-001 v1.1 —`,
 
   // ─────────── AUP-001 v1.0 ───────────
   'AUP-001': `# NEXPEC — Acceptable Use Policy
@@ -233,7 +241,10 @@ NEXPEC may suspend or terminate your access for breach of this Agreement, TOS-00
 ## 9. Disputes & Survival
 TOS-001 §10 governs disputes — mandatory 30-day mediation through NEXPEC support, then exclusive Montréal courts. Sections 1, 5, 6, 7, and 9 survive termination.
 
-— End of INSP-AGR-001 v1.0 —`,
+## Data & De-Identified Technical Data
+You acknowledge and agree to the **De-Identified Data & Platform-Improvement Licence in TOS-001 §13** and to the retention practices in PRIV-001 §8 / §8a, including NEXPEC's retention and use of De-Identified Technical Data (including de-identified inspection imagery, detections, and findings you generate) for analytics, quality improvement, and AI/ML development, and the survival of that licence after your account is deleted. Your personal data is erased or anonymized on deletion; de-identified technical data is not personal data and may be retained.
+
+— End of INSP-AGR-001 v1.1 —`,
 
   // ─────────── AGN-AGR-001 v1.0 ───────────
   'AGN-AGR-001': `# NEXPEC — Agency Agreement
@@ -283,7 +294,10 @@ NEXPEC may suspend or terminate the Agency account — and the Platform access o
 ## 11. Disputes & Survival
 TOS-001 §10 governs disputes (mediation → exclusive Montréal courts). Sections 2, 5, 6, 7, 9, and 11 survive termination.
 
-— End of AGN-AGR-001 v1.0 —`,
+## Data & De-Identified Technical Data
+Your Agency and each Inspector on its roster acknowledge and agree to the **De-Identified Data & Platform-Improvement Licence in TOS-001 §13** and to the retention practices in PRIV-001 §8 / §8a, including NEXPEC's retention and use of De-Identified Technical Data for analytics, quality improvement, and AI/ML development, and the survival of that licence after an account is deleted. Personal data is erased or anonymized on deletion; de-identified technical data is not personal data and may be retained.
+
+— End of AGN-AGR-001 v1.1 —`,
 
   // ─────────── CLI-AGR-001 v1.0 (with sector expansion) ───────────
   'CLI-AGR-001': `# NEXPEC — Client Agreement
@@ -325,7 +339,10 @@ You will defend, indemnify, and hold harmless NEXPEC, its affiliates, officers, 
 ## 9. Term, Disputes & Survival
 Either party may terminate Platform access subject to completing or closing open Jobs in good faith. TOS-001 §10 governs disputes (mediation → exclusive Montréal courts). Sections 3, 4, 5, 6, 8, and 9 survive termination.
 
-— End of CLI-AGR-001 v1.0 —`,
+## Data & De-Identified Technical Data
+You acknowledge and agree to the **De-Identified Data & Platform-Improvement Licence in TOS-001 §13** and to the retention practices in PRIV-001 §8 / §8a, including NEXPEC's retention and use of De-Identified Technical Data derived from your Jobs for analytics, quality improvement, and AI/ML development, and the survival of that licence after your account is deleted. Your personal data is erased or anonymized on deletion; de-identified technical data is not personal data and may be retained.
+
+— End of CLI-AGR-001 v1.1 —`,
 
   // ─────────── ORG-AGR-001 v1.0 ───────────
   'ORG-AGR-001': `# NEXPEC — Organization Agreement
@@ -383,7 +400,44 @@ The Organization will maintain commercial general liability insurance appropriat
 ## 10. Term, Disputes & Survival
 This Agreement is effective on acceptance and continues for so long as the Organization holds any active Seat. Disputes follow TOS-001 §10 (mandatory 30-day mediation → exclusive Montréal courts) **unless an Order Form expressly nominates a different governing law and forum**, in which case the Order Form controls as between the Organization and NEXPEC only. Sections 3, 4, 5, 8, 9, and 10 survive termination.
 
-— End of ORG-AGR-001 v1.0 —`,
+## Data & De-Identified Technical Data
+The Organization acknowledges and agrees to the **De-Identified Data & Platform-Improvement Licence in TOS-001 §13** and to the retention practices in PRIV-001 §8 / §8a. Where the Organization is a data controller under DPA-001, the parties agree that **De-Identified Technical Data is processor-independent**: once technical data is de-identified it is no longer Personal Data of the Controller, and NEXPEC may retain and use it for analytics, quality improvement, and AI/ML development, surviving deletion or return under DPA-001 §10. Identifiable Personal Data remains subject to the Controller's deletion/return election.
+
+— End of ORG-AGR-001 v1.1 —`,
+
+  // ─────────── SUP-AGR-001 v1.0 ───────────
+  'SUP-AGR-001': `# NEXPEC — Supplier Agreement
+
+> **Plain-English summary.** You supply goods or services (parts, equipment, materials, or specialist procurement) through NEXPEC's brokered marketplace. Every engagement is contract-first and administered by NEXPEC as the neutral broker. You are an independent business — not a NEXPEC employee or agent. You get paid through the platform's payout-hold ledger after your obligations are met. Prices you quote are confidential and brokered; the client sees an administered offer, not your raw price.
+
+**Operator:** NEXPEC Technologies, Montréal, Québec, Canada. **Contact:** legal@nexpec.com.
+**Effective:** the date you accept this Agreement by activating a Supplier role or countersigning a Supplier Contract.
+
+## 1. Independent Supplier
+You are an independent business supplying goods and/or services to buyers introduced through the Platform. Nothing here creates employment, agency, partnership, or joint venture with NEXPEC. You are solely responsible for your own taxes, insurance, licences, customs, warranties, and delivery obligations.
+
+## 2. Brokered Engagements
+Supplier engagements are administered by NEXPEC as neutral broker via the **Supplier Contract** (a two-party e-signed instrument between you and NEXPEC) and, where applicable, the RFQ / quotation workflow. A Supplier Contract is binding only when it reaches **executed** status. You may not solicit buyers to transact off-platform to avoid fees (AUP-001).
+
+## 3. Pricing & Price Confidentiality
+Quotes you submit are confidential to you and NEXPEC. The buyer receives an **administered offer** set by NEXPEC's brokerage, not your raw quote. You will not disclose, and NEXPEC will not expose, one party's protected pricing to the other. This mirrors the platform-wide price-blindness rule.
+
+## 4. Payment & Payout Hold
+Payment is processed by **Stripe** and settled through NEXPEC's payout-hold ledger. Funds are released against your executed Supplier Contract and satisfied delivery obligations. NEXPEC is not a bank, money-services business, or licensed remitter. The 10% Platform Facilitation & Technology Fee (TOS-001 §3) applies to the brokered value.
+
+## 5. Delivery, Quality & Warranties
+You warrant that goods and services conform to the Supplier Contract, applicable standards, and any inspection or source-inspection requirement stated in the RFQ. Non-conformances are handled under the Supplier Contract and NEXPEC's dispute process.
+
+## 6. Obligations Before Account Deletion
+You may not delete your Supplier account while any of the following is unresolved: an active or pending Supplier Contract; an open RFQ engagement or quotation; a delivery obligation; an open invoice; a pending, failed, or in-progress payout or withdrawal; an unsettled supplier-earnings balance; an open dispute, refund, or chargeback; or ownership of, or an owner role in, an Organization requiring transfer. These guards are enforced in the platform database.
+
+## 7. Data & De-Identified Technical Data
+You acknowledge and agree to the **De-Identified Data & Platform-Improvement Licence in TOS-001 §13** and to the retention practices in PRIV-001 §8 / §8a, including NEXPEC's retention and use of De-Identified Technical Data (including de-identified source-inspection evidence relating to your supplied goods) for analytics, quality improvement, and AI/ML development, surviving deletion of your account. Your personal and confidential commercial data is erased or anonymized on deletion, except business and financial records NEXPEC must retain by law; de-identified technical data is not personal data and may be retained.
+
+## 8. Suspension, Termination & Survival
+NEXPEC may suspend or terminate a Supplier account under TOS-001 §11 and AUP-001. Sections 3, 4, 5, 6, 7, and 8 survive termination. Disputes follow TOS-001 §10 (mandatory 30-day mediation → exclusive Montréal courts).
+
+— End of SUP-AGR-001 v1.0 —`,
 
   // ─────────── JOB-TPL-001 v1.0 ───────────
   'JOB-TPL-001': `# NEXPEC — Job Contract (Auto-Generated Template)

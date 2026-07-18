@@ -14,6 +14,7 @@ import {
   Lock,
   ShieldCheck,
 } from 'lucide-react';
+import { DangerZone } from '@/components/account/DangerZone';
 import { fetchInspectorProfile } from '@/lib/data/inspectorProfile';
 import { NDT_METHOD_CHOICES } from '@/lib/data/inspectorProfile.types';
 import { updateInspectorSettings } from '@/lib/actions/inspectorSettings';
@@ -1000,6 +1001,9 @@ export default async function InspectorSettingsPage({ searchParams }: PageProps)
       {/* Sprint 13.3, Two-factor authentication. Strictly additive at
           the tail of the existing layout. */}
       <MfaSection initial={mfaStatus} />
+
+      {/* Danger Zone — account deletion entry point (links to /account/delete) */}
+      <DangerZone />
     </div>
   );
 }

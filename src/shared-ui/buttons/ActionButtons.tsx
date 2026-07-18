@@ -60,7 +60,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   const handleAccept = async () => {
     showConfirm(
       'Accept Offer',
-      `Accept this job for ${formatCurrency(jobPrice)}?\n\nThe payment will be held in escrow until the job is completed.`,
+      `Accept this job for ${formatCurrency(jobPrice)}?\n\nThe payment will be held for payout until the job is completed.`,
       async () => {
         setIsAccepting(true);
         
@@ -84,7 +84,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             return;
           }
 
-          // موفقیت در قفل شدن پول در Escrow
+          // موفقیت در قفل شدن پول در Payment hold
           showAlert(
             '🎉 Congratulations!',
             'Offer accepted. The payment is now securely held for payout and will be released upon completion.',
@@ -120,7 +120,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           <View style={styles.escrowBanner}>
             <Lock size={14} color="#3B82F6" />
             <Text style={styles.escrowBannerText}>
-              Payment will be secured in escrow
+              Payment will be secured for payout
             </Text>
           </View>
           
@@ -157,7 +157,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           <View style={[styles.escrowBanner, styles.escrowLockedBanner]}>
             <Lock size={14} color="#22C55E" />
             <Text style={[styles.escrowBannerText, styles.escrowLockedText]}>
-              {formatCurrency(jobPrice)} Secured in Escrow
+              {formatCurrency(jobPrice)} Secured for Payout
             </Text>
           </View>
           

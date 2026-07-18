@@ -240,7 +240,7 @@ export default async function InspectorJobContractPage({
                 >
                   NEXPEC Terms
                 </Link>
-                , and confirm my payout is held in escrow until the final
+                , and confirm my payout is held by NEXPEC until the final
                 report is signed off.
               </span>
             </label>

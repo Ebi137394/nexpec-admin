@@ -49,7 +49,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
           File a dispute on a job you&apos;ve been assigned to. Filing pauses
-          escrow release on that job pending admin review. Useful for
+          payout release on that job pending admin review. Useful for
           payment disagreements, scope changes, or client communication
           breakdowns.
         </p>
@@ -65,7 +65,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
         <div className="flex items-start gap-3 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent-green" />
           <p className="text-sm text-accent-green">
-            Dispute filed. Escrow is paused on that job; admin has been notified.
+            Dispute filed. Payout release is paused on that job; admin has been notified.
           </p>
         </div>
       )}
@@ -181,7 +181,7 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
               className="inline-flex items-center gap-2 rounded-full bg-accent-red px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm hover:bg-accent-red/90"
             >
               <Send className="h-3 w-3" strokeWidth={1.75} />
-              File dispute, pauses escrow
+              File dispute, pauses payout release
             </button>
           </div>
         </form>

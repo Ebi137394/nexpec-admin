@@ -11,7 +11,7 @@
 //  and hard performance metrics — never a raw CV, degree, or country-specific
 //  document — so clients judge the platform's verification, not a biased résumé.
 //
-//  ONE DOOR. The only way to engage is the admin-brokered, escrowed flow
+//  ONE DOOR. The only way to engage is the admin-brokered, held flow
 //  (Golden Rules). Identity is revealed inside an engagement, never before.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -139,7 +139,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               <span>
                 Identity is protected by NEXPEC. You&apos;re seeing platform-verified
                 capability and performance, no résumé, no bias. Engagement happens
-                securely through NEXPEC with escrow and dispute protection.
+                securely through NEXPEC with payment hold and dispute protection.
               </span>
             </p>
           </div>
@@ -222,7 +222,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </h2>
             <p className="mt-1 max-w-prose text-sm text-zinc-300">
               Post your scope and NEXPEC assigns {handle} (or a peer of equal
-              verification) with escrow, signed deliverables, and dispute
+              verification) with payment hold, signed deliverables, and dispute
               protection built in. Reference <span className="font-mono text-violet-glow">{handle}</span>.
             </p>
           </div>

@@ -112,7 +112,7 @@ eas submit --platform android --latest    # uploads to the internal track by def
 ## Part 4 — The final switch (after both binaries are live or in review)
 
 ```bash
-supabase db push        # applies 182000 … 250000, in order, self-testing
+supabase db push        # applies the full pending batch (through 20260801276000), in order, self-testing
 ```
 Then the runbook §Post-push verification queries + role-by-role smoke tests. Keep OTA updates on the `production` channel for surgical JS fixes post-launch (`eas update --channel production --message "fix: …"`) — never for native-module changes.
 

@@ -56,8 +56,8 @@ export default async function ClientFinancePage() {
           Spend &amp; invoices
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
-          What you&apos;ve funded, what&apos;s locked in escrow, and what
-          you owe on terms. NEXPEC holds prepaid funds in a dedicated escrow
+          What you&apos;ve funded, what&apos;s locked on payment hold, and what
+          you owe on terms. NEXPEC holds prepaid funds in a dedicated payment-hold
           ledger and releases them to the inspector only on your approval.
         </p>
       </header>
@@ -95,8 +95,8 @@ export default async function ClientFinancePage() {
         />
       </section>
 
-      {/* Escrow vs Credit — the crux: locked cash vs borrowed headroom */}
-      <section aria-label="Payout hold versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Payment hold vs Credit — the crux: locked cash vs borrowed headroom */}
+      <section aria-label="Payment hold versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <EscrowPanel lockedCents={metrics.heldInEscrowCents} />
         <CreditPanel credit={credit} />
       </section>
@@ -177,7 +177,7 @@ export default async function ClientFinancePage() {
             Budget Overview
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Live spend tracker, committed budget, escrow holds, paid-out
+            Live spend tracker, committed budget, payment holds, paid-out
             amounts, 12-month trend, and top inspectors by spend.
           </p>
         </div>
@@ -197,7 +197,7 @@ export default async function ClientFinancePage() {
             Payment methods
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            Prepay jobs are funded by bank transfer into your escrow ledger;
+            Prepay jobs are funded by bank transfer into your payment-hold ledger;
             net-terms invoices settle by transfer on the due date. To add or
             update remittance details, or to discuss raising your credit
             line, our team can help directly.
@@ -238,18 +238,18 @@ export default async function ClientFinancePage() {
         </article>
       </section>
 
-      {/* How escrow works */}
+      {/* How payment hold works */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">
         <header className="mb-4 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-violet-glow" strokeWidth={1.75} />
           <h2 className="font-display text-sm font-semibold uppercase tracking-industrial text-zinc-500">
-            How NEXPEC escrow works
+            How NEXPEC payouts work
           </h2>
         </header>
         <ol className="space-y-3 text-sm text-zinc-400">
           <Step
             n={1}
-            text="Prepay: you fund a job's payment hold when you post it, and the amount is held in a dedicated payout-hold ledger, ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
+            text="Prepay: you fund a job's payment hold when you post it, and the amount is held in a dedicated payment-hold ledger, ring-fenced from your spend until the work is done. Net-terms: approved B2B clients skip up-front funding and draw against a credit line instead."
           />
           <Step
             n={2}
@@ -279,7 +279,7 @@ const TERMS_LABEL: Record<PaymentTerms, string> = {
   net_60: 'Net-60',
 };
 
-/** Prepay escrow — cash the client has locked and committed. */
+/** Prepay payment hold — cash the client has locked and committed. */
 function EscrowPanel({ lockedCents }: { lockedCents: number }) {
   return (
     <article className="relative overflow-hidden rounded-3xl border border-violet/30 bg-gradient-to-br from-violet/[0.12] via-violet/[0.05] to-transparent p-6 sm:p-7">
@@ -288,7 +288,7 @@ function EscrowPanel({ lockedCents }: { lockedCents: number }) {
           <Lock className="h-4 w-4" strokeWidth={1.75} />
         </span>
         <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/90">
-          Prepay escrow, locked
+          Prepay payment hold, locked
         </p>
       </div>
       <p className="mt-5 font-display text-4xl font-semibold tracking-tight text-white">
@@ -296,7 +296,7 @@ function EscrowPanel({ lockedCents }: { lockedCents: number }) {
       </p>
       <p className="mt-2 text-sm leading-relaxed text-zinc-300/90">
         Cash you&apos;ve <span className="font-medium text-white">already paid</span>{' '}
-        into NEXPEC&apos;s escrow ledger for active jobs. It is ring-fenced,
+        into NEXPEC&apos;s payment-hold ledger for active jobs. It is ring-fenced,
         released to the inspector only when you approve the report, and refunded
         if a job is cancelled.
       </p>
@@ -308,7 +308,7 @@ function EscrowPanel({ lockedCents }: { lockedCents: number }) {
   );
 }
 
-/** Net-terms credit — borrowed headroom, distinct from locked escrow cash. */
+/** Net-terms credit — borrowed headroom, distinct from locked payment hold cash. */
 function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
   const hasCredit = credit.terms !== 'prepay' || credit.creditLimitCents > 0;
 
@@ -330,7 +330,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
           You currently fund each job up front. Approved B2B clients can switch
           to <span className="text-white">Net-30 to Net-60</span> terms, posting
           jobs against a credit line and settling invoices later, with nothing
-          locked in escrow.
+          locked on payment hold.
         </p>
         <Link
           href="/contact?channel=support&topic=credit"
@@ -391,7 +391,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-zinc-300/90">
-        Headroom you can post jobs against without funding escrow up front.
+        Headroom you can post jobs against without funding payouts up front.
         Nothing here is locked; it&apos;s borrowed and settles on terms.
       </p>
 
@@ -421,7 +421,7 @@ function EmptyState() {
       </h2>
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
         Post your first inspection to start building the ledger. Spend
-        and escrow status flow through here in real time.
+        and payout status flow through here in real time.
       </p>
       <Link
         href="/client/jobs/new"

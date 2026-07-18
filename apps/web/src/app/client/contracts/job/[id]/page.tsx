@@ -161,7 +161,7 @@ export default async function ClientJobContractPage({
       <section className="rounded-3xl border border-violet/25 bg-gradient-to-br from-violet/[0.10] to-transparent p-6">
         <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
           <Lock className="h-3 w-3" strokeWidth={2} />
-          Your price, held in escrow
+          Your price, held for payout
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold text-violet-glow">
           {fmtCents(contract.clientPriceCents)}
@@ -207,7 +207,7 @@ export default async function ClientJobContractPage({
             Sign &amp; commit funds
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Type your full legal name, confirm the Terms, and the escrow
+            Type your full legal name, confirm the Terms, and the payment-hold
             placeholder fires. Stripe Connect funds capture lands in a
             follow-up sprint.
           </p>
@@ -244,7 +244,7 @@ export default async function ClientJobContractPage({
                 >
                   NEXPEC Terms
                 </Link>
-                , and authorise NEXPEC to hold my payment in escrow until
+                , and authorise NEXPEC to place my payment on a payment hold until
                 final report sign-off.
               </span>
             </label>

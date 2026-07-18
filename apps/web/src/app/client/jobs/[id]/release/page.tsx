@@ -356,7 +356,7 @@ function ProcessExplainer() {
         />
         <Step
           n={4}
-          text="If something's off, request a revision. Funds stay on payout hold until you and admin agree the work is complete."
+          text="If something's off, request a revision. Funds stay on payment hold until you and admin agree the work is complete."
         />
       </ol>
     </section>

@@ -76,7 +76,7 @@ export default async function AgencyPage({ params }: PageProps) {
     '@type': 'Organization',
     identifier: pool.handle,
     name: `NEXPEC Vetted Agency ${pool.handle}`,
-    description: 'A NEXPEC-vetted industrial inspection agency. Identities protected; engagements brokered and escrowed through NEXPEC.',
+    description: 'A NEXPEC-vetted industrial inspection agency. Identities protected; engagements brokered through NEXPEC with funds on payment hold.',
     knowsAbout: [...specs.map(humanizeSlug), ...certs],
     ...(size ? { numberOfEmployees: { '@type': 'QuantitativeValue', value: size } } : {}),
     ...(where
@@ -179,8 +179,8 @@ export default async function AgencyPage({ params }: PageProps) {
           <div className="mt-8 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
             <p className="text-sm text-zinc-400">
               Team composition is aggregated to protect the agency&apos;s roster. Members are vetted and
-              verified by NEXPEC; engagement, contracting, and payment are brokered and escrowed
-              through the platform.
+              verified by NEXPEC; engagement, contracting, and payment are brokered through the
+              platform, with payment on payment hold.
             </p>
             <Link href="/sign-up" className="btn-primary mt-5">
               Engage the team via NEXPEC <ArrowRight className="h-4 w-4" aria-hidden />

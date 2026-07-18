@@ -19,7 +19,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nexpecapp.com';
 export const metadata: Metadata = {
   title: 'Live Inspection Marketplace, Open Jobs & Vetted Inspectors',
   description:
-    'Browse live industrial inspection demand and NEXPEC-verified specialists across NDT, civil, electrical, mechanical, and process. Identities protected; every engagement brokered and escrowed.',
+    'Browse live industrial inspection demand and NEXPEC-verified specialists across NDT, civil, electrical, mechanical, and process. Identities protected; every engagement brokered, with funds on payment hold.',
   alternates: {
     canonical: '/discover',
     types: { 'application/rss+xml': '/feed.xml' },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'NEXPEC, Live Inspection Marketplace',
     description:
-      'Open inspection jobs and vetted specialists, brokered and escrowed through NEXPEC.',
+      'Open inspection jobs and vetted specialists, brokered through NEXPEC with funds on payment hold.',
     url: `${SITE_URL}/discover`,
     siteName: 'NEXPEC',
     type: 'website',

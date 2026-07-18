@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         <p>
           <strong className="text-zinc-100">Operational data:</strong>{' '}
           jobs you post or apply to, applications you submit, reports you
-          deliver, photos uploaded as inspection evidence, escrow status,
+          deliver, photos uploaded as inspection evidence, payout status,
           payout records.
         </p>
         <p>

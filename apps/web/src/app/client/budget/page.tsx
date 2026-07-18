@@ -8,7 +8,7 @@
 //
 //  Sections (top → bottom):
 //    1. Header with scope chip (Your spend / Your organisation / Platform-wide)
-//    2. Hero metric strip — Committed / In escrow / Paid out / Awaiting payout
+//    2. Hero metric strip — Committed / In payment hold / Paid out / Awaiting payout
 //    3. Activity rollup — Active / Completed / Disputed / Avg job size
 //    4. 12-month spend trend — pure CSS bar chart (no recharts dep)
 //    5. Top inspectors by spend — table (current YTD)
@@ -65,7 +65,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 export const metadata: Metadata = {
   title: 'Budget Overview',
   description:
-    'Live spend tracker, committed budget, payout holds, paid-out amounts, and a 12-month trend.',
+    'Live spend tracker, committed budget, payment holds, paid-out amounts, and a 12-month trend.',
 };
 
 export const dynamic = 'force-dynamic';
@@ -216,7 +216,7 @@ export async function BudgetOverviewView(
             </h1>
             <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
               Live spend tracker, what&rsquo;s committed, what&rsquo;s
-              waiting in escrow, what&rsquo;s already paid out. Reads run
+              waiting on payment hold, what&rsquo;s already paid out. Reads run
               under your account&rsquo;s visibility rules: clients see
               their own jobs, agencies and enterprises see their
               organisation&rsquo;s rollup, admins see platform-wide.

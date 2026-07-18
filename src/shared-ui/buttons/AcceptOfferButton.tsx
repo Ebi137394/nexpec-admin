@@ -194,7 +194,7 @@ export const AcceptOfferButton: React.FC<AcceptOfferButtonProps> = ({
   const handlePress = () => {
     showConfirm(
       'Confirm Acceptance',
-      `Accepting this job will lock ${formatCurrency(jobPrice)} in escrow. Proceed?`,
+      `Accepting this job will lock ${formatCurrency(jobPrice)} on payment hold. Proceed?`,
       performAccept
     );
   };

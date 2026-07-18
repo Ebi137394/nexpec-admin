@@ -53,7 +53,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
           Disputes
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          File a dispute on any of your jobs. Filing pauses escrow release on
+          File a dispute on any of your jobs. Filing pauses payout release on
           that job until admin reviews. Admin will reach out via Help &
           Support chat to gather more detail.
         </p>
@@ -69,7 +69,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
         <div className="flex items-start gap-3 rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent-green" />
           <p className="text-sm text-accent-green">
-            Dispute filed. Escrow on that job is now paused. Admin has been
+            Dispute filed. Payout release on that job is now paused. Admin has been
             notified and will follow up shortly.
           </p>
         </div>
@@ -182,10 +182,10 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
               className="inline-flex items-center gap-2 rounded-full bg-accent-red px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm transition-colors hover:bg-accent-red/90"
             >
               <Send className="h-3 w-3" strokeWidth={1.75} />
-              File dispute, pauses escrow
+              File dispute, pauses payout release
             </button>
             <p className="mt-2 text-[11px] text-zinc-500">
-              Filing immediately pauses escrow release on this job and pings
+              Filing immediately pauses payout release on this job and pings
               every admin. Help & Support follow-up may take ~1 business day.
             </p>
           </div>

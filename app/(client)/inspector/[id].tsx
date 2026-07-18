@@ -10,7 +10,7 @@
 //  The inspector appears as a stable pseudonymous handle (NX-XXXXXX) + a
 //  deterministic Trust Sigil generated from the opaque id.
 //
-//  ONE DOOR. The only way to engage is the admin-brokered, escrowed flow
+//  ONE DOOR. The only way to engage is the admin-brokered, held flow
 //  (Golden Rules). Identity is revealed inside an engagement, never before.
 // ════════════════════════════════════════════════════════════════════════════
 import React, { useEffect, useMemo, useState } from 'react';
@@ -183,7 +183,7 @@ export default function InspectorTrustCardScreen() {
               <Text style={s.lockTxt}>
                 Identity is protected by NEXPEC. You’re seeing platform-verified capability
                 and performance — no résumé, no bias. Engagement happens securely through
-                NEXPEC with escrow and dispute protection.
+                NEXPEC with payment hold and dispute protection.
               </Text>
             </View>
           </View>
@@ -223,7 +223,7 @@ export default function InspectorTrustCardScreen() {
             <Text style={s.engageTitle}>Request this inspector through NEXPEC</Text>
             <Text style={s.engageBody}>
               Post your scope and NEXPEC assigns {handle} (or a peer of equal verification)
-              with escrow, signed deliverables, and dispute protection built in.
+              with payment hold, signed deliverables, and dispute protection built in.
             </Text>
             <TouchableOpacity style={s.cta} activeOpacity={0.85} onPress={() => router.push('/post-new-job' as any)}>
               <Text style={s.ctaTxt}>Start a request</Text>

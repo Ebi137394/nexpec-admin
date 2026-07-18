@@ -301,7 +301,7 @@ const txnIcon = (
       return { icon: 'refresh-circle', color: C.amber, bg: C.amberBg };
     case 'fee':
       return { icon: 'remove-circle', color: C.red, bg: C.redBg };
-    case 'escrow':
+    case 'escrow': // internal DB transaction type — do NOT rename (UI label is "payout hold")
       return { icon: 'lock-closed', color: C.blue, bg: C.blueBg };
     case 'expense':
       return { icon: 'receipt-outline', color: C.cyan, bg: C.cyanBg };
@@ -765,7 +765,7 @@ export default function FinancialDashboard() {
             .gte('created_at', prevStartIso)
             .lte('created_at', prevEndIso),
 
-          // 3. Escrow in-flight — jobs with money locked but not yet released
+          // 3. Payment hold in-flight — jobs with money locked but not yet released
           supabase
             .from('jobs')
             .select('client_price_cents, status, escrow_status')
@@ -1043,7 +1043,7 @@ export default function FinancialDashboard() {
 
         {/* ── Buyer-side Budget Overview link ─────────────────────── */}
         {/* Complements the inflow/payout/margin KPIs below by showing the
-            BUYER perspective: per-client committed spend, escrow holds,
+            BUYER perspective: per-client committed spend, payment holds,
             top inspectors by spend. Same data, different cut. */}
         <TouchableOpacity
           style={s.budgetOverviewLink}
@@ -1057,7 +1057,7 @@ export default function FinancialDashboard() {
             <Text style={s.budgetOverviewLabel}>NEW, FINANCIAL SUITE</Text>
             <Text style={s.budgetOverviewTitle}>Budget Overview</Text>
             <Text style={s.budgetOverviewSubtitle} numberOfLines={2}>
-              Platform-wide buyer spend, committed budget, escrow, top inspectors by spend
+              Platform-wide buyer spend, committed budget, payment hold, top inspectors by spend
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={C.primary} />

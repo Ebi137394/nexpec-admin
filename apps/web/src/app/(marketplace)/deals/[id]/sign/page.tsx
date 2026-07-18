@@ -1,6 +1,6 @@
 'use client';
 // /deals/[id]/sign — Review & sign the Client↔NEXPEC supply agreement.
-//   Signing executes the agreement and HOLDS the client price on payout hold
+//   Signing executes the agreement and HOLDS the client price on payment hold
 //   (contract-before-money), which dispatches the brokered inspection.
 //   The client contracts only with NEXPEC; the supplier/inspector legs are
 //   separate and never exposed here.
@@ -122,7 +122,7 @@ export default function DealSignPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Jane A. Client" className={inp} />
             <label className="flex items-start gap-2 text-sm text-white/80">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 h-4 w-4 accent-violet" />
-              I have read and agree to this Agreement, and authorise NEXPEC to hold the 30% mobilization deposit on payout hold.
+              I have read and agree to this Agreement, and authorise NEXPEC to hold the 30% mobilization deposit on payment hold.
             </label>
             {err && <p className="text-sm text-accent-red">{err}</p>}
             <button onClick={sign} disabled={busy || !name.trim() || !agreed} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet py-3 font-bold hover:bg-violet-deep disabled:opacity-60">

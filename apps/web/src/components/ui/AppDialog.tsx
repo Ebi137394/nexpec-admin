@@ -85,7 +85,6 @@ export function AppDialogHost(): React.ReactElement | null {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id]);
 
   if (!active || typeof document === 'undefined') return null;

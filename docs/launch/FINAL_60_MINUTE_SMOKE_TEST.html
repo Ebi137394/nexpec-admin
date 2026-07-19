@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NEXPEC — Final 60-Minute Pre-Build Smoke Test</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121933; --panel2:#0f1530; --line:#22305c;
+    --ink:#eef2ff; --dim:#9fb0d8; --mut:#6f80ad;
+    --violet:#7c3aed; --violetGlow:#a855f7; --cyan:#22d3ee;
+    --green:#22c55e; --greenBg:rgba(34,197,94,.14);
+    --red:#ef4444; --redBg:rgba(239,68,68,.14);
+    --amber:#f59e0b; --grey:#64748b; --greyBg:rgba(100,116,139,.16);
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.5; font-size:15px;
+    padding:24px 16px 80px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px} h2{font-size:16px;margin:0}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+  label.fl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 4px}
+  input.tf{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px 10px;font-size:14px}
+  input.tf:focus{outline:none;border-color:var(--violetGlow)}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+
+  .barwrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .progress{flex:1;min-width:220px;height:14px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan));transition:width .2s}
+  .counts{font-size:13px;color:var(--dim);white-space:nowrap}
+  .counts b{color:var(--ink)}
+  .pct{font-size:26px;font-weight:700;min-width:64px;text-align:right}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);padding:8px 12px;font-size:13px}
+  button:hover{border-color:var(--violetGlow)}
+  button.primary{background:var(--violet);border-color:var(--violet)}
+  button.warn{border-color:var(--red);color:#ffd7d7}
+  .timer{font-variant-numeric:tabular-nums;font-size:30px;font-weight:700;letter-spacing:1px;padding:2px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+  .timer.low{color:var(--amber);border-color:var(--amber)}
+  .timer.over{color:var(--red);border-color:var(--red)}
+
+  details.sec{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+  details.sec > summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:10px;user-select:none}
+  details.sec > summary::-webkit-details-marker{display:none}
+  .sec .chev{color:var(--mut);transition:transform .15s}
+  details[open] .chev{transform:rotate(90deg)}
+  .sec .stitle{font-weight:600}
+  .sec .stime{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
+  .sec .sdone{font-size:12px;color:var(--dim);white-space:nowrap}
+  .items{padding:4px 12px 12px}
+
+  .item{border-top:1px solid var(--line);padding:12px 4px;display:grid;grid-template-columns:1fr auto;gap:8px 12px;align-items:start}
+  .item:first-child{border-top:none}
+  .ilabel{font-size:14px}
+  .crit{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;color:#ffd7d7;background:var(--redBg);border:1px solid rgba(239,68,68,.4);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle}
+  .seg{display:flex;gap:6px}
+  .seg button{min-width:52px;padding:8px 10px;font-weight:600}
+  .seg button.on-pass{background:var(--greenBg);border-color:var(--green);color:#c9ffd9}
+  .seg button.on-fail{background:var(--redBg);border-color:var(--red);color:#ffd7d7}
+  .seg button.on-na{background:var(--greyBg);border-color:var(--grey);color:#cfd8ea}
+  .note{grid-column:1 / -1}
+  .note input{width:100%;background:var(--panel2);border:1px dashed var(--line);border-radius:8px;color:var(--dim);padding:7px 10px;font-size:13px}
+  .item.failed{background:var(--redBg);border-radius:8px;outline:1px solid rgba(239,68,68,.35)}
+  .item.hide{display:none}
+
+  .decision{display:flex;gap:12px;flex-wrap:wrap}
+  .decision label{flex:1;min-width:220px;border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer;display:flex;gap:10px;align-items:center;background:var(--panel2)}
+  .decision input{width:20px;height:20px}
+  .decision label.ready.sel{border-color:var(--green);background:var(--greenBg)}
+  .decision label.notready.sel{border-color:var(--red);background:var(--redBg)}
+  .decision label.disabled{opacity:.5;cursor:not-allowed}
+  .blockmsg{margin-top:10px;font-size:13px;color:#ffd7d7;background:var(--redBg);border:1px solid rgba(239,68,68,.4);border-radius:8px;padding:10px}
+  .okmsg{margin-top:10px;font-size:13px;color:#c9ffd9;background:var(--greenBg);border:1px solid rgba(34,197,94,.4);border-radius:8px;padding:10px}
+
+  .summary{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:320px;overflow:auto}
+  .muted{color:var(--mut);font-size:12px}
+  .sticky{position:sticky;top:0;z-index:5;background:var(--bg);padding-top:6px}
+  @media print{
+    body{background:#fff;color:#000;padding:0}
+    .noprint{display:none !important}
+    .card,details.sec,.item.failed{background:#fff;border-color:#bbb;outline:none}
+    details.sec[open] .items,details.sec .items{display:block}
+    details.sec > summary{color:#000}
+    .ilabel,.stitle,.counts b,.pct{color:#000}
+    .seg button{border:1px solid #999;color:#000}
+    .seg button.on-pass{background:#e7f8ec}.seg button.on-fail{background:#fdeaea}.seg button.on-na{background:#eef1f6}
+    .summary{color:#000;background:#f6f6f6}
+    a{color:#000}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="sticky noprint">
+    <h1>NEXPEC — Final 60-Minute Pre-Build Smoke Test</h1>
+    <p class="sub">Fast launch-critical verification before producing iOS/Android release builds. Not an exhaustive QA. Use a fresh Preview deployment and test accounts only.</p>
+    <div class="card">
+      <div class="barwrap">
+        <div class="pct" id="pct">0%</div>
+        <div class="progress"><i id="bar"></i></div>
+        <div class="counts">Done <b id="cDone">0</b>/<b id="cTotal">0</b> · Remaining <b id="cRem">0</b> · <span style="color:var(--red)">Fail <b id="cFail">0</b></span></div>
+      </div>
+      <div class="barwrap" style="margin-top:12px">
+        <div class="timer" id="timer">60:00</div>
+        <div class="controls">
+          <button id="tStart" class="primary">Start</button>
+          <button id="tPause">Pause</button>
+          <button id="tReset">Reset timer</button>
+        </div>
+        <div class="controls" style="margin-left:auto">
+          <button id="bExpand">Expand all</button>
+          <button id="bCollapse">Collapse all</button>
+          <button id="bFailOnly">Show failures only</button>
+          <button id="bCopy">Copy failure summary</button>
+          <button id="bPrint">Print / Save PDF</button>
+          <button id="bReset" class="warn">Reset checklist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div><label class="fl" for="mName">Tester name</label><input class="tf" id="mName" data-meta="name" placeholder="Your name" /></div>
+      <div><label class="fl" for="mDate">Test date</label><input class="tf" id="mDate" data-meta="date" type="date" /></div>
+      <div><label class="fl" for="mUrl">Preview URL</label><input class="tf" id="mUrl" data-meta="url" placeholder="https://…vercel.app" /></div>
+      <div><label class="fl" for="mSha">Commit / build SHA</label><input class="tf" id="mSha" data-meta="sha" placeholder="e.g. 1a2b3c4" /></div>
+      <div><label class="fl" for="mBrowser">Browser / device</label><input class="tf" id="mBrowser" data-meta="browser" placeholder="Chrome 128 / MacBook" /></div>
+    </div>
+  </div>
+
+  <div id="sections"></div>
+
+  <div class="card">
+    <h2>Final decision</h2>
+    <p class="muted" style="margin:4px 0 12px">“Ready for mobile build” is locked while any <b>CRITICAL</b> item is marked Fail.</p>
+    <div class="decision" id="decision">
+      <label class="ready" id="lReady"><input type="radio" name="decision" value="ready" /> <span><b>READY FOR MOBILE BUILD</b><br><span class="muted">All critical checks pass</span></span></label>
+      <label class="notready" id="lNot"><input type="radio" name="decision" value="notready" /> <span><b>NOT READY — FIX REQUIRED</b><br><span class="muted">At least one blocker to resolve</span></span></label>
+    </div>
+    <div id="decisionMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Final summary — failed checks</h2>
+    <p class="muted" style="margin:4px 0 10px">Auto-generated from every item marked Fail (critical items flagged). Use “Copy failure summary” to send back.</p>
+    <div class="summary" id="summary">No failures recorded.</div>
+  </div>
+
+  <p class="muted noprint">All progress is saved automatically in this browser (localStorage). Nothing is sent anywhere.</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "nexpec_smoke_v1";
+  var TOTAL_SECONDS = 60*60;
+
+  // ── Checklist data (id, label, critical) ──────────────────────────────────
+  var DATA = [
+    {id:"A", title:"A. Preview & build identity", time:"3 min", items:[
+      {id:"A1", t:"Preview URL opens successfully"},
+      {id:"A2", t:"Correct branch / commit / build SHA is displayed (footer)"},
+      {id:"A3", t:"No obvious loading failure (page renders)"},
+      {id:"A4", t:"No major console errors or network 5xx (DevTools)"},
+    ]},
+    {id:"B", title:"B. Public & authentication", time:"7 min", items:[
+      {id:"B1", t:"Homepage loads"},
+      {id:"B2", t:"Sign in works", c:true},
+      {id:"B3", t:"Sign out works"},
+      {id:"B4", t:"Forgot-password page opens while logged out", c:true},
+      {id:"B5", t:"Recovery email request can be submitted"},
+      {id:"B6", t:"Privacy Policy opens and shows NO Draft/TBD notice", c:true},
+      {id:"B7", t:"Terms and Support links open"},
+      {id:"B8", t:"Invalid login shows a clear error"},
+    ]},
+    {id:"C", title:"C. Inspector smoke test", time:"7 min", items:[
+      {id:"C1", t:"Dashboard loads"},
+      {id:"C2", t:"Profile / settings loads"},
+      {id:"C3", t:"Jobs list loads"},
+      {id:"C4", t:"Open job details"},
+      {id:"C5", t:"Apply to a test job (Inspector apply)", c:true},
+      {id:"C6", t:"Messages open"},
+      {id:"C7", t:"Documents / upload page loads"},
+      {id:"C8", t:"Account & Privacy section is present at bottom of Settings"},
+      {id:"C9", t:"Delete Account page opens (do NOT delete the reusable test account)", c:true},
+      {id:"C10", t:"Inspector CANNOT access Admin routes", c:true},
+    ]},
+    {id:"D", title:"D. Client smoke test", time:"8 min", items:[
+      {id:"D1", t:"Dashboard loads"},
+      {id:"D2", t:"Create a test job", c:true},
+      {id:"D3", t:"Save / submit the job"},
+      {id:"D4", t:"View the created job"},
+      {id:"D5", t:"View applicants"},
+      {id:"D6", t:"Messages open"},
+      {id:"D7", t:"Settings load"},
+      {id:"D8", t:"Delete Account page opens"},
+      {id:"D9", t:"Client CANNOT access Admin or Inspector-only routes", c:true},
+    ]},
+    {id:"E", title:"E. Admin smoke test", time:"8 min", items:[
+      {id:"E1", t:"Dashboard loads"},
+      {id:"E2", t:"Users page loads"},
+      {id:"E3", t:"Jobs page loads"},
+      {id:"E4", t:"Find the newly created test job"},
+      {id:"E5", t:"Approve / move the job to its correct next state", c:true},
+      {id:"E6", t:"View applications"},
+      {id:"E7", t:"Assign / approve the test inspector (where supported)", c:true},
+      {id:"E8", t:"Audit / log or notification area opens"},
+      {id:"E9", t:"Platform Owner & protected-admin controls are NOT accidentally exposed", c:true},
+    ]},
+    {id:"F", title:"F. End-to-end critical workflow", time:"12 min", items:[
+      {id:"F1", t:"Step 1 — Client creates job", c:true},
+      {id:"F2", t:"Step 2 — Admin reviews / approves", c:true},
+      {id:"F3", t:"Step 3 — Inspector can see it"},
+      {id:"F4", t:"Step 4 — Inspector applies", c:true},
+      {id:"F5", t:"Step 5 — Admin or Client reviews the application"},
+      {id:"F6", t:"Step 6 — Inspector is assigned", c:true},
+      {id:"F7", t:"Step 7 — Messages open between relevant users"},
+      {id:"F8", t:"Step 8 — Assignment / job status updates correctly", c:true},
+    ]},
+    {id:"G", title:"G. Supplier / Agency / Enterprise quick checks", time:"5 min", items:[
+      {id:"G1", t:"Each available role can sign in"},
+      {id:"G2", t:"Dashboard opens"},
+      {id:"G3", t:"Settings open"},
+      {id:"G4", t:"Correct navigation is shown"},
+      {id:"G5", t:"Delete Account visible for supported roles"},
+      {id:"G6", t:"No unauthorized Admin access", c:true},
+    ]},
+    {id:"H", title:"H. Critical negative checks", time:"5 min", items:[
+      {id:"H1", t:"Empty required form cannot submit"},
+      {id:"H2", t:"Unauthorized role URL is blocked or redirected", c:true},
+      {id:"H3", t:"Double-click does not obviously create duplicate records"},
+      {id:"H4", t:"Refresh does not break the active session"},
+      {id:"H5", t:"Invalid upload / invalid input gives a clear error"},
+      {id:"H6", t:"Account deletion is blocked when business rules require it", c:true},
+    ]},
+    {id:"I", title:"I. Responsive visual scan", time:"3 min", items:[
+      {id:"I1", t:"Desktop Chrome / Safari layout"},
+      {id:"I2", t:"Mobile viewport layout"},
+      {id:"I3", t:"No text outside containers"},
+      {id:"I4", t:"Buttons remain clickable"},
+      {id:"I5", t:"No modal hidden behind footer / header"},
+      {id:"I6", t:"Navigation works at mobile width"},
+    ]},
+    {id:"J", title:"J. Final launch checks", time:"2 min", items:[
+      {id:"J1", t:"Privacy Policy final (no draft language)", c:true},
+      {id:"J2", t:"Support link working"},
+      {id:"J3", t:"Forgot Password working", c:true},
+      {id:"J4", t:"Delete Account accessible", c:true},
+      {id:"J5", t:"No critical failed test"},
+      {id:"J6", t:"Ready for iOS / Android build"},
+    ]},
+  ];
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  var state = load();
+  function blank(){ return {meta:{},items:{},decision:"",collapsed:{},failOnly:false,timer:{remaining:TOTAL_SECONDS,running:false}}; }
+  function load(){ try{ var s=JSON.parse(localStorage.getItem(KEY)); if(!s)return blank(); s.meta=s.meta||{}; s.items=s.items||{}; s.collapsed=s.collapsed||{}; s.timer=s.timer||{remaining:TOTAL_SECONDS,running:false}; return s; }catch(e){ return blank(); } }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+  var ALL = []; DATA.forEach(function(s){ s.items.forEach(function(i){ i.section=s.id; ALL.push(i); }); });
+  function itemById(id){ for(var k=0;k<ALL.length;k++){ if(ALL[k].id===id) return ALL[k]; } return null; }
+  function st(id){ return state.items[id] || {s:"",n:""}; }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  var secWrap = document.getElementById("sections");
+  DATA.forEach(function(sec){
+    var det = document.createElement("details"); det.className="sec"; det.dataset.sec=sec.id;
+    det.open = !state.collapsed[sec.id];
+    var sum = document.createElement("summary");
+    sum.innerHTML = '<span class="chev">▶</span><span class="stitle">'+sec.title+'</span>'+
+      '<span class="sdone" data-sdone="'+sec.id+'"></span><span class="stime">⏱ '+sec.time+'</span>';
+    det.appendChild(sum);
+    det.addEventListener("toggle", function(){ state.collapsed[sec.id]=!det.open; save(); });
+    var box = document.createElement("div"); box.className="items";
+    sec.items.forEach(function(it){
+      var cur = st(it.id);
+      var row = document.createElement("div"); row.className="item"; row.dataset.item=it.id;
+      row.innerHTML =
+        '<div class="ilabel">'+it.t+(it.c?'<span class="crit">CRITICAL</span>':'')+'</div>'+
+        '<div class="seg" data-seg="'+it.id+'">'+
+          '<button data-v="pass">Pass</button>'+
+          '<button data-v="fail">Fail</button>'+
+          '<button data-v="na">N/A</button>'+
+        '</div>'+
+        '<div class="note"><input type="text" data-note="'+it.id+'" placeholder="Notes (optional)" value="'+escapeAttr(cur.n)+'"></div>';
+      box.appendChild(row);
+    });
+    det.appendChild(box);
+    secWrap.appendChild(det);
+  });
+
+  // meta fields
+  Array.prototype.forEach.call(document.querySelectorAll("[data-meta]"), function(inp){
+    var k=inp.dataset.meta; if(state.meta[k]!=null) inp.value=state.meta[k];
+    inp.addEventListener("input", function(){ state.meta[k]=inp.value; save(); refreshSummary(); });
+  });
+
+  // seg + notes handlers
+  secWrap.addEventListener("click", function(e){
+    var b=e.target.closest("[data-seg] button"); if(!b) return;
+    var id=b.parentNode.dataset.seg, v=b.dataset.v, cur=st(id);
+    cur.s = (cur.s===v)? "" : v;           // toggle off if same
+    state.items[id]=cur; save(); paintItem(id); refreshAll();
+  });
+  secWrap.addEventListener("input", function(e){
+    var n=e.target.closest("[data-note]"); if(!n) return;
+    var id=n.dataset.note, cur=st(id); cur.n=n.value; state.items[id]=cur; save(); refreshSummary();
+  });
+
+  function paintItem(id){
+    var seg=document.querySelector('[data-seg="'+id+'"]'); if(!seg) return;
+    var cur=st(id);
+    Array.prototype.forEach.call(seg.children, function(btn){
+      btn.className=""; if(cur.s===btn.dataset.v) btn.className="on-"+cur.s;
+    });
+    var row=document.querySelector('[data-item="'+id+'"]');
+    row.classList.toggle("failed", cur.s==="fail");
+    applyFilter(row, id);
+  }
+  function applyFilter(row,id){
+    if(!state.failOnly){ row.classList.remove("hide"); return; }
+    row.classList.toggle("hide", st(id).s!=="fail");
+  }
+
+  // ── Aggregates ───────────────────────────────────────────────────────────────
+  function refreshAll(){ paintAll(); refreshCounts(); refreshDecision(); refreshSummary(); refreshSectionDone(); }
+  function paintAll(){ ALL.forEach(function(i){ paintItem(i.id); }); }
+  function refreshCounts(){
+    var done=0, fail=0;
+    ALL.forEach(function(i){ var s=st(i.id).s; if(s) done++; if(s==="fail") fail++; });
+    var total=ALL.length, rem=total-done, pct=total?Math.round(done/total*100):0;
+    document.getElementById("cDone").textContent=done;
+    document.getElementById("cTotal").textContent=total;
+    document.getElementById("cRem").textContent=rem;
+    document.getElementById("cFail").textContent=fail;
+    document.getElementById("pct").textContent=pct+"%";
+    document.getElementById("bar").style.width=pct+"%";
+  }
+  function refreshSectionDone(){
+    DATA.forEach(function(sec){
+      var d=0,f=0; sec.items.forEach(function(i){ var s=st(i.id).s; if(s)d++; if(s==="fail")f++; });
+      var el=document.querySelector('[data-sdone="'+sec.id+'"]');
+      if(el) el.textContent = d+"/"+sec.items.length+(f?(" · "+f+" fail"):"");
+    });
+  }
+  function criticalFails(){ return ALL.filter(function(i){ return i.c && st(i.id).s==="fail"; }); }
+
+  function refreshDecision(){
+    var cf=criticalFails(), lReady=document.getElementById("lReady"),
+        lNot=document.getElementById("lNot"), msg=document.getElementById("decisionMsg"),
+        readyInput=lReady.querySelector("input"), notInput=lNot.querySelector("input");
+    var locked = cf.length>0;
+    lReady.classList.toggle("disabled", locked);
+    readyInput.disabled = locked;
+    if(locked && state.decision==="ready"){ state.decision="notready"; save(); }
+    readyInput.checked = state.decision==="ready";
+    notInput.checked = state.decision==="notready";
+    lReady.classList.toggle("sel", state.decision==="ready");
+    lNot.classList.toggle("sel", state.decision==="notready");
+    if(locked){
+      msg.innerHTML='<div class="blockmsg">🚫 Locked: '+cf.length+' CRITICAL item(s) marked Fail — '+
+        cf.map(function(i){return i.id;}).join(", ")+'. Resolve before a mobile build.</div>';
+    } else if(state.decision==="ready"){
+      msg.innerHTML='<div class="okmsg">✅ Cleared for mobile build. No critical failures recorded.</div>';
+    } else { msg.innerHTML=""; }
+  }
+  document.getElementById("decision").addEventListener("change", function(e){
+    var v=e.target.value;
+    if(v==="ready" && criticalFails().length>0){ e.target.checked=false; refreshDecision(); return; }
+    state.decision=v; save(); refreshDecision();
+  });
+
+  function refreshSummary(){
+    var fails=ALL.filter(function(i){ return st(i.id).s==="fail"; });
+    var m=state.meta, lines=[];
+    lines.push("NEXPEC 60-min smoke test — failure summary");
+    lines.push("Tester: "+(m.name||"—")+"   Date: "+(m.date||"—"));
+    lines.push("Preview: "+(m.url||"—")+"   SHA: "+(m.sha||"—")+"   Browser: "+(m.browser||"—"));
+    var cf=criticalFails().length;
+    lines.push("Decision: "+(state.decision? state.decision.toUpperCase() : "—")+"   Critical fails: "+cf);
+    lines.push("");
+    if(!fails.length){ lines.push("No failures recorded."); }
+    else {
+      lines.push(fails.length+" failed item(s):");
+      fails.forEach(function(i){
+        lines.push((i.c?"[CRITICAL] ":"[ ] ")+i.id+" — "+i.t+(st(i.id).n? ("  | note: "+st(i.id).n):""));
+      });
+    }
+    document.getElementById("summary").textContent=lines.join("\n");
+  }
+
+  // ── Toolbar ──────────────────────────────────────────────────────────────────
+  document.getElementById("bExpand").onclick=function(){ setAllOpen(true); };
+  document.getElementById("bCollapse").onclick=function(){ setAllOpen(false); };
+  function setAllOpen(open){ Array.prototype.forEach.call(document.querySelectorAll("details.sec"),function(d){ d.open=open; state.collapsed[d.dataset.sec]=!open; }); save(); }
+  var failBtn=document.getElementById("bFailOnly");
+  failBtn.onclick=function(){ state.failOnly=!state.failOnly; failBtn.textContent=state.failOnly?"Show all items":"Show failures only"; failBtn.classList.toggle("primary",state.failOnly); save(); paintAll(); };
+  if(state.failOnly){ failBtn.textContent="Show all items"; failBtn.classList.add("primary"); }
+
+  document.getElementById("bCopy").onclick=function(){
+    var txt=document.getElementById("summary").textContent;
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(flash,fallbackCopy.bind(null,txt)); }
+    else fallbackCopy(txt);
+  };
+  function fallbackCopy(txt){ var ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(e){} document.body.removeChild(ta); flash(); }
+  function flash(){ var b=document.getElementById("bCopy"), o=b.textContent; b.textContent="Copied ✓"; setTimeout(function(){b.textContent=o;},1200); }
+
+  document.getElementById("bPrint").onclick=function(){ window.print(); };
+  document.getElementById("bReset").onclick=function(){
+    if(!confirm("Reset ALL checklist items, notes, decision and header fields? Timer is not affected.")) return;
+    var t=state.timer; state=blank(); state.timer=t; save();
+    Array.prototype.forEach.call(document.querySelectorAll("[data-meta]"),function(i){i.value="";});
+    Array.prototype.forEach.call(document.querySelectorAll("[data-note]"),function(i){i.value="";});
+    refreshAll();
+  };
+
+  // ── Timer ────────────────────────────────────────────────────────────────────
+  var tEl=document.getElementById("timer"), tick=null;
+  function fmt(s){ s=Math.max(0,s); var m=Math.floor(s/60), ss=s%60; return (m<10?"0":"")+m+":"+(ss<10?"0":"")+ss; }
+  function paintTimer(){
+    var r=state.timer.remaining;
+    tEl.textContent = r<0 ? ("-"+fmt(-r)) : fmt(r);
+    tEl.className="timer"+(r<=0?" over":(r<=300?" low":""));
+  }
+  function startTimer(){ if(tick) return; state.timer.running=true; save();
+    tick=setInterval(function(){ state.timer.remaining--; paintTimer(); if(state.timer.remaining%5===0) save(); },1000); }
+  function pauseTimer(){ if(tick){clearInterval(tick);tick=null;} state.timer.running=false; save(); }
+  document.getElementById("tStart").onclick=startTimer;
+  document.getElementById("tPause").onclick=pauseTimer;
+  document.getElementById("tReset").onclick=function(){ pauseTimer(); state.timer.remaining=TOTAL_SECONDS; save(); paintTimer(); };
+
+  function escapeAttr(s){ return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+
+  // init
+  paintTimer(); refreshAll();
+  window.addEventListener("beforeunload", save);
+})();
+</script>
+</body>
+</html>

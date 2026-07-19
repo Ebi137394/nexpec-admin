@@ -63,7 +63,7 @@ You grant NEXPEC a worldwide, perpetual, irrevocable, royalty-free, sublicensabl
   // ─────────── PRIV-001 v1.0 ───────────
   'PRIV-001': `# NEXPEC — Privacy Policy
 
-> **Plain-English summary.** NEXPEC collects only what we need to run the platform: your account info, your role data, what you do on the platform, and (if you're being paid) the info Stripe needs to pay you. We do not sell your data. We share it only with the people who need it to do their job — the Client who hired you, the Inspector you hired, and our service providers (Stripe, Supabase, etc.). Our servers are hosted globally; we use legally recognized transfer mechanisms (like Standard Contractual Clauses) to protect data crossing borders. You can ask to see, correct, or delete your data at any time.
+> **Plain-English summary.** NEXPEC collects only what we need to run the platform: your account info, your role data, what you do on the platform, and (if you're being paid) the payment details our payment processor needs to pay you. We do not sell your data. We share it only with the people who need it to do their job — the Client who hired you, the Inspector you hired, and our trusted service providers. Some information may be stored or processed outside Quebec and Canada where required to operate the platform, with appropriate contractual and legal safeguards. You can ask to see, correct, or delete your data at any time.
 
 ## 1. Who We Are
 NEXPEC Technologies ("**NEXPEC**," "**we**," "**us**"), Montréal, Québec, Canada. Privacy contact: **privacy@nexpec.com**.
@@ -72,7 +72,7 @@ NEXPEC Technologies ("**NEXPEC**," "**we**," "**us**"), Montréal, Québec, Cana
 - **Account Data:** name, email, phone, role, language preference, profile photo, password hash.
 - **Verification Data:** uploaded certificates, government IDs, insurance documents, and their metadata (issuer, validity, expiration).
 - **Job Data:** Job posts, applications, in-app messages, inspection reports, photos, locations, ratings, timestamps.
-- **Payment Data:** banking and tax information collected by **Stripe**. NEXPEC does not store full payment credentials.
+- **Payment Data:** banking and tax information collected by our third-party payment processor. NEXPEC does not store full payment credentials.
 - **Device & Usage Data:** IP address, device type, operating system, app version, logs, crash reports, approximate location (for geo-matching).
 - **Communications:** in-app chat, support tickets, voluntary feedback.
 
@@ -86,19 +86,19 @@ We process personal data on the following bases, as applicable to your jurisdict
 ## 4. Controller vs. Processor
 - **Account Data and Verification Data:** NEXPEC is the **controller**.
 - **Job Output** (reports, photos, findings, ratings): NEXPEC is a **processor** acting on behalf of the Client or Inspector who created the content; that user remains the controller of their work product.
-- **Payment Data:** Stripe is the controller; NEXPEC receives only the metadata necessary to reconcile transactions and remit the PFT Fee.
+- **Payment Data:** our third-party payment processor is the controller; NEXPEC receives only the metadata necessary to reconcile transactions and remit the PFT Fee.
 
 ## 5. Sharing
 We share personal data with:
 1. **Other Platform users** where the workflow requires it (for example, the Client sees the Inspector they hire and vice versa).
-2. **Service providers under written contract** — **Stripe** (payments), **Supabase / AWS** (hosting and database), email and SMS delivery providers, analytics providers, customer-support tooling, and security vendors. These providers are bound to use the data only for the purposes we direct.
+2. **Service providers under written contract** — we use trusted service providers to operate the platform, including cloud hosting, secure data storage, authentication, email delivery, payment processing, identity verification, and fraud prevention. These providers may process personal information only as necessary to provide their services and are required to protect it.
 3. **Law enforcement and regulators** where legally compelled or where we believe disclosure is necessary to prevent imminent harm.
 4. **Successors** in a merger, acquisition, or asset sale, subject to this Policy.
 
 We **do not sell personal data**, and we do not engage in "cross-context behavioural advertising" or "sharing for advertising" as those terms are defined under the CCPA/CPRA.
 
 ## 6. International Transfers
-NEXPEC operates globally. Data is hosted via **Supabase on AWS** infrastructure across multiple regions. For v1 of the Platform we do not offer guaranteed localized data residency. International transfers rely on legally recognized mechanisms, including the **EU Standard Contractual Clauses (SCCs)** under GDPR Article 46, the **UK International Data Transfer Addendum**, equivalent transfer instruments accepted in Switzerland, Brazil, and the GCC where applicable, and contractual safeguards consistent with **PIPEDA** and **Québec's Law 25**. A list of subprocessors and the transfer mechanism in place for each is published at **nexpec.com/legal/subprocessors** and updated as it changes.
+NEXPEC operates globally, and personal information may be stored or processed outside Quebec and Canada where required to operate the platform. For v1 of the Platform we do not offer guaranteed localized data residency. Where information is transferred across borders, we rely on appropriate contractual and legal safeguards consistent with applicable privacy laws, including **PIPEDA** and **Québec's Law 25**.
 
 ## 7. Your Rights
 Subject to your jurisdiction's privacy law, you may request **access, correction, deletion, portability, restriction, and objection** in respect of your personal data; **withdraw consent** at any time; and **lodge a complaint** with the supervisory authority of your jurisdiction — including:
@@ -122,7 +122,7 @@ Submit requests to **privacy@nexpec.com**. We respond within **30 days** where r
 When you delete your account, your login is **permanently disabled** and your personal profile information is **erased or anonymized**. Business and financial records we are legally required to keep — contracts, inspection reports, technical findings, invoices, payments, tax, dispute, audit, and fraud/security records — are **retained** in de-identified form, linked to a stable internal record identifier and a neutral label such as "Former Inspector" rather than your name, so those records stay valid and verifiable. **De-Identified Technical Data** already created may be retained and used as described in TOS-001 §13. We do not retain your contact details, photo, résumé/CV, or other identifying profile fields after anonymization, except where a specific legal obligation requires a longer hold. Requesting erasure of your personal data does not require deletion of De-Identified Technical Data, which is no longer personal data.
 
 ## 9. Security
-We use encryption in transit (TLS 1.2 or higher) and at rest, role-based access controls, audited Supabase Row-Level Security policies, secret rotation, and an incident-response process. No system is perfectly secure; we will notify affected users and, where required, the applicable regulators of any qualifying personal-data breach in the timelines mandated by the applicable law.
+We use encryption in transit (TLS 1.2 or higher) and at rest, role-based access controls, audited database row-level security policies, secret rotation, and an incident-response process. No system is perfectly secure; we will notify affected users and, where required, the applicable regulators of any qualifying personal-data breach in the timelines mandated by the applicable law.
 
 ## 10. Children
 The Platform is not directed at, and we do not knowingly collect personal data from, persons under **18**. If you believe a minor has provided us data, contact privacy@nexpec.com and we will delete it.

@@ -1,7 +1,8 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  app/legal/privacy/page.tsx — Privacy Policy
-//  ⚠️ PLACEHOLDER. Final wording must come from counsel; structure here
-//  is a working scaffold so the sign-up flow stops 404ing.
+//  app/legal/privacy/page.tsx — Privacy Policy (public, store-facing)
+//  Launch-ready presentation. Describes only the data practices NEXPEC
+//  actually performs today; mirrors the authoritative content in src/legal
+//  (PRIV-001). Do not add new legal promises or expand data practices here.
 // ════════════════════════════════════════════════════════════════════════════
 
 import type { Metadata } from 'next';
@@ -18,20 +19,8 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="mt-4 text-sm text-zinc-500">
-        Effective date: TBD · Last updated: TBD
+        Effective date: July 18, 2026 · Last updated: July 18, 2026
       </p>
-
-      <div className="mt-8 rounded-2xl border border-accent-amber/30 bg-accent-amber/5 p-4 text-sm leading-relaxed">
-        <strong className="block text-xs font-semibold uppercase tracking-industrial text-accent-amber/90">
-          Draft notice
-        </strong>
-        <p className="mt-1.5 text-zinc-200">
-          This Privacy Policy is a working draft pending counsel review.
-          It accurately describes what data NEXPEC collects today and how
-          we use it, but final binding language will be posted before
-          public launch.
-        </p>
-      </div>
 
       <Section title="1. Data we collect">
         <p>
@@ -59,8 +48,8 @@ export default function PrivacyPage() {
         <p>
           To match inspectors to jobs, mediate communication between
           clients and inspectors via admin chat, process payments through
-          Stripe, comply with KYC/AML obligations on the inspector
-          side, and improve platform safety.
+          our payment processor, comply with KYC/AML obligations on the
+          inspector side, and improve platform safety.
         </p>
         <p>
           <strong className="text-zinc-100">
@@ -73,22 +62,19 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="3. Sub-processors">
+      <Section title="3. Service providers">
         <p>
-          <strong className="text-zinc-100">Supabase</strong> — database,
-          auth, storage, edge functions. EU + US regions.
+          We use trusted service providers to operate the platform, including
+          cloud hosting, secure data storage, authentication, email delivery,
+          payment processing, identity verification, and fraud prevention.
+          These providers may process personal information only as necessary to
+          provide their services and are required to protect it.
         </p>
         <p>
-          <strong className="text-zinc-100">Stripe</strong> — payment
-          processing, Connect inspector payouts, KYC verification.
-        </p>
-        <p>
-          <strong className="text-zinc-100">Vercel</strong> — web app
-          hosting, edge caching.
-        </p>
-        <p>
-          <strong className="text-zinc-100">Resend</strong> — transactional
-          email (sign-up confirmations, dispatch notifications).
+          Some of these providers store or process information outside Quebec
+          and Canada where required to operate the platform. Where information
+          is transferred across borders, we rely on appropriate contractual and
+          legal safeguards to protect it.
         </p>
       </Section>
 

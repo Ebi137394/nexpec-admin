@@ -231,7 +231,18 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. Signed-in user hitting /sign-in or /sign-up → bounce home.
-  if (user && isAuthRoute) {
+  //    Recovery routes (/forgot-password, /reset-password) are intentionally
+  //    NOT bounced: they must stay reachable in ANY session state so the
+  //    "Can't sign in?" recovery link (and stale-session recovery) lands on
+  //    the public forgot-password page instead of redirecting inside the
+  //    platform. The authenticated change-password flow lives on portal routes
+  //    and is unaffected.
+  const isRecoveryRoute =
+    pathname === '/forgot-password' ||
+    pathname.startsWith('/forgot-password/') ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/reset-password/');
+  if (user && isAuthRoute && !isRecoveryRoute) {
     const userEmail = (user.email ?? '').toLowerCase();
     const isOwnerByEmail =
       userEmail.length > 0 && OWNER_EMAILS.includes(userEmail);

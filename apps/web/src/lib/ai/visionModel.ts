@@ -49,16 +49,41 @@ async function loadDeps(): Promise<{ tf: Tf; tflite: Tflite }> {
   return depsPromise;
 }
 
-// Load (and cache) a .tflite model directly from a URL.
+// Hex SHA-256 of an ArrayBuffer via WebCrypto (available in any secure context).
+async function sha256Hex(buf: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Load (and cache) a .tflite model. When `expectedSha256` is provided the model
+// bytes are fetched and their SHA-256 is verified BEFORE the model is handed to
+// the runtime — a mismatch throws MODEL_SHA_MISMATCH and nothing loads. This is
+// the browser half of the provable-AI binding (the server independently rejects
+// a recorded detection whose sha doesn't match the published artifact).
 const modelCache = new Map<string, Promise<Tflite>>();
-export function loadModel(url: string): Promise<Tflite> {
+export function loadModel(url: string, expectedSha256?: string | null): Promise<Tflite> {
   const cached = modelCache.get(url);
   if (cached) return cached;
   const p = (async () => {
     const { tflite } = await loadDeps();
+    if (expectedSha256) {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Model download failed (HTTP ${resp.status}).`);
+      const buf = await resp.arrayBuffer();
+      const actual = await sha256Hex(buf);
+      if (actual.toLowerCase() !== expectedSha256.toLowerCase()) {
+        throw new Error(
+          `MODEL_SHA_MISMATCH: the served model does not match the registered SHA-256 ` +
+          `(expected ${expectedSha256.slice(0, 12)}…, got ${actual.slice(0, 12)}…). Refusing to load.`,
+        );
+      }
+      return await tflite.loadTFLiteModel(buf);
+    }
     return await tflite.loadTFLiteModel(url);
   })();
   modelCache.set(url, p);
+  // Drop a rejected load so a later attempt can retry cleanly.
+  void p.catch(() => { if (modelCache.get(url) === p) modelCache.delete(url); });
   return p;
 }
 
@@ -121,10 +146,10 @@ const SEG_INPUT_SIZE = 1024; // seg models are 1024²; classifiers (e.g. 224) �
 export async function segment(
   img: HTMLImageElement,
   modelUrl: string,
-  opts?: { confThreshold?: number; iouThreshold?: number; maskThreshold?: number },
+  opts?: { confThreshold?: number; iouThreshold?: number; maskThreshold?: number; expectedSha256?: string | null },
 ): Promise<SegDetection[]> {
   const { tf } = await loadDeps();
-  const model = await loadModel(modelUrl);
+  const model = await loadModel(modelUrl, opts?.expectedSha256 ?? null);
   const inShape: number[] = (model.inputs?.[0]?.shape ?? []) as number[];
   if (!inShape.includes(SEG_INPUT_SIZE)) return []; // not a 1024 seg model
 

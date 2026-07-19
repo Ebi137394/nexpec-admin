@@ -14,11 +14,16 @@ import {
   recordSegFeedback,
   type InspectorJobLite, type AiDetection, type VisionModelRef,
 } from '@/lib/data/aiCoinspector';
-import { classify, segment, loadModel } from '@/lib/ai/visionModel';
+import { segment, loadModel } from '@/lib/ai/visionModel';
+import { isCorrosionDefectClass, corrosionLabelFor } from '@nexpec/shared-core';
 import { SegEditorOverlay, type SegEditDetection } from '@/components/inspector/SegEditorOverlay';
 
 interface Staged { id: string; url: string; name: string }
-interface Suggestion { id: string; stagedId: string; thumbUrl: string; defectId: string; label: string; confidence: number }
+interface Suggestion {
+  id: string; stagedId: string; thumbUrl: string;
+  classId: number; defectId: string; label: string; confidence: number;
+  box: [number, number, number, number]; polygon: Array<[number, number]>;
+}
 type ModelStatus = 'checking' | 'unconfigured' | 'ready' | 'error';
 
 const imgFromUrl = (url: string) => new Promise<HTMLImageElement>((res, rej) => {
@@ -46,6 +51,7 @@ export default function AiCoinspectorPage() {
   const [camOn, setCamOn] = useState(false);
   const [modelRef, setModelRef] = useState<VisionModelRef | null>(null);
   const [modelStatus, setModelStatus] = useState<ModelStatus>('checking');
+  const [modelError, setModelError] = useState<string | null>(null);
   // Seg polygons per staged image (empty for classifier models → overlay is inert).
   const [segByStaged, setSegByStaged] = useState<Record<string, SegEditDetection[]>>({});
 
@@ -55,13 +61,24 @@ export default function AiCoinspectorPage() {
 
   useEffect(() => { fetchInspectorJobs().then(setJobs).catch(() => {}); }, []);
   useEffect(() => {
+    let alive = true;
     fetchVisionModelRef()
       .then((ref) => {
+        if (!alive) return;
         if (!ref) { setModelStatus('unconfigured'); return; }
-        setModelRef(ref); setModelStatus('ready');
-        loadModel(ref.url).catch(() => setModelStatus('error')); // warm the model
+        setModelRef(ref); setModelStatus('checking');
+        // Warm + SHA-verify before declaring ready. A mismatch/404 surfaces as
+        // an actionable configuration error (never silently "ready").
+        loadModel(ref.url, ref.sha256)
+          .then(() => { if (alive) setModelStatus('ready'); })
+          .catch((e) => {
+            if (!alive) return;
+            setModelError(e instanceof Error ? e.message : 'model load failed');
+            setModelStatus('error');
+          });
       })
-      .catch(() => setModelStatus('error'));
+      .catch(() => { if (alive) setModelStatus('error'); });
+    return () => { alive = false; };
   }, []);
 
   const loadDets = useCallback((id: string) => {
@@ -99,32 +116,51 @@ export default function AiCoinspectorPage() {
     c.toBlob((b) => { if (b) addFiles([new File([b], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' })]); }, 'image/jpeg', 0.95);
   };
 
-  // ── Client-side inference ──
+  // ── Client-side inference (instance segmentation, YOLO26-seg) ──
+  //  Runs the SAME segment()/decodeYoloSeg pipeline as mobile. Each valid
+  //  SegDetection (defect class, above threshold) becomes an actionable
+  //  suggestion carrying classId + normalized label + confidence + box + mask.
   const analyzeOne = async (s: Staged) => {
     if (modelStatus !== 'ready' || !modelRef) { setMsg({ kind: 'err', text: 'On-device model is not ready.' }); return; }
     if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
     setAnalyzingId(s.id); setMsg(null);
     try {
       const img = await imgFromUrl(s.url);
-      // Instance-seg (YOLO26-seg) → interactive polygons; classifier models return
-      // [] (safe no-op). Same decodeYoloSeg as mobile → identical geometry.
-      try {
-        const segs = await segment(img, modelRef.url);
-        setSegByStaged((prev) => ({
-          ...prev,
-          [s.id]: segs.map((d) => ({
-            classId: d.classId, score: d.score, box: d.box, polygon: d.polygon,
-            label: modelRef.labels[d.classId], aiBox: d.box, aiPolygon: d.polygon,
-          })),
-        }));
-      } catch { /* seg is optional and must never block classification */ }
-      const cands = await classify(img, modelRef.url, modelRef.labels);
-      if (cands.length === 0) { setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' }); return; }
+      const segs = await segment(img, modelRef.url, { expectedSha256: modelRef.sha256 });
+
+      // Interactive overlay polygons (all detections, so reviewers see everything).
+      setSegByStaged((prev) => ({
+        ...prev,
+        [s.id]: segs.map((d) => ({
+          classId: d.classId, score: d.score, box: d.box, polygon: d.polygon,
+          label: corrosionLabelFor(d.classId, modelRef.labels), aiBox: d.box, aiPolygon: d.polygon,
+        })),
+      }));
+
+      // Actionable suggestions: real defect classes only (drops the 'car'
+      // non-defect class), highest confidence first.
+      const cands = segs
+        .filter((d) => isCorrosionDefectClass(d.classId))
+        .sort((a, b) => b.score - a.score);
+      if (cands.length === 0) {
+        setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' });
+        return;
+      }
       setSuggestions((prev) => [
         ...prev.filter((x) => x.stagedId !== s.id),
-        ...cands.map((c) => ({ id: `${s.id}-${c.defectId}`, stagedId: s.id, thumbUrl: s.url, ...c })),
+        ...cands.map((d, i) => ({
+          id: `${s.id}-${d.classId}-${i}`,
+          stagedId: s.id,
+          thumbUrl: s.url,
+          classId: d.classId,
+          defectId: `cls_${d.classId}`,
+          label: corrosionLabelFor(d.classId, modelRef.labels),
+          confidence: d.score,
+          box: d.box,
+          polygon: d.polygon,
+        })),
       ]);
-      setMsg({ kind: 'ok', text: `${cands.length} on-device suggestion${cands.length === 1 ? '' : 's'}, ${modelRef.slug} v${modelRef.version}.` });
+      setMsg({ kind: 'ok', text: `${cands.length} on-device detection${cands.length === 1 ? '' : 's'}, ${modelRef.slug} v${modelRef.version}.` });
     } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Inference failed.' }); }
     finally { setAnalyzingId(null); }
   };
@@ -132,13 +168,22 @@ export default function AiCoinspectorPage() {
     if (!jobId || !modelRef) return;
     setAcceptingId(sug.id); setMsg(null);
     try {
-      const res = await recordDetection(jobId, { defectId: sug.defectId, label: sug.label, confidence: sug.confidence }, modelRef);
+      const res = await recordDetection(
+        jobId,
+        {
+          defectId: sug.defectId, label: sug.label, confidence: sug.confidence,
+          classId: sug.classId, box: sug.box, polygon: sug.polygon,
+        },
+        modelRef,
+      );
       if (!res.ok) { setMsg({ kind: 'err', text: res.error ?? 'Could not record finding.' }); return; }
       setSuggestions((prev) => prev.filter((x) => x.id !== sug.id));
       setMsg({ kind: 'ok', text: `Recorded "${sug.label}", bound to ${modelRef.slug} v${modelRef.version}.` });
       loadDets(jobId);
     } finally { setAcceptingId(null); }
   };
+  // Reject: dismiss a suggestion without recording it (reviewer control).
+  const reject = (sug: Suggestion) => setSuggestions((prev) => prev.filter((x) => x.id !== sug.id));
 
   const recorded = useMemo(() => dets, [dets]);
 
@@ -167,7 +212,10 @@ export default function AiCoinspectorPage() {
           <span>Automated AI analysis is currently in manual mode. You can still upload imagery and manually record findings for this job below.</span>
         </div>
       ) : modelStatus === 'error' ? (
-        <div className="flex items-center gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red"><AlertCircle className="h-4 w-4" /> Could not load the on-device model.</div>
+        <div className="flex items-start gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>Could not load the on-device model.{modelError ? ` ${modelError}` : ''} Check the model URL and that its SHA-256 matches the registered artifact.</span>
+        </div>
       ) : (
         <div className="inline-flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={13} className="animate-spin" /> Checking on-device model…</div>
       )}
@@ -261,9 +309,14 @@ export default function AiCoinspectorPage() {
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ink-950"><div className="h-full rounded-full bg-gradient-to-r from-violet to-violet-glow" style={{ width: `${Math.round(sg.confidence * 100)}%` }} /></div>
                     </div>
                     <span className="shrink-0 text-sm font-semibold text-white">{Math.round(sg.confidence * 100)}%</span>
-                    <button onClick={() => accept(sg)} disabled={acceptingId === sg.id} className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet px-3 py-1.5 text-xs font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
-                      {acceptingId === sg.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Accept
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button onClick={() => accept(sg)} disabled={acceptingId === sg.id} className="inline-flex items-center gap-1.5 rounded-full bg-violet px-3 py-1.5 text-xs font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
+                        {acceptingId === sg.id ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Accept
+                      </button>
+                      <button onClick={() => reject(sg)} disabled={acceptingId === sg.id} aria-label="Reject suggestion" className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-zinc-300 transition hover:border-accent-red/40 hover:text-white disabled:opacity-60">
+                        <X size={13} /> Reject
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

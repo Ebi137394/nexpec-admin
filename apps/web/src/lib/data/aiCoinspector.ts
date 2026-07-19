@@ -12,6 +12,7 @@
 'use client';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
+import { CORROSION_MODEL, CORROSION_LABELS_DISPLAY } from '@nexpec/shared-core';
 
 const sb = () => createSupabaseBrowserClient();
 
@@ -86,16 +87,18 @@ export interface VisionModelRef { url: string; slug: string; version: number; sh
 export async function fetchVisionModelRef(): Promise<VisionModelRef | null> {
   const url = process.env.NEXT_PUBLIC_VISION_MODEL_URL;
   if (!url) return null;
-  const labels = (process.env.NEXT_PUBLIC_VISION_LABELS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  // Labels: env override (ordered CSV, index = classId) → normalized launch labels.
+  const envLabels = (process.env.NEXT_PUBLIC_VISION_LABELS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const labels = envLabels.length > 0 ? envLabels : [...CORROSION_LABELS_DISPLAY];
   let slug = process.env.NEXT_PUBLIC_VISION_MODEL_SLUG ?? '';
-  let version = Number(process.env.NEXT_PUBLIC_VISION_MODEL_VERSION ?? '1');
+  let version = Number(process.env.NEXT_PUBLIC_VISION_MODEL_VERSION ?? String(CORROSION_MODEL.version));
   let sha256: string | null = process.env.NEXT_PUBLIC_VISION_MODEL_SHA256 ?? null;
   try {
     const { data } = await sb().rpc('ml_resolve_models', { p_kind: 'vision_defect' });
     const m = ((data?.models ?? []) as Array<Record<string, unknown>>)[0];
     if (m) { slug = String(m.slug); version = Number(m.version); sha256 = m.sha256 ? String(m.sha256) : sha256; }
   } catch { /* env fallback */ }
-  if (!slug) return null;
+  if (!slug) slug = CORROSION_MODEL.slug;   // official launch model
   return { url, slug, version, sha256, labels };
 }
 
@@ -103,7 +106,14 @@ export async function fetchVisionModelRef(): Promise<VisionModelRef | null> {
 // signed model, identical contract to the mobile accept path.
 export async function recordDetection(
   jobId: string,
-  c: { defectId: string; label: string; confidence: number },
+  c: {
+    defectId: string;
+    label: string;
+    confidence: number;
+    classId?: number;
+    box?: [number, number, number, number];
+    polygon?: Array<[number, number]> | null;
+  },
   ref: VisionModelRef,
 ): Promise<{ ok: boolean; error?: string }> {
   const clientOpId = (globalThis.crypto?.randomUUID?.() ?? `${c.defectId}-${Date.now()}`);
@@ -119,7 +129,15 @@ export async function recordDetection(
     p_severity_scale: null,
     p_standard_refs: null,
     p_accepted: true,
-    p_raw: { source: 'web_client_tfjs' },
+    // Geometry (normalized xyxy box + optional mask polygon) travels in `raw`
+    // so the finding carries the segmentation evidence, folded into the seal.
+    p_raw: {
+      source: 'web_client_tfjs',
+      task: 'instance_segmentation',
+      class_id: c.classId ?? null,
+      box: c.box ?? null,
+      polygon: c.polygon ?? null,
+    },
     p_client_op_id: clientOpId,
   });
   if (error) return { ok: false, error: error.message };

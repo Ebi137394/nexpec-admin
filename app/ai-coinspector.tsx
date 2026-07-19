@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
 import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
-import { buildAiAssist, aiAssistToRpcArgs, type DefectDetection } from '@nexpec/shared-core';
+import { buildAiAssist, aiAssistToRpcArgs, CORROSION_MODEL, type DefectDetection } from '@nexpec/shared-core';
 
 const COLORS = {
   bg: '#0B1020', card: '#161C36', border: '#2A3354', primary: '#8B5CF6',
@@ -31,7 +31,10 @@ export default function AiCoInspectorScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [recorded, setRecorded] = useState<string[]>([]);
-  const da = useDefectAnalysis({ kind: 'vision_defect', slug: 'universal-detector' });
+  // Official launch model: corrosion-detector v2 (shared identity, matches web
+  // + the v2 signed registration). On-device resolution + SHA-verify is handled
+  // by the model runtime; provenance is recorded under this slug/version.
+  const da = useDefectAnalysis({ kind: CORROSION_MODEL.kind, slug: CORROSION_MODEL.slug });
 
   const pickImage = useCallback(async () => {
     try {
@@ -56,7 +59,7 @@ export default function AiCoInspectorScreen() {
     try {
       const assist = buildAiAssist(
         d,
-        { slug: da.analysis?.modelSlug ?? 'universal-detector', version: da.analysis?.modelVersion ?? 1 },
+        { slug: da.analysis?.modelSlug ?? CORROSION_MODEL.slug, version: da.analysis?.modelVersion ?? CORROSION_MODEL.version },
         true,
       );
       const args = aiAssistToRpcArgs(assist, jobId, { reportId: reportId ?? undefined });
@@ -121,7 +124,7 @@ export default function AiCoInspectorScreen() {
             {da.status === 'unavailable' && (
               <View style={[styles.card, { borderColor: COLORS.red }]}>
                 <Text style={styles.cardTitle}>Model unavailable</Text>
-                <Text style={styles.cardBody}>{da.error ?? 'Publish the universal-detector model and run a dev build with Skia + fast-tflite.'}</Text>
+                <Text style={styles.cardBody}>{da.error ?? 'Publish the corrosion-detector v2 model and run a dev build with Skia + fast-tflite.'}</Text>
               </View>
             )}
 

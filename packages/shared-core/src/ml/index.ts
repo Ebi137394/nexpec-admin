@@ -16,3 +16,4 @@ export * from './defectTaxonomy';
 export * from './defectResult';
 export * from './segDecode';
 export * from './aiAssist';
+export * from './corrosionLabels';

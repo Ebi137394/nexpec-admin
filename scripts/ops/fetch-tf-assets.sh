@@ -22,10 +22,10 @@ cp "$TMP/package/dist/tf.min.js" "$DEST/tf.min.js"
 
 echo "→ @tensorflow/tfjs-tflite@$TFLITE_VER"
 ( cd "$TMP" && npm pack "@tensorflow/tfjs-tflite@$TFLITE_VER" >/dev/null && tar -xzf tensorflow-tfjs-tflite-*.tgz )
-# the TFLite script + every wasm + its JS glue (the wasm loaders) live in dist/
-cp "$TMP"/package/dist/tf-tflite.min.js "$DEST/tflite/"
-cp "$TMP"/package/dist/*.wasm "$DEST/tflite/" 2>/dev/null || true
-cp "$TMP"/package/dist/*.js   "$DEST/tflite/" 2>/dev/null || true
+# Main browser bundle lives in dist/; WASM binaries and their loader/worker
+# files live in wasm/ for @tensorflow/tfjs-tflite 0.0.1-alpha.10.
+cp "$TMP/package/dist/tf-tflite.min.js" "$DEST/tflite/"
+cp "$TMP"/package/wasm/* "$DEST/tflite/"
 
 echo "✓ vendored under $DEST:"
 ls -lh "$DEST" "$DEST/tflite"

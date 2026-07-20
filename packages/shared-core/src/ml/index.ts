@@ -15,5 +15,8 @@ export * from './registryClient';
 export * from './defectTaxonomy';
 export * from './defectResult';
 export * from './segDecode';
+export * from './detDecode';
+export * from './segE2eDecode';
 export * from './aiAssist';
 export * from './corrosionLabels';
+export * from './modelRegistry';

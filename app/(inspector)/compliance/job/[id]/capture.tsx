@@ -53,7 +53,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { SegModelManager, type SegMode } from '@/src/core/ml/vision/segModelManager';
+import { SegModelManager, modeSlug, type SegMode } from '@/src/core/ml/vision/segModelManager';
 import { SegOverlay, type SegOverlayDetection } from '@/src/core/ml/vision/SegOverlay';
 import * as Location from 'expo-location';
 import {
@@ -93,7 +93,7 @@ import { enqueueCaptureSave, enqueueAiFeedback } from '@/lib/offline';
 // published AND the app runs with the native ML runtime enabled.
 import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
 import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
-import { buildAiAssist, aiFeedbackToRpcArgs, getDefectMeta, DEFECT_TAXONOMY, type DefectDetection } from '@nexpec/shared-core';
+import { buildAiAssist, aiFeedbackToRpcArgs, getDefectMeta, getModel, DEFECT_TAXONOMY, type DefectDetection } from '@nexpec/shared-core';
 import * as Haptics from 'expo-haptics';
 
 // ─────────────────────────────────────────────────────────────
@@ -196,6 +196,12 @@ export default function ComplianceCaptureWizard() {
   // Instance-seg overlay detections (normalized geometry). HITL-editable in place.
   const [segDetections, setSegDetections] = useState<SegOverlayDetection[]>([]);
   const [segMode, setSegMode] = useState<SegMode | null>(null);
+  // Active seg model (shared registry identity) for the auto-selected mode —
+  // shown in the UI so the inspector sees exactly which model is running.
+  const activeSegModel = useMemo(
+    () => (segMode ? getModel(modeSlug(segMode)) : null),
+    [segMode],
+  );
   const [aiCaptureId, setAiCaptureId] = useState<string | null>(null);
   const [aiRecorded, setAiRecorded] = useState<string[]>([]);
   const [aiNote, setAiNote] = useState<string | null>(null);
@@ -422,11 +428,15 @@ export default function ComplianceCaptureWizard() {
         // the job scope — no new toggle. Best-effort; never blocks the capture.
         setSegDetections([]);
         const segHay = `${(job as any)?.scope?.slug ?? ''} ${(job as any)?.scope?.name ?? ''} ${job?.inspection_type ?? ''}`.toLowerCase();
-        const detectedMode: SegMode | null = /weld|fissure|crack|ndt/.test(segHay)
-          ? 'weld'
-          : /corros|rust|coat|paint|blister/.test(segHay)
-            ? 'corrosion'
-            : null;
+        // Radiography/RT terms → the yolov9t detector; weld/fissure terms → WDA
+        // seg; corrosion terms → corrosion seg. Registry-driven via modeSlug.
+        const detectedMode: SegMode | null = /radiograph|\brt\b|inclusion|pinhole/.test(segHay)
+          ? 'weld-detect'
+          : /weld|fissure|crack|ndt/.test(segHay)
+            ? 'weld'
+            : /corros|rust|coat|paint|blister/.test(segHay)
+              ? 'corrosion'
+              : null;
         setSegMode(detectedMode);
         if (detectedMode && SegModelManager.available()) {
           SegModelManager.analyze(capturedUri, detectedMode)
@@ -885,6 +895,11 @@ export default function ComplianceCaptureWizard() {
               <ShieldCheck size={14} color={C.primarySoft} />
               <Text style={s.aiHeadText}>AI Co-Inspector, review &amp; accept</Text>
             </View>
+            {activeSegModel && (
+              <Text style={s.aiNote}>
+                On-device model: {activeSegModel.displayName} ({activeSegModel.slug} v{activeSegModel.version})
+              </Text>
+            )}
             <DefectFindingsCard
               analysis={da.analysis && aiFindings ? { ...da.analysis, detections: aiFindings } : da.analysis}
               loading={da.status === 'analyzing'}
@@ -894,7 +909,7 @@ export default function ComplianceCaptureWizard() {
             />
             {da.status === 'unavailable' && (
               <Text style={s.aiNote}>
-                {da.error ?? 'Model unavailable, publish the universal-detector model and run a dev build with the ML runtime enabled.'}
+                {da.error ?? 'On-device analysis needs a dev build with the ML runtime (fast-tflite + Skia) enabled.'}
               </Text>
             )}
             {!!aiRecorded.length && (

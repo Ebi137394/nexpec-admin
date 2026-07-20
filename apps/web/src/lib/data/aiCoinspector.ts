@@ -12,7 +12,7 @@
 'use client';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { CORROSION_MODEL, CORROSION_LABELS_DISPLAY } from '@nexpec/shared-core';
+import { enabledModels, type NexpecModel, type ModelTask } from '@nexpec/shared-core';
 
 const sb = () => createSupabaseBrowserClient();
 
@@ -78,28 +78,75 @@ export async function fetchJobDetections(jobId: string): Promise<AiDetection[]> 
   return (data ?? []) as AiDetection[];
 }
 
-// ── Client model reference ──
-//  The browser downloads + runs the TFJS model from NEXT_PUBLIC_VISION_MODEL_URL.
-//  Recordings bind to the registered artifact's identity (so pi_record_ai_detection's
-//  published+signed+sha check passes). We prefer the live registry (ml_resolve_models),
-//  falling back to public env identity.
-export interface VisionModelRef { url: string; slug: string; version: number; sha256: string | null; labels: string[] }
+// ── Client model references (registry-driven, shared with mobile) ──
+//  The browser downloads + runs each TFJS model client-side. Model IDENTITY
+//  (slug/version/sha256/labels/task/inputSize) is the SINGLE source of truth in
+//  @nexpec/shared-core NEXPEC_MODELS — identical to mobile. The only per-model
+//  web-specific input is the HOSTED URL the browser fetches the .tflite from.
+//
+//  Next.js inlines `process.env.NEXT_PUBLIC_*` only for LITERAL references, so
+//  each model's URL is mapped via a literal switch (a computed key would resolve
+//  to undefined in the client bundle). Add a case here when you enable a model.
+//
+//  The expected SHA-256 is the registry's pinned hash (NOT env) — the browser
+//  verifies the fetched bytes against it before loading, and the server
+//  independently rejects any recorded detection whose sha ≠ the published
+//  artifact. No env can weaken the binding, and nothing silently substitutes.
+export interface VisionModelRef {
+  model: NexpecModel;
+  /** Hosted .tflite URL for the browser; null ⇒ not configured on web. */
+  url: string | null;
+  slug: string;
+  version: number;
+  sha256: string | null;
+  labels: string[];
+  task: ModelTask;
+  inputSize: number;
+  displayName: string;
+  configured: boolean;
+}
+
+/** Literal-env URL map (see note above). */
+function webModelUrl(slug: string): string | null {
+  switch (slug) {
+    case 'corrosion-detector':
+      return process.env.NEXT_PUBLIC_VISION_MODEL_URL ?? null;
+    case 'wda-fissure-detector':
+      return process.env.NEXT_PUBLIC_WDA_MODEL_URL ?? null;
+    case 'yolov9t-weld-detector':
+      return process.env.NEXT_PUBLIC_YOLOV9T_MODEL_URL ?? null;
+    default:
+      return null; // model enabled in the registry but no web host wired yet
+  }
+}
+
+function toRef(model: NexpecModel): VisionModelRef {
+  const url = webModelUrl(model.slug);
+  return {
+    model,
+    url,
+    slug: model.slug,
+    version: model.version,
+    sha256: model.sha256,
+    labels: [...model.labels],
+    task: model.task,
+    inputSize: model.inputSize,
+    displayName: model.displayName,
+    configured: !!url,
+  };
+}
+
+/** Every launch-enabled model, in registry order. Unconfigured ones are present
+ *  (so the UI can show them as awaiting a host) but not runnable. */
+export function listVisionModels(): VisionModelRef[] {
+  return enabledModels().map(toRef);
+}
+
+/** Back-compat: the first launch-enabled model that has a web host configured,
+ *  else the first enabled model (configured=false), else null. */
 export async function fetchVisionModelRef(): Promise<VisionModelRef | null> {
-  const url = process.env.NEXT_PUBLIC_VISION_MODEL_URL;
-  if (!url) return null;
-  // Labels: env override (ordered CSV, index = classId) → normalized launch labels.
-  const envLabels = (process.env.NEXT_PUBLIC_VISION_LABELS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  const labels = envLabels.length > 0 ? envLabels : [...CORROSION_LABELS_DISPLAY];
-  let slug = process.env.NEXT_PUBLIC_VISION_MODEL_SLUG ?? '';
-  let version = Number(process.env.NEXT_PUBLIC_VISION_MODEL_VERSION ?? String(CORROSION_MODEL.version));
-  let sha256: string | null = process.env.NEXT_PUBLIC_VISION_MODEL_SHA256 ?? null;
-  try {
-    const { data } = await sb().rpc('ml_resolve_models', { p_kind: 'vision_defect' });
-    const m = ((data?.models ?? []) as Array<Record<string, unknown>>)[0];
-    if (m) { slug = String(m.slug); version = Number(m.version); sha256 = m.sha256 ? String(m.sha256) : sha256; }
-  } catch { /* env fallback */ }
-  if (!slug) slug = CORROSION_MODEL.slug;   // official launch model
-  return { url, slug, version, sha256, labels };
+  const refs = listVisionModels();
+  return refs.find((r) => r.configured) ?? refs[0] ?? null;
 }
 
 // Record a (client-inferred) detection as a finding — provably bound to the
@@ -133,7 +180,7 @@ export async function recordDetection(
     // so the finding carries the segmentation evidence, folded into the seal.
     p_raw: {
       source: 'web_client_tfjs',
-      task: 'instance_segmentation',
+      task: ref.task,
       class_id: c.classId ?? null,
       box: c.box ?? null,
       polygon: c.polygon ?? null,

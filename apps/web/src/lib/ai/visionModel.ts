@@ -1,5 +1,10 @@
 'use client';
-import { decodeYoloSeg, inferSegLayout, type SegDetection } from '@nexpec/shared-core';
+import {
+  decodeYoloSeg, inferSegLayout, type SegDetection,
+  decodeYoloSegE2E,
+  decodeYoloDet, detLayoutChannelsFirst, type DetDetection,
+  type OutputParser,
+} from '@nexpec/shared-core';
 // lib/ai/visionModel.ts — $0 CLIENT-SIDE vision inference for the web AI
 // Co-inspector, running the EXACT SAME .tflite model the Expo app uses, directly
 // in the browser via @tensorflow/tfjs-tflite (WebAssembly + XNNPACK). No
@@ -137,33 +142,77 @@ export async function classify(
     .map((x) => ({ defectId: `cls_${x.i}`, label: labels[x.i] ?? `Class ${x.i}`, confidence: x.p }));
 }
 
-const SEG_INPUT_SIZE = 1024; // seg models are 1024²; classifiers (e.g. 224) → no-op
+const DEFAULT_SEG_INPUT = 1024;
 
-// Run the YOLO26-seg .tflite in-browser and decode with the SAME shared
-// decodeYoloSeg (+ inferSegLayout) as mobile → guaranteed parity, and the layout
-// self-configures from the two output tensors so per-model class counts never
-// need hardcoding. Returns [] for non-seg (classifier) models — a safe no-op.
-export async function segment(
-  img: HTMLImageElement,
-  modelUrl: string,
-  opts?: { confThreshold?: number; iouThreshold?: number; maskThreshold?: number; expectedSha256?: string | null },
-): Promise<SegDetection[]> {
-  const { tf } = await loadDeps();
-  const model = await loadModel(modelUrl, opts?.expectedSha256 ?? null);
-  const inShape: number[] = (model.inputs?.[0]?.shape ?? []) as number[];
-  if (!inShape.includes(SEG_INPUT_SIZE)) return []; // not a 1024 seg model
-
-  const outs: number[][] = tf.tidy(() => {
-    // tfjs is NHWC-native; the model is channels-first → transpose to NCHW.
-    const input = tf.browser.fromPixels(img).resizeBilinear([SEG_INPUT_SIZE, SEG_INPUT_SIZE]).toFloat().div(255)
+// All three Ultralytics exports take channels-first input [1,3,H,W]; tfjs is
+// NHWC-native, so we transpose. Runs predict and returns each output tensor
+// flattened, largest-last stable ordering handled by the callers.
+function runNchw(tf: any, model: any, img: HTMLImageElement, size: number): number[][] {
+  return tf.tidy(() => {
+    const input = tf.browser.fromPixels(img).resizeBilinear([size, size]).toFloat().div(255)
       .transpose([2, 0, 1]).expandDims(0);
     let out: any = model.predict(input);
     if (!Array.isArray(out)) out = out && typeof out.dataSync !== 'function' ? Object.values(out) : [out];
     return (out as any[]).map((t) => Array.from(t.reshape([-1]).dataSync() as Float32Array));
   });
+}
 
+// Run a YOLO26-seg .tflite in-browser and decode via the registry's outputParser
+// — RAW head (decodeYoloSeg, e.g. corrosion) or END-TO-END (decodeYoloSegE2E,
+// e.g. WDA). Same decoders as mobile → guaranteed parity. Returns [] if the model
+// input isn't the expected square (safe no-op).
+export async function segment(
+  img: HTMLImageElement,
+  modelUrl: string,
+  opts?: { confThreshold?: number; iouThreshold?: number; maskThreshold?: number; expectedSha256?: string | null; inputSize?: number; parser?: OutputParser },
+): Promise<SegDetection[]> {
+  const { tf } = await loadDeps();
+  const model = await loadModel(modelUrl, opts?.expectedSha256 ?? null);
+  const size = opts?.inputSize ?? DEFAULT_SEG_INPUT;
+  const inShape: number[] = (model.inputs?.[0]?.shape ?? []) as number[];
+  if (!inShape.includes(size)) return [];
+
+  const outs = runNchw(tf, model, img, size);
   const a = outs[0], b = outs[1];
   if (!a || !b) return [];
   const [det, proto] = a.length <= b.length ? [a, b] : [b, a];
+
+  const parser = opts?.parser;
+  if (parser?.kind === 'yolo-seg-e2e') {
+    const protoSize = Math.round(Math.sqrt(proto.length / parser.protoChannels));
+    const vecLen = Math.round(det.length / parser.maxDet);
+    return decodeYoloSegE2E(det, proto, {
+      maxDet: parser.maxDet, vecLen, numClasses: parser.numClasses, numCoeffs: parser.numCoeffs,
+      inputSize: size, protoChannels: parser.protoChannels, protoSize, coords: parser.coords,
+    }, opts);
+  }
+  // RAW head (corrosion): self-configuring layout, class scores + argmax.
   return decodeYoloSeg(det, proto, inferSegLayout(det.length, proto.length), opts);
+}
+
+// Run a YOLO DETECTION .tflite in-browser and decode via decodeYoloDet (boxes,
+// per-class NMS). Verified against yolov9t: input [1,3,640,640] NCHW, output
+// [1,6,8400] channels-first (4 box + 2 class scores). Coordinate space is
+// auto-detected by the decoder.
+export async function detect(
+  img: HTMLImageElement,
+  modelUrl: string,
+  opts: { inputSize: number; numClasses: number; confThreshold?: number; iouThreshold?: number; expectedSha256?: string | null; parser?: OutputParser },
+): Promise<DetDetection[]> {
+  const { tf } = await loadDeps();
+  const model = await loadModel(modelUrl, opts.expectedSha256 ?? null);
+  const size = opts.inputSize;
+  const outs = runNchw(tf, model, img, size);
+  const flat = outs[0];
+  if (!flat) return [];
+
+  const layout = detLayoutChannelsFirst(size, opts.numClasses);
+  if (opts.parser?.kind === 'yolo-det') {
+    layout.order = opts.parser.order;
+    layout.boxFormat = opts.parser.boxFormat;
+    layout.coords = opts.parser.coords;
+    layout.vecLen = 4 + opts.parser.numClasses;
+    layout.numClasses = opts.parser.numClasses;
+  }
+  return decodeYoloDet(flat, layout, { confThreshold: opts.confThreshold, iouThreshold: opts.iouThreshold });
 }

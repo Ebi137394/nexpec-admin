@@ -10,12 +10,12 @@ import {
   Sparkles, ImageOff, Loader2, Cpu, Wand2,
 } from 'lucide-react';
 import {
-  fetchInspectorJobs, fetchJobDetections, recordDetection, fetchVisionModelRef,
+  fetchInspectorJobs, fetchJobDetections, recordDetection, listVisionModels,
   recordSegFeedback,
   type InspectorJobLite, type AiDetection, type VisionModelRef,
 } from '@/lib/data/aiCoinspector';
-import { segment, loadModel } from '@/lib/ai/visionModel';
-import { isCorrosionDefectClass, corrosionLabelFor } from '@nexpec/shared-core';
+import { segment, detect, loadModel } from '@/lib/ai/visionModel';
+import { isDefectClass, labelFor } from '@nexpec/shared-core';
 import { SegEditorOverlay, type SegEditDetection } from '@/components/inspector/SegEditorOverlay';
 
 interface Staged { id: string; url: string; name: string }
@@ -49,9 +49,12 @@ export default function AiCoinspectorPage() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [camOn, setCamOn] = useState(false);
-  const [modelRef, setModelRef] = useState<VisionModelRef | null>(null);
+  // Registry-driven model list (shared with mobile) + the active selection.
+  const [models, setModels] = useState<VisionModelRef[]>([]);
+  const [selectedSlug, setSelectedSlug] = useState('');
   const [modelStatus, setModelStatus] = useState<ModelStatus>('checking');
   const [modelError, setModelError] = useState<string | null>(null);
+  const modelRef = useMemo(() => models.find((m) => m.slug === selectedSlug) ?? null, [models, selectedSlug]);
   // Seg polygons per staged image (empty for classifier models → overlay is inert).
   const [segByStaged, setSegByStaged] = useState<Record<string, SegEditDetection[]>>({});
 
@@ -60,26 +63,30 @@ export default function AiCoinspectorPage() {
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => { fetchInspectorJobs().then(setJobs).catch(() => {}); }, []);
+  // Load the shared registry once; default to the first configured model.
+  useEffect(() => {
+    const refs = listVisionModels();
+    setModels(refs);
+    setSelectedSlug((refs.find((r) => r.configured) ?? refs[0])?.slug ?? '');
+  }, []);
+  // Warm + SHA-verify the ACTIVE model whenever the selection changes. A
+  // mismatch/404 surfaces as an actionable config error (never silently "ready");
+  // an unconfigured model (no web host) shows as manual mode, not an error.
   useEffect(() => {
     let alive = true;
-    fetchVisionModelRef()
-      .then((ref) => {
+    if (!modelRef) { setModelStatus('checking'); return; }
+    if (!modelRef.configured || !modelRef.url) { setModelStatus('unconfigured'); return; }
+    setModelError(null); setModelStatus('checking');
+    const url = modelRef.url;
+    loadModel(url, modelRef.sha256)
+      .then(() => { if (alive) setModelStatus('ready'); })
+      .catch((e) => {
         if (!alive) return;
-        if (!ref) { setModelStatus('unconfigured'); return; }
-        setModelRef(ref); setModelStatus('checking');
-        // Warm + SHA-verify before declaring ready. A mismatch/404 surfaces as
-        // an actionable configuration error (never silently "ready").
-        loadModel(ref.url, ref.sha256)
-          .then(() => { if (alive) setModelStatus('ready'); })
-          .catch((e) => {
-            if (!alive) return;
-            setModelError(e instanceof Error ? e.message : 'model load failed');
-            setModelStatus('error');
-          });
-      })
-      .catch(() => { if (alive) setModelStatus('error'); });
+        setModelError(e instanceof Error ? e.message : 'model load failed');
+        setModelStatus('error');
+      });
     return () => { alive = false; };
-  }, []);
+  }, [modelRef]);
 
   const loadDets = useCallback((id: string) => {
     if (!id) { setDets([]); return; }
@@ -116,31 +123,44 @@ export default function AiCoinspectorPage() {
     c.toBlob((b) => { if (b) addFiles([new File([b], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' })]); }, 'image/jpeg', 0.95);
   };
 
-  // ── Client-side inference (instance segmentation, YOLO26-seg) ──
-  //  Runs the SAME segment()/decodeYoloSeg pipeline as mobile. Each valid
-  //  SegDetection (defect class, above threshold) becomes an actionable
-  //  suggestion carrying classId + normalized label + confidence + box + mask.
+  // ── Client-side inference (registry-driven; same pipeline as mobile) ──
+  //  Segmentation models → segment()/decodeYoloSeg (polygons). Detection models →
+  //  detect()/decodeYoloDet (boxes). Each valid detection (defect class of THIS
+  //  model, above threshold) becomes an actionable suggestion carrying classId +
+  //  normalized label + confidence + box + mask (polygon empty for detection).
   const analyzeOne = async (s: Staged) => {
-    if (modelStatus !== 'ready' || !modelRef) { setMsg({ kind: 'err', text: 'On-device model is not ready.' }); return; }
+    if (modelStatus !== 'ready' || !modelRef || !modelRef.url) { setMsg({ kind: 'err', text: 'On-device model is not ready.' }); return; }
     if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
+    const active = modelRef;
     setAnalyzingId(s.id); setMsg(null);
     try {
       const img = await imgFromUrl(s.url);
-      const segs = await segment(img, modelRef.url, { expectedSha256: modelRef.sha256 });
+      const parser = active.model.outputParser;
+      // Normalize both tasks to { classId, score, box, polygon }. Detection boxes
+      // become a 4-corner rectangle so the same overlay renders them.
+      const raw = active.task === 'detection'
+        ? (await detect(img, active.url!, {
+            inputSize: active.inputSize, numClasses: active.labels.length, expectedSha256: active.sha256, parser,
+          })).map((d) => ({
+            classId: d.classId, score: d.score, box: d.box,
+            polygon: [[d.box[0], d.box[1]], [d.box[2], d.box[1]], [d.box[2], d.box[3]], [d.box[0], d.box[3]]] as Array<[number, number]>,
+          }))
+        : (await segment(img, active.url!, { expectedSha256: active.sha256, inputSize: active.inputSize, parser }))
+            .map((d) => ({ classId: d.classId, score: d.score, box: d.box, polygon: d.polygon }));
 
-      // Interactive overlay polygons (all detections, so reviewers see everything).
+      // Interactive overlay geometry (all detections, so reviewers see everything).
       setSegByStaged((prev) => ({
         ...prev,
-        [s.id]: segs.map((d) => ({
+        [s.id]: raw.map((d) => ({
           classId: d.classId, score: d.score, box: d.box, polygon: d.polygon,
-          label: corrosionLabelFor(d.classId, modelRef.labels), aiBox: d.box, aiPolygon: d.polygon,
+          label: labelFor(active.model, d.classId), aiBox: d.box, aiPolygon: d.polygon,
         })),
       }));
 
-      // Actionable suggestions: real defect classes only (drops the 'car'
-      // non-defect class), highest confidence first.
-      const cands = segs
-        .filter((d) => isCorrosionDefectClass(d.classId))
+      // Actionable suggestions: real defect classes of THIS model only (drops
+      // its declared non-defect classes), highest confidence first.
+      const cands = raw
+        .filter((d) => isDefectClass(active.model, d.classId))
         .sort((a, b) => b.score - a.score);
       if (cands.length === 0) {
         setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' });
@@ -154,13 +174,13 @@ export default function AiCoinspectorPage() {
           thumbUrl: s.url,
           classId: d.classId,
           defectId: `cls_${d.classId}`,
-          label: corrosionLabelFor(d.classId, modelRef.labels),
+          label: labelFor(active.model, d.classId),
           confidence: d.score,
           box: d.box,
           polygon: d.polygon,
         })),
       ]);
-      setMsg({ kind: 'ok', text: `${cands.length} on-device detection${cands.length === 1 ? '' : 's'}, ${modelRef.slug} v${modelRef.version}.` });
+      setMsg({ kind: 'ok', text: `${cands.length} on-device detection${cands.length === 1 ? '' : 's'}, ${active.displayName} (${active.slug} v${active.version}).` });
     } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Inference failed.' }); }
     finally { setAnalyzingId(null); }
   };
@@ -198,27 +218,46 @@ export default function AiCoinspectorPage() {
         </div>
       </header>
 
-      {/* Model status */}
-      {modelStatus === 'ready' && modelRef ? (
-        <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green">
-          <Cpu size={13} /> On-device model ready, {modelRef.slug} v{modelRef.version}
-        </div>
-      ) : modelStatus === 'unconfigured' ? (
-        // On-device AI runs natively in the mobile app (TFLite, private on-device).
-        // On web the model is optional; present its absence as an intentional
-        // state, never a developer config error, and never leak env-var names.
-        <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-400">
-          <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
-          <span>Automated AI analysis is currently in manual mode. You can still upload imagery and manually record findings for this job below.</span>
-        </div>
-      ) : modelStatus === 'error' ? (
-        <div className="flex items-start gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>Could not load the on-device model.{modelError ? ` ${modelError}` : ''} Check the model URL and that its SHA-256 matches the registered artifact.</span>
-        </div>
-      ) : (
-        <div className="inline-flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={13} className="animate-spin" /> Checking on-device model…</div>
-      )}
+      {/* Active model + selector */}
+      <div className="flex flex-wrap items-center gap-3">
+        {modelStatus === 'ready' && modelRef ? (
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green">
+            <Cpu size={13} /> {modelRef.displayName} ready, {modelRef.slug} v{modelRef.version}
+          </div>
+        ) : modelStatus === 'unconfigured' ? (
+          // On-device AI runs natively in the mobile app (TFLite, private on-device).
+          // On web a model is optional; present its absence as an intentional
+          // state, never a developer config error, and never leak env-var names.
+          <div className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-zinc-400">
+            <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
+            <span>{modelRef ? `${modelRef.displayName} is not yet hosted for web. ` : ''}Automated AI analysis is currently in manual mode. You can still upload imagery and manually record findings for this job below.</span>
+          </div>
+        ) : modelStatus === 'error' ? (
+          <div className="flex items-start gap-2 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Could not load the on-device model.{modelError ? ` ${modelError}` : ''} Check the model URL and that its SHA-256 matches the registered artifact.</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 text-xs text-zinc-500"><Loader2 size={13} className="animate-spin" /> Checking on-device model…</div>
+        )}
+
+        {models.length > 1 && (
+          <label className="inline-flex items-center gap-2 text-xs text-zinc-400">
+            <span className="text-zinc-500">Model</span>
+            <select
+              value={selectedSlug}
+              onChange={(e) => setSelectedSlug(e.target.value)}
+              className="rounded-lg border border-white/[0.08] bg-ink-950 px-2.5 py-1.5 text-xs text-white outline-none focus:border-violet"
+            >
+              {models.map((m) => (
+                <option key={m.slug} value={m.slug} disabled={!m.configured}>
+                  {m.displayName}{m.configured ? '' : ' — needs host'}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       {/* Job picker */}
       <div className="flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between">

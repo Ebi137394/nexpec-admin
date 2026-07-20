@@ -1,40 +1,45 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  app/ai-coinspector.tsx — the AI Co-Inspector capture-review flow (B.3 UI)
+//  app/ai-coinspector.tsx — the standalone AI Co-Inspector capture-review flow
 //
-//  pick/capture image → on-device universal defect analysis → human reviews the
-//  DefectFindingsCard → "Add as finding" records a Provable-AI detection
-//  (pi_record_ai_detection) tied to the job + signed model. AI drafts; the
-//  human accepts. Flag-gated + additive route; pass ?jobId=… to persist.
-//
-//  To embed in the real capture screen, drop <DefectFindingsCard> + the
-//  useDefectAnalysis().analyze(uri) call after a capture — same three lines.
+//  pick/capture image → EXPLICITLY select a model (Corrosion / Weld) → run the
+//  on-device YOLO26-seg model for that domain (SegModelManager, offline) → review
+//  the segmentation overlay. Tap a polygon to refine, long-press to remove; each
+//  edit persists a Provable-AI feedback record tied to the SAME shared-registry
+//  model identity (slug + version + SHA-256) used by the web app — no placeholder,
+//  no silent fallback. Pass ?jobId=… to make the overlay editable + persist.
 // ════════════════════════════════════════════════════════════════════════════
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '@/lib/supabase';
-import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
-import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
-import { buildAiAssist, aiAssistToRpcArgs, CORROSION_MODEL, type DefectDetection } from '@nexpec/shared-core';
+import { ML_RUNTIME_ENABLED } from '@/src/core/ml';
+import { SegModelManager, type SegMode } from '@/src/core/ml/vision/segModelManager';
+import { SegOverlay, type SegOverlayDetection } from '@/src/core/ml/vision/SegOverlay';
+import { enabledModels } from '@nexpec/shared-core';
 
 const COLORS = {
   bg: '#0B1020', card: '#161C36', border: '#2A3354', primary: '#8B5CF6',
   mint: '#34D399', red: '#F87171', text: '#F1F5F9', muted: '#9AA8C7', dim: '#64748B',
 };
 
+// The launch-enabled segmentation models, from the SHARED registry, that map to
+// an on-device seg mode. Adding one to the registry surfaces it here + on web.
+const SEG_MODELS = enabledModels().filter(
+  (m) => m.task === 'instance-segmentation' && (m.mode === 'corrosion' || m.mode === 'weld'),
+);
+
 export default function AiCoInspectorScreen() {
   const router = useRouter();
-  const { jobId, reportId } = useLocalSearchParams<{ jobId?: string; reportId?: string }>();
+  const { jobId } = useLocalSearchParams<{ jobId?: string }>();
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [mode, setMode] = useState<SegMode>((SEG_MODELS[0]?.mode as SegMode) ?? 'corrosion');
+  const [segDetections, setSegDetections] = useState<SegOverlayDetection[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [recorded, setRecorded] = useState<string[]>([]);
-  // Official launch model: corrosion-detector v2 (shared identity, matches web
-  // + the v2 signed registration). On-device resolution + SHA-verify is handled
-  // by the model runtime; provenance is recorded under this slug/version.
-  const da = useDefectAnalysis({ kind: CORROSION_MODEL.kind, slug: CORROSION_MODEL.slug });
+
+  const activeModel = useMemo(() => SEG_MODELS.find((m) => m.mode === mode), [mode]);
 
   const pickImage = useCallback(async () => {
     try {
@@ -43,32 +48,31 @@ export default function AiCoInspectorScreen() {
       const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1 });
       if (!res.canceled && res.assets?.[0]?.uri) {
         setImageUri(res.assets[0].uri);
-        setRecorded([]); setNote(null); da.reset();
+        setSegDetections([]); setNote(null);
       }
     } catch (e) { setNote((e as Error)?.message ?? 'image pick failed'); }
-  }, [da]);
+  }, []);
 
   const analyze = useCallback(async () => {
     if (!imageUri) { setNote('Pick an image first.'); return; }
-    setNote(null);
-    await da.analyze(imageUri);
-  }, [imageUri, da]);
-
-  const accept = useCallback(async (d: DefectDetection) => {
-    if (!jobId) { setNote('Demo mode, open with ?jobId=… to persist findings.'); return; }
+    if (!SegModelManager.available()) {
+      setNote('On-device model needs a dev build with the ML runtime (fast-tflite + Skia).');
+      return;
+    }
+    setAnalyzing(true); setNote(null); setSegDetections([]);
     try {
-      const assist = buildAiAssist(
-        d,
-        { slug: da.analysis?.modelSlug ?? CORROSION_MODEL.slug, version: da.analysis?.modelVersion ?? CORROSION_MODEL.version },
-        true,
+      const r = await SegModelManager.analyze(imageUri, mode);
+      setSegDetections(r.detections);
+      const n = r.detections.length;
+      setNote(
+        n
+          ? `${n} region${n === 1 ? '' : 's'} detected by ${activeModel?.displayName ?? mode}` +
+            (jobId ? '. Tap a polygon to refine, long-press to remove.' : '.')
+          : 'No regions above the confidence threshold.',
       );
-      const args = aiAssistToRpcArgs(assist, jobId, { reportId: reportId ?? undefined });
-      const { error } = await supabase.rpc('pi_record_ai_detection', args);
-      if (error) throw error;
-      setRecorded((r) => [...r, d.defectId]);
-      setNote(`Recorded "${d.label}" as a finding (provably tied to ${assist.modelSlug} v${assist.modelVersion}).`);
-    } catch (e) { setNote('Save failed: ' + ((e as Error)?.message ?? 'error')); }
-  }, [jobId, reportId, da.analysis]);
+    } catch (e) { setNote((e as Error)?.message ?? 'analysis failed'); }
+    finally { setAnalyzing(false); }
+  }, [imageUri, mode, activeModel, jobId]);
 
   return (
     <View style={styles.root}>
@@ -89,12 +93,42 @@ export default function AiCoInspectorScreen() {
         ) : (
           <>
             <Text style={styles.subtitle}>
-              {jobId ? `Job ${String(jobId).slice(0, 8)}…, findings will be sealed` : 'Demo mode, no job linked'}
+              {jobId ? `Job ${String(jobId).slice(0, 8)}…, edits are sealed` : 'Demo mode, no job linked (overlay is read-only)'}
             </Text>
+
+            {/* Explicit model selection — drives which on-device seg model runs. */}
+            <Text style={styles.selLabel}>Model</Text>
+            <View style={styles.selRow}>
+              {SEG_MODELS.map((m) => {
+                const on = m.mode === mode;
+                return (
+                  <TouchableOpacity
+                    key={m.slug}
+                    onPress={() => { setMode(m.mode as SegMode); setSegDetections([]); }}
+                    style={[styles.chip, on && styles.chipOn]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextOn]}>{m.displayName}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {activeModel && (
+              <Text style={styles.hint}>{activeModel.slug} v{activeModel.version} · {activeModel.inputSize}px · on-device</Text>
+            )}
 
             <TouchableOpacity style={styles.pick} onPress={pickImage} activeOpacity={0.85}>
               {imageUri ? (
-                <Image source={{ uri: imageUri }} style={styles.thumb} resizeMode="cover" />
+                <View style={StyleSheet.absoluteFill}>
+                  <Image source={{ uri: imageUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
+                  <SegOverlay
+                    imageUri={imageUri}
+                    detections={segDetections}
+                    jobId={jobId ? String(jobId) : undefined}
+                    captureId={null}
+                    mode={mode}
+                  />
+                </View>
               ) : (
                 <View style={styles.pickEmpty}>
                   <Ionicons name="camera-outline" size={28} color={COLORS.muted} />
@@ -104,33 +138,14 @@ export default function AiCoInspectorScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.btn, (da.status === 'analyzing' || !imageUri) && { opacity: 0.5 }]}
+              style={[styles.btn, (analyzing || !imageUri) && { opacity: 0.5 }]}
               onPress={analyze}
-              disabled={da.status === 'analyzing' || !imageUri}
+              disabled={analyzing || !imageUri}
               activeOpacity={0.85}
             >
-              {da.status === 'analyzing' ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Analyze with AI Co-Inspector</Text>}
+              {analyzing ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Analyze with AI Co-Inspector</Text>}
             </TouchableOpacity>
 
-            {(da.analysis || da.status === 'analyzing') && (
-              <DefectFindingsCard
-                analysis={da.analysis}
-                loading={da.status === 'analyzing'}
-                onAddFinding={accept}
-                onDismiss={() => {}}
-              />
-            )}
-
-            {da.status === 'unavailable' && (
-              <View style={[styles.card, { borderColor: COLORS.red }]}>
-                <Text style={styles.cardTitle}>Model unavailable</Text>
-                <Text style={styles.cardBody}>{da.error ?? 'Publish the corrosion-detector v2 model and run a dev build with Skia + fast-tflite.'}</Text>
-              </View>
-            )}
-
-            {!!recorded.length && (
-              <Text style={styles.recorded}>{recorded.length} finding(s) recorded ✓</Text>
-            )}
             {!!note && <Text style={styles.note}>{note}</Text>}
           </>
         )}
@@ -148,8 +163,14 @@ const styles = StyleSheet.create({
   headerTitle: { color: COLORS.text, fontSize: 17, fontWeight: '700' },
   body: { padding: 16, paddingBottom: 48 },
   subtitle: { color: COLORS.muted, fontSize: 13, marginBottom: 14 },
-  pick: { height: 220, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, overflow: 'hidden', marginBottom: 14 },
-  thumb: { width: '100%', height: '100%' },
+  selLabel: { color: COLORS.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  selRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  chip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  chipOn: { borderColor: COLORS.primary, backgroundColor: 'rgba(139,92,246,0.18)' },
+  chipText: { color: COLORS.muted, fontSize: 13, fontWeight: '600' },
+  chipTextOn: { color: COLORS.text },
+  hint: { color: COLORS.dim, fontSize: 11, marginBottom: 14 },
+  pick: { height: 300, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, overflow: 'hidden', marginBottom: 14 },
   pickEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   pickText: { color: COLORS.muted, fontSize: 13 },
   btn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 4 },
@@ -157,6 +178,5 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginTop: 12 },
   cardTitle: { color: COLORS.text, fontSize: 15, fontWeight: '700', marginBottom: 6 },
   cardBody: { color: COLORS.muted, fontSize: 13, lineHeight: 19 },
-  recorded: { color: COLORS.mint, fontSize: 13, fontWeight: '700', marginTop: 12 },
   note: { color: COLORS.muted, fontSize: 12, marginTop: 8 },
 });

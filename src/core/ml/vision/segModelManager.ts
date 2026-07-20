@@ -1,9 +1,10 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  src/core/ml/vision/segModelManager.ts — dual YOLO26-seg engine (bundled, offline)
+//  src/core/ml/vision/segModelManager.ts — multi-model vision engine (bundled, offline)
 //
-//  Two 40 MB fp32 seg models (Weld / Corrosion) can't both sit in RAM on low-end
-//  devices, and they're used mutually-exclusively per capture. So this keeps a
-//  SINGLE resident slot: acquiring a mode evicts the other. Toggles are serialized
+//  Three bundled models (Corrosion seg / WDA weld seg / yolov9t weld detect) are
+//  used mutually-exclusively per capture and can't all sit in RAM on low-end
+//  devices. So this keeps a SINGLE resident slot: acquiring a mode evicts the
+//  others. Toggles are serialized
 //  and guarded by a monotonic generation token so a slow load that resolves AFTER
 //  the inspector flipped modes is discarded (last-write-wins → no OOM, no race).
 //
@@ -14,8 +15,25 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { InteractionManager } from 'react-native';
-import { decodeYoloSeg, inferSegLayout, type SegDetection, type SegOptions } from '@nexpec/shared-core';
+import {
+  decodeYoloSeg, inferSegLayout, decodeYoloSegE2E, getModel,
+  decodeYoloDet, detLayoutChannelsFirst,
+  type SegDetection, type SegOptions,
+} from '@nexpec/shared-core';
 import { imageUriToTensor, isVisionPreprocessAvailable, type VisionParams } from './preprocess';
+
+// Mode → shared-registry slug. The registry is the single source of truth for
+// labels + input size + the output-decode recipe (identical to web).
+const MODE_SLUG: Record<SegMode, string> = {
+  corrosion: 'corrosion-detector',
+  weld: 'wda-fissure-detector',
+  'weld-detect': 'yolov9t-weld-detector',
+};
+
+/** Mode → registry slug (for callers needing registry metadata, e.g. capture). */
+export function modeSlug(mode: SegMode): string {
+  return MODE_SLUG[mode];
+}
 
 // fast-tflite is require-guarded (null in Expo Go); untyped → `any`, like tfliteVision.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,15 +45,17 @@ try {
   _tflite = null;
 }
 
-export type SegMode = 'weld' | 'corrosion';
+export type SegMode = 'weld' | 'corrosion' | 'weld-detect';
 
 // Bundled model assets (offline). require() → Metro asset id that fast-tflite loads.
-// NOTE: both .tflite must exist in ./assets/ or the bundle fails to build.
+// NOTE: all .tflite must exist in ./assets/ or the bundle fails to build.
 const SEG_ASSETS: Record<SegMode, number> = {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   weld: require('../../../../assets/wda_fissures_yolo26s_seg_1024_fp32.tflite'),
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   corrosion: require('../../../../assets/corrosion_yolo26s_seg_1024_fp32.tflite'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  'weld-detect': require('../../../../assets/yolov9t_2class_fp32.tflite'),
 };
 
 /** classId → human label (overlay-facing; no taxonomy dependency).
@@ -45,7 +65,9 @@ const SEG_ASSETS: Record<SegMode, number> = {
  *  severity tiers); the HITL flywheel harvests the integer class_id in `raw` and
  *  consolidates these into the clean taxonomy for the next training cycle. */
 export const SEG_CLASSES: Record<SegMode, string[]> = {
-  weld: ['Fissure', 'Weld Line'],
+  // Fallbacks ONLY — the registry (getModel(...).labels) is authoritative and
+  // these mirror it verbatim (index = classId, from each model's metadata).
+  weld: ['fissures-wda', 'Crack', 'Porosity', 'Spatters', 'Welding line'],
   corrosion: [
     'rust',               // 0
     'Rust',               // 1
@@ -59,16 +81,17 @@ export const SEG_CLASSES: Record<SegMode, string[]> = {
     'rust',               // 9
     'severe-corrosion',   // 10
   ],
+  'weld-detect': ['inclusion', 'pinhole'],
 };
 
-// The tensor contract (numDet / vecLen / class count) is derived per-run from the
-// two output tensor lengths via inferSegLayout — the two models carry DIFFERENT
-// class counts (corrosion=11, weld=2), so nothing is hardcoded here.
+// The decode recipe comes from the shared registry's outputParser per model:
+// corrosion = RAW channels-first seg head; WDA = end2end (NMS'd) seg head;
+// yolov9t = RAW channels-first detection head. Same dispatch as web.
 
-// YOLO preprocessing: RGB /255, channels-first [1,3,1024,1024].
-const SEG_INPUT: VisionParams = {
-  input: { width: 1024, height: 1024, layout: 'NCHW', normalize: { scale: 1 / 255, offset: 0 } },
-};
+// YOLO preprocessing: RGB /255, channels-first [1,3,size,size]; size from the registry.
+const segInput = (size: number): VisionParams => ({
+  input: { width: size, height: size, layout: 'NCHW', normalize: { scale: 1 / 255, offset: 0 } },
+});
 
 export interface SegResult {
   mode: SegMode;
@@ -116,31 +139,67 @@ class SegModelManagerImpl {
     await this.acquire(mode);
   }
 
-  /** Run segmentation on a captured still. Returns normalized boxes + polygons. */
+  /** Run inference on a captured still. Returns normalized boxes + polygons
+   *  (detection models expose each box as a 4-corner polygon so the SAME
+   *  SegOverlay + HITL flywheel apply unchanged). */
   async analyze(imageUri: string, mode: SegMode, opts?: SegOptions): Promise<SegResult> {
     const model = await this.acquire(mode);
-    if (!model) throw new Error('seg model not resident (mode superseded)');
+    if (!model) throw new Error('model not resident (mode superseded)');
 
-    const { data } = await imageUriToTensor(imageUri, SEG_INPUT);
+    // Registry entry drives input size, labels, and the decode recipe — the SAME
+    // dispatch as web (visionModel.ts), so results match exactly.
+    const reg = getModel(MODE_SLUG[mode]);
+    const parser = reg?.outputParser;
+    const size = reg?.inputSize ?? 1024;
+
+    const { data } = await imageUriToTensor(imageUri, segInput(size));
     const t0 = Date.now();
     const outputs = await model.run([data]); // native, off the JS thread
     const inferenceMs = Date.now() - t0;
 
-    // Disambiguate outputs by length, NOT index order: the detection grid
-    // (vecLen*numDet, e.g. 47*21504) is shorter than the proto (32*256*256).
     const a = outputs?.[0] as ArrayLike<number> | undefined;
     const b = outputs?.[1] as ArrayLike<number> | undefined;
-    if (!a || !b) throw new Error('seg model returned <2 outputs');
-    const det = a.length <= b.length ? a : b;
-    const proto = a.length <= b.length ? b : a;
-    const layout = inferSegLayout(det.length, proto.length); // self-configures per model
+    if (!a) throw new Error('model returned no outputs');
 
-    // Heavy pure-TS decode — yield first so it never blocks the capture transition.
-    const detections = await new Promise<SegDetection[]>((resolve) => {
-      InteractionManager.runAfterInteractions(() => resolve(decodeYoloSeg(det, proto, layout, opts)));
+    const detections = await new Promise<SegDetection[]>((resolve, reject) => {
+      InteractionManager.runAfterInteractions(() => {
+        try {
+          if (parser?.kind === 'yolo-det') {
+            // Single-output detection head (yolov9t): boxes → 4-corner polygons.
+            const dets = decodeYoloDet(a, detLayoutChannelsFirst(size, parser.numClasses), opts);
+            resolve(dets.map((d) => ({
+              classId: d.classId,
+              score: d.score,
+              box: d.box,
+              polygon: [
+                [d.box[0], d.box[1]], [d.box[2], d.box[1]],
+                [d.box[2], d.box[3]], [d.box[0], d.box[3]],
+              ] as Array<[number, number]>,
+            })));
+            return;
+          }
+          // Segmentation: disambiguate outputs by length, NOT index order — the
+          // detection grid (e.g. 47*21504) is shorter than the proto (32*256*256).
+          if (!b) { reject(new Error('seg model returned <2 outputs')); return; }
+          const det = a.length <= b.length ? a : b;
+          const proto = a.length <= b.length ? b : a;
+          if (parser?.kind === 'yolo-seg-e2e') {
+            const protoSize = Math.round(Math.sqrt(proto.length / parser.protoChannels));
+            const vecLen = Math.round(det.length / parser.maxDet);
+            resolve(decodeYoloSegE2E(det, proto, {
+              maxDet: parser.maxDet, vecLen, numClasses: parser.numClasses, numCoeffs: parser.numCoeffs,
+              inputSize: size, protoChannels: parser.protoChannels, protoSize, coords: parser.coords,
+            }, opts));
+          } else {
+            resolve(decodeYoloSeg(det, proto, inferSegLayout(det.length, proto.length), opts));
+          }
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      });
     });
 
-    const names = SEG_CLASSES[mode];
+    const names: readonly string[] = reg?.labels ?? SEG_CLASSES[mode];
     return {
       mode,
       inferenceMs,

@@ -20,8 +20,12 @@ import { Image, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Polygon, Circle } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { aiFeedbackToRpcArgs, type AiAssist } from '@nexpec/shared-core';
+import { aiFeedbackToRpcArgs, getModel, type AiAssist } from '@nexpec/shared-core';
 import { enqueueAiFeedback } from '@/src/core/offline';
+
+// The engine's exported mode→slug map keeps provenance on the SAME registry
+// identity (slug/version/sha256) as web — never an ad-hoc string.
+import { modeSlug, type SegMode } from './segModelManager';
 
 export interface SegOverlayDetection {
   classId: number;
@@ -37,7 +41,7 @@ interface Props {
   /** Persistence context — when jobId + mode are set the overlay becomes editable. */
   jobId?: string;
   captureId?: string | null;
-  mode?: 'weld' | 'corrosion';
+  mode?: SegMode;
   modelVersion?: number;
 }
 
@@ -104,9 +108,12 @@ export function SegOverlay({ imageUri, detections, jobId, captureId, mode, model
     if (!editable) return;
     const label = det.label ?? `class ${det.classId}`;
     const defectId = `${mode}:${label.toLowerCase().replace(/\s+/g, '_')}`;
+    // Registry identity for THIS mode — the exact model that produced the mask.
+    const reg = getModel(modeSlug(mode!));
     const assist: AiAssist = {
-      modelSlug: `${mode}_yolo26s_seg`,
-      modelVersion,
+      modelSlug: reg?.slug ?? `${mode}_yolo26s_seg`,
+      modelVersion: reg?.version ?? modelVersion,
+      modelSha256: reg?.sha256,
       defectId,
       label,
       confidence: det.score,
@@ -116,6 +123,11 @@ export function SegOverlay({ imageUri, detections, jobId, captureId, mode, model
       is_user_corrected: true,
       source: 'user',
       class_id: det.classId,
+      // Provenance of the producing model (sha binds the geometry to the exact
+      // signed artifact — the feedback RPC omits sha, so we carry it here).
+      model_slug: assist.modelSlug,
+      model_version: assist.modelVersion,
+      model_sha256: reg?.sha256 ?? null,
       ai_box: det.box,
       ai_polygon: det.polygon,
       corrected_box: correctedPolygon ? bboxOf(correctedPolygon) : null,

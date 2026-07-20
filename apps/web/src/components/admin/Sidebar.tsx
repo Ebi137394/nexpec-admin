@@ -25,6 +25,7 @@ import {
   Landmark,
   Sparkles,
   EyeOff,
+  BrainCircuit,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -72,6 +73,12 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
       { label: 'Supplier Releases', href: '/admin/supplier-payouts', icon: Banknote },
       { label: 'Treasury', href: '/admin/treasury', icon: Landmark },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    items: [
+      { label: 'AI Platform', href: '/admin/ai-platform', icon: BrainCircuit },
     ],
   },
   {

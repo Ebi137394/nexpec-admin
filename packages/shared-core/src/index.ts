@@ -55,6 +55,7 @@ export * from './data/specialtyTaxonomy';
 // and the typed registry client. Consumed by mobile (src/core/ml) and web.
 // Additive only — no existing export is touched.
 export * from './ml';
+export * from './aiops';
 
 // Secret weapons — Verifiable Inspection Passport, Predictive Integrity (RBI),
 // and the Voice Copilot's $0 transcript→defect NLU. Pure-TS, additive.

@@ -14,6 +14,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "dev:web": "cd apps/web && npm run dev",
+    "qa:local": "bash scripts/dev/local-qa.sh",
     "build:web": "cd apps/web && npm run build",
     "build:shared": "npm run build -w @nexpec/shared-core",
     "typecheck": "npm run typecheck --workspaces --if-present",

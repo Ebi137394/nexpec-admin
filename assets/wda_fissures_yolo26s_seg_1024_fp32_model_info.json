@@ -1,0 +1,20 @@
+{
+  "name": "NEXPEC WDA Weld-Defect YOLO26s Segmentation (RAW head)",
+  "task": "instance-segmentation",
+  "format": "LiteRT/TFLite FP32",
+  "nms": false,
+  "output_contract": "raw-yolo-segmentation-heads",
+  "input_size": 1024,
+  "classes": {
+    "0": "fissures-wda",
+    "1": "Crack",
+    "2": "Porosity",
+    "3": "Spatters",
+    "4": "Welding line"
+  },
+  "source_checkpoint": "/content/drive/MyDrive/nexpec_ai/runs_segmentation/wda_fissures_yolo26s_seg_1024_v1/weights/best.pt",
+  "tflite_file": "wda_fissures_yolo26s_seg_1024_fp32.tflite",
+  "tflite_sha256": "38ee7cc44ad6290dcc1f9c6c8cb9c7e7453a8a08f453f642a443230c81194b5d",
+  "tflite_size_bytes": 41995363,
+  "exported_at_utc": "2026-07-22T16:47:18.779010+00:00"
+}

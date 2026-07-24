@@ -151,6 +151,36 @@ export async function fetchVisionModelRef(): Promise<VisionModelRef | null> {
 
 // Record a (client-inferred) detection as a finding — provably bound to the
 // signed model, identical contract to the mobile accept path.
+/** One aggregated member indication — self-contained so nothing is lost. */
+export interface RegionMember {
+  memberId: number;
+  classId: number;
+  label: string;
+  confidence: number;
+  box: [number, number, number, number];
+  polygon: Array<[number, number]>;
+}
+
+/** Structured aggregation payload for a REGION finding — persisted verbatim in
+ *  the jsonb `raw` column so the accepted record never loses the individual AI
+ *  indications. `members` carries each indication's class/confidence/geometry
+ *  (the authoritative defect masks); the top-level hull is display-only. No DB
+ *  migration: pi_record_ai_detection stores p_raw as-is. */
+export interface RegionMeta {
+  clusterId: number;
+  memberCount: number;
+  members: RegionMember[];
+  classComposition: Record<number, number>;
+  dominantClass: number;
+  maxConfidence: number;
+  meanConfidence: number;
+  confWeightedCount: number;
+  summedArea: number;
+  unionArea: number;
+  bboxDiagonal: number;
+  maxPairwiseMemberDist: number;
+}
+
 export async function recordDetection(
   jobId: string,
   c: {
@@ -160,6 +190,8 @@ export async function recordDetection(
     classId?: number;
     box?: [number, number, number, number];
     polygon?: Array<[number, number]> | null;
+    /** present ⇒ this is an aggregated region finding; persists member geometry. */
+    region?: RegionMeta | null;
   },
   ref: VisionModelRef,
 ): Promise<{ ok: boolean; error?: string }> {
@@ -178,12 +210,20 @@ export async function recordDetection(
     p_accepted: true,
     // Geometry (normalized xyxy box + optional mask polygon) travels in `raw`
     // so the finding carries the segmentation evidence, folded into the seal.
+    // For a REGION, `region` carries the full structured aggregation + every
+    // member polygon (the individual AI indications are never discarded); the
+    // top-level box/polygon are the region-level DISPLAY geometry only.
     p_raw: {
       source: 'web_client_tfjs',
       task: ref.task,
+      finding_kind: c.region ? 'region' : 'instance',
+      // geometry_role tells consumers what the top-level `polygon` IS: a region's
+      // top-level polygon is only a display hull; an instance's is the real mask.
+      geometry_role: c.region ? 'display_hull' : 'instance_mask',
       class_id: c.classId ?? null,
       box: c.box ?? null,
       polygon: c.polygon ?? null,
+      region: c.region ?? null,
     },
     p_client_op_id: clientOpId,
   });

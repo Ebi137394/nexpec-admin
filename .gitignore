@@ -78,3 +78,7 @@ scripts/eas-prod-env.sh
 
 # Supabase CLI local branch state (machine-local, never commit)
 supabase/.branches/
+
+# Python bytecode cache (e.g. scripts/ml tooling)
+__pycache__/
+*.pyc

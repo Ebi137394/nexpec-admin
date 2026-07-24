@@ -29,6 +29,10 @@ export interface DetLayout {
   boxFormat?: 'xywh' | 'xyxy';
   /** 'normalized' (÷1), 'pixel' (÷inputSize), or 'auto' (infer from magnitudes). */
   coords?: 'normalized' | 'pixel' | 'auto';
+  /** Class-branch activation. 'none' → already probabilities; 'sigmoid' → linear
+   *  logits; 'auto' → decide from the class-channel range (logits leave [0,1]).
+   *  Default 'auto'. Keeps raw-logit heads from silently rejecting everything. */
+  scoreActivation?: 'auto' | 'none' | 'sigmoid';
 }
 
 export interface DetOptions {
@@ -66,6 +70,13 @@ export function inferDetLayout(outLen: number, numClasses: number, inputSize: nu
   return { numDet: outLen / vecLen, vecLen, numClasses, inputSize, order: 'det-major', boxFormat: 'xywh', coords: 'auto' };
 }
 
+/** Numerically stable sigmoid (no overflow for large |x|). */
+function sigmoid(x: number): number {
+  if (x >= 0) return 1 / (1 + Math.exp(-x));
+  const z = Math.exp(x);
+  return z / (1 + z);
+}
+
 function iou(a: DetDetection['box'], b: DetDetection['box']): number {
   const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
   const x2 = Math.min(a[2], b[2]), y2 = Math.min(a[3], b[3]);
@@ -77,7 +88,11 @@ function iou(a: DetDetection['box'], b: DetDetection['box']): number {
 }
 
 export function decodeYoloDet(out0: ArrayLike<number>, layout: DetLayout, options?: DetOptions): DetDetection[] {
-  const o = { ...DET_DEFAULTS, ...options };
+  const o: Required<DetOptions> = {
+    confThreshold: options?.confThreshold ?? DET_DEFAULTS.confThreshold,
+    iouThreshold: options?.iouThreshold ?? DET_DEFAULTS.iouThreshold,
+    maxDetections: options?.maxDetections ?? DET_DEFAULTS.maxDetections,
+  };
   const { numDet, vecLen, numClasses, inputSize } = layout;
   const order = layout.order ?? 'det-major';
   const boxFormat = layout.boxFormat ?? 'xywh';
@@ -85,6 +100,22 @@ export function decodeYoloDet(out0: ArrayLike<number>, layout: DetLayout, option
   const detStride = channelsFirst ? 1 : vecLen;
   const attrStride = channelsFirst ? numDet : 1;
   const at = (i: number, k: number): number => (out0[i * detStride + k * attrStride] as number) ?? 0;
+
+  // Class-branch activation, decided from the actual value range (see SegLayout).
+  // A raw-logit head compared against a 0..1 threshold rejects every detection;
+  // a probability head must NOT be sigmoided again (that would flood at ~0.5).
+  let applySigmoid: boolean;
+  const act = layout.scoreActivation ?? 'auto';
+  if (act === 'sigmoid') applySigmoid = true;
+  else if (act === 'none') applySigmoid = false;
+  else {
+    let cMin = Infinity, cMax = -Infinity;
+    for (let i = 0; i < numDet; i++) {
+      for (let c = 0; c < numClasses; c++) { const s = at(i, 4 + c); if (s < cMin) cMin = s; if (s > cMax) cMax = s; }
+    }
+    applySigmoid = cMax > 1.5 || cMin < -0.05;
+  }
+  const clsScore = (i: number, c: number): number => (applySigmoid ? sigmoid(at(i, 4 + c)) : at(i, 4 + c));
 
   // Coordinate scale: normalized (÷1) or pixel (÷inputSize). 'auto' peeks at the
   // largest box magnitude among above-threshold rows: YOLO xywh in pixels reaches
@@ -96,7 +127,7 @@ export function decodeYoloDet(out0: ArrayLike<number>, layout: DetLayout, option
     let maxMag = 0;
     for (let i = 0; i < numDet; i++) {
       let best = 0;
-      for (let c = 0; c < numClasses; c++) { const s = at(i, 4 + c); if (s > best) best = s; }
+      for (let c = 0; c < numClasses; c++) { const s = clsScore(i, c); if (s > best) best = s; }
       if (best < o.confThreshold) continue;
       for (let k = 0; k < 4; k++) { const v = Math.abs(at(i, k)); if (v > maxMag) maxMag = v; }
     }
@@ -107,7 +138,7 @@ export function decodeYoloDet(out0: ArrayLike<number>, layout: DetLayout, option
   for (let i = 0; i < numDet; i++) {
     let bestC = -1, bestS = 0;
     for (let c = 0; c < numClasses; c++) {
-      const s = at(i, 4 + c);
+      const s = clsScore(i, c);
       if (s > bestS) { bestS = s; bestC = c; }
     }
     if (bestC < 0 || bestS < o.confThreshold) continue;

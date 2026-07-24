@@ -74,7 +74,16 @@ export function decodeYoloSegE2E(
   layout: SegE2eLayout,
   options: SegOptions = {},
 ): SegDetection[] {
-  const o = { ...DEFAULTS, ...options };
+  // Nullish fallback — NOT spread. An explicitly-present `undefined` (e.g. an
+  // opts object built with `confThreshold: undefined`) must not clobber the
+  // default (which would make `score < undefined` always false → 300 phantom
+  // rows). Mirrors detDecode/segDecode.
+  const o: Required<Pick<SegOptions, 'confThreshold' | 'maskThreshold' | 'maxDetections' | 'maxPolygonPoints'>> = {
+    confThreshold: options.confThreshold ?? DEFAULTS.confThreshold,
+    maskThreshold: options.maskThreshold ?? DEFAULTS.maskThreshold,
+    maxDetections: options.maxDetections ?? DEFAULTS.maxDetections,
+    maxPolygonPoints: options.maxPolygonPoints ?? DEFAULTS.maxPolygonPoints,
+  };
   const { maxDet, vecLen, numClasses, numCoeffs, inputSize, protoChannels, protoSize } = layout;
   const confOff = 4, clsOff = 5, coeffOff = 6;
   const at = (i: number, k: number): number => (out0[i * vecLen + k] as number) ?? 0;

@@ -104,14 +104,75 @@ export default async function ClientJobContractPage({
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
           Assigned inspector:{' '}
-          <span className="font-mono text-zinc-200">
-            {contract.inspectorHandle}
-          </span>{' '}
-          <span className="text-[11px] text-cyan-glow/70">
-            (NEXPEC-Verified)
-          </span>
+          {contract.inspectorDisplayName ? (
+            <span className="font-semibold text-zinc-100">{contract.inspectorDisplayName}</span>
+          ) : (
+            <span className="font-mono text-zinc-200">{contract.inspectorHandle}</span>
+          )}{' '}
+          <span className="text-[11px] text-cyan-glow/70">(NEXPEC-Verified)</span>
         </p>
       </header>
+
+      {/* Disclosed inspector identity — fields are resolved (redacted) server-side
+          by client_job_contracts_view per the project identity_mode. The page
+          renders only what it is given; it never decides disclosure. */}
+      {(contract.inspectorDisplayName ||
+        contract.inspectorResumeSummary ||
+        (contract.inspectorCertifications?.length ?? 0) > 0 ||
+        (contract.inspectorQualifications?.length ?? 0) > 0 ||
+        contract.inspectorEmail ||
+        contract.inspectorPhone) && (
+        <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6">
+          <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+            <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} /> Inspector details
+          </p>
+          {contract.inspectorHeadline && (
+            <p className="mt-3 text-sm text-zinc-200">{contract.inspectorHeadline}</p>
+          )}
+          {contract.inspectorResumeSummary && (
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">{contract.inspectorResumeSummary}</p>
+          )}
+          {(contract.inspectorQualifications?.length ?? 0) > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {contract.inspectorQualifications!.map((q) => (
+                <span key={q} className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-300">
+                  {q}
+                </span>
+              ))}
+            </div>
+          )}
+          {(contract.inspectorCertifications?.length ?? 0) > 0 && (
+            <p className="mt-3 text-xs text-zinc-400">
+              <span className="font-semibold text-zinc-300">Certifications:</span>{' '}
+              {contract.inspectorCertifications!.join(', ')}
+            </p>
+          )}
+          {contract.inspectorResumeUrl && (
+            <a
+              href={contract.inspectorResumeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-violet-glow hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} /> Résumé
+            </a>
+          )}
+          {(contract.inspectorEmail || contract.inspectorPhone) && (
+            <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-300">
+              {contract.inspectorEmail && (
+                <p>
+                  <span className="font-semibold text-zinc-400">Email:</span> {contract.inspectorEmail}
+                </p>
+              )}
+              {contract.inspectorPhone && (
+                <p className="mt-1">
+                  <span className="font-semibold text-zinc-400">Phone:</span> {contract.inspectorPhone}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {sp.signed && (
         <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">

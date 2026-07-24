@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NEXPEC — Manual QA Checklist (Identity Disclosure + Inspector Replacement)</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --panel2:#1e2236; --ink:#e8ebf5; --muted:#9aa3bd;
+    --line:#2b3050; --accent:#7c8cff; --accent2:#00d4b8;
+    --pass:#22c55e; --fail:#ef4444; --na:#64748b; --pending:#3b4160;
+    --pass-bg:rgba(34,197,94,.12); --fail-bg:rgba(239,68,68,.12);
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  a{color:var(--accent)}
+  header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#141726, #10121f);
+    border-bottom:1px solid var(--line);padding:16px 22px;box-shadow:var(--shadow)}
+  .title{font-size:20px;font-weight:800;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .bar-wrap{margin-top:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .progress{flex:1;min-width:220px;height:12px;background:var(--pending);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+  .counts{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px}
+  .pill{padding:3px 10px;border-radius:99px;border:1px solid var(--line);background:var(--panel2)}
+  .pill b{font-weight:800}
+  .pill.pass{color:var(--pass);border-color:rgba(34,197,94,.4)}
+  .pill.fail{color:var(--fail);border-color:rgba(239,68,68,.4)}
+  .pill.pending{color:var(--muted)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button,select{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:7px 12px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#0b0e1a;border-color:var(--accent);font-weight:700}
+  main{max-width:1080px;margin:20px auto 80px;padding:0 18px}
+  .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:6px 0 22px}
+  .meta label{display:block;color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+  .meta input{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:8px 10px;font:inherit}
+  section.grp{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:14px 0;overflow:hidden}
+  .grp > h2{margin:0;padding:14px 18px;font-size:15.5px;display:flex;align-items:center;gap:10px;cursor:pointer;
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border-bottom:1px solid var(--line)}
+  .grp > h2 .chip{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600}
+  .grp .rows{padding:6px 0}
+  .row{display:grid;grid-template-columns:74px 1fr;gap:12px;padding:14px 18px;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .id{font-weight:800;color:var(--accent2);font-size:12.5px}
+  .row .id .role{display:block;color:var(--muted);font-weight:600;margin-top:4px;font-size:11px}
+  .row .body .a{font-weight:700}
+  .row .body .kv{color:var(--muted);font-size:13px;margin-top:3px}
+  .row .body .kv b{color:var(--ink);font-weight:600}
+  .status{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+  .status .btn{padding:4px 12px;border-radius:8px;font-size:12.5px;border:1px solid var(--line);background:var(--panel2);color:var(--muted)}
+  .status .btn.sel[data-v="pass"]{background:var(--pass-bg);color:var(--pass);border-color:rgba(34,197,94,.5)}
+  .status .btn.sel[data-v="fail"]{background:var(--fail-bg);color:var(--fail);border-color:rgba(239,68,68,.5)}
+  .status .btn.sel[data-v="na"]{background:var(--panel2);color:var(--ink);border-color:var(--na)}
+  .status .btn.sel[data-v="skip"]{background:var(--panel2);color:var(--ink);border-color:var(--accent)}
+  textarea.note{width:100%;margin-top:9px;min-height:38px;background:var(--panel);border:1px dashed var(--line);
+    border-radius:8px;color:var(--ink);padding:8px 10px;font:inherit;resize:vertical}
+  .row.done{background:rgba(124,140,255,.04)}
+  .row[data-v="pass"]{box-shadow:inset 3px 0 0 var(--pass)}
+  .row[data-v="fail"]{box-shadow:inset 3px 0 0 var(--fail)}
+  .hidden{display:none !important}
+  footer{max-width:1080px;margin:0 auto;padding:20px 18px;color:var(--muted);font-size:12.5px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:99px;margin-right:5px;vertical-align:middle}
+  @media print{
+    :root{--bg:#fff;--panel:#fff;--panel2:#fff;--ink:#111;--muted:#444;--line:#ccc;--pending:#eee}
+    header{position:static;box-shadow:none} .controls,.chip button{display:none!important}
+    section.grp{break-inside:avoid;border-color:#bbb} .row{break-inside:avoid}
+    button{display:none!important} textarea.note{border:1px solid #bbb}
+    .status .btn{border:1px solid #bbb} .progress{border:1px solid #999}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="title">NEXPEC · Release Manual QA Checklist</div>
+  <div class="sub">Identity Disclosure (Protected / Professional / Full) + Inspector Replacement + audit own-read fix + WDA AI decoders · Development environment</div>
+  <div class="bar-wrap">
+    <div class="progress" title="Completed"><i id="barFill"></i></div>
+    <div class="counts">
+      <span class="pill">Done <b id="cDone">0</b>/<b id="cTotal">0</b></span>
+      <span class="pill pass">Pass <b id="cPass">0</b></span>
+      <span class="pill fail">Fail <b id="cFail">0</b></span>
+      <span class="pill">N/A <b id="cNa">0</b></span>
+      <span class="pill pending">Pending <b id="cPend">0</b></span>
+    </div>
+  </div>
+  <div class="controls">
+    <select id="filter">
+      <option value="all">Show: All</option>
+      <option value="pending">Pending only</option>
+      <option value="pass">Pass only</option>
+      <option value="fail">Fail only</option>
+    </select>
+    <button onclick="expandAll(true)">Expand all</button>
+    <button onclick="expandAll(false)">Collapse all</button>
+    <button onclick="window.print()">🖨 Print</button>
+    <button onclick="exportJSON()">⬇ Export results (JSON)</button>
+    <label class="pill" style="cursor:pointer">⬆ Import<input id="imp" type="file" accept="application/json" class="hidden" onchange="importJSON(event)"></label>
+    <button onclick="resetAll()" title="Clear all results">↺ Reset</button>
+  </div>
+</header>
+
+<main>
+  <div class="meta">
+    <div><label>Tester</label><input id="m_tester" placeholder="your name" oninput="saveMeta()"></div>
+    <div><label>Date</label><input id="m_date" type="date" oninput="saveMeta()"></div>
+    <div><label>Build / commit</label><input id="m_build" placeholder="git SHA" oninput="saveMeta()"></div>
+    <div><label>Environment</label><input id="m_env" value="LOCAL (local Supabase)" oninput="saveMeta()"></div>
+  </div>
+  <div id="app"></div>
+  <footer>
+    <div>Mark each case <b style="color:var(--pass)">PASS</b> only after you actually performed it and saw the expected result; use <b style="color:var(--fail)">FAIL</b> + notes otherwise. A case may be <b>N/A</b> (not applicable to this release) or <b>SKIP</b> (blocked). Progress is saved in this browser; use Export to keep a copy.</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--pass)"></i>Pass</span>
+      <span><i class="dot" style="background:var(--fail)"></i>Fail</span>
+      <span><i class="dot" style="background:var(--na)"></i>N/A</span>
+      <span><i class="dot" style="background:var(--accent)"></i>Skip/blocked</span>
+      <span><i class="dot" style="background:var(--pending)"></i>Pending</span>
+    </div>
+  </footer>
+</main>
+
+<script>
+/* ── Test data: every workflow affected by this release ───────────────────── */
+const SECTIONS = [
+ {t:"0 · Setup & environment", items:[
+  {id:"SU-1", r:"—", a:"Start web against LOCAL Supabase: <code>npm run qa:local</code>", e:"Script prints the local API URL + <b>http://localhost:3000</b>; app loads; Supabase calls hit 127.0.0.1", n:"Aborts if the URL is not localhost; refuses Dev/Prod", ev:"terminal output + browser Network tab"},
+  {id:"SU-2", r:"—", a:"Create local test accounts (client, inspector1-3, agency, manager, viewer, unrelated) via /sign-up + onboarding; promote admin via Studio SQL <code>update public.profiles set role='admin'…</code>", e:"Each account logs in with its role; admin sees admin nav", n:"admin is NOT self-serve through onboarding", ev:"accounts table / login screenshots"},
+ ]},
+ {t:"1 · Authentication & registration", items:[
+  {id:"AUTH-1", r:"Client", a:"Register a client (sign-up → verify email in Inbucket if required → onboarding role=client)", e:"Account created, profile role=client, lands on client area", n:"weak/invalid inputs rejected with clear errors", ev:"screenshot"},
+  {id:"AUTH-2", r:"Inspector", a:"Register an inspector (onboarding role=inspector)", e:"profile role=inspector, inspector dashboard", n:"—", ev:"screenshot"},
+  {id:"AUTH-3", r:"Agency", a:"Register agency + create organization; add manager (project_lead) + viewer members", e:"org + org_members created; roles correct", n:"viewer cannot be granted manager powers", ev:"org_members rows"},
+  {id:"AUTH-4", r:"Any", a:"Login with valid credentials", e:"authenticated session, correct landing", n:"—", ev:"—"},
+  {id:"AUTH-5", r:"Any", a:"Login with wrong password", e:"clear error, no session", n:"no lockout bypass / no stack trace leak", ev:"screenshot"},
+  {id:"AUTH-6", r:"Any", a:"Logout", e:"session cleared; visiting a protected route redirects to /sign-in", n:"protected data not rendered post-logout", ev:"—"},
+  {id:"AUTH-7", r:"Any", a:"Session recovery: refresh page, then close/reopen tab", e:"session persists; app resumes", n:"—", ev:"—"},
+  {id:"AUTH-8", r:"Any", a:"Password reset: /forgot-password → open link in Inbucket → /reset-password", e:"password changes; login with new works", n:"old password no longer works", ev:"screenshot"},
+ ]},
+ {t:"2 · Job lifecycle", items:[
+  {id:"JOB-1", r:"Client", a:"Create an inspection job", e:"job created in pending_approval/moderation", n:"required fields validated", ev:"jobs row"},
+  {id:"JOB-2", r:"Admin", a:"Approve the job (moderation)", e:"job becomes status=open, moderation_status=approved", n:"unapproved jobs stay hidden from inspectors", ev:"jobs row"},
+  {id:"JOB-3", r:"Inspector", a:"Browse the open-jobs feed", e:"approved job visible; RFQ-spawned jobs excluded", n:"cannot see other clients' unposted jobs", ev:"feed screenshot"},
+  {id:"JOB-4", r:"Inspector", a:"Apply to the job", e:"application created (status pending/shortlisted)", n:"cannot apply to an RFQ/brokered job or a non-open job", ev:"applications row"},
+  {id:"JOB-5", r:"Inspector", a:"Withdraw the application", e:"application withdrawn", n:"—", ev:"—"},
+  {id:"JOB-6", r:"Admin", a:"Forward the application to the client", e:"application marked forwarded_to_client", n:"—", ev:"—"},
+  {id:"JOB-7", r:"Client", a:"View applications", e:"client sees ONLY forwarded application(s)", n:"un-forwarded applications are NOT visible to client", ev:"screenshot"},
+  {id:"JOB-8", r:"Admin", a:"Generate a contract for the selected application", e:"job_contracts row pending_client_signature", n:"cannot generate for an RFQ/brokered job (source_rfq_id)", ev:"job_contracts row"},
+ ]},
+ {t:"3 · Contracts & signing", items:[
+  {id:"CT-1", r:"Client", a:"Sign the contract", e:"status → pending_inspector_signature; job open→assigned; hired_inspector_id set", n:"re-sign / stale tab rejected", ev:"—"},
+  {id:"CT-2", r:"Inspector", a:"Sign the contract", e:"status → fully_executed; job → in_progress", n:"only the assigned inspector can sign", ev:"—"},
+  {id:"CT-3", r:"Client/Inspector", a:"Interrupted signing: sign in tab A, retry in stale tab B; refresh", e:"second attempt rejected with clear message; state consistent after refresh", n:"no double execution", ev:"screenshot"},
+  {id:"CT-4", r:"Any", a:"Relogin mid-flow", e:"contract state intact and resumable", n:"—", ev:"—"},
+  {id:"CT-5", r:"Admin", a:"Audit events for signing", e:"contract.client_signed, contract.inspector_accepted, contract.fully_executed recorded", n:"—", ev:"audit_events"},
+ ]},
+ {t:"4 · Identity modes", items:[
+  {id:"ID-1", r:"Client", a:"Protected mode — open contract page", e:"only NX- handle; NO name/résumé/certs/qualifications/email/phone", n:"none present even in the network payload (DB-redacted)", ev:"payload capture"},
+  {id:"ID-2", r:"Admin→Client", a:"Set Professional; reload contract", e:"name, headline, résumé summary+link, certifications, qualifications shown; NO email/phone", n:"contact fields absent", ev:"payload capture"},
+  {id:"ID-3", r:"Admin→Client", a:"Set Full; reload contract", e:"professional fields + email + phone", n:"still no payout/spread", ev:"payload capture"},
+  {id:"ID-4", r:"Admin", a:"Snapshot immutability: change job identity_mode after execution", e:"executed/voided contract renders under its execution-time mode; only the active relationship follows the new mode", n:"effective_identity_mode unchanged", ev:"job_contracts.effective_identity_mode"},
+  {id:"ID-5", r:"Client", a:"Price-blindness across all modes", e:"inspector_payout_cents / platform_spread never shown", n:"not in any payload", ev:"payload capture"},
+  {id:"ID-6", r:"Client", a:"Shortlist/pre-assignment surfaces", e:"remain Protected (no identity before a contract)", n:"—", ev:"—"},
+  {id:"ID-7", r:"Client/Admin", a:"Open an OLDER job/contract created before this release", e:"loads fine; defaults to Protected / client_reapproval", n:"no crash / no missing-column error", ev:"screenshot"},
+ ]},
+ {t:"5 · Inspector replacement", items:[
+  {id:"RP-1", r:"Admin", a:"client_reapproval replacement (pick inspector2)", e:"old contract voided (retained); new pending_client_signature; ONE active contract; job pointers=inspector2; client price preserved; job stays in_progress", n:"re-pricing rejected", ev:"job_contracts + jobs rows"},
+  {id:"RP-2", r:"Client→Insp2", a:"Complete client_reapproval (client re-signs, inspector2 signs)", e:"new contract fully_executed", n:"—", ev:"—"},
+  {id:"RP-3", r:"Admin", a:"admin_authorized replacement (mode=admin_authorized, pick inspector3)", e:"new contract pending_inspector_signature; client_signed_* NULL; admin_authorized_by/at/reason set; client gets informational notice", n:"client is NOT asked to sign", ev:"job_contracts row"},
+  {id:"RP-4", r:"Inspector3", a:"admin_authorized still requires inspector acceptance", e:"only after inspector3 signs → fully_executed", n:"not executed before inspector signs", ev:"—"},
+  {id:"RP-5", r:"—", a:"Replacement side-effects", e:"NO new job row; supplier deals/agreements untouched; history keeps all prior contracts + applications", n:"count(deals for job)=0", ev:"SQL counts"},
+  {id:"RP-6", r:"Admin", a:"Repeated replacement / replacement-of-a-replacement", e:"always exactly one active contract; full chain retained", n:"—", ev:"job_contracts rows"},
+  {id:"RP-7", r:"Admin", a:"Concurrency: two simultaneous replacements on the same job", e:"one succeeds, the other errors cleanly (partial unique index); no partial state", n:"never two active contracts", ev:"error + rows"},
+  {id:"RP-8", r:"Admin", a:"Duplicate / stale submission of the same replace", e:"safely rejected; no duplicate contract", n:"—", ev:"—"},
+  {id:"RP-9", r:"Admin", a:"RFQ/brokered job: attempt inspection replacement", e:"rejected (42501); Inspection-controls panel not shown for that job", n:"—", ev:"error screenshot"},
+  {id:"RP-10", r:"—", a:"Derived progress state (no new job status)", e:"standalone void → 'Awaiting replacement'; client_reapproval → 'Awaiting client signature'; admin_authorized → 'Awaiting inspector acceptance'", n:"no new jobs.status value introduced", ev:"panel screenshots"},
+ ]},
+ {t:"6 · Former-inspector restrictions", items:[
+  {id:"FI-1", r:"Former Insp", a:"Attempt to create a new capture on the job", e:"denied", n:"—", ev:"error"},
+  {id:"FI-2", r:"Former Insp", a:"Attempt to edit an active report / submit AI detection", e:"denied", n:"—", ev:"error"},
+  {id:"FI-3", r:"Former Insp", a:"Attempt to post a job message via send_message (RPC)", e:"denied (42501)", n:"active inspector CAN post", ev:"error"},
+  {id:"FI-4", r:"Former Insp", a:"Attempt a raw messages insert (direct API)", e:"denied by the restrictive blocklist policy", n:"legitimate client/agency/manager inserts still work", ev:"error"},
+  {id:"FI-5", r:"Former Insp", a:"Attempt to read replacement inspector's deliverables/conversation", e:"nothing visible", n:"—", ev:"—"},
+  {id:"FI-6", r:"Former Insp", a:"Read own historical records", e:"own contract, captures, reports, detections still readable", n:"—", ev:"—"},
+ ]},
+ {t:"7 · Permissions matrix", items:[
+  {id:"PM-1", r:"Client", a:"Client sees own jobs/contracts only", e:"no other client's data; no payout/spread anywhere", n:"direct-URL to another client's contract → nothing", ev:"—"},
+  {id:"PM-2", r:"Active Insp", a:"Active inspector operational access", e:"can work the assigned job (captures/reports/messages)", n:"—", ev:"—"},
+  {id:"PM-3", r:"Agency", a:"Agency-scoped access", e:"agency sees its org's jobs/threads per policy", n:"cannot see unrelated orgs", ev:"—"},
+  {id:"PM-4", r:"Admin", a:"Admin god-mode access", e:"full read/manage across the app", n:"—", ev:"—"},
+  {id:"PM-5", r:"Manager", a:"Org manager (non-viewer) allowed actions", e:"can post to internal thread, manage per role", n:"—", ev:"—"},
+  {id:"PM-6", r:"Viewer", a:"Org viewer", e:"read-only where required; cannot post internal", n:"—", ev:"—"},
+  {id:"PM-7", r:"Unrelated", a:"Unrelated authenticated user", e:"no access to others' jobs/contracts/messages/audit", n:"—", ev:"—"},
+  {id:"PM-8", r:"Anon", a:"Anonymous visitor", e:"redirected to sign-in; no protected data via direct URLs", n:"—", ev:"—"},
+ ]},
+ {t:"8 · Messaging & organization workspace", items:[
+  {id:"MS-1", r:"Active Insp", a:"Inspector ↔ admin thread messaging", e:"works", n:"—", ev:"—"},
+  {id:"MS-2", r:"Client", a:"Client ↔ admin thread messaging", e:"works", n:"client↔inspector direct chat prohibited where required", ev:"—"},
+  {id:"MS-3", r:"MGR/VW/Out", a:"Team-internal thread", e:"manager posts; viewer read-only; outsider sees nothing", n:"viewer cannot post", ev:"—"},
+  {id:"MS-4", r:"Ghost Admin", a:"Ghost admin reads internal thread", e:"can read; leaves NO ghost_read_internal audit trace", n:"—", ev:"audit query"},
+  {id:"MS-5", r:"Ghost Admin", a:"Ghost admin attempts to post (send_message + raw insert)", e:"both denied (42501)", n:"—", ev:"error"},
+ ]},
+ {t:"9 · Notifications", items:[
+  {id:"NT-1", r:"—", a:"Run a replacement and inspect recipients", e:"former inspector gets only 'assignment ended'; new inspector gets 'action required'; client gets sign/informational per mode; admins notified", n:"former inspector NOT notified of ongoing work", ev:"notifications rows"},
+  {id:"NT-2", r:"—", a:"Reminder cron (informational)", e:"if run, only notifies; never auto-void/select/replace/sign", n:"no automatic mutation", ev:"—"},
+ ]},
+ {t:"10 · Audit logs & security", items:[
+  {id:"AL-1", r:"Actor", a:"Own audit read via audit_events_public", e:"own rows visible (redacted; inspectors anonymized)", n:"—", ev:"—"},
+  {id:"AL-2", r:"Client", a:"Job-party audit read", e:"that job's audit rows visible", n:"—", ev:"—"},
+  {id:"AL-3", r:"Org member", a:"Org-member audit read", e:"org-tagged rows visible", n:"—", ev:"—"},
+  {id:"AL-4", r:"Unrelated", a:"Unrelated authenticated audit read", e:"nothing", n:"—", ev:"—"},
+  {id:"AL-5", r:"Anon", a:"Anonymous audit read", e:"raw audit_events → privilege error; audit_events_public → empty", n:"—", ev:"—"},
+  {id:"AL-6", r:"Non-admin", a:"Raw audit_events direct read", e:"admin-only; non-admin gets nothing", n:"—", ev:"—"},
+  {id:"AL-7", r:"Client", a:"Inspector anonymization + price redaction in audit", e:"inspector actor → NX handle; no payout/spread/margin in delta/metadata", n:"—", ev:"—"},
+  {id:"AL-8", r:"Unrelated", a:"Direct-URL isolation", e:"contract/report/message/document/audit URLs for a non-party job reveal nothing", n:"—", ev:"—"},
+ ]},
+ {t:"11 · Documents & inspection work", items:[
+  {id:"DC-1", r:"Active Insp", a:"Create a capture", e:"capture saved", n:"former inspector denied", ev:"—"},
+  {id:"DC-2", r:"Insp/Client", a:"Create a report; client approves it", e:"report created + approved per policy", n:"former inspector cannot edit", ev:"—"},
+  {id:"DC-3", r:"Party", a:"Upload/download a document", e:"authorized party can; storage URL respects active party", n:"non-party / former blocked", ev:"—"},
+ ]},
+ {t:"12 · Payments / holds (if affected)", items:[
+  {id:"PY-1", r:"Admin", a:"Void a contract", e:"NO automatic payout release/reverse/duplicate", n:"payment/escrow/transaction rows unchanged by void", ev:"money tables"},
+  {id:"PY-2", r:"—", a:"Replacement vs finance", e:"does not copy old payout; old/new inspector transactions isolated", n:"no double-pay", ev:"transactions"},
+  {id:"PY-3", r:"Client", a:"Client payment surfaces", e:"no internal pricing/margin exposed", n:"—", ev:"—"},
+  {id:"PY-4", r:"—", a:"Payment hold / money-flow authorization", e:"behaves as before (regression)", n:"—", ev:"—"},
+  {id:"PY-5", r:"Insp/Admin", a:"Payout request + admin payment confirmation", e:"unchanged", n:"no duplication", ev:"—"},
+ ]},
+ {t:"13 · Search / filters / dashboards", items:[
+  {id:"SF-1", r:"Inspector", a:"Open-jobs search + filters (specialty/location/etc.)", e:"filters work; results correct", n:"—", ev:"—"},
+  {id:"SF-2", r:"Client", a:"Client dashboard widgets", e:"load without error", n:"—", ev:"—"},
+  {id:"SF-3", r:"Inspector", a:"Inspector dashboard (assignments, pipeline)", e:"loads; reflects active contract", n:"—", ev:"—"},
+  {id:"SF-4", r:"Admin", a:"Admin dashboard / job list", e:"loads; job detail shows Inspection-controls panel for inspection jobs only", n:"—", ev:"—"},
+ ]},
+ {t:"14 · Error handling & resilience", items:[
+  {id:"EH-1", r:"Any", a:"Submit invalid form input", e:"clear validation error; no crash", n:"—", ev:"—"},
+  {id:"EH-2", r:"Any", a:"Stale tab / concurrent edit", e:"safe rejection with message", n:"—", ev:"—"},
+  {id:"EH-3", r:"Any", a:"Browser refresh + back/forward across the flow", e:"consistent state", n:"—", ev:"—"},
+  {id:"EH-4", r:"Mobile", a:"Offline outbox recovery (queue then reconnect)", e:"idempotent replay; no double writes", n:"duplicate RPC submission is a no-op", ev:"—"},
+  {id:"EH-5", r:"Any", a:"Simulate a network/API error mid-action", e:"graceful message; no white screen", n:"—", ev:"—"},
+ ]},
+ {t:"15 · Whole-app regression smoke", items:[
+  {id:"SM-1", r:"Any", a:"Onboarding & role selection", e:"works for client/inspector/agency/supplier", n:"—", ev:"—"},
+  {id:"SM-2", r:"Client/Supplier", a:"Supplier RFQ workflow (create_rfq → quote → award → engagement → sign_agreement)", e:"unchanged / works end-to-end", n:"identity/replacement changes did NOT affect it", ev:"—"},
+  {id:"SM-3", r:"Any", a:"Account deletion", e:"works per policy", n:"—", ev:"—"},
+  {id:"SM-4", r:"Inspector", a:"AI Co-Inspector: model loads (WDA) + one safe local detection recording", e:"model loads; detection records via pi_record_ai_detection", n:"—", ev:"—"},
+ ]},
+ {t:"16 · Web & Mobile regression", items:[
+  {id:"WM-1", r:"Web", a:"Changed web screens: admin job page + client contract page", e:"render and function correctly", n:"—", ev:"—"},
+  {id:"WM-2", r:"Mobile", a:"Mobile buyer pipeline / contract screens (shared PipelineSection)", e:"render; no regression from appended view columns", n:"—", ev:"—"},
+  {id:"WM-3", r:"—", a:"Reference (already automated): web+mobile typecheck, lint, 174 db tests, 114 unit tests", e:"all green in the last local run", n:"re-run if any code changed", ev:"CI/log"},
+ ]},
+];
+
+/* ── Rendering + state ────────────────────────────────────────────────────── */
+const KEY="nexpec_qa_v1";
+let state = load();
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}} }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){} }
+function saveMeta(){ state.meta={tester:v('m_tester'),date:v('m_date'),build:v('m_build'),env:v('m_env')}; save(); }
+function v(id){return document.getElementById(id).value}
+
+function render(){
+  const app=document.getElementById('app'); app.innerHTML='';
+  SECTIONS.forEach((sec,si)=>{
+    const done=sec.items.filter(it=>state[it.id]&&state[it.id].v).length;
+    const g=document.createElement('section'); g.className='grp';
+    g.innerHTML=`<h2 onclick="this.parentNode.querySelector('.rows').classList.toggle('hidden')">
+        ${sec.t}<span class="chip">${done}/${sec.items.length} done</span></h2><div class="rows"></div>`;
+    const rows=g.querySelector('.rows');
+    sec.items.forEach(it=>{
+      const st=state[it.id]||{}; const val=st.v||'';
+      const row=document.createElement('div'); row.className='row'+(val?' done':''); row.dataset.v=val; row.dataset.id=it.id;
+      row.innerHTML=`
+        <div class="id">${it.id}<span class="role">${it.r}</span></div>
+        <div class="body">
+          <div class="a">${it.a}</div>
+          <div class="kv"><b>Expected:</b> ${it.e}</div>
+          ${it.n&&it.n!=='—'?`<div class="kv"><b>Negative:</b> ${it.n}</div>`:''}
+          ${it.ev&&it.ev!=='—'?`<div class="kv"><b>Evidence:</b> ${it.ev}</div>`:''}
+          <div class="status">
+            ${['pass','fail','na','skip'].map(x=>`<span class="btn ${val===x?'sel':''}" data-v="${x}" onclick="setv('${it.id}','${x}')">${x.toUpperCase()}</span>`).join('')}
+          </div>
+          <textarea class="note" placeholder="notes / actual result / evidence link" oninput="setnote('${it.id}',this.value)">${st.note||''}</textarea>
+        </div>`;
+      rows.appendChild(row);
+    });
+    app.appendChild(g);
+  });
+  applyFilter(); updateCounts();
+}
+function setv(id,x){ const s=state[id]||{}; s.v=(s.v===x?'':x); state[id]=s; save(); render(); }
+function setnote(id,t){ const s=state[id]||{}; s.note=t; state[id]=s; save(); updateCounts(); }
+function total(){ return SECTIONS.reduce((n,s)=>n+s.items.length,0); }
+function updateCounts(){
+  const all=SECTIONS.flatMap(s=>s.items);
+  const c={pass:0,fail:0,na:0,skip:0,done:0};
+  all.forEach(it=>{const val=(state[it.id]||{}).v; if(val){c.done++; if(c[val]!==undefined)c[val]++;}});
+  const T=all.length;
+  document.getElementById('cDone').textContent=c.done;
+  document.getElementById('cTotal').textContent=T;
+  document.getElementById('cPass').textContent=c.pass;
+  document.getElementById('cFail').textContent=c.fail;
+  document.getElementById('cNa').textContent=c.na;
+  document.getElementById('cPend').textContent=T-c.done;
+  document.getElementById('barFill').style.width=(100*c.done/T).toFixed(1)+'%';
+}
+function applyFilter(){
+  const f=document.getElementById('filter').value;
+  document.querySelectorAll('.row').forEach(r=>{
+    const val=(state[r.dataset.id]||{}).v||'';
+    let show=true;
+    if(f==='pending') show=!val;
+    else if(f==='pass') show=val==='pass';
+    else if(f==='fail') show=val==='fail';
+    r.classList.toggle('hidden',!show);
+  });
+}
+function expandAll(open){ document.querySelectorAll('.grp .rows').forEach(r=>r.classList.toggle('hidden',!open)); }
+function resetAll(){ if(confirm('Clear ALL results and notes?')){ state={}; save(); render(); } }
+function exportJSON(){
+  const data={meta:state.meta||{},results:{},exportedAt:new Date().toISOString()};
+  SECTIONS.flatMap(s=>s.items).forEach(it=>{ if(state[it.id]) data.results[it.id]=state[it.id]; });
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='nexpec-qa-results-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+}
+function importJSON(ev){
+  const f=ev.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=()=>{ try{ const d=JSON.parse(rd.result); state=Object.assign({},d.results||{}); state.meta=d.meta||{}; save(); hydrateMeta(); render(); }catch(e){alert('Invalid file')} };
+  rd.readAsText(f);
+}
+function hydrateMeta(){ const m=state.meta||{}; ['tester','date','build','env'].forEach(k=>{const el=document.getElementById('m_'+k); if(el&&m[k]!=null)el.value=m[k];}); }
+document.getElementById('filter').addEventListener('change',applyFilter);
+hydrateMeta(); render();
+</script>
+</body>
+</html>

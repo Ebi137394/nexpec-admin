@@ -12,10 +12,10 @@ import {
 import {
   fetchInspectorJobs, fetchJobDetections, recordDetection, listVisionModels,
   recordSegFeedback,
-  type InspectorJobLite, type AiDetection, type VisionModelRef,
+  type InspectorJobLite, type AiDetection, type VisionModelRef, type RegionMeta,
 } from '@/lib/data/aiCoinspector';
 import { segment, detect, loadModel } from '@/lib/ai/visionModel';
-import { isDefectClass, labelFor } from '@nexpec/shared-core';
+import { labelFor, refineSegFindings, clusterSegRegions, validateFinding, type NexpecModel, type SegRegion } from '@nexpec/shared-core';
 import { SegEditorOverlay, type SegEditDetection } from '@/components/inspector/SegEditorOverlay';
 
 interface Staged { id: string; url: string; name: string }
@@ -23,12 +23,30 @@ interface Suggestion {
   id: string; stagedId: string; thumbUrl: string;
   classId: number; defectId: string; label: string; confidence: number;
   box: [number, number, number, number]; polygon: Array<[number, number]>;
+  // structured findings data (not encoded in `label`). 'region' carries the full
+  // aggregation + member geometry for persistence; 'instance' is a single defect.
+  findingKind: 'instance' | 'region';
+  region?: RegionMeta | null;
 }
 type ModelStatus = 'checking' | 'unconfigured' | 'ready' | 'error';
 
 const imgFromUrl = (url: string) => new Promise<HTMLImageElement>((res, rej) => {
   const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image load failed')); i.src = url;
 });
+// Card copy for a micro-defect REGION (cluster). Display rule (documented): the
+// confidence BADGE shows the MAX member confidence (a region is at least as
+// severe as its worst indication); the label also carries the MEAN. Area is the
+// deterministic UNION area (not summed — which double-counts overlapping masks).
+function regionLabel(model: NexpecModel, r: SegRegion): string {
+  const areaPct = (r.unionArea * 100).toFixed(1);
+  const avg = r.meanConfidence.toFixed(2);
+  const classes = Object.keys(r.classComposition).map(Number);
+  if (r.memberCount === 1) return labelFor(model, r.dominantClass);
+  if (classes.length === 1) return `${labelFor(model, r.dominantClass)} cluster · ${r.memberCount} indications · ${areaPct}% area · avg ${avg}`;
+  const parts = classes.sort((a, b) => (r.classComposition[b]! - r.classComposition[a]!)).map((c) => `${r.classComposition[c]}× ${labelFor(model, c)}`);
+  return `Weld defect cluster · ${r.memberCount} indications (${parts.join(', ')}) · ${areaPct}% area · avg ${avg}`;
+}
+
 const sevCls = (s: string | null): string => {
   const v = (s ?? '').toLowerCase();
   if (v.includes('crit') || v.includes('high')) return 'bg-accent-red/15 text-accent-red';
@@ -57,6 +75,16 @@ export default function AiCoinspectorPage() {
   const modelRef = useMemo(() => models.find((m) => m.slug === selectedSlug) ?? null, [models, selectedSlug]);
   // Seg polygons per staged image (empty for classifier models → overlay is inert).
   const [segByStaged, setSegByStaged] = useState<Record<string, SegEditDetection[]>>({});
+  // Monotonic run token — guards against a slow inference from a PREVIOUS model
+  // or run overwriting the current UI (stale async).
+  const runSeq = useRef(0);
+  // Switching the active model must clear stale results/notices so an old
+  // "No defects…" success can't linger beside a different model's state, and
+  // aborts any in-flight analysis from the previous model.
+  useEffect(() => {
+    runSeq.current++;
+    setMsg(null); setSuggestions([]); setSegByStaged({});
+  }, [selectedSlug]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -132,6 +160,7 @@ export default function AiCoinspectorPage() {
     if (modelStatus !== 'ready' || !modelRef || !modelRef.url) { setMsg({ kind: 'err', text: 'On-device model is not ready.' }); return; }
     if (!jobId) { setMsg({ kind: 'err', text: 'Select a job above first.' }); return; }
     const active = modelRef;
+    const myRun = ++runSeq.current;
     setAnalyzingId(s.id); setMsg(null);
     try {
       const img = await imgFromUrl(s.url);
@@ -148,6 +177,10 @@ export default function AiCoinspectorPage() {
         : (await segment(img, active.url!, { expectedSha256: active.sha256, inputSize: active.inputSize, parser }))
             .map((d) => ({ classId: d.classId, score: d.score, box: d.box, polygon: d.polygon }));
 
+      // Stale-guard: the user switched model/started another run while this
+      // inference was in flight — drop this result rather than overwrite.
+      if (runSeq.current !== myRun) return;
+
       // Interactive overlay geometry (all detections, so reviewers see everything).
       setSegByStaged((prev) => ({
         ...prev,
@@ -157,35 +190,97 @@ export default function AiCoinspectorPage() {
         })),
       }));
 
-      // Actionable suggestions: real defect classes of THIS model only (drops
-      // its declared non-defect classes), highest confidence first.
-      const cands = raw
-        .filter((d) => isDefectClass(active.model, d.classId))
-        .sort((a, b) => b.score - a.score);
-      if (cands.length === 0) {
-        setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' });
-        return;
+      // Turn raw detections into user-facing cards. WDA (clusterPolicy) AGGREGATES
+      // nearby micro-defects into REGION cards; other models (findingsPolicy /
+      // none) show per-instance findings. Raw polygons always stay in the overlay
+      // above and in the diagnostics — nothing raw is destroyed here.
+      const model = active.model;
+      const dbgOn = typeof window !== 'undefined' && (window as { __NEXPEC_AI_DEBUG?: boolean }).__NEXPEC_AI_DEBUG === true;
+      let items: Suggestion[];
+      let banner: string;
+
+      if (model.clusterPolicy) {
+        const { regions, stages } = clusterSegRegions(raw, { nonDefectClassIds: model.nonDefectClassIds, ...model.clusterPolicy });
+        if (dbgOn) {
+          const byName = (re: RegExp) => regions.filter((r) => re.test(labelFor(model, r.dominantClass))).length;
+          console.groupCollapsed('[AI-DEBUG] findings cluster');
+          console.log('stages', {
+            rawInstances: stages.rawInstances, contextualNonDefect: stages.contextualNonDefect,
+            tinyRemoved: stages.tinyRemoved, duplicatesRemoved: stages.duplicatesRemoved,
+            aggregatedIndications: stages.aggregatedIndications,
+            porosityClusterCount: byName(/poros/i), spatterClusterCount: byName(/spatt/i),
+            finalRegionFindings: stages.finalRegionFindings, boundRejections: stages.boundRejections,
+            hiddenByEmergencyCap: stages.hiddenByEmergencyCap,
+          });
+          console.table(regions.map((r) => ({
+            cluster: r.clusterId, dominant: labelFor(model, r.dominantClass), members: r.memberCount,
+            memberIds: r.members.map((m) => m.memberId).join(','),
+            composition: Object.entries(r.classComposition).map(([c, n]) => `${n}× ${labelFor(model, Number(c))}`).join(', '),
+            maxConf: Number(r.maxConfidence.toFixed(3)), meanConf: Number(r.meanConfidence.toFixed(3)),
+            unionAreaPct: Number((r.unionArea * 100).toFixed(2)), summedAreaPct: Number((r.summedArea * 100).toFixed(2)),
+            bboxDiag: Number(r.bboxDiagonal.toFixed(3)), maxPairDist: Number(r.maxPairwiseMemberDist.toFixed(3)),
+          })));
+          console.groupEnd();
+        }
+        if (regions.length === 0) { setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' }); return; }
+        items = regions.map((r) => ({
+          id: `${s.id}-region-${r.clusterId}`, stagedId: s.id, thumbUrl: s.url,
+          // stable defectId for aggregated regions — never cls_<dominant>, which
+          // would corrupt class analytics for mixed Porosity/Spatters regions.
+          classId: r.dominantClass, defectId: 'weld_defect_region',
+          label: regionLabel(model, r), confidence: r.maxConfidence,
+          box: r.box, polygon: r.hull,                     // hull = region DISPLAY geometry only
+          findingKind: 'region' as const,
+          region: {
+            clusterId: r.clusterId, memberCount: r.memberCount,
+            // structured members — each with its own class/label/confidence/geometry
+            members: r.members.map((m) => ({ memberId: m.memberId, classId: m.classId, label: labelFor(model, m.classId), confidence: m.confidence, box: m.box, polygon: m.polygon })),
+            classComposition: r.classComposition, dominantClass: r.dominantClass,
+            maxConfidence: r.maxConfidence, meanConfidence: r.meanConfidence, confWeightedCount: r.confWeightedCount,
+            summedArea: r.summedArea, unionArea: r.unionArea, bboxDiagonal: r.bboxDiagonal,
+            maxPairwiseMemberDist: r.maxPairwiseMemberDist,
+          },
+        }));
+        const indications = stages.aggregatedIndications; // authoritative: excludes tiny + duplicate removals
+        const parts = [`${regions.length} defect region${regions.length === 1 ? '' : 's'} aggregated from ${indications} valid AI indication${indications === 1 ? '' : 's'}`];
+        if (stages.contextualNonDefect > 0) parts.push(`${stages.contextualNonDefect} contextual weld-line indication${stages.contextualNonDefect === 1 ? '' : 's'} excluded`);
+        if (stages.hiddenByEmergencyCap > 0) parts.push(`${stages.hiddenByEmergencyCap} region${stages.hiddenByEmergencyCap === 1 ? '' : 's'} hidden by safety cap`);
+        banner = parts.join(' · ') + '.';
+      } else {
+        const refined = refineSegFindings(raw, { nonDefectClassIds: model.nonDefectClassIds, ...(model.findingsPolicy ?? {}) });
+        if (dbgOn) {
+          console.groupCollapsed('[AI-DEBUG] findings refine');
+          console.log('stages', refined.stages);
+          console.table(refined.findings.map((d, i) => ({
+            class: labelFor(model, d.classId), conf: Number(d.score.toFixed(3)),
+            box: d.box.map((v) => Number(v.toFixed(3))).join(','), area: Number(refined.findingMeta[i]!.area.toFixed(5)),
+            cluster: refined.findingMeta[i]!.clusterId, sameClassRemoved: refined.findingMeta[i]!.sameClassRemoved, crossClassRemoved: refined.findingMeta[i]!.crossClassRemoved,
+          })));
+          console.groupEnd();
+        }
+        if (refined.findings.length === 0) { setMsg({ kind: 'ok', text: 'No defects above the confidence threshold.' }); return; }
+        items = refined.findings.map((d, i) => ({
+          id: `${s.id}-${d.classId}-${i}`, stagedId: s.id, thumbUrl: s.url,
+          classId: d.classId, defectId: `cls_${d.classId}`, label: labelFor(model, d.classId),
+          confidence: d.score, box: d.box, polygon: d.polygon, findingKind: 'instance' as const,
+        }));
+        const hiddenDefects = refined.suppressed.filter((x) => x.reason !== 'non-defect').length;
+        const contextual = refined.stages.droppedNonDefect;
+        const parts = [`${refined.findings.length} finding${refined.findings.length === 1 ? '' : 's'}`];
+        if (hiddenDefects > 0) parts.push(`${hiddenDefects} additional defect suggestion${hiddenDefects === 1 ? '' : 's'} hidden`);
+        if (contextual > 0) parts.push(`${contextual} contextual weld line${contextual === 1 ? '' : 's'} excluded`);
+        banner = parts.join(' · ') + '.';
       }
-      setSuggestions((prev) => [
-        ...prev.filter((x) => x.stagedId !== s.id),
-        ...cands.map((d, i) => ({
-          id: `${s.id}-${d.classId}-${i}`,
-          stagedId: s.id,
-          thumbUrl: s.url,
-          classId: d.classId,
-          defectId: `cls_${d.classId}`,
-          label: labelFor(active.model, d.classId),
-          confidence: d.score,
-          box: d.box,
-          polygon: d.polygon,
-        })),
-      ]);
-      setMsg({ kind: 'ok', text: `${cands.length} on-device detection${cands.length === 1 ? '' : 's'}, ${active.displayName} (${active.slug} v${active.version}).` });
+      setSuggestions((prev) => [...prev.filter((x) => x.stagedId !== s.id), ...items]);
+      setMsg({ kind: 'ok', text: banner });
     } catch (e) { setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Inference failed.' }); }
     finally { setAnalyzingId(null); }
   };
   const accept = async (sug: Suggestion) => {
     if (!jobId || !modelRef) return;
+    // Reject malformed payloads before persisting — never store partial data.
+    const bad = validateFinding(sug, modelRef.model.labels.length);
+    if (bad) { setMsg({ kind: 'err', text: `Refusing to record malformed finding: ${bad}.` }); return; }
     setAcceptingId(sug.id); setMsg(null);
     try {
       const res = await recordDetection(
@@ -193,6 +288,10 @@ export default function AiCoinspectorPage() {
         {
           defectId: sug.defectId, label: sug.label, confidence: sug.confidence,
           classId: sug.classId, box: sug.box, polygon: sug.polygon,
+          // For a region, persist the full aggregation + every member polygon
+          // (authoritative geometry) so the accepted record keeps all individual
+          // AI indications. The top-level polygon is display-only (hull).
+          region: sug.region ?? null,
         },
         modelRef,
       );

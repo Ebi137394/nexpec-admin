@@ -23,6 +23,8 @@ import {
 import { JobsModerationTable } from '@/components/admin/jobs/JobsModerationTable';
 import { JobsStatusFilter } from '@/components/admin/jobs/JobsStatusFilter';
 import { JobModerationPanel } from '@/components/admin/jobs/JobModerationPanel';
+import { InspectionMarketplaceAdminPanel } from '@/components/admin/InspectionMarketplaceAdminPanel';
+import { getInspectionAdminPanelData, type InspectionAdminPanelData } from '@/lib/data/inspectionAdminPanel';
 import { Pagination } from '@/components/admin/audit/Pagination';
 import type {
   ModerationJobDetail,
@@ -68,6 +70,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
   let timeline: ModerationTimelineEvent[] = [];
   let applicants: ModerationApplicant[] = [];
   let jobContract: AdminJobContractRow | null = null;
+  let panelData: InspectionAdminPanelData | null = null;
 
   try {
     const result = await fetchJobsModerationPage({ page, status });
@@ -110,6 +113,15 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
         console.error('[admin/jobs] fetchAdminJobContractForJob threw:', e);
       }
     }
+    // Inspection Marketplace identity/replacement controls (fail-safe: returns
+    // a sentinel if the release migrations aren't applied on this project).
+    try {
+      panelData = await getInspectionAdminPanelData(inspectId);
+    } catch (e) {
+      if (typeof console !== 'undefined') {
+        console.error('[admin/jobs] getInspectionAdminPanelData threw:', e);
+      }
+    }
   }
 
   return (
@@ -139,7 +151,7 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
           Anchor id="moderation" so the click-from-table navigation can
           jump to it. Pure server component — zero hydration risk. */}
       {inspected ? (
-        <div id="moderation" className="scroll-mt-24">
+        <div id="moderation" className="scroll-mt-24 space-y-6">
           <JobModerationPanel
             job={inspected}
             timeline={timeline}
@@ -147,6 +159,25 @@ export default async function JobsModerationPage({ searchParams }: PageProps) {
             jobContract={jobContract}
             errorMessage={sp.error}
           />
+          {panelData && panelData.available && panelData.isInspectionJob && (
+            <InspectionMarketplaceAdminPanel
+              jobId={inspectId!}
+              jobStatus={panelData.jobStatus}
+              identityMode={panelData.identityMode}
+              replacementMode={panelData.replacementMode}
+              clientPriceCents={panelData.clientPriceCents}
+              activeContract={panelData.activeContract}
+              applications={panelData.applications}
+            />
+          )}
+          {panelData && !panelData.available && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              Inspection identity/replacement controls are unavailable on this
+              deployment — confirm the release migrations
+              (20260801284000–20260801290000) have been applied to the connected
+              Supabase project, then reload.
+            </p>
+          )}
         </div>
       ) : inspectId ? (
         <div className="rounded-2xl border border-accent-amber/30 bg-accent-amber/10 p-6">

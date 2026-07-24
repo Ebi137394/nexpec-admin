@@ -197,7 +197,7 @@ function JobBlock({
                 {/* Profile link — admin due diligence */}
                 {app.applicant_id && (
                   <Link
-                    href={`/p/${app.applicant_id}`}
+                    href={`/admin/users/${app.applicant_id}`}
                     className="ml-5 inline-flex w-fit items-center gap-1 text-[11px] font-semibold text-violet-glow hover:text-white"
                   >
                     View inspector profile →

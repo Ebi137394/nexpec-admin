@@ -437,7 +437,7 @@ export function JobModerationPanel({
 
                   {a.applicant_id && (
                     <Link
-                      href={`/p/${a.applicant_id}`}
+                      href={`/admin/users/${a.applicant_id}`}
                       className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-violet-glow hover:text-white"
                     >
                       View inspector profile

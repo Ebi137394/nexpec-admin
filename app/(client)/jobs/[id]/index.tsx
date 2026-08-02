@@ -635,6 +635,10 @@ export default function JobDetailScreen() {
             </View>
             <AuditTimeline
               jobId={String(id)}
+              // This is the buyer's own job portal, so their budget/price
+              // figures may render in the trail. Every other surface defaults
+              // to non-buyer and never sees them.
+              viewerIsBuyer
               inline
               showHeader={false}
               emptyTitle="No activity yet"

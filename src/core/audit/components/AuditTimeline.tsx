@@ -85,6 +85,12 @@ export interface AuditTimelineProps {
   jobId?: string;
   /** Query unmasked audit_events (admin) vs audit_events_public (everyone). */
   asAdmin?: boolean;
+  /**
+   * The viewer is the BUYER of this job (its client / agency portal). Only then
+   * do budget / price / bid figures render in the event diff. Defaults to false
+   * so an undeclared surface is treated as a non-buyer — the safe direction.
+   */
+  viewerIsBuyer?: boolean;
   /** Show the filter strip + search bar. Default true. */
   showHeader?: boolean;
   /** Empty-state copy. */
@@ -202,6 +208,7 @@ const CategoryChip: React.FC<{
 const AuditTimeline: React.FC<AuditTimelineProps> = ({
   jobId,
   asAdmin = false,
+  viewerIsBuyer = false,
   showHeader = true,
   emptyTitle,
   emptySubtitle,
@@ -470,7 +477,12 @@ const AuditTimeline: React.FC<AuditTimelineProps> = ({
       {/* asAdmin gates the raw payload + sensitive diff fields in the sheet.
           Non-admin timelines (client/agency/enterprise/supplier/inspector)
           are price-blind by construction. */}
-      <EventDetailSheet event={selected} onClose={handleCloseSheet} privileged={asAdmin} />
+      <EventDetailSheet
+        event={selected}
+        onClose={handleCloseSheet}
+        privileged={asAdmin}
+        viewerIsBuyer={viewerIsBuyer}
+      />
     </View>
   );
 };

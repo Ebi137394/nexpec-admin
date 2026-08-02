@@ -536,6 +536,39 @@ export function isPresentableAuditField(key: string): boolean {
   return Object.prototype.hasOwnProperty.call(AUDIT_FIELD_LABELS, key);
 }
 
+// ─── BUYER-ONLY COMMERCIALS ───────────────────────────────────────────────
+// Budget / price / bid figures belong to the BUYER of the job. An inspector,
+// supplier or any other non-buyer must never read them off the shared audit
+// trail — the client price against a known payout reveals the platform margin.
+// Mirrors public.audit_redact_buyer_pricing (migration 20260801294000); the
+// difference is that the DB knows who the buyer is per row, whereas on-device
+// we only know it from the surface that mounts the timeline — so this defaults
+// to HIDDEN and a buyer surface opts in explicitly.
+const BUYER_PRICING_FIELDS = new Set<string>([
+  'client_price_cents', 'price_cents',
+  'budget_cents', 'budget_min_cents', 'budget_max_cents', 'budget_type',
+  'bid_amount_cents', 'proposed_price_cents',
+  'total_amount_cents', 'amount_cents', 'amount',
+  'currency',
+]);
+
+/** True for a commercial figure that only the job's buyer may see. */
+export function isBuyerPricingField(key: string): boolean {
+  return BUYER_PRICING_FIELDS.has(key);
+}
+
+/**
+ * True for a record-creation event (`jobs.created`, `applications.created`, …).
+ *
+ * The trigger stores the whole new row as the "diff" of a creation, but nothing
+ * actually *changed* — so for a non-admin the field list is noise, not history.
+ * The summary ("Job posted: Pressure") already IS the event. Admins keep the
+ * full snapshot, which is what an audit investigation needs.
+ */
+export function isCreationEvent(eventType: string): boolean {
+  return /\.created$/i.test(eventType);
+}
+
 /** Human label for a diff field; falls back to a humanised column name. */
 export function auditFieldLabel(key: string): string {
   const label = AUDIT_FIELD_LABELS[key];

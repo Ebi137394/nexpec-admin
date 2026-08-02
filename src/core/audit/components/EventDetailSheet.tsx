@@ -33,6 +33,8 @@ import {
   getSeverityMeta,
   isNonAdminHiddenField,
   isPresentableAuditField,
+  isBuyerPricingField,
+  isCreationEvent,
   auditFieldLabel,
 } from '@/src/lib/audit';
 
@@ -77,6 +79,13 @@ export interface EventDetailSheetProps {
    * and the raw-payload section is hidden entirely. Price-blindness guard.
    */
   privileged?: boolean;
+  /**
+   * The viewer is the BUYER of this job (its client / agency). Only then may
+   * budget, price and bid figures render. Defaults to false so any surface that
+   * forgets to declare itself is treated as a non-buyer — the safe direction.
+   * Ignored when `privileged` (admins see everything).
+   */
+  viewerIsBuyer?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -121,7 +130,12 @@ const DiffRow: React.FC<{
 // ═══════════════════════════════════════════════════════════════════════════
 //  COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
-const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, privileged = false }) => {
+const EventDetailSheet: React.FC<EventDetailSheetProps> = ({
+  event,
+  onClose,
+  privileged = false,
+  viewerIsBuyer = false,
+}) => {
   const [showRaw, setShowRaw] = useState(false);
 
   // Compute the union of keys across delta.before + delta.after so we
@@ -129,6 +143,11 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, pri
   // delete-only have only `before`, updates have both).
   const diffEntries = useMemo(() => {
     if (!event) return [];
+    // ★ A creation event has no "changes" — the trigger just snapshots the new
+    //   row, so listing it renders as a database dump (the whole `jobs` record)
+    //   rather than an activity entry. The summary is the event. Admins keep the
+    //   snapshot for investigation.
+    if (!privileged && isCreationEvent(event.event_type)) return [];
     const before = event.delta?.before ?? {};
     const after  = event.delta?.after  ?? {};
     let keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
@@ -141,8 +160,15 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, pri
     //   Then narrow to the PRESENTABLE allow-list so the sheet reads as an
     //   activity trail rather than a raw `jobs` row (76 columns) — see
     //   AUDIT_FIELD_LABELS. Admins keep the complete, unlabelled diff.
+    //   Budget / price / bid figures are BUYER-ONLY: an inspector or other
+    //   non-buyer must never read them off the shared audit trail.
     if (!privileged) {
-      keys = keys.filter((k) => !isNonAdminHiddenField(k) && isPresentableAuditField(k));
+      keys = keys.filter(
+        (k) =>
+          !isNonAdminHiddenField(k) &&
+          isPresentableAuditField(k) &&
+          (viewerIsBuyer || !isBuyerPricingField(k)),
+      );
     }
     // Show summary-critical fields first
     const PRIORITY = [

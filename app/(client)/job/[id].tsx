@@ -589,6 +589,8 @@ export default function JobDetailScreen() {
             </View>
             <AuditTimeline
               jobId={String(params.id)}
+              // Buyer's own job portal — see the note in (client)/jobs/[id].
+              viewerIsBuyer
               inline
               showHeader={false}
               emptyTitle="No activity yet"

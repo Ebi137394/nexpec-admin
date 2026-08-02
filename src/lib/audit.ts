@@ -100,6 +100,15 @@ export const EVENT_TYPE_META: Record<string, EventTypeMeta> = {
   'job.updated':          { category: 'other',     icon: 'create-outline',      color: '#94A3B8' },
   'job.deleted':          { category: 'other',     icon: 'trash',               color: '#EF4444' },
 
+  // NOTE: the DB trigger builds INSERT/DELETE types as `TG_TABLE_NAME ||
+  // '.created' | '.deleted'`, i.e. the PLURAL table name — 'jobs.created',
+  // 'jobs.deleted'. The singular 'job.created' / 'job.deleted' keys below are
+  // never emitted; without the plural keys a posted job fell through to
+  // FALLBACK_META and rendered as a grey dot in the neutral "Other" category.
+  'jobs.created':         { category: 'other',     icon: 'add-circle-outline',  color: '#7C3AED' },
+  'jobs.deleted':         { category: 'other',     icon: 'trash',               color: '#EF4444' },
+  'jobs.updated':         { category: 'other',     icon: 'create-outline',      color: '#94A3B8' },
+
   // Applications / hiring
   'applications.created': { category: 'hiring',    icon: 'paper-plane',         color: '#3B82F6' },
   'application.accepted': { category: 'hiring',    icon: 'checkmark-circle',    color: '#10B981' },
@@ -379,18 +388,204 @@ export function isSensitivePricingField(key: string): boolean {
   return false;
 }
 
-/** Recursively strip sensitive pricing keys (and field-name strings) from any value. */
-function deepStripSensitivePricing(value: any): any {
+// ─── INTERNAL-FIELD REDACTION (back-office confidentiality) ────────────────
+// The audit trigger records the WHOLE row on INSERT (jobs has 76 columns) and
+// every changed key on UPDATE, so an un-redacted event carries the admin↔
+// inspector negotiation channel, the moderation/vetting state, internal
+// operational + financial states, and every raw UUID identifier. None of that
+// may render on a non-admin timeline.
+//
+// Mirrors the server-side public.audit_redact_internal (migrations
+// 20260801292000 + 20260801294000). CATEGORY rules, not a column list — the
+// original defect was a hardcoded list that could not know about the columns
+// that were actually leaking.
+const INTERNAL_FIELDS = new Set<string>([
+  // admin↔inspector negotiation channel
+  'negotiation_status',
+  'inspector_decision',
+  'inspector_decision_note',
+  'inspector_decision_at',
+  // counterparty-private notes (buyer ↔ inspector)
+  'client_notes',
+  'client_note',
+  'client_feedback',
+  // moderation / back-office review
+  'moderation_status',
+  'moderation_notes',
+  // operational + financial STATE (amounts are handled by the pricing rules)
+  'payout_status',
+  'escrow_status',
+  'payout_reference',
+  'payout_notes',
+  'payout_paid_at',
+  'payment_mode',
+  'client_invoiced_at',
+  'client_settled_at',
+  // internal ops / plumbing
+  'deleted_at',
+  'geog',
+  'template_url',
+  'calendar_synced_at',
+  'is_senior_review',
+  'claimed_address_geocoded',
+  'admin_confirmed_at',
+]);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * True when a column / field name is internal and must never reach a non-admin
+ * audit surface: back-office namespaces (admin_/internal_/moderation_), any
+ * identifier reference (*_id / *_by), or a known internal state column.
+ */
+export function isInternalNegotiationField(key: string): boolean {
+  if (INTERNAL_FIELDS.has(key)) return true;
+  if (/^(admin|internal|moderation)_/i.test(key)) return true;
+  if (/_(id|by)$/i.test(key)) return true;
+  return false;
+}
+
+/** Any field a non-admin audit reader must not see (pricing OR back-office). */
+export function isNonAdminHiddenField(key: string): boolean {
+  return isSensitivePricingField(key) || isInternalNegotiationField(key);
+}
+
+/** True for a UUID-shaped value — an internal identifier whatever its key. */
+export function isUuidLike(value: unknown): boolean {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
+
+// ─── PRESENTABLE FIELDS (human activity trail, not a schema dump) ──────────
+// The audit trigger stores `to_jsonb(NEW)` on INSERT, so a job creation event
+// carries all 76 `jobs` columns. Hiding the sensitive ones (above) still left a
+// wall of raw snake_case column names — `applications_count`, `is_featured`,
+// `latitude`, `claimed_address_text`, `report_signed_docs_url` … — which reads
+// as a database dump rather than an activity trail, and needlessly publishes
+// the internal schema.
+//
+// So non-admin surfaces render an ALLOW-LIST: a curated set of fields that mean
+// something to a human, each with a proper label. A field absent from this map
+// is simply not shown. Unlike a deny-list, a column added to the schema later
+// is silently EXCLUDED rather than silently exposed — which is the failure mode
+// that produced this bug in the first place.
+//
+// Admin/privileged viewers are unaffected: they keep the full raw diff with the
+// true column names, which is what an audit investigation needs.
+export const AUDIT_FIELD_LABELS: Record<string, string> = {
+  // ── shared ──
+  status: 'Status',
+
+  // ── jobs ──
+  title: 'Title',
+  description: 'Description',
+  location: 'Location',
+  location_city: 'City',
+  job_country: 'Country',
+  scheduled_date: 'Scheduled for',
+  started_at: 'Started',
+  cancelled_at: 'Cancelled',
+  cancel_reason: 'Cancellation reason',
+  inspection_type: 'Inspection type',
+  job_type: 'Job type',
+  urgency: 'Urgency',
+  estimated_duration: 'Estimated duration',
+  required_certifications: 'Required certifications',
+  specialty_slugs: 'Specialisms',
+  accepts_remote_inspectors: 'Remote inspectors allowed',
+  sponsorship_offered: 'Sponsorship offered',
+  requires_cci: 'Requires CCI',
+  contract_generated_at: 'Contract generated',
+  client_price_cents: 'Price',
+  price_cents: 'Price',
+  budget_cents: 'Budget',
+  budget_min_cents: 'Budget (min)',
+  budget_max_cents: 'Budget (max)',
+  budget_type: 'Budget type',
+  currency: 'Currency',
+
+  // ── applications ──
+  cover_letter: 'Cover letter',
+  cover_note: 'Cover note',
+  bid_amount_cents: 'Bid amount',
+  bid_type: 'Bid type',
+  proposed_price_cents: 'Proposed price',
+  availability_date: 'Available from',
+  attachments: 'Attachments',
+  offered_at: 'Offered',
+  hired_at: 'Hired',
+  withdrawn_at: 'Withdrawn',
+  rejection_reason: 'Rejection reason',
+
+  // ── contracts ── (contract_text and the signature blobs stay out)
+  total_amount_cents: 'Contract value',
+  document_url: 'Document',
+  external_link: 'External link',
+  client_signed_at: 'Client signed',
+  contractor_signed_at: 'Inspector signed',
+  signed_at: 'Signed',
+  start_date: 'Start date',
+  end_date: 'End date',
+
+  // ── payout_requests ── (bank_metadata / transfer ids stay out)
+  amount: 'Amount',
+  notes: 'Notes',
+};
+
+/** True when a field is meaningful to a non-admin reader (see AUDIT_FIELD_LABELS). */
+export function isPresentableAuditField(key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(AUDIT_FIELD_LABELS, key);
+}
+
+/** Human label for a diff field; falls back to a humanised column name. */
+export function auditFieldLabel(key: string): string {
+  const label = AUDIT_FIELD_LABELS[key];
+  if (label) return label;
+  const words = key.replace(/_cents$/, '').replace(/_/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// ─── ACTOR ANONYMITY ───────────────────────────────────────────────────────
+// The platform Admin must never be named to a non-admin: no real name, no
+// admin role, no internal id. Mirrors the server-side CASE in
+// audit_events_public (20260801294000).
+const ADMIN_ROLES = new Set(['admin', 'super_admin']);
+
+/** Public-facing actor identity for a non-admin viewer. */
+export function publicActor(event: AuditEvent): Pick<AuditEvent, 'actor_id' | 'actor_role' | 'actor_label'> {
+  if (event.actor_role && ADMIN_ROLES.has(event.actor_role)) {
+    return { actor_id: null, actor_role: 'platform', actor_label: 'NEXPEC' };
+  }
+  return { actor_id: null, actor_role: event.actor_role, actor_label: event.actor_label };
+}
+
+/**
+ * Neutralise a summary for a non-admin reader: the trigger appends the raw
+ * changed COLUMN NAMES ("Job fields updated: moderation_reviewed_by, …") and
+ * some summaries embed raw UUIDs.
+ */
+export function publicSummary(summary: string): string {
+  if (!summary) return summary;
+  if (/^Job fields updated:/i.test(summary)) return 'Job details updated';
+  return summary.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    '',
+  ).trim();
+}
+
+/** Recursively strip hidden keys (and field-name strings) from any value.
+ *  Also drops UUID-shaped VALUES — an internal identifier is internal whatever
+ *  the column happens to be called. */
+function deepStripHidden(value: any, hide: (k: string) => boolean): any {
   if (Array.isArray(value)) {
     return value
-      .filter((v) => !(typeof v === 'string' && isSensitivePricingField(v)))
-      .map(deepStripSensitivePricing);
+      .filter((v) => !(typeof v === 'string' && (hide(v) || isUuidLike(v))))
+      .map((v) => deepStripHidden(v, hide));
   }
   if (value && typeof value === 'object') {
     const out: Record<string, any> = {};
     for (const k of Object.keys(value)) {
-      if (isSensitivePricingField(k)) continue;
-      out[k] = deepStripSensitivePricing(value[k]);
+      if (hide(k) || isUuidLike(value[k])) continue;
+      out[k] = deepStripHidden(value[k], hide);
     }
     return out;
   }
@@ -398,18 +593,25 @@ function deepStripSensitivePricing(value: any): any {
 }
 
 /**
- * Returns a price-blind copy of an audit event, or `null` when the event ONLY
- * carried sensitive pricing changes (caller should then hide it entirely).
- * Strips both the structured diff (delta.before / delta.after) and the raw
- * metadata payload. Admin callers must NOT route through this.
+ * Returns a redacted copy of an audit event, or `null` when the event carried
+ * ONLY hidden fields (caller should then hide the event entirely). Strips both
+ * the structured diff (delta.before / delta.after) and the raw metadata payload.
+ * Admin callers must NOT route through this.
+ *
+ * `hide` defaults to the full non-admin rule: price-blindness (anti-poaching)
+ * PLUS the internal admin/inspector negotiation channel.
  */
-export function redactSensitivePricing(event: AuditEvent): AuditEvent | null {
+export function redactSensitivePricing(
+  event: AuditEvent,
+  hide: (key: string) => boolean = isNonAdminHiddenField,
+): AuditEvent | null {
   const stripFlat = (obj?: Record<string, any>) => {
     if (!obj || typeof obj !== 'object') return { cleaned: obj, removed: 0 };
     let removed = 0;
     const out: Record<string, any> = {};
     for (const k of Object.keys(obj)) {
-      if (isSensitivePricingField(k)) { removed++; continue; }
+      // hidden by name, or a raw internal identifier by value
+      if (hide(k) || isUuidLike(obj[k])) { removed++; continue; }
       out[k] = obj[k];
     }
     return { cleaned: out, removed };
@@ -418,6 +620,17 @@ export function redactSensitivePricing(event: AuditEvent): AuditEvent | null {
   const b = stripFlat(event.delta?.before);
   const a = stripFlat(event.delta?.after);
   const removed = b.removed + a.removed;
+
+  // An event whose diff HAD content but lost ALL of it was purely internal
+  // (e.g. a moderation approval) — hide it rather than render a contentless
+  // card attributed to the platform. Events with a legitimately empty delta
+  // (RPC-emitted markers) are untouched: `removed > 0` gates this.
+  const hadContent =
+    Object.keys(event.delta?.before ?? {}).length +
+    Object.keys(event.delta?.after ?? {}).length > 0;
+  const keptCount =
+    Object.keys(b.cleaned ?? {}).length + Object.keys(a.cleaned ?? {}).length;
+  if (hadContent && keptCount === 0 && removed > 0) return null;
 
   // Hide an event whose entire visible diff is empty when it was (or is) a
   // pricing change. `removed > 0` covers client-side stripping; the pricing
@@ -437,8 +650,12 @@ export function redactSensitivePricing(event: AuditEvent): AuditEvent | null {
 
   return {
     ...event,
+    // The platform Admin is published as NEXPEC/platform and no actor's raw id
+    // is exposed (the id would otherwise undo the nx_handle pseudonym).
+    ...publicActor(event),
+    summary: publicSummary(event.summary),
     delta: { before: b.cleaned, after: a.cleaned },
-    metadata: deepStripSensitivePricing(event.metadata) as AuditMetadata,
+    metadata: deepStripHidden(event.metadata, hide) as AuditMetadata,
   };
 }
 
@@ -501,10 +718,17 @@ export async function fetchAuditEvents(
     rows = rows.filter((r) => getEventTypeMeta(r.event_type).category === opts.category);
   }
 
-  // ★ PRICE-BLINDNESS (anti-poaching) — every non-admin surface
-  //   (client / agency / enterprise / supplier / inspector) is served a
-  //   price-blind view: inspector payout + platform spread/margin are stripped
-  //   from the diff AND the raw payload, and pricing-only events are dropped.
+  // ★ NON-ADMIN REDACTION — every non-admin surface (client / agency /
+  //   enterprise / supplier / inspector) is served a redacted view:
+  //     • PRICE-BLINDNESS (anti-poaching): inspector payout + platform
+  //       spread/margin stripped; pricing-only events dropped.
+  //     • BACK-OFFICE CONFIDENTIALITY: the admin↔inspector negotiation channel
+  //       (admin_* counter/comment/feedback/attachment, negotiation_status,
+  //       inspector_decision*) stripped — the applications audit trigger records
+  //       the whole row, so without this a client reads internal vetting notes
+  //       and the admin's counter-offer (from which the margin is derivable).
+  //   Defense in depth: migration 20260801292000 also strips these server-side,
+  //   so the bytes never reach the device once it is deployed.
   //   Admin (asAdmin → audit_events) keeps full visibility.
   if (!opts.asAdmin) {
     rows = rows

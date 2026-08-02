@@ -31,7 +31,9 @@ import {
   formatFieldValue,
   getEventTypeMeta,
   getSeverityMeta,
-  isSensitivePricingField,
+  isNonAdminHiddenField,
+  isPresentableAuditField,
+  auditFieldLabel,
 } from '@/src/lib/audit';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -82,9 +84,12 @@ export interface EventDetailSheetProps {
 // ═══════════════════════════════════════════════════════════════════════════
 const DiffRow: React.FC<{
   fieldKey: string;
+  /** What the reader sees. Admins get the true column name; everyone else gets
+   *  the human label (the raw value formatting still keys off `fieldKey`). */
+  label: string;
   before: any;
   after: any;
-}> = React.memo(({ fieldKey, before, after }) => {
+}> = React.memo(({ fieldKey, label, before, after }) => {
   const beforeUndefined = before === undefined;
   const afterUndefined  = after  === undefined;
   const beforeStr = beforeUndefined ? null : formatFieldValue(fieldKey, before);
@@ -92,7 +97,7 @@ const DiffRow: React.FC<{
 
   return (
     <View style={s.diffField}>
-      <Text style={s.diffKey}>{fieldKey}</Text>
+      <Text style={s.diffKey}>{label}</Text>
       {beforeStr !== null && (
         <View style={s.diffLine}>
           <Text style={[s.diffMarker, { color: C.diffMinus }]}>−</Text>
@@ -127,10 +132,18 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, pri
     const before = event.delta?.before ?? {};
     const after  = event.delta?.after  ?? {};
     let keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
-    // ★ PRICE-BLINDNESS — never render inspector payout or platform spread/margin
-    //   to a non-privileged viewer, even if an unredacted event somehow reaches
-    //   this sheet (the fetch layer already strips them; this is defense in depth).
-    if (!privileged) keys = keys.filter((k) => !isSensitivePricingField(k));
+    // ★ PRICE-BLINDNESS + BACK-OFFICE CONFIDENTIALITY — never render inspector
+    //   payout / platform spread, NOR the internal admin↔inspector negotiation
+    //   channel (admin_* counter, comment, feedback, attachment,
+    //   negotiation_status, inspector_decision*) to a non-privileged viewer,
+    //   even if an unredacted event somehow reaches this sheet (the fetch layer
+    //   and the DB view already strip them; this is the last line of defense).
+    //   Then narrow to the PRESENTABLE allow-list so the sheet reads as an
+    //   activity trail rather than a raw `jobs` row (76 columns) — see
+    //   AUDIT_FIELD_LABELS. Admins keep the complete, unlabelled diff.
+    if (!privileged) {
+      keys = keys.filter((k) => !isNonAdminHiddenField(k) && isPresentableAuditField(k));
+    }
     // Show summary-critical fields first
     const PRIORITY = [
       'status', 'contractor_id', 'client_id', 'agency_id',
@@ -146,7 +159,12 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, pri
       if (ib >= 0) return 1;
       return a.localeCompare(b);
     });
-    return keys.map((k) => ({ key: k, before: before[k], after: after[k] }));
+    return keys.map((k) => ({
+      key: k,
+      label: privileged ? k : auditFieldLabel(k),
+      before: before[k],
+      after: after[k],
+    }));
   }, [event, privileged]);
 
   if (!event) {
@@ -270,6 +288,7 @@ const EventDetailSheet: React.FC<EventDetailSheetProps> = ({ event, onClose, pri
                   <DiffRow
                     key={d.key}
                     fieldKey={d.key}
+                    label={d.label}
                     before={d.before}
                     after={d.after}
                   />

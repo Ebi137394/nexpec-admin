@@ -108,7 +108,21 @@ export async function submitApplication(formData: FormData): Promise<void> {
     redirect(buildDetailUrl(jobId, { error: 'Job not found.' }));
   }
   const j = jobRow as unknown as Record<string, unknown>;
-  if (j.status !== 'open' || j.moderation_status !== 'approved') {
+  // Applyable = genuinely open, OR awaiting a replacement inspector after a
+  // contract void (jobs.status stays 'in_progress' with the inspector pointers
+  // cleared). Same predicate as the RLS insert policy and the detail page
+  // (nx_job_awaiting_replacement, migration 20260801298000) so all three agree —
+  // a normal in_progress job with a live contract still fails here, and the DB
+  // policy remains the floor even if this check were bypassed.
+  let applyable = j.status === 'open' && j.moderation_status === 'approved';
+  if (!applyable) {
+    const { data: awaitingReplacement } = await supabase.rpc(
+      'nx_job_awaiting_replacement',
+      { p_job_id: jobId },
+    );
+    applyable = awaitingReplacement === true;
+  }
+  if (!applyable) {
     redirect(
       buildDetailUrl(jobId, {
         error: 'This job is no longer accepting applications.',

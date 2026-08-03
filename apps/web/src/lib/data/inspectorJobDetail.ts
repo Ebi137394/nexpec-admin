@@ -114,10 +114,25 @@ export async function fetchInspectorJob(
     // 3. Visibility gate. Either the job is open to new applications,
     //    OR the inspector has an active application here. Otherwise the
     //    inspector has no business seeing this job's detail.
-    const isOpenForApplications =
+    //    A job AWAITING REPLACEMENT counts as open to applications too: after a
+    //    contract void jobs.status stays 'in_progress' with the inspector
+    //    pointers cleared, so this gate returned null -> notFound() -> the 404
+    //    page, and an inspector who could see the job in Open jobs still could
+    //    not open it. Resolved by the SAME predicate the RLS policy uses
+    //    (nx_job_awaiting_replacement, migration 20260801298000), so the page,
+    //    the list and the database cannot drift apart. A normal in_progress job
+    //    with a live contract fails the predicate and stays inaccessible.
+    let isOpenForApplications =
       status === 'open' && moderationStatus === 'approved';
     if (!isOpenForApplications && !myApplication) {
-      return null;
+      const { data: awaitingReplacement } = await supabase.rpc(
+        'nx_job_awaiting_replacement',
+        { p_job_id: jobId },
+      );
+      if (awaitingReplacement !== true) {
+        return null;
+      }
+      isOpenForApplications = true;
     }
 
     // 4. Client company name (only). GOLDEN_RULE_4/7.

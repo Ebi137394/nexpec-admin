@@ -116,7 +116,10 @@ export default async function InspectorJobContractPage({
       )}
       {sp.error && (
         <div className="rounded-2xl border border-accent-red/30 bg-accent-red/10 p-4 text-sm text-accent-red">
-          {decodeURIComponent(sp.error)}
+          {/* Next.js already URL-decodes searchParams. Decoding a second time
+              threw a URIError on any message containing a literal '%', which
+              blanked the page instead of showing why the signature failed. */}
+          {sp.error}
         </div>
       )}
 

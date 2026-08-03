@@ -175,6 +175,18 @@ interface ClientContractRow {
   voided_reason: string | null;
   created_at: string;
   updated_at: string | null;
+  // ── Identity disclosure, resolved and gated in the DB ──────────────────
+  //  The view returns NULL for every field the effective mode does not
+  //  permit, so rendering these unconditionally cannot over-disclose.
+  identity_mode: 'protected' | 'professional' | 'full' | null;
+  inspector_display_name: string | null;
+  inspector_headline: string | null;
+  inspector_resume_summary: string | null;
+  inspector_resume_url: string | null;
+  inspector_certifications: string[] | null;
+  inspector_qualifications: string[] | null;
+  inspector_email: string | null;
+  inspector_phone: string | null;
 }
 
 /**
@@ -391,6 +403,23 @@ export default function JobContractSigningScreen() {
               'voided_reason',
               'created_at',
               'updated_at',
+              // ── Identity disclosure (DB-gated) ──────────────────────────
+              //  client_job_contracts_view resolves the effective mode itself
+              //  (live jobs.identity_mode while the contract is active; the
+              //  immutable snapshot once voided) and returns NULL for anything
+              //  the mode does not permit. These columns were never selected,
+              //  so raising the policy to "professional"/"full" in the admin
+              //  console could never surface on mobile — no refresh would help,
+              //  because the app never asked for the data.
+              'identity_mode',
+              'inspector_display_name',
+              'inspector_headline',
+              'inspector_resume_summary',
+              'inspector_resume_url',
+              'inspector_certifications',
+              'inspector_qualifications',
+              'inspector_email',
+              'inspector_phone',
             ].join(', '),
           )
           .eq('id', id)
@@ -516,6 +545,28 @@ export default function JobContractSigningScreen() {
     if (role === 'inspector') return inspectorRow?.inspector_payout_cents ?? null;
     return null;
   }, [role, clientRow, inspectorRow]);
+
+  // ── Identity disclosure ────────────────────────────────────────────────
+  //  Build the visible rows from whatever the DB view permitted. Every value is
+  //  already mode-gated server-side, so an empty list means "protected" and no
+  //  section renders.
+  const identityFields = useMemo(() => {
+    if (role !== 'client' || !clientRow) return [];
+    const joinList = (v: string[] | null): string | null =>
+      Array.isArray(v) && v.length > 0 ? v.join(', ') : null;
+    const rows: Array<{ label: string; value: string }> = [
+      { label: 'Name', value: clientRow.inspector_display_name },
+      { label: 'Title', value: clientRow.inspector_headline },
+      { label: 'Summary', value: clientRow.inspector_resume_summary },
+      { label: 'Certifications', value: joinList(clientRow.inspector_certifications) },
+      { label: 'Qualifications', value: joinList(clientRow.inspector_qualifications) },
+      { label: 'Email', value: clientRow.inspector_email },
+      { label: 'Phone', value: clientRow.inspector_phone },
+    ].flatMap(({ label, value }) =>
+      value && String(value).trim() ? [{ label, value: String(value).trim() }] : [],
+    );
+    return rows;
+  }, [role, clientRow]);
 
   // ── Sign handler ───────────────────────────────────────────────────────
   const handleSign = useCallback(async () => {
@@ -801,6 +852,35 @@ export default function JobContractSigningScreen() {
               </>
             )}
 
+            {/* ── 3b) Inspector identity — disclosed per the project policy ──
+                 The DB view resolves the effective mode (live jobs.identity_mode
+                 while the contract is active; the frozen snapshot once voided)
+                 and NULLs every field the mode forbids. So we simply render what
+                 came back: nothing appears under "protected", contact details
+                 only under "full". Previously these columns were never selected,
+                 so raising the policy in the admin console had no visible effect
+                 here no matter how many times the buyer refreshed. */}
+            {role === 'client' && clientRow && identityFields.length > 0 && (
+              <>
+                <SectionHeader
+                  icon={<ShieldCheck size={14} color={C.ok} />}
+                  kicker="PROJECT POLICY"
+                  title="Inspector details"
+                  tint={C.ok}
+                />
+                <Animated.View entering={FadeInDown.delay(90)} style={s.identityCard}>
+                  {identityFields.map(({ label, value }) => (
+                    <View key={label} style={s.identityRow}>
+                      <Text style={s.identityLabel}>{label}</Text>
+                      <Text style={s.identityValue} selectable>
+                        {value}
+                      </Text>
+                    </View>
+                  ))}
+                </Animated.View>
+              </>
+            )}
+
             {/* ── 4) Contract document ───────────────────────────────── */}
             <SectionHeader
               icon={<FileText size={14} color={C.cyan} />}
@@ -1041,11 +1121,15 @@ const TimelineStep: React.FC<{
           <Text style={[s.tlIndex, { color: tone }]}>{index}</Text>
         )}
       </View>
-      <Text style={[s.tlLabel, { color: tone }]} numberOfLines={1}>
+      {/* Two lines: "Pending Inspector" cannot fit one line in a 1/3-width
+          column, so it wraps ("Pending" / "Inspector") instead of clipping to
+          "Pending I…". tlLabel reserves the 2-line height so the meta row
+          below stays aligned across all three steps. */}
+      <Text style={[s.tlLabel, { color: tone }]} numberOfLines={2}>
         {label}
       </Text>
       {signedAt ? (
-        <Text style={s.tlMeta} numberOfLines={1}>
+        <Text style={s.tlMeta} numberOfLines={2}>
           {signedName ? `${signedName}, ` : ''}
           {new Date(signedAt).toLocaleDateString('en-US', {
             month: 'short',
@@ -1319,24 +1403,51 @@ const s = StyleSheet.create({
   tlLabel: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     textAlign: 'center',
+    // Reserve exactly two lines so a 1-line step ("Executed") and a 2-line one
+    // ("Pending Inspector") keep their meta rows on the same baseline.
+    lineHeight: 13,
+    minHeight: 26,
   },
   tlMeta: {
     color: C.textMuted,
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '500',
+    lineHeight: 12,
     marginTop: 3,
     textAlign: 'center',
   },
   tlConnector: {
     height: 2,
-    flex: 0.5,
+    // 0.35 (was 0.5): the three step columns share the row with two connectors,
+    // so a shorter connector buys each label ~7pt of width. marginTop 18 keeps
+    // the line centred on the 36pt dot.
+    flex: 0.35,
     marginTop: 18,
     borderRadius: 1,
   },
 
   // Price card
+  identityCard: {
+    marginHorizontal: 20,
+    padding: 16,
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.borderGreen,
+    gap: 12,
+  },
+  identityRow: { gap: 3 },
+  identityLabel: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  identityValue: { color: C.text, fontSize: 14, fontWeight: '600', lineHeight: 19 },
+
   priceCard: {
     marginHorizontal: 20,
     padding: 18,

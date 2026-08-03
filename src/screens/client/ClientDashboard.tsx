@@ -203,6 +203,18 @@ const resolveContractorName = (j: Job): string | null => {
   return j.contractor_id ? nxHandle(j.contractor_id) : null;
 };
 
+// AWAITING REPLACEMENT — admin_void_contract deliberately leaves jobs.status
+// untouched and only clears the inspector pointers, so "awaiting replacement" is
+// a DERIVED state (engaged status + no inspector). Without this the buyer saw
+// "Inspector pending" on a live mission, i.e. exactly the same wording as a job
+// that never had an inspector — the admin console showed "Awaiting replacement"
+// while the app implied nothing had happened. A job only reaches an engaged
+// status by way of an executed contract, so no inspector here means the previous
+// one was removed.
+const ENGAGED_STATUSES = new Set(['assigned', 'in_progress']);
+export const isAwaitingReplacement = (j: Job): boolean =>
+  !j.contractor_id && ENGAGED_STATUSES.has(String(j.status ?? ''));
+
 // The inspector's real avatar is identity too — never render it pre-reveal.
 // Returning null forces the NX-initial placeholder (same as the job-details card).
 const resolveContractorAvatar = (_j: Job): string | null => null;
@@ -654,7 +666,9 @@ export default function ClientDashboardScreen() {
                       />
                       <Text style={s.heroMetaText} numberOfLines={1}>
                         {resolveContractorName(focusJob) ||
-                          t('Inspector pending')}
+                          (isAwaitingReplacement(focusJob)
+                            ? t('Awaiting replacement')
+                            : t('Inspector pending'))}
                       </Text>
                     </View>
                     <View style={s.heroMetaDivider} />
@@ -1248,7 +1262,10 @@ const JobRow = ({
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {contractorName || t('Inspector pending')}
+              {contractorName ||
+                (isAwaitingReplacement(job)
+                  ? t('Awaiting replacement')
+                  : t('Inspector pending'))}
             </Text>
           )}
         </View>

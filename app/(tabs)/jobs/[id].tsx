@@ -407,8 +407,24 @@ export default function JobDetailScreen() {
   //   Confirm & Dispatch). Old data may still carry the legacy 'accepted'
   //   value, so we match either. Without this, completed jobs rendered
   //   "Proposals (0)" with no info about who the inspector was.
+  //   ★ VOIDED-CONTRACT PARITY: the application row is HISTORY — it correctly
+  //   records that this inspector was once hired, and admin_void_contract
+  //   deliberately does not rewrite it. But the job's live inspector pointers
+  //   ARE cleared on void, so keying the "Hired Inspector" card off the
+  //   application alone kept a voided assignment rendering as current: the
+  //   client saw an active hired card while the admin console said "Awaiting
+  //   replacement". Require the job to still name that inspector, so a voided
+  //   contract survives as legal history without remaining an active assignment.
+  const liveInspectorId =
+    (job as any)?.contractor_id ??
+    (job as any)?.hired_inspector_id ??
+    (job as any)?.inspector_id ??
+    null;
   const acceptedProposal = proposals.find(
-    (p) => p.status === 'hired' || p.status === 'accepted'
+    (p) =>
+      (p.status === 'hired' || p.status === 'accepted') &&
+      !!liveInspectorId &&
+      p.applicant?.id === liveInspectorId
   );
 
   return (

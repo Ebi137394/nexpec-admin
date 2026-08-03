@@ -103,8 +103,13 @@ export default async function InspectorJobDetailPage({
   return (
     <div className="space-y-8">
       {/* SLA Sentinel — report overdue banner (scheduled date passed, no report) */}
-      {job.scheduledDate &&
-        (job.status === 'assigned' || job.status === 'in_progress') &&
+      {/* isHiredActive is required: the old condition keyed only off the JOB
+          status, so on an awaiting-replacement job (which stays 'in_progress')
+          a mere APPLICANT — status 'pending', never assigned — was shown the
+          overdue flag and a link straight to /submit-report. Report actions
+          belong to the assigned inspector alone. */}
+      {isHiredActive &&
+        job.scheduledDate &&
         new Date(job.scheduledDate).getTime() < Date.now() &&
         !report && (
           <Link

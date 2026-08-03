@@ -90,7 +90,11 @@ export async function selectApplication(formData: FormData): Promise<void> {
     .from('applications')
     .update({ status: 'CLIENT_SELECTED' })
     .eq('id', applicationId)
-    .eq('job_id', jobId); // belt-and-braces — never update an app from a different job
+    .eq('job_id', jobId) // belt-and-braces — never update an app from a different job
+    // LIFECYCLE GUARD: only a genuinely pending application may be selected.
+    // Without this the UPDATE was unconditional, so a stale or crafted POST
+    // could rewrite a closed/historical row.
+    .eq('status', 'pending');
 
   if (error) {
     if (typeof console !== 'undefined') {
@@ -134,7 +138,13 @@ export async function rejectApplication(formData: FormData): Promise<void> {
     .from('applications')
     .update({ status: 'rejected' })
     .eq('id', applicationId)
-    .eq('job_id', jobId);
+    .eq('job_id', jobId)
+    // LIFECYCLE GUARD: only an application still awaiting the client's decision
+    // may be rejected. This UPDATE was unconditional, so a 'hired' application
+    // whose contract had been voided could be flipped to 'rejected' — rewriting
+    // the hiring history of a completed engagement. Restricting the UPDATE makes
+    // it a no-op against history rather than relying on the UI to hide buttons.
+    .in('status', ['pending', 'CLIENT_SELECTED']);
 
   if (error) {
     if (typeof console !== 'undefined') {

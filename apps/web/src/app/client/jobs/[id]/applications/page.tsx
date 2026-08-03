@@ -214,11 +214,19 @@ function Card({
   // inspector's real name/photo — identical to /p/[userId]. The real identity
   // is released through NEXPEC only after report-confirm / VIP disclosure.
   const handle = inspectorHandle(app.applicantId);
-  const isClosed =
-    app.status === 'rejected' ||
-    app.status === 'withdrawn' ||
-    app.status === 'accepted';
+  // An application is ACTIONABLE only while it is genuinely awaiting the
+  // client's decision — 'pending', or 'CLIENT_SELECTED' (already picked, so
+  // only Reject remains). Everything else is history.
+  //
+  // This was previously an explicit closed-list of rejected/withdrawn/accepted,
+  // which omitted 'hired'. bucket() below files 'hired' under "Closed", so the
+  // card sat in the Closed group yet still rendered Accept/Reject — and
+  // rejecting it rewrote a completed hire to 'rejected', misrepresenting the
+  // hiring history of a job whose contract had merely been voided. Inverting to
+  // an allow-list keeps the two in agreement and makes any future status
+  // non-actionable by default rather than actionable by default.
   const isSelected = app.status === 'CLIENT_SELECTED';
+  const isClosed = app.status !== 'pending' && !isSelected;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-800/70 to-ink-900/40 p-5">

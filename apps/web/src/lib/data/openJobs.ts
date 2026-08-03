@@ -94,7 +94,18 @@ export async function fetchOpenJobs(
           'moderation_status',
         ].join(', '),
       )
-      .eq('status', 'open')
+      // AWAITING REPLACEMENT: admin_void_contract leaves jobs.status at
+      // 'in_progress' and only clears the inspector pointers, so a job that lost
+      // its inspector never re-entered Open jobs — no new inspector could apply
+      // and the Admin replacement panel had no candidate unless someone had
+      // applied before the original hire. Admit that one extra state; RLS
+      // (jobs_browse_awaiting_replacement + nx_job_awaiting_replacement,
+      // migration 20260801298000) is the authority and applies the full
+      // condition, including "a voided contract exists and no live one".
+      .or(
+        'status.eq.open,' +
+          'and(status.eq.in_progress,contractor_id.is.null,hired_inspector_id.is.null)',
+      )
       .eq('moderation_status', 'approved')
       .is('deleted_at', null);
 

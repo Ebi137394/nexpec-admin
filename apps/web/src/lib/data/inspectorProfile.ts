@@ -32,17 +32,17 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
     // query 400s and PostgREST returns an error. We fall through to a
     // narrower projection so the page can still render. This is the same
     // pattern used by fetchConversationDetail.
-    // NOTE (2026-07-18): the seven "rich rates" columns (currency,
+    // NOTE (2026-08-03): the seven "rich rates" columns (currency,
     // travel_rate_cents, overtime_multiplier, weekend_multiplier,
-    // holiday_multiplier, payment_terms, minimum_engagement_hours) are
-    // defined only in the ARCHIVED migration 20260518140000 and do NOT
-    // exist in the live baseline schema. Including them made this wide
-    // select 400 on every production request (logging a warning and
-    // silently degrading to the MID projection, which drops
-    // professional_title / sponsorship / Stripe / stats fields). They are
-    // intentionally excluded; the mapper below defaults them (USD / null).
-    // If the rates migration is ever promoted out of the archive, re-add
-    // them here.
+    // holiday_multiplier, payment_terms, minimum_engagement_hours) were
+    // previously excluded here because they existed only in the ARCHIVED
+    // migration 20260518140000, so including them 400'd this wide select on
+    // every request and silently degraded to MID. They are now promoted into
+    // the live schema by migration 20260801300000 and are selected again
+    // below — without them the values an inspector saves would never reappear
+    // in the settings form. The cascade still protects any deployment that has
+    // not applied that migration yet: WIDE 400s, MID answers, and the mapper
+    // defaults them (USD / null) exactly as before.
     const WIDE = [
       'id', 'email', 'full_name', 'headline', 'bio',
       'professional_title', 'phone', 'avatar_url',
@@ -59,6 +59,13 @@ export async function fetchInspectorProfile(): Promise<InspectorProfile | null> 
       'rating_average', 'rating_count', 'completed_jobs_count',
       'total_jobs', 'reviews_count', 'recommend_percent',
       'created_at', 'last_active',
+      // Rich rates (sprint 11) — live as of migration 20260801300000. Kept in
+      // WIDE only: if a deployment has not applied that migration yet, this
+      // projection 400s and the cascade below falls back to MID exactly as it
+      // did before, so the page still renders.
+      'currency', 'travel_rate_cents',
+      'overtime_multiplier', 'weekend_multiplier', 'holiday_multiplier',
+      'payment_terms', 'minimum_engagement_hours',
     ].join(', ');
 
     // Mid: drop sprint-11 + sponsorship + stats columns that may be missing

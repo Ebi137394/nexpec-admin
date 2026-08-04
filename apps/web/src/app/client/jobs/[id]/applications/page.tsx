@@ -32,6 +32,7 @@ import {
   fetchClientJob,
   fetchJobApplications,
 } from '@/lib/data/jobApplications';
+import { fetchClientInspectorDisclosureForJob } from '@/lib/data/jobContracts';
 import { inspectorHandle } from '@/lib/identity/inspectorHandle';
 import type {
   ApplicationStatus,
@@ -69,6 +70,11 @@ export default async function ClientJobApplicationsPage({
 
   const applications = await fetchJobApplications(jobId);
 
+  // Routing + policy decision ONLY (contract id + mode, never an identity
+  // value). Null unless a live non-voided contract exists for this job AND its
+  // identity policy is professional/full.
+  const inspectorDisclosure = await fetchClientInspectorDisclosureForJob(jobId);
+
   // Bucket by status for readable layout: client-selected first, then
   // pending, then closed-out (rejected / withdrawn / accepted).
   const grouped = bucket(applications);
@@ -101,6 +107,44 @@ export default async function ClientJobApplicationsPage({
           </div>
         </div>
       </header>
+
+      {/* Once the engagement legally permits disclosure, explain WHY the cards
+          below are still anonymous and route the client to the one authorized
+          surface. The NX handles on this page are deliberately left untouched:
+          applicants who were not hired never become identifiable, and the
+          hired inspector's details stay on the contract page where the
+          policy-scoped read already lives. Hidden entirely when the fetcher
+          returns null — pre-engagement, protected policy, or voided contract. */}
+      {inspectorDisclosure && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-accent-green/25 bg-accent-green/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <ShieldCheck
+              className="mt-0.5 h-5 w-5 shrink-0 text-accent-green"
+              strokeWidth={1.75}
+            />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                This job has a fully executed contract
+              </p>
+              <p className="mt-1 max-w-xl text-pretty text-sm text-zinc-400">
+                Applicants stay anonymous here by design. Your hired
+                inspector&rsquo;s{' '}
+                {inspectorDisclosure.identityMode === 'full'
+                  ? 'professional details and contact information are'
+                  : 'professional details are'}{' '}
+                available on the contract for this job.
+              </p>
+            </div>
+          </div>
+          <Link
+            href={`/client/contracts/job/${inspectorDisclosure.contractId}`}
+            className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-accent-green/30 bg-accent-green/10 px-5 py-2.5 text-sm font-medium text-accent-green transition-colors hover:border-accent-green/50 hover:bg-accent-green/15 sm:self-auto"
+          >
+            View inspector details
+            <ExternalLink className="h-4 w-4" strokeWidth={2} />
+          </Link>
+        </div>
+      )}
 
       {/* Action banners */}
       {qp.error && (

@@ -188,6 +188,53 @@ export async function fetchMyClientJobContracts(): Promise<ClientJobContractRow[
   }
 }
 
+/**
+ * DISCLOSURE SIGNPOST — "is the client allowed to see who they hired, and where?"
+ *
+ * Returns ONLY the routing + policy decision, never an identity value: no name,
+ * headline, résumé, email or phone crosses this boundary. Callers use it to
+ * decide whether to render a link to the contract page, which is the single
+ * place identity is displayed and is already gated by client_job_contracts_view.
+ *
+ * Lifecycle, enforced here and re-enforced by the view + RLS:
+ *   • no contract yet (pre-engagement)  → null, nothing to disclose
+ *   • contract voided (former inspector) → excluded by status <> 'voided', so a
+ *     replaced inspector never keeps an active disclosure surface
+ *   • identity_mode 'protected'          → null, the anonymous NX card stands
+ *   • 'professional' | 'full'            → the contract id to link to
+ *
+ * The view itself already restricts rows to `client_id = auth.uid()` (or admin),
+ * so another client's job cannot resolve here at all.
+ */
+export async function fetchClientInspectorDisclosureForJob(
+  jobId: string,
+): Promise<{ contractId: string; identityMode: IdentityMode } | null> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from('client_job_contracts_view')
+      .select('id, identity_mode, inspector_id')
+      .eq('job_id', jobId)
+      // fully_executed ONLY — not merely "not voided". A contract still at
+      // pending_client_signature / pending_inspector_signature is not yet an
+      // authorized engagement, and effective_identity_mode is not snapshotted
+      // until first execution. Voided is excluded by construction, so a former
+      // inspector never retains an active signpost.
+      .eq('status', 'fully_executed')
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    const r = data as Record<string, unknown>;
+    // An unassigned contract has nobody to disclose.
+    if (!r.inspector_id) return null;
+    const mode = ((r.identity_mode as string) ?? 'protected') as IdentityMode;
+    if (mode !== 'professional' && mode !== 'full') return null;
+    return { contractId: String(r.id), identityMode: mode };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchClientJobContract(
   id: string,
 ): Promise<ClientJobContractRow | null> {

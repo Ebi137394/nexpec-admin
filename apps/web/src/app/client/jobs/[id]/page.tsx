@@ -20,8 +20,10 @@ import {
   Users,
   AlertCircle,
   CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import { fetchClientJob } from '@/lib/data/jobApplications';
+import { fetchClientInspectorDisclosureForJob } from '@/lib/data/jobContracts';
 import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
 import type {
   JobModerationStatus,
@@ -52,9 +54,14 @@ export default async function ClientJobDetailPage({
   const { id } = await params;
   const qp = await searchParams;
   // fetchLaunchedDomainSlugs hits a 4-row table; effectively free.
-  const [job, launchedDomains] = await Promise.all([
+  const [job, launchedDomains, inspectorDisclosure] = await Promise.all([
     fetchClientJob(id),
     fetchLaunchedDomainSlugs(),
+    // Routing + policy decision ONLY — returns null unless a live (non-voided)
+    // contract exists for this job AND its identity policy permits disclosure.
+    // No name / email / phone is fetched here; the contract page remains the
+    // single place identity is rendered.
+    fetchClientInspectorDisclosureForJob(id),
   ]);
   if (!job) notFound();
 
@@ -104,6 +111,25 @@ export default async function ClientJobDetailPage({
               {job.applicationsCount === 1 ? '' : 's'}
               <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
             </Link>
+            {/* Once the engagement legally permits disclosure, give the client
+                an obvious route to the inspector's details instead of leaving
+                them to discover the Contracts section. Rendered only when
+                fetchClientInspectorDisclosureForJob returned a live contract
+                whose policy is professional/full — so 'protected' keeps the
+                anonymous NX card, a voided contract shows nothing, and nothing
+                appears before the engagement stage. */}
+            {inspectorDisclosure && (
+              <Link
+                href={`/client/contracts/job/${inspectorDisclosure.contractId}`}
+                className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-5 py-2.5 text-sm font-medium text-accent-green transition-colors hover:border-accent-green/50 hover:bg-accent-green/15"
+              >
+                <ShieldCheck className="h-4 w-4" strokeWidth={2} />
+                {inspectorDisclosure.identityMode === 'full'
+                  ? 'View inspector details & contact'
+                  : 'View inspector details'}
+                <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+            )}
             <Link
               href={`/client/jobs/${job.id}/release`}
               className="btn-primary inline-flex items-center gap-2"

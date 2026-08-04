@@ -55,8 +55,23 @@ export function isTerminal(status: JobStatus): boolean {
 
 /**
  * Human-readable label for UI badges. Defaults to title-cased status.
+ *
+ * Takes `string`, not `JobStatus`, on purpose. `jobs_status_check` in the
+ * database is WIDER than the transitionable union above — it also admits
+ * 'pending_approval' (the parked pre-marketplace state) and the legacy 'paid'.
+ * Typing the parameter as `JobStatus` did not stop those values arriving at
+ * runtime; it only stopped us handling them, and the switch then fell off the
+ * end and returned `undefined`. That is why an unapproved job rendered a
+ * completely BLANK status pill in the admin moderation panel while its real
+ * state was 'pending_approval' — the docstring above promised a title-cased
+ * default that the code never actually had.
+ *
+ * `JobStatus` itself is deliberately left alone: it models what the state
+ * machine can TRANSITION between, and `TRANSITIONS` mirrors the DB guard
+ * `guard_jobs_status_transition`. Labelling is a display concern and must be
+ * total over whatever the column can hold.
  */
-export function jobStatusLabel(status: JobStatus): string {
+export function jobStatusLabel(status: string): string {
   switch (status) {
     case JOB_STATUS.OPEN:
       return 'Open';
@@ -70,5 +85,16 @@ export function jobStatusLabel(status: JobStatus): string {
       return 'Cancelled';
     case JOB_STATUS.DISPUTED:
       return 'Disputed';
+    case 'pending_approval':
+      return 'Pending Approval';
+    default:
+      // Total fallback: snake_case → Title Case, so a status added to the DB
+      // before it reaches this file degrades to something readable instead of
+      // an empty badge.
+      return status
+        .split('_')
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
   }
 }

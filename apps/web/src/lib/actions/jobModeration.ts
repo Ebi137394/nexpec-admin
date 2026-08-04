@@ -39,30 +39,27 @@ export async function reviewJob(
 
   // GR1 — admin sets the inspector payout. NO cap, NO floor, NO requirement
   // to fill it. Admin is the platform; they can approve a $0 pro-bono job
-  // or a $5M one without us second-guessing. If they leave it blank, we
-  // simply skip the pricing RPC and let approval proceed.
+  // or a $5M one without us second-guessing. If they leave it blank we send
+  // null, which the RPC reads as "leave pricing untouched".
+  let payoutCents: number | null = null;
   if (parsed.data.p_decision === 'approved') {
     const rawPayout = String(formData.get('inspectorPayoutDollars') ?? '').trim();
     if (rawPayout !== '') {
       const payoutDollars = Number(rawPayout);
       if (Number.isFinite(payoutDollars) && payoutDollars >= 0) {
-        const cents = Math.round(payoutDollars * 100);
-        const { error: priceErr } = await supabase.rpc('admin_set_job_pricing', {
-          p_job_id: parsed.data.p_job_id,
-          p_inspector_payout_cents: cents,
-        });
-        if (priceErr) {
-          return {
-            ok: false,
-            error: `Could not set inspector payout: ${priceErr.message}`,
-          };
-        }
+        payoutCents = Math.round(payoutDollars * 100);
       }
       // If the number doesn't parse, silently skip — admin can fix later.
     }
   }
 
-  const { data, error } = await supabase.rpc('admin_review_job', parsed.data);
+  // Single transaction (migration 20260801302000). Previously this issued the
+  // pricing RPC and the review RPC separately, so a failing review left the job
+  // priced-but-unapproved — the same partial state seen on the panel path.
+  const { data, error } = await supabase.rpc('admin_review_job_with_pricing', {
+    ...parsed.data,
+    p_inspector_payout_cents: payoutCents,
+  });
 
   if (error) return { ok: false, error: error.message };
 

@@ -190,9 +190,19 @@ export async function createJob(formData: FormData): Promise<void> {
       ? input.clientOpId
       : await deterministicOpId();
 
-  // ── DEDUP A: idempotency token (cross-deploy guarantee) ────────────────
-  // If a job with this client_op_id already exists for this user, redirect
-  // to it instead of inserting a duplicate.
+  // ── DEDUP A + B ────────────────────────────────────────────────────────
+  //  CRITICAL (2026-08-04): both guards below USED to call redirect() from
+  //  inside their own try/catch. next/navigation's redirect() signals by
+  //  THROWING an error whose message is the literal 'NEXT_REDIRECT', so each
+  //  `catch { /* ignore */ }` swallowed its own redirect and execution fell
+  //  straight through to the INSERT — meaning neither duplicate-job guard has
+  //  ever actually prevented a duplicate. The catches must stay (the queries
+  //  are genuinely best-effort: client_op_id may not exist on older schemas),
+  //  so the redirect target is recorded here and the redirect is issued below,
+  //  outside every try. Same class of bug as jobModerationSimple.ts.
+  let duplicateJobId: string | null = null;
+
+  // DEDUP A: idempotency token (cross-deploy guarantee).
   if (clientOpId) {
     try {
       const { data: existing } = await supabase
@@ -202,48 +212,49 @@ export async function createJob(formData: FormData): Promise<void> {
         .eq('client_id', user.id)
         .maybeSingle();
       if (existing && (existing as { id?: string }).id) {
-        revalidatePath('/client/jobs');
-        redirect(
-          '/client/jobs?created=' +
-            encodeURIComponent((existing as { id: string }).id),
-        );
+        duplicateJobId = (existing as { id: string }).id;
       }
     } catch {
       /* ignore — column may not exist yet, fall through to content-hash check */
     }
   }
 
-  // ── DEDUP B: content-hash + time window ────────────────────────────────
-  // Belt-and-suspenders. If the user navigated back and resubmitted the
-  // same form (different op_id, same content), this catches it. Window is
-  // 90 seconds because a user resubmitting on purpose >1m later is fine.
-  try {
-    const windowStart = new Date(Date.now() - 90_000).toISOString();
-    const { data: recent } = await supabase
-      .from('jobs')
-      .select('id, title, description, location_city, created_at')
-      .eq('client_id', user.id)
-      .gte('created_at', windowStart)
-      .order('created_at', { ascending: false })
-      .limit(10);
-    const dup = (recent ?? []).find(
-      (r) =>
-        String((r as { title?: unknown }).title ?? '').trim() ===
-          input.title.trim() &&
-        String((r as { description?: unknown }).description ?? '').trim() ===
-          input.description.trim() &&
-        String((r as { location_city?: unknown }).location_city ?? '').trim() ===
-          input.locationCity.trim(),
-    );
-    if (dup && (dup as { id?: string }).id) {
-      revalidatePath('/client/jobs');
-      redirect(
-        '/client/jobs?created=' +
-          encodeURIComponent((dup as { id: string }).id),
+  // DEDUP B: content-hash + time window. Belt-and-suspenders. If the user
+  // navigated back and resubmitted the same form (different op_id, same
+  // content), this catches it. Window is 90 seconds because a user
+  // resubmitting on purpose >1m later is fine.
+  if (!duplicateJobId) {
+    try {
+      const windowStart = new Date(Date.now() - 90_000).toISOString();
+      const { data: recent } = await supabase
+        .from('jobs')
+        .select('id, title, description, location_city, created_at')
+        .eq('client_id', user.id)
+        .gte('created_at', windowStart)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      const dup = (recent ?? []).find(
+        (r) =>
+          String((r as { title?: unknown }).title ?? '').trim() ===
+            input.title.trim() &&
+          String((r as { description?: unknown }).description ?? '').trim() ===
+            input.description.trim() &&
+          String(
+            (r as { location_city?: unknown }).location_city ?? '',
+          ).trim() === input.locationCity.trim(),
       );
+      if (dup && (dup as { id?: string }).id) {
+        duplicateJobId = (dup as { id: string }).id;
+      }
+    } catch {
+      /* ignore — proceed to insert */
     }
-  } catch {
-    /* ignore — proceed to insert */
+  }
+
+  // Outside every try/catch, so the NEXT_REDIRECT signal reaches Next.js.
+  if (duplicateJobId) {
+    revalidatePath('/client/jobs');
+    redirect('/client/jobs?created=' + encodeURIComponent(duplicateJobId));
   }
 
   // ── Procurement Control Plane intercept (Sprint 15) ─────────────────

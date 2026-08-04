@@ -196,8 +196,8 @@ export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps)
 
             <footer className="border-t border-white/[0.06] px-6 py-3">
               <p className="font-mono text-[10px] tracking-wider text-zinc-600">
-                rpc, admin_review_job, audit-stamped, reject cascades through
-                admin_cancel_job
+                rpc, admin_review_job_with_pricing, atomic, audit-stamped,
+                reject cascades through admin_cancel_job
               </p>
             </footer>
           </motion.aside>

@@ -30,6 +30,7 @@
     "qa:gr2-inspector": "node scripts/qa/check-inspector-price-blindness.mjs",
     "qa:assignment-privacy": "node scripts/qa/check-assignment-client-invisibility.mjs",
     "qa:jobs-columns": "node scripts/qa/check-jobs-column-existence.mjs",
+    "qa:admin-money": "node scripts/qa/check-admin-money-mapping.mjs",
     "qa:model-shas": "node scripts/qa/check-model-shas.mjs"
   },
   "dependencies": {

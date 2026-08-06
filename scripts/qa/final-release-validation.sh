@@ -253,7 +253,7 @@ ok "mobile tsc (full project)"
 step "7. Lint and QA guards"
 ( cd apps/web && npx eslint src ) || die "web eslint failed"
 ok "web eslint"
-for g in qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:db-refs qa:rls-admin qa:outbox; do
+for g in qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:admin-money qa:db-refs qa:rls-admin qa:outbox; do
   npm run --silent "$g" >/dev/null || die "$g failed"
   ok "$g"
 done

@@ -64,9 +64,22 @@ export async function fetchJobsModerationPage(
     let rawJobs: Array<Record<string, unknown>> | null = null;
     let count: number | null = null;
 
+      // ★ 2026-08-05 ROOT CAUSE of "Client price $0 / Payout $0 / Payment hold $0".
+      //   Migration 20260801312000 revoked the buyer-pricing columns from the
+      //   `authenticated` role on public.jobs (inspectors must not read them).
+      //   Admins are ALSO `authenticated`, so WIDE and MID — which name
+      //   client_price_cents — began failing with insufficient_privilege, and
+      //   this cascade silently fell through to NARROW, which carries no money
+      //   columns at all. The row mapper then formatted `undefined` as $0:
+      //   a permission error rendered as a real financial figure.
+      //
+      //   Fix: read from public.jobs_secure_view — the postgres-owned view whose
+      //   row filter is (client_id = auth.uid() OR agency_id = auth.uid() OR
+      //   nx_is_admin()). An admin sees every job WITH pricing; an inspector
+      //   gets zero rows, so price-blindness is untouched.
     for (const proj of projections) {
       let q = supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select(proj, { count: 'exact' })
         .order('updated_at', { ascending: false })
         .range(from, to);
@@ -78,7 +91,16 @@ export async function fetchJobsModerationPage(
         break;
       }
       if (error) {
-        console.warn('[jobsModeration] page projection failed:', error.message);
+        // A projection carrying pricing must NEVER fail quietly — that is
+          // precisely how the $0 bug hid.
+          if (proj.includes('client_price_cents')) {
+            console.error(
+              '[jobsModeration] PRICING projection failed; money columns will be missing:',
+              error.code, error.message,
+            );
+          } else {
+            console.warn('[jobsModeration] page projection failed:', error.message);
+          }
       }
     }
 
@@ -301,7 +323,9 @@ export async function fetchModerationJob(
     let j: Record<string, unknown> | null = null;
     for (const proj of [WIDE, MID, NARROW]) {
       const { data, error } = await supabase
-        .from('jobs')
+        // Same root cause and fix as the list query above: the drawer must read
+        // pricing through jobs_secure_view or an admin sees $0.
+        .from('jobs_secure_view')
         .select(proj)
         .eq('id', jobId)
         .maybeSingle();
@@ -310,7 +334,14 @@ export async function fetchModerationJob(
         break;
       }
       if (error) {
-        console.warn('[fetchModerationJob projection]', error.message);
+        if (proj.includes('client_price_cents')) {
+            console.error(
+              '[fetchModerationJob] PRICING projection failed; money columns will be missing:',
+              error.code, error.message,
+            );
+          } else {
+            console.warn('[fetchModerationJob projection]', error.message);
+          }
       }
     }
     if (!j) return null;

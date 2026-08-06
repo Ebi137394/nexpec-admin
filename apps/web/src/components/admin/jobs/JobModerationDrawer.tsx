@@ -18,7 +18,11 @@ import { type JobModerationDecision } from '@nexpec/shared-core';
 
 // Local safe formatter — avoids any null-handling drift from shared-core.
 function fmtCents(v: number | null | undefined): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return '$0.00';
+  // ★ 2026-08-05 — NEVER render missing/denied data as a real money figure.
+  // `$0.00` for a null is indistinguishable from a genuine zero, which is how a
+  // permission error on the pricing columns showed as "Client price $0" on a
+  // job that actually held $2,300. Unavailable renders as an em dash.
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',

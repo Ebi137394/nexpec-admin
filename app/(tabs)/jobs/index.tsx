@@ -190,12 +190,16 @@ export default function JobsScreen() {
       // Inspectors get INSPECTOR_JOB_FIELDS — never receive
       // client_price_cents or the budget_*_cents family.
       if (userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') {
-        const { data } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('client_id', user.id).order('created_at', { ascending: false });
+        // ★ PRIVILEGE FIX (20260801312000): BUYER_JOB_FIELDS names columns
+        //   revoked from the base table; buyers read them via jobs_secure_view.
+        //   The inspector branches below stay on `jobs` — INSPECTOR_JOB_FIELDS
+        //   names no revoked column and the view would return them zero rows.
+        const { data } = await supabase.from('jobs_secure_view').select(BUYER_JOB_FIELDS).eq('client_id', user.id).order('created_at', { ascending: false });
         const all = (data ?? []) as any[];
         setStats({ active: all.filter(j => ['assigned', 'in_progress'].includes(j.status)).length, pending: all.filter(j => ['open', 'pending'].includes(j.status)).length, completed: all.filter(j => j.status === 'completed').length });
         setMyJobs(filter === 'all' ? all : all.filter(j => filter === 'active' ? ['assigned', 'in_progress'].includes(j.status) : filter === 'pending' ? ['open', 'pending'].includes(j.status) : j.status === 'completed'));
       } else {
-        const { data: assignedJobs } = await supabase.from('jobs').select(INSPECTOR_JOB_FIELDS).eq('contractor_id', user.id).order('created_at', { ascending: false });
+        const { data: assignedJobs } = await supabase.from('jobs_inspector_secure_view').select(INSPECTOR_JOB_FIELDS).eq('contractor_id', user.id).order('created_at', { ascending: false });
         const allAssigned = (assignedJobs ?? []) as any[];
 
         const { data: appsData } = await supabase.from('applications').select('job_id').eq('applicant_id', user.id);
@@ -204,7 +208,7 @@ export default function JobsScreen() {
 
         let pendingJobsData: any[] = [];
         if (uniquePendingJobIds.length > 0) {
-          const { data: pJobs } = await supabase.from('jobs').select(INSPECTOR_JOB_FIELDS).in('id', uniquePendingJobIds);
+          const { data: pJobs } = await supabase.from('jobs_inspector_secure_view').select(INSPECTOR_JOB_FIELDS).in('id', uniquePendingJobIds);
           if (pJobs) pendingJobsData = (pJobs as any[]).map(j => ({ ...j, status: 'pending' }));
         }
 

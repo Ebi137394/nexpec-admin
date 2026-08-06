@@ -48,7 +48,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
   const p = (prof ?? {}) as Record<string, unknown>;
 
   const { data: jobs, error } = await supabase
-    .from('jobs')
+    .from('jobs_inspector_secure_view')
     // #QA — jobs has no platform_fee_cents column (the platform margin is the
     // GENERATED, admin-only platform_spread_cents — never exposed to the inspector,
     // as it would leak the client price). Selecting it 500'd this route.
@@ -58,6 +58,8 @@ export async function GET(_req: Request, ctx: RouteContext) {
       // payout_paid_at = when the payout was actually settled;
       // updated_at     = last state change (the completion signal for a
       //                  status='completed' job). Both are inspector-safe.
+      // ★ 20260801318000 — payout revoked on the base table; the assigned
+      //   inspector reads it back through jobs_inspector_secure_view.
       .select('id, title, payout_paid_at, updated_at, inspector_payout_cents, payout_status')
     // #QA — canonical column is jobs.contractor_id; assigned_inspector_id does NOT exist.
     .eq('contractor_id', user.id)

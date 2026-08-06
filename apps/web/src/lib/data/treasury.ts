@@ -85,6 +85,29 @@ export async function fetchTreasury(): Promise<TreasuryData> {
       supabase.from('jobs_secure_view').select('client_price_cents').eq('payment_mode', 'net_terms').not('admin_confirmed_at', 'is', null).is('client_settled_at', null).is('deleted_at', null),
     ]);
 
+    // ★ 2026-08-06 — every one of these reads feeds a headline money figure and
+    // NONE of their `error` fields was inspected: `data` is null on failure, the
+    // `?? []` turned that into an empty list, and the reduce below produced 0.
+    // A denied or malformed read therefore rendered as "Owed to you $0.00" /
+    // "You owe $0.00" — indistinguishable from a genuinely flat treasury. Same
+    // failure shape as the admin-jobs $0 bug. We cannot change the return type
+    // without reshaping the page, so at minimum the failure must be LOUD.
+    for (const [label, res] of [
+      ['withdrawal_requests(open)', openRes],
+      ['withdrawal_requests(recent)', recentRes],
+      ['payout_advances', advRes],
+      ['wallets', walletsRes],
+      ['jobs_secure_view(receivables)', recvRes],
+    ] as const) {
+      if (res.error && typeof console !== 'undefined') {
+        console.error(
+          `[fetchTreasury] ${label} read FAILED — the figure derived from it will render as $0:`,
+          res.error.code,
+          res.error.message,
+        );
+      }
+    }
+
     const open = (openRes.data ?? []) as Record<string, unknown>[];
     const recentRaw = (recentRes.data ?? []) as Record<string, unknown>[];
     const advRaw = (advRes.data ?? []) as Record<string, unknown>[];

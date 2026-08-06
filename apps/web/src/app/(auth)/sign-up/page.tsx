@@ -17,7 +17,20 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-const PUBLIC_ROLES = new Set(['client', 'inspector', 'agency', 'enterprise']);
+// #QA(2026-08-06) — 'supplier' was missing, so the Vendor deep-links that the
+// product actually emits (RoleTabs on /sign-in renders /sign-up?role=supplier,
+// and the sign-in page's "Create an account" link forwards the active role)
+// were silently discarded: the wizard reset to step 1 with no pathway
+// preselected. OnboardingWizard has a first-class 'supplier' role card and
+// apply_onboarding_role accepts it (migration 20260801256000), so admitting it
+// here just stops the wizard from throwing the user's choice away.
+const PUBLIC_ROLES = new Set([
+  'client',
+  'inspector',
+  'agency',
+  'enterprise',
+  'supplier',
+]);
 
 interface PageProps {
   searchParams: Promise<{
@@ -32,7 +45,12 @@ export default async function SignUpPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const role =
     params.role && PUBLIC_ROLES.has(params.role)
-      ? (params.role as 'client' | 'inspector' | 'agency' | 'enterprise')
+      ? (params.role as
+          | 'client'
+          | 'inspector'
+          | 'agency'
+          | 'enterprise'
+          | 'supplier')
       : '';
   const pendingMode =
     params.pending === 'magic'

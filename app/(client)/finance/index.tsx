@@ -85,6 +85,9 @@ export default function FinanceHubScreen() {
     recentActivity,
     isLoading,
     isRefreshing,
+    // A failed load returns the all-zero EMPTY payload. Without this flag the
+    // hub would render "$0 spend / $0 escrow / 0 jobs" as though it were true.
+    error,
     refresh,
   } = useClientFinance();
 
@@ -152,6 +155,28 @@ export default function FinanceHubScreen() {
             What you&apos;ve funded, what&apos;s locked, and what you owe on terms.
           </Text>
         </Animated.View>
+
+        {/* Load failure — shown INSTEAD of trusting the all-zero fallback. */}
+        {error ? (
+          <Animated.View entering={FadeInDown.delay(30)} style={styles.section}>
+            <View
+              style={{
+                borderRadius: 16,
+                padding: 16,
+                backgroundColor: 'rgba(239, 68, 68, 0.10)',
+                borderWidth: 1,
+                borderColor: 'rgba(239, 68, 68, 0.35)',
+              }}
+            >
+              <Text style={{ color: '#F87171', fontWeight: '700', marginBottom: 4 }}>
+                Finance data unavailable
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                {error} — the figures below are not your real balances. Pull to refresh.
+              </Text>
+            </View>
+          </Animated.View>
+        ) : null}
 
         {/* Escrow vs Credit — locked cash vs borrowed headroom (web parity) */}
         <Animated.View entering={FadeInDown.delay(50)} style={styles.section}>

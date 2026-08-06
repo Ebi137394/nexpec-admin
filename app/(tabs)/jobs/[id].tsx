@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { jobFieldsForRole } from '@/lib/jobsProjection';
+import { jobFieldsForRole, jobsRelationForRole } from '@/lib/jobsProjection';
 // ★ ANTI-POACHING + AUDIT PARITY — pseudonymous handle + per-job audit timeline,
 //   matching the canonical /(client)/jobs/[id] screen (this stale tab copy had
 //   diverged and still leaked real name/photo/CV).
@@ -102,7 +102,8 @@ export default function JobDetailScreen() {
 
       // 1) FETCH JOB
       const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
+        // ★ PRIVILEGE FIX (20260801312000): see jobsRelationForRole().
+        .from(jobsRelationForRole(__role))
         .select(__jobProjection)
         .eq('id', id)
         .single();

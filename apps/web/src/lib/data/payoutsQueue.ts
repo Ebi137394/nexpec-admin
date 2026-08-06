@@ -26,7 +26,14 @@ export async function fetchPayoutsQueue(): Promise<PayoutsQueueResult> {
       'id, title, location, updated_at, payout_paid_at, client_id, contractor_id, client_price_cents, payout_amount_cents, payout_status',
     )
     .eq('status', 'completed')
-    .not('payout_status', 'eq', 'paid')
+    // ★ 2026-08-06 — was `.not('payout_status','eq','paid')`, i.e.
+    // NOT (payout_status = 'paid'). Under SQL three-valued logic that is NULL
+    // for a NULL payout_status, so the row is filtered OUT: a completed job
+    // whose payout_status was never set NEVER appeared in this queue and the
+    // inspector silently went unpaid. The DB's own partial index for this exact
+    // set (jobs_pending_payout_idx) uses `IS DISTINCT FROM 'paid'`, which
+    // includes NULL — this reproduces that predicate.
+    .or('payout_status.is.null,payout_status.neq.paid')
     .order('updated_at', { ascending: true })
     .limit(200);
 

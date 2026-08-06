@@ -19,16 +19,28 @@
 --  migrations and this fixture shape were validated on the developer's local
 --  Supabase. Re-run to confirm the assertions themselves.
 --
+--  ★ UPDATED for 20260801318000 — GR2 is now enforced in BOTH directions.
+--    P3 and P9 previously asserted that payout was readable straight off
+--    public.jobs. That was the pre-318000 boundary and was itself the leak
+--    (`authenticated` covers buyers too, so a client could read their own job's
+--    inspector_payout_cents and derive the margin). Both were rewritten to the
+--    new boundary rather than relaxed, and P11/P12 were added.
+--
 --  P1  authenticated has NO column privilege on any buyer/platform column
 --  P2  anon has no SELECT on jobs at all
---  P3  the inspector's OWN payout columns are still readable
+--  P3  payout/margin are NOT readable on the base table; the seller view is
+--      the only route, and anon cannot reach it                        ★rewritten
 --  P4  a direct `SELECT client_price_cents FROM jobs` as an inspector ERRORS
 --  P5  `SELECT *` as an inspector ERRORS (the wildcard was the leak vector)
 --  P6  an inspector selecting from jobs_secure_view gets ZERO rows
 --  P7  the owning client DOES get their pricing through the view
 --  P8  an admin gets pricing through the view
---  P9  operational columns still work for the assigned inspector
+--  P9  operational columns still work for the assigned inspector, and their own
+--      payout reads 120000 through jobs_inspector_secure_view          ★rewritten
 --  P10 service_role retains full access (Edge Functions)
+--  P11 the seller view masks buyer pricing (the mirror leak)               ★new
+--  P12 a buyer reaches neither payout nor margin by ANY route — NULL in
+--      jobs_secure_view, and zero rows from the seller view                ★new
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -88,12 +100,29 @@ BEGIN
   END IF;
   RAISE NOTICE 'P2 ok — anon has no SELECT on jobs';
 
-  -- ── P3 — the inspector's own payout survives ───────────────────────────
-  IF NOT has_column_privilege('authenticated','public.jobs','inspector_payout_cents','SELECT')
-     OR NOT has_column_privilege('authenticated','public.jobs','payout_amount_cents','SELECT') THEN
-    RAISE EXCEPTION 'P3 FAILED: the inspector can no longer read their own payout';
+  -- ── P3 — payout is NO LONGER readable straight off the base table ──────
+  --  ★ REWRITTEN for 20260801318000. This assertion used to require the
+  --  OPPOSITE (has_column_privilege = true). That encoded the pre-318000
+  --  boundary and was itself the leak: `authenticated` covers buyers AND
+  --  inspectors, so granting payout on the table let a CLIENT read their own
+  --  job's inspector_payout_cents and derive NEXPEC's margin. The requirement
+  --  "an inspector can read their own payout" has NOT been dropped — it moved
+  --  to jobs_inspector_secure_view and is proven behaviourally in P9/P11.
+  FOREACH v_col IN ARRAY public.nx_jobs_margin_columns() LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='jobs' AND column_name=v_col) THEN
+      IF has_column_privilege('authenticated','public.jobs',v_col,'SELECT') THEN
+        RAISE EXCEPTION 'P3 FAILED: authenticated may still SELECT jobs.% (margin leak)', v_col;
+      END IF;
+    END IF;
+  END LOOP;
+  IF NOT has_table_privilege('authenticated','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'P3 FAILED: authenticated cannot reach jobs_inspector_secure_view (payout unreadable by ANY route)';
   END IF;
-  RAISE NOTICE 'P3 ok — inspector payout columns still readable';
+  IF has_table_privilege('anon','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'P3 FAILED: anon can read jobs_inspector_secure_view';
+  END IF;
+  RAISE NOTICE 'P3 ok — payout/margin revoked on the table; the seller view is the only route';
 
   -- ── Become a real inspector API caller ─────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_insp::text)::text, true);
@@ -155,12 +184,38 @@ BEGIN
     EXECUTE 'RESET ROLE';
     RAISE EXCEPTION 'P9 FAILED: the assigned inspector cannot read their own job row';
   END IF;
-  EXECUTE format('SELECT inspector_payout_cents FROM public.jobs WHERE id = %L', v_job) INTO v_n;
-  IF v_n <> 120000 THEN
+  -- ★ REWRITTEN for 20260801318000: payout is no longer on the base table for
+  --   `authenticated`; the assigned inspector reads it through the seller view.
+  --   Reading it off public.jobs must now RAISE.
+  v_ok := false;
+  BEGIN
+    EXECUTE format('SELECT inspector_payout_cents FROM public.jobs WHERE id = %L', v_job) INTO v_n;
+    v_ok := true;
+  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
+  END;
+  IF v_ok THEN
     EXECUTE 'RESET ROLE';
-    RAISE EXCEPTION 'P9 FAILED: inspector payout reads % (expected 120000)', v_n;
+    RAISE EXCEPTION 'P9 FAILED: payout was still directly selectable from public.jobs';
   END IF;
-  RAISE NOTICE 'P9 ok — assigned inspector reads operational columns + own payout';
+
+  EXECUTE format(
+    'SELECT inspector_payout_cents FROM public.jobs_inspector_secure_view WHERE id = %L',
+    v_job) INTO v_n;
+  IF v_n IS DISTINCT FROM 120000 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'P9 FAILED: inspector payout via jobs_inspector_secure_view reads % (expected 120000)', v_n;
+  END IF;
+  RAISE NOTICE 'P9 ok — assigned inspector reads operational columns + own payout via the seller view';
+
+  -- ── P11 — the MIRROR leak: the seller view must not carry buyer pricing ─
+  EXECUTE format(
+    'SELECT client_price_cents FROM public.jobs_inspector_secure_view WHERE id = %L',
+    v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'P11 FAILED: jobs_inspector_secure_view exposed client_price_cents (% ) to an inspector', v_n;
+  END IF;
+  RAISE NOTICE 'P11 ok — seller view masks buyer pricing';
 
   EXECUTE 'RESET ROLE';
 
@@ -172,6 +227,27 @@ BEGIN
     EXECUTE 'RESET ROLE';
     RAISE EXCEPTION 'P7 FAILED: the owning client got % for client_price_cents (expected 230000)', v_n;
   END IF;
+  -- ── P12 — ★ THE BLOCKER, from the buyer side (20260801318000) ──────────
+  --  The owning client must NOT obtain the seller payout or the platform
+  --  margin by ANY route: not through jobs_secure_view, and not through the
+  --  seller view (which must return them no rows at all).
+  EXECUTE format('SELECT inspector_payout_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'P12 FAILED: the owning client read inspector_payout_cents (%) via jobs_secure_view', v_n;
+  END IF;
+  EXECUTE format('SELECT platform_spread_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'P12 FAILED: the owning client read platform_spread_cents (%) — the margin itself', v_n;
+  END IF;
+  EXECUTE 'SELECT count(*) FROM public.jobs_inspector_secure_view' INTO v_n;
+  IF v_n <> 0 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'P12 FAILED: jobs_inspector_secure_view returned % row(s) to a buyer', v_n;
+  END IF;
+  RAISE NOTICE 'P12 ok — buyer cannot reach payout or margin by any route';
+
   EXECUTE 'RESET ROLE';
   RAISE NOTICE 'P7 ok — owning client reads their price through the view';
 

@@ -45,7 +45,9 @@ export default function MyJobsScreen() {
       setCurrentUserId(user.id);
 
       const { data, error } = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — payout columns are revoked from `authenticated` on
+        //   the base table; the assigned inspector reads them via this view.
+        .from('jobs_inspector_secure_view')
         .select('id, title, location, status, payout_amount_cents, created_at')
         // ★ Assignment column is jobs.contractor_id (set by the dispatch path);
         //   jobs.inspector_id is never populated → this list was always empty.

@@ -126,6 +126,10 @@ export default function ReviewReportScreen() {
   // (never await inside JSX). Keyed by the stored path; null = mint failed.
   const [photoUrlMap, setPhotoUrlMap] = useState<Record<string, string | null>>({});
   const [reportFileSignedUrl, setReportFileSignedUrl] = useState<string | null>(null);
+  /** TRUE when the jobs_secure_view price read failed — render '—', never $0. */
+  const [priceUnavailable, setPriceUnavailable] = useState(false);
+  /** Non-null when the report load failed — surfaced instead of a blank screen. */
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ★ AGENCY-PARITY-006 — same gate as the parent /jobs/[id] screen.
   //   Buyer (client or agency) sees the action buttons; everyone else sees
@@ -143,6 +147,8 @@ export default function ReviewReportScreen() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
+      setPriceUnavailable(false);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user');
 
@@ -155,9 +161,18 @@ export default function ReviewReportScreen() {
         // notes (not summary), pdf_url/final_report_doc (not file_url),
         // photo_url single (not photos_urls[]), created_at (not submitted_at);
         // there are no revision_* columns on this table.
+        // ★ PRIVILEGE FIX (migration 20260801312000) — the `jobs` embed used to
+        //   name price_cents. An embed resolves against the BASE table
+        //   public.jobs, and price_cents (with client_price_cents / budget_*)
+        //   was REVOKED from the `authenticated` DB role, so PostgREST failed
+        //   the ENTIRE request with "permission denied for column price_cents".
+        //   The throw below landed in a `catch { console.error }`, so the
+        //   symptom was a silently blank report screen with no Approve /
+        //   Request-Changes buttons. Money now comes from jobs_secure_view in a
+        //   second, explicit query (see below) — same source as web.
         .select(`
           id, job_id, inspector_id, notes, photo_url, pdf_url, final_report_doc, status, created_at, is_published,
-          jobs (title, price_cents, location, client_id, agency_id),
+          jobs (title, location, client_id, agency_id),
           inspector:profiles (rating_average, rating_count)
         `)
         .eq('job_id', id)
@@ -182,6 +197,31 @@ export default function ReviewReportScreen() {
         .select('*')
         .eq('job_id', id);
 
+      // 2b. Buyer price — jobs_secure_view is the only relation from which an
+      //     `authenticated` buyer may read the pricing columns (migration
+      //     20260801312000). client_price_cents is the canonical buyer figure
+      //     used by web (lib/data/clientJobReport.ts) and by the mobile
+      //     ClientDashboard; budget_cents is the pre-pricing fallback.
+      //     GR2-safe: no inspector payout / platform spread columns.
+      const { data: priceRow, error: priceErr } = await supabase
+        .from('jobs_secure_view')
+        .select('client_price_cents, budget_cents')
+        .eq('id', rData.job_id)
+        .maybeSingle();
+      if (priceErr) {
+        // Never let a denied/failed price read masquerade as a $0 job total —
+        // that is what the client is being asked to approve.
+        console.error('[review-report] job price lookup failed:', priceErr);
+      }
+      const jobPriceCents = (() => {
+        for (const v of [priceRow?.client_price_cents, priceRow?.budget_cents]) {
+          const n = Number(v);
+          if (v != null && Number.isFinite(n) && n > 0) return n;
+        }
+        return 0;
+      })();
+      setPriceUnavailable(Boolean(priceErr));
+
       const job = rData.jobs as any;
       const inspector = rData.inspector as any;
 
@@ -198,8 +238,9 @@ export default function ReviewReportScreen() {
         revision_count: 0,      // no revision_count column on inspection_reports
         submitted_at: rData.created_at,
         job_title: job?.title || 'Job',
-        // ★ Task 4: integer cents end-to-end.
-        job_price_cents: job?.price_cents || 0,
+        // ★ Task 4: integer cents end-to-end. Sourced from jobs_secure_view
+        //   above — jobs.price_cents is not readable by `authenticated`.
+        job_price_cents: jobPriceCents,
         job_location: job?.location || '',
         // ★ AGENCY-PARITY-006 — ownership pass-through for the gate.
         job_client_id: job?.client_id ?? null,
@@ -245,7 +286,11 @@ export default function ReviewReportScreen() {
         setReportFileSignedUrl(null);
       }
     } catch (e: any) {
-      console.error(e);
+      // Was a bare console.error — a denied/failed load rendered as a blank
+      // screen with no explanation and no Approve / Request-Changes controls.
+      console.error('[review-report] load failed:', e);
+      setLoadError(e?.message ?? 'Failed to load this report.');
+      setReport(null);
     } finally {
       setLoading(false);
     }
@@ -340,6 +385,9 @@ export default function ReviewReportScreen() {
     // PRICE-BLINDNESS: the client/agency sees ONLY what they pay (project value
     // + any reimbursed expenses). The inspector's net payout and the NEXPEC
     // managed commission are deliberately NOT derived or shown on this screen.
+    // A failed price read renders '—', never a misleading $0 — the client is
+    // being asked to approve this figure.
+    const money = (cents: number) => (priceUnavailable ? '—' : formatCurrency(cents));
 
     return (
       <View style={styles.paymentCard}>
@@ -351,13 +399,13 @@ export default function ReviewReportScreen() {
             </View>
             <View style={styles.secureBadge}><Text style={styles.secureText}>MANAGED</Text></View>
           </View>
-          <Text style={styles.totalAmount}>{formatCurrency(report.job_price_cents + expenseTotal)}</Text>
+          <Text style={styles.totalAmount}>{money(report.job_price_cents + expenseTotal)}</Text>
           <Text style={styles.totalLabel}>Total value released</Text>
           <View style={styles.divider} />
 
           <View style={styles.rowBetween}>
             <Text style={styles.lineLabel}>Project Value</Text>
-            <Text style={styles.lineValue}>{formatCurrency(report.job_price_cents)}</Text>
+            <Text style={styles.lineValue}>{money(report.job_price_cents)}</Text>
           </View>
           {expenseTotal > 0 && (
             <View style={styles.rowBetween}>
@@ -367,7 +415,7 @@ export default function ReviewReportScreen() {
           )}
           <View style={[styles.rowBetween, {marginTop: 8}]}>
             <Text style={[styles.lineLabel, {color:'#FFF', fontWeight:'bold'}]}>Secured Funds</Text>
-            <Text style={[styles.lineValue, {fontSize: 16}]}>{formatCurrency(report.job_price_cents + expenseTotal)}</Text>
+            <Text style={[styles.lineValue, {fontSize: 16}]}>{money(report.job_price_cents + expenseTotal)}</Text>
           </View>
         </View>
       </View>
@@ -402,6 +450,20 @@ export default function ReviewReportScreen() {
   };
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#7C3AED"/></View>;
+  // `return null` on a load failure produced a blank screen indistinguishable
+  // from "no report yet". Show what actually happened.
+  if (loadError) {
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: '#F87171', textAlign: 'center', paddingHorizontal: 32 }}>
+          {loadError}
+        </Text>
+        <TouchableOpacity onPress={() => fetchData()} style={{ marginTop: 16 }}>
+          <Text style={{ color: '#7C3AED', fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   if (!report) return null;
 
   const parsed = parseReport(report.summary);

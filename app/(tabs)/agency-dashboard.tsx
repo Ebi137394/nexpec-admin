@@ -445,7 +445,9 @@ export default function AgencyDashboard() {
         .maybeSingle();
 
       const jobsPromise = supabase
-        .from('jobs')
+        // ★ 20260801312000 — client_price_cents is revoked from `authenticated`
+        //   on the base table; buyers read it through the row-gated view.
+        .from('jobs_secure_view')
         .select(
           // GR2: buyer-safe — no payout_amount_cents / inspector_payout_cents.
           'id, title, status, location, client_price_cents, contractor_id, created_at, admin_confirmed_at'

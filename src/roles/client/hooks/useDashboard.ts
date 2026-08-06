@@ -56,15 +56,45 @@ export function useDashboard(): UseDashboardReturn {
         .eq('status', 'completed'),
     ]);
 
+    // ★ SILENT-FAILURE FIX — both errors used to be dropped on the floor via
+    //   `?? []`, so an RLS denial or a 42703 rendered as "0 active jobs,
+    //   $0 spent" — indistinguishable from a genuinely empty account. Log
+    //   loudly and keep the previous stats rather than publishing fake zeros.
+    if (jobsRes.error) {
+      console.error('[useDashboard] jobs query failed:', jobsRes.error);
+    }
+    if (txRes.error) {
+      console.error('[useDashboard] transactions query failed:', txRes.error);
+    }
+    if (jobsRes.error && txRes.error) return;
+
     const jobs = (jobsRes.data ?? []) as unknown as Job[];
     const transactions = (txRes.data ?? []) as Pick<Transaction, 'amount'>[];
 
-    setStats({
-      activeJobs: jobs.filter((j) => j.status === 'active').length,
-      completedJobs: jobs.filter((j) => j.status === 'completed').length,
-      totalSpent: transactions.reduce((sum, t) => sum + (t.amount ?? 0), 0),
-      recentJobs: jobs.slice(0, 5),
-    });
+    // ★ STATUS FIX — the filter below compared against 'active', which is NOT a
+    //   member of the DB's jobs_status_check ('pending_approval' | 'open' |
+    //   'assigned' | 'in_progress' | 'completed' | 'paid' | 'cancelled' |
+    //   'disputed'), so it never matched and "Active Jobs" was permanently 0.
+    //   An active job is one that has been dispatched and is not yet finished.
+    //   Read the status as a raw string: the shared `Job` type in
+    //   types/database.ts still declares the stale legacy union
+    //   ('pending' | 'active' | 'completed' | 'cancelled'), which does not
+    //   describe the live table. Fixing that type is outside this file's remit.
+    const statusOf = (j: Job): string => String((j as { status: unknown }).status ?? '');
+    const ACTIVE_STATUSES = new Set(['assigned', 'in_progress']);
+
+    setStats((prev) => ({
+      activeJobs: jobsRes.error
+        ? prev.activeJobs
+        : jobs.filter((j) => ACTIVE_STATUSES.has(statusOf(j))).length,
+      completedJobs: jobsRes.error
+        ? prev.completedJobs
+        : jobs.filter((j) => statusOf(j) === 'completed').length,
+      totalSpent: txRes.error
+        ? prev.totalSpent
+        : transactions.reduce((sum, t) => sum + (t.amount ?? 0), 0),
+      recentJobs: jobsRes.error ? prev.recentJobs : jobs.slice(0, 5),
+    }));
   }, [user?.id, userFilter]);
 
   // Initial load

@@ -164,14 +164,35 @@ export default function JobDetailsScreen() {
 
     try {
       // GR2: agency is a buyer-tier role — no payout columns over the wire.
-      const { data: jobData } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('id', id).single();
+      // ★ PRIVILEGE FIX (migration 20260801312000) — BUYER_JOB_FIELDS names
+      //   client_price_cents / budget_*_cents / price_cents, all REVOKED from
+      //   the `authenticated` DB role on public.jobs, so this select failed
+      //   with "permission denied for column". The error was also DISCARDED
+      //   (`const { data: jobData }`), so the screen just went blank with no
+      //   message. Buyers read pricing through jobs_secure_view, whose row
+      //   filter is client_id/agency_id/nx_is_admin().
+      const { data: jobData, error: jobErr } = await supabase
+        .from('jobs_secure_view')
+        .select(BUYER_JOB_FIELDS)
+        .eq('id', id)
+        .single();
+      if (jobErr) throw jobErr;
       setJob(jobData);
-      
+
       // ★ HIRE-008: canonical applications table. Legacy view still
       //   resolves via aliasing, but new code uses the underlying table.
+      // ★ ANTI-LEAK: explicit projection — `select('*')` shipped the
+      //   ADMIN-INTERNAL negotiation ledger (admin_counter_cents,
+      //   admin_comment, admin_feedback, admin_attachment) plus the raw
+      //   applicant attachments to a buyer device. Same projection contract
+      //   as app/(client)/jobs/[id]/applicants.tsx.
       const { data: appData, error: appErr } = await supabase
         .from('applications')
-        .select('*')
+        .select(
+          'id, job_id, applicant_id, status, cover_letter, cover_note, client_notes, ' +
+          'bid_amount_cents, bid_type, currency, estimated_duration, availability_date, ' +
+          'created_at, updated_at, last_viewed_by_client',
+        )
         .eq('job_id', id)
         .order('created_at', { ascending: false });
 
@@ -235,18 +256,36 @@ export default function JobDetailsScreen() {
     setUpdating(true);
     try {
       // ★ BROKER MODEL: accept → CLIENT_SELECTED (queues admin dispatch); reject unchanged.
+      // Buyer surface stays confined to the applications row. Only the NEXPEC admin
+      // finalises pricing + dispatch (jobs.contractor_id/status) and generates the
+      // contract (admin_generate_job_contract → job_contracts).
+      //
+      // ★ SCHEMA FIX — the buyer's note used to be written to
+      //   `jobs.private_note`. There is NO private_note column on public.jobs,
+      //   so that UPDATE always failed with 42703 — AFTER the status change had
+      //   already committed. The nomination went through and the user was still
+      //   shown "Error", with the note silently lost. The canonical home for
+      //   this note is applications.client_notes: that is what
+      //   app/(agency)/jobs/[id].tsx, app/(client)/jobs/[id]/applicants.tsx and
+      //   app/(tabs)/jobs/[id].tsx all write, and what the admin Pending Hires
+      //   inbox reads. Writing it in the SAME statement as the status change
+      //   also removes the partial-failure window.
       const targetStatus = newStatus === 'accepted' ? 'CLIENT_SELECTED' : newStatus;
-      const { error: statusErr } = await supabase.from('applications').update({ status: targetStatus }).eq('id', appId);
+      const trimmedNote = (message ?? '').trim();
+      // Was two grandfathered direct writes; merged into one, so the outbox
+      // baseline's line-text no longer matches — hence the inline pragma.
+      const { error: statusErr } = await supabase
+        .from('applications')
+        // outbox-exempt: online buyer nomination action, single row, idempotent (re-running sets the same status + note)
+        .update({
+          status: targetStatus,
+          ...(newStatus === 'accepted' && trimmedNote ? { client_notes: trimmedNote } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appId);
       if (statusErr) throw statusErr;
 
-      if (newStatus === 'accepted' && job && message) {
-        // Buyer surface stays confined to applications.status. Only the NEXPEC admin
-        // finalises pricing + dispatch (jobs.contractor_id/status) and generates the
-        // contract (admin_generate_job_contract → job_contracts). private_note only.
-        const { error: noteErr } = await supabase.from('jobs').update({ private_note: message }).eq('id', job.id);
-        if (noteErr) throw noteErr;
-      }
-      
+
       await fetchData();
       setShowModal(false);
       Alert.alert('Success', newStatus === 'accepted'

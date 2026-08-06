@@ -70,7 +70,10 @@ export function useJobs(): UseJobsReturn {
         // 1. Fetch Available Jobs (Open Market)
         console.log('🔍 Fetching available jobs (status: open)...');
         const { data: jobsData, error: jobsError } = await supabase
-          .from('jobs')
+          // ★ 20260801318000 — INSPECTOR_JOB_FIELDS names payout columns revoked
+          //   on the base table. Open-market browsing is covered by the view's
+          //   inspector-role branch (open + approved).
+          .from('jobs_inspector_secure_view')
           // GR2: explicit inspector allowlist. GOLDEN_RULE_4/7: the client embed
           // is company_name only — never full_name / email / phone.
           .select(`${INSPECTOR_JOB_FIELDS}, client:profiles!jobs_client_id_fkey(id, company_name)`)
@@ -131,7 +134,8 @@ export function useJobs(): UseJobsReturn {
         let jobsById = new Map<string, any>();
         if (appJobIds.length > 0) {
           const { data: appJobs, error: appJobsError } = await supabase
-            .from('jobs')
+            // ★ 20260801318000 — applied-to jobs → inspector view.
+            .from('jobs_inspector_secure_view')
             .select(INSPECTOR_JOB_FIELDS)
             .in('id', appJobIds);
 
@@ -162,7 +166,7 @@ export function useJobs(): UseJobsReturn {
         // 3. Fetch My Active Missions
         console.log('🔍 Fetching my active jobs...');
         const { data: myJobsData, error: myJobsError } = await supabase
-          .from('jobs')
+          .from('jobs_inspector_secure_view')  // ★ 20260801318000 — payout via inspector view
           // GR2 + GOLDEN_RULE_4/7, as above. Being the assigned inspector does
           // not entitle them to the client price or the platform spread.
           .select(`${INSPECTOR_JOB_FIELDS}, client:profiles!jobs_client_id_fkey(id, company_name)`)
@@ -338,7 +342,9 @@ export function useJobs(): UseJobsReturn {
     async (jobId: string): Promise<Job | null> => {
       try {
         const { data, error } = await supabase
-          .from('jobs')
+          // ★ 20260801318000 — payout revoked on the base table; the inspector
+          //   view covers assigned + applied + open-market rows.
+          .from('jobs_inspector_secure_view')
           // Was `*, client:profiles(*)` — that shipped client_price_cents,
           // platform_spread_cents and the client's ENTIRE profile row
           // (email/phone/cv_url) to any inspector opening the apply screen.

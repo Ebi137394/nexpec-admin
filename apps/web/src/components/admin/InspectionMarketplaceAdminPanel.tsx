@@ -34,7 +34,8 @@ export function InspectionMarketplaceAdminPanel(props: {
   jobStatus: string;
   identityMode: IdentityMode;
   replacementMode: ReplacementMode;
-  clientPriceCents: number;
+  /** null ⇒ the job carries no agreed client price yet. NEVER render that as 0. */
+  clientPriceCents: number | null;
   activeContract: ActiveContract | null;
   applications: AppOption[];
 }) {
@@ -54,7 +55,9 @@ export function InspectionMarketplaceAdminPanel(props: {
   const [dirPicked, setDirPicked] = useState<AssignableInspector | null>(null);
   const [dirPayout, setDirPayout] = useState('');
   const [dirPrice, setDirPrice] = useState(
-    clientPriceCents > 0 ? String(clientPriceCents / 100) : '',
+    clientPriceCents != null && clientPriceCents > 0
+      ? String(clientPriceCents / 100)
+      : '',
   );
   const [dirReason, setDirReason] = useState('');
   const [dirSearching, setDirSearching] = useState(false);
@@ -77,6 +80,30 @@ export function InspectionMarketplaceAdminPanel(props: {
   // Direct assignment is offered only where the DB will actually accept it:
   // an open job with no live contract, or a job awaiting replacement.
   const canAssignDirectly = !activeContract && (jobStatus === 'open' || awaitingReplacement);
+
+  // ★ 2026-08-06 — replacement money guards.
+  //  (a) admin_replace_inspector enforces a PRESERVED client-price envelope
+  //      (`p_client_price_cents <> COALESCE(job.client_price_cents,
+  //      old_contract.client_price_cents, p_client_price_cents)`). With an
+  //      unknown job price we have no envelope to preserve, and the old code
+  //      substituted 0 — which, when there is no prior contract either, mints
+  //      the replacement contract at a $0 client price. Block instead.
+  //  (b) the payout field was submitted through `parseFloat(replPayout || '0')`,
+  //      so LEAVING IT BLANK silently issued the replacement contract at a $0
+  //      inspector payout. An explicit "0" is still allowed (GR1 permits a
+  //      pro-bono engagement); an empty field is not.
+  const replPayoutCents = (() => {
+    const raw = replPayout.trim();
+    if (raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n * 100);
+  })();
+  const canReplace =
+    !!replAppId &&
+    replReason.trim().length > 0 &&
+    clientPriceCents != null &&
+    replPayoutCents != null;
 
   const runSearch = () =>
     start(async () => {
@@ -390,7 +417,13 @@ export function InspectionMarketplaceAdminPanel(props: {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs text-white/60">Client price (preserved)</span>
-                <input className={`${field} opacity-70`} value={(clientPriceCents / 100).toFixed(2)} readOnly />
+                {/* Unknown price renders as an em dash, never as 0.00 — a
+                    fabricated $0 envelope is indistinguishable from a real one. */}
+                <input
+                  className={`${field} opacity-70`}
+                  value={clientPriceCents != null ? (clientPriceCents / 100).toFixed(2) : '—'}
+                  readOnly
+                />
               </label>
               <label className="space-y-1">
                 <span className="text-xs text-white/60">New inspector payout (USD)</span>
@@ -409,22 +442,25 @@ export function InspectionMarketplaceAdminPanel(props: {
               value={replReason}
               onChange={(e) => setReplReason(e.target.value)}
             />
+            {clientPriceCents == null && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                This job has no agreed client price on record, so there is no
+                envelope to preserve. Set the price (approve / dispatch the job)
+                before replacing the inspector.
+              </p>
+            )}
             <button
               className={btn}
-              disabled={pending || !replAppId || replReason.trim().length === 0}
-              onClick={() =>
+              disabled={pending || !canReplace}
+              onClick={() => {
+                if (clientPriceCents == null || replPayoutCents == null) return;
+                const price = clientPriceCents;
+                const payout = replPayoutCents;
                 run(
-                  () =>
-                    replaceInspector(
-                      jobId,
-                      replAppId,
-                      clientPriceCents,
-                      Math.round(parseFloat(replPayout || '0') * 100),
-                      replReason,
-                    ),
+                  () => replaceInspector(jobId, replAppId, price, payout, replReason),
                   'Inspector replaced.',
-                )
-              }
+                );
+              }}
             >
               Replace inspector ({replacementMode === 'admin_authorized' ? 'admin-authorized' : 'client re-approval'})
             </button>

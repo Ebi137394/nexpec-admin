@@ -18,11 +18,16 @@
 //  view (yet), so we enforce GR2 at the application layer with these
 //  allowlists.
 //
-//  Usage pattern (verbatim, every callsite):
+//  Usage pattern (verbatim, every callsite) — ALWAYS pair the relation with the
+//  projection, because since 20260801312000 / 20260801318000 BOTH pricing sides
+//  are revoked from `authenticated` on the base table:
 //
-//      .from('jobs').select(BUYER_JOB_FIELDS)
+//      .from(jobsRelationForRole(role)).select(jobFieldsForRole(role))
 //
-//  Never .select('*'). Never add a sensitive column to the wrong list.
+//  Reading BUYER_JOB_FIELDS or INSPECTOR_JOB_FIELDS straight off `jobs` now
+//  fails with "permission denied for column …". Never .select('*') — on jobs it
+//  means SELECT * and aborts the statement (it also killed job creation once).
+//  Never add a sensitive column to the wrong list.
 //  If you find yourself wanting to bypass these, the right answer is
 //  almost always: read from a SECURITY DEFINER RPC instead.
 // ════════════════════════════════════════════════════════════════════════════
@@ -142,6 +147,45 @@ export const ADMIN_JOB_FIELDS: string = [
   ...BUYER_ONLY_FIELDS,
   ...INSPECTOR_ONLY_FIELDS,
 ].join(', ');
+
+/**
+ * ★ PRIVILEGE FIX (migration 20260801312000_jobs_column_privilege_price_blindness)
+ *
+ * That migration REVOKED table-level SELECT on `public.jobs` from
+ * `authenticated` and re-granted it column-by-column, omitting the
+ * buyer-pricing set (client_price_cents, platform_spread_cents,
+ * contractor_payout_amount_cents, budget_cents, budget_min_cents,
+ * budget_max_cents, price_cents). Postgres rejects the WHOLE statement with
+ * `permission denied for column …` if a projection names one of them, so
+ * BUYER_JOB_FIELDS / ADMIN_JOB_FIELDS can no longer be selected from the base
+ * table — every buyer + admin job screen would break.
+ *
+ * Buyers and admins read those columns back through `jobs_secure_view`
+ * (owner = postgres, security_barrier, row filter
+ * `client_id = auth.uid() OR agency_id = auth.uid() OR nx_is_admin()`), where
+ * the caller's column privileges do not apply.
+ *
+ * The inspector projection names NO revoked column, so inspectors must keep
+ * reading the BASE TABLE — the view's row filter would return them zero rows.
+ *
+ * Pair this with jobFieldsForRole() at every call site:
+ *
+ *     supabase.from(jobsRelationForRole(role)).select(jobFieldsForRole(role))
+ */
+export function jobsRelationForRole(
+  role: string | null | undefined,
+): 'jobs_secure_view' | 'jobs_inspector_secure_view' {
+  const r = (role ?? '').toString().trim().toLowerCase();
+  if (r === 'admin' || r === 'super_admin') return 'jobs_secure_view';
+  if (r === 'client' || r === 'agency' || r === 'enterprise') return 'jobs_secure_view';
+  // ★ 20260801318000 — INSPECTOR_JOB_FIELDS names inspector_payout_cents /
+  //   payout_amount_cents, which are now revoked from `authenticated` on the
+  //   base table too (the buyer half of GR2). Inspectors read them back through
+  //   jobs_inspector_secure_view, which masks the buyer columns in return.
+  //   Unknown roles land here as well: fail-closed, because that view returns
+  //   rows only to the actual assigned inspector / inspector-role applicant.
+  return 'jobs_inspector_secure_view';
+}
 
 /**
  * Role-aware helper. Returns the appropriate projection for a runtime

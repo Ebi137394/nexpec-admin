@@ -145,7 +145,14 @@ export default function CreateJobScreen() {
           status: 'pending_approval',
           created_at: new Date().toISOString(),
         })
-        .select()
+        // ★ PRIVILEGE FIX (migration 20260801312000) — a bare .select() means
+        //   select=* , and `SELECT *` on public.jobs now fails for the
+        //   `authenticated` role because the buyer-pricing columns were revoked
+        //   from it. PostgREST evaluates the RETURNING projection inside the
+        //   same statement as the INSERT, so the whole write aborted with
+        //   "permission denied for column client_price_cents" — job creation
+        //   was dead. We only need the new id for the follow-up navigation.
+        .select('id')
         .single();
 
       if (error) throw error;

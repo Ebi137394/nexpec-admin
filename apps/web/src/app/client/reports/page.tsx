@@ -101,8 +101,13 @@ function Row({ row }: { row: ClientReportRow }) {
           {row.jobTitle}
         </Link>
       </td>
+      {/* ANTI-POACHING: inspectorFullName is null unless jobs.identity_mode is
+          professional/full, so a 'protected' job falls back to the stable
+          pseudonymous NX- handle instead of leaking the real name. */}
       <td className="px-5 py-4 text-sm text-zinc-300">
-        {row.inspectorFullName ?? '—'}
+        {row.inspectorFullName ?? (
+          <span className="font-mono">{row.inspectorHandle ?? '—'}</span>
+        )}
       </td>
       <td className="px-5 py-4 text-xs text-zinc-500">
         {row.adminConfirmedAt

@@ -65,7 +65,8 @@ export default function InspectorStatementScreen() {
 
       // GR2: inspector payout ONLY. Never select client_price_cents / spread.
       const { data, error: qErr } = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — payout revoked on the base table; inspector view.
+        .from('jobs_inspector_secure_view')
         .select('id, title, payout_paid_at, inspector_payout_cents, payout_status')
         .eq('contractor_id', user.id)
         .eq('payout_status', 'paid')

@@ -30,7 +30,14 @@ export default async function InspectorReviewPage({ params, searchParams }: Page
 
   const { data: job } = await supabase
     .from('jobs')
-    .select('id, title, status, client_id, contractor_id, client:profiles!jobs_client_id_fkey(full_name, email, company_name)')
+    // #QA(GOLDEN_RULE_4/7, 2026-08-06) — this embed used to name
+    // `full_name, email` on the client's profile. profiles_read_related
+    // (migration 20260801248000) DOES let an inspector read the profile of a
+    // client they share a job with, so those columns came back populated and
+    // the page rendered the buyer's personal name / email address to the
+    // inspector. Inspector-facing surfaces get COMPANY NAME ONLY — never the
+    // client's personal identity or contact details. Do not re-add them.
+    .select('id, title, status, client_id, contractor_id, client:profiles!jobs_client_id_fkey(company_name)')
     .eq('id', jobId)
     // #QA — canonical column is jobs.contractor_id; assigned_inspector_id does not
     // exist, so this page always redirected the inspector away.
@@ -42,11 +49,11 @@ export default async function InspectorReviewPage({ params, searchParams }: Page
   const j = job as unknown as Record<string, unknown>;
   const clientId = (j.client_id as string | null) ?? null;
   const status = (j.status as string | null) ?? '';
-  const clientJoin = (j.client ?? null) as
-    | { full_name?: string | null; email?: string | null; company_name?: string | null }
-    | null;
-  const clientLabel =
-    clientJoin?.company_name ?? clientJoin?.full_name ?? clientJoin?.email ?? null;
+  // GOLDEN_RULE_4/7 — company name only. There is deliberately NO fallback to a
+  // personal name or email here; when the client has no company on file the
+  // label stays null and ReviewForm renders the neutral "the client".
+  const clientJoin = (j.client ?? null) as { company_name?: string | null } | null;
+  const clientLabel = clientJoin?.company_name ?? null;
 
   const eligible =
     status === 'completed' && !!clientId

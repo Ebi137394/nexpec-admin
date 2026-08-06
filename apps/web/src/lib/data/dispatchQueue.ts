@@ -31,7 +31,9 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
 
   // 1. Jobs in open status.
   const { data: rawJobs, error: jobsErr } = await supabase
-    .from('jobs')
+    // ★ 20260801318000 — payout revoked on the base table. This is an ADMIN
+    //   surface; jobs_secure_view returns the real value when nx_is_admin().
+    .from('jobs_secure_view')
     .select('id, title, location, created_at, client_id, payout_amount_cents')
     .eq('status', 'open')
     .order('created_at', { ascending: false })

@@ -27,6 +27,15 @@ export interface Rfq {
   scope_template_id: string | null; requires_source_inspection: boolean; spawned_job_id: string | null; created_at: string;
 }
 export interface Quote { id: string; rfq_id: string; supplier_id: string; quote: any; status: string; created_at: string; }
+// STRICT PROJECTION for every SUPPLIER-side quote read. supplier_quotes also
+// carries `client_price_cents` (the admin-set marked-up price the CLIENT pays),
+// `presented_by` and `admin_note` (internal broker commentary). RLS policy
+// `quote_supplier` gives a supplier full access to their OWN rows, so a
+// `select('*')` shipped all three to the vendor's browser — the supplier knows
+// their own cost, so client_price_cents hands them NEXPEC's exact margin.
+// project_admin_intercept_markup: "margin = spread, admin-only". Admin reads
+// keep their own wide projection in fetchAdminRfqQuotes; do not widen this one.
+const SUPPLIER_QUOTE_COLS = 'id, rfq_id, supplier_id, quote, status, created_at';
 // Client-facing offer — projected from rfq_client_offers_view. Carries ONLY the
 // admin-set marked-up price + an anonymized NX- handle. The raw supplier price,
 // amount, and supplier_id are NOT present (price-blindness / anti-poaching).
@@ -96,7 +105,7 @@ export async function fetchRfq(id: string): Promise<Rfq | null> {
 // Used by the supplier opportunities detail page.
 export async function fetchRfqDetail(id: string): Promise<{ rfq: Rfq | null; quotes: Quote[] }> {
   const { data: r } = await sb().from('supplier_rfqs').select('*').eq('id', id).maybeSingle();
-  const { data: q } = await sb().from('supplier_quotes').select('*').eq('rfq_id', id).order('created_at', { ascending: true });
+  const { data: q } = await sb().from('supplier_quotes').select(SUPPLIER_QUOTE_COLS).eq('rfq_id', id).order('created_at', { ascending: true });
   return { rfq: (r ?? null) as Rfq | null, quotes: (q ?? []) as Quote[] };
 }
 
@@ -111,7 +120,7 @@ export async function fetchClientOffers(rfqId: string): Promise<ClientOffer[]> {
 export async function fetchMyQuote(rfqId: string): Promise<Quote | null> {
   const uid = await getUserId();
   if (!uid) return null;
-  const { data } = await sb().from('supplier_quotes').select('*').eq('rfq_id', rfqId).eq('supplier_id', uid).maybeSingle();
+  const { data } = await sb().from('supplier_quotes').select(SUPPLIER_QUOTE_COLS).eq('rfq_id', rfqId).eq('supplier_id', uid).maybeSingle();
   return (data ?? null) as Quote | null;
 }
 
@@ -545,7 +554,7 @@ export async function fetchOpenOpportunities(): Promise<Opportunity[]> {
 export async function fetchMyQuotes(): Promise<MyQuote[]> {
   const uid = await getUserId();
   if (!uid) return [];
-  const { data: quotes } = await sb().from('supplier_quotes').select('*').eq('supplier_id', uid).order('created_at', { ascending: false });
+  const { data: quotes } = await sb().from('supplier_quotes').select(SUPPLIER_QUOTE_COLS).eq('supplier_id', uid).order('created_at', { ascending: false });
   const qlist = (quotes ?? []) as Quote[];
   const ids = Array.from(new Set(qlist.map((q) => q.rfq_id)));
   let rfqMap: Record<string, any> = {};

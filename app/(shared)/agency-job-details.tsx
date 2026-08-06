@@ -84,22 +84,41 @@ export default function JobDetailsScreen() {
     try {
       // GR2: agency is a buyer-tier role — projection EXCLUDES
       // payout_amount_cents / inspector_payout_cents.
-      const { data: jobData } = await supabase.from('jobs').select(BUYER_JOB_FIELDS).eq('id', jobId).single();
+      // ★ PRIVILEGE FIX (migration 20260801312000) — BUYER_JOB_FIELDS names
+      //   client_price_cents / budget_*_cents / price_cents, all REVOKED from
+      //   the `authenticated` DB role on public.jobs. Reading them off the base
+      //   table now fails with "permission denied for column" and PostgREST
+      //   rejects the WHOLE request. The error was also discarded, so the screen
+      //   just rendered an empty job. Buyers read pricing via jobs_secure_view.
+      const { data: jobData, error: jobErr } = await supabase
+        .from('jobs_secure_view')
+        .select(BUYER_JOB_FIELDS)
+        .eq('id', jobId)
+        .single();
+      if (jobErr) throw jobErr;
       setJob(jobData);
-      
+
       // Applications → profiles joins via applicant_id (there is no inspector_id
       // column). Explicit safe columns only — never select('*'): applications
       // carries admin-only fields (admin_counter_cents/admin_comment/admin_feedback/
       // admin_attachment) that must not reach buyer surfaces.
-      const { data: appData } = await supabase.from('applications')
-        .select(`id, job_id, applicant_id, status, cover_letter, cover_note, bid_amount_cents, bid_type, currency, estimated_duration, availability_date, created_at, updated_at, applicant:profiles (full_name, city, rating)`)
+      // ★ SCHEMA FIX — the profiles embed named `city`, which is NOT a column on
+      //   public.profiles (it is `location_city`). PostgREST 42703'd the entire
+      //   applications select, and because the error was discarded and the
+      //   `if (appData)` guard simply skipped the setState, the screen showed a
+      //   permanently empty applicant list with no error anywhere.
+      const { data: appData, error: appErr } = await supabase.from('applications')
+        .select(`id, job_id, applicant_id, status, cover_letter, cover_note, bid_amount_cents, bid_type, currency, estimated_duration, availability_date, created_at, updated_at, applicant:profiles (full_name, location_city, rating)`)
         .eq('job_id', jobId).order('created_at', { ascending: false });
+      if (appErr) throw appErr;
 
-      if (appData) {
-        const mapped = appData.map((row: any) => ({ ...row, inspector: row.applicant }));
-        setApplicants(mapped);
-      }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      const mapped = (appData ?? []).map((row: any) => ({ ...row, inspector: row.applicant }));
+      setApplicants(mapped);
+    } catch (err: any) {
+      // Never leave a failed load looking like an empty-but-healthy screen.
+      console.error('[agency-job-details] load failed:', err);
+      Alert.alert('Could not load this job', err?.message ?? 'Please try again in a moment.');
+    } finally { setLoading(false); }
   }, [jobId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -112,14 +131,28 @@ export default function JobDetailsScreen() {
       //   the admin /admin/dispatch). We NEVER mutate jobs.contractor_id/status from a
       //   buyer surface — that bypasses the broker + price-blindness and trips the job
       //   status-transition guard. Mirrors web selectApplication/rejectApplication.
+      // ★ SCHEMA FIX — the note used to be written to `jobs.private_note`.
+      //   There is NO private_note column on public.jobs, so that UPDATE always
+      //   failed with 42703 AFTER the status change had already committed: the
+      //   nomination succeeded, the user saw "Error", and the note was lost.
+      //   applications.client_notes is the canonical home — it is what
+      //   app/(agency)/jobs/[id].tsx and app/(client)/jobs/[id]/applicants.tsx
+      //   write and what the admin Pending Hires inbox reads. Written in the
+      //   same statement as the status change so there is no partial failure.
       const targetStatus = newStatus === 'accepted' ? 'CLIENT_SELECTED' : newStatus;
-      const { error: statusErr } = await supabase.from('applications').update({ status: targetStatus }).eq('id', appId);
+      const trimmedNote = (note ?? '').trim();
+      // Was two grandfathered direct writes; merged into one, so the outbox
+      // baseline's line-text no longer matches — hence the inline pragma.
+      const { error: statusErr } = await supabase
+        .from('applications')
+        // outbox-exempt: online buyer nomination action, single row, idempotent (re-running sets the same status + note)
+        .update({
+          status: targetStatus,
+          ...(newStatus === 'accepted' && trimmedNote ? { client_notes: trimmedNote } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', appId);
       if (statusErr) throw statusErr;
-
-      if (newStatus === 'accepted' && job && note) {
-        const { error: noteErr } = await supabase.from('jobs').update({ private_note: note }).eq('id', job.id);
-        if (noteErr) throw noteErr;
-      }
 
       await fetchData();
       setShowModal(false);

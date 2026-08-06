@@ -102,7 +102,11 @@ interface ApplicantProfile {
   bio: string | null;
   years_experience: number | null;
   hourly_rate_cents: number | null;   // ★ Task 4
-  daily_rate: number | null;
+  // ★ SCHEMA FIX — there is NO `daily_rate` column on public.profiles (the
+  //   rate columns are hourly_rate_cents / travel_rate_cents). Keeping it in
+  //   the projection made PostgREST 42703 the whole `applications` select, so
+  //   this screen showed zero applicants. Field removed from the type too so
+  //   nobody re-adds it to the query.
   specialties: string[] | null;
 }
 
@@ -1134,7 +1138,6 @@ export default function ApplicantsScreen(): React.JSX.Element {
             bio,
             years_experience:experience_years,
             hourly_rate_cents,
-            daily_rate,
             specialties
           )
         `)

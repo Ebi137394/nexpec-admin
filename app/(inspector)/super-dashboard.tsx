@@ -38,7 +38,8 @@ export default function SuperDashboard() {
 
       // 1. Fetch real jobs for this user
       const { data: realJobs, error } = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — payout revoked on the base table; inspector view.
+        .from('jobs_inspector_secure_view')
         // GR2 (Strict price visibility) — inspector tier. The projection
         // excludes client_price_cents / budget_*_cents. We still join the
         // client profile for display purposes (name + avatar only).

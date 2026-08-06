@@ -26,6 +26,21 @@ function withQuery(path: string, params: Record<string, string>): string {
   return path.includes('?') ? `${path}&${qs}` : `${path}?${qs}`;
 }
 
+/**
+ * ★ 2026-08-06 — `returnTo` arrives from a form field and was validated only as
+ * `z.string().min(1)` before being handed straight to next/navigation's
+ * redirect(), which happily follows an absolute URL to another origin. Every
+ * redirect target is now forced to a same-site absolute path, so a crafted post
+ * can no longer bounce a signed-in admin off-platform.
+ */
+function safeReturnTo(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  // Must be a single-slash-rooted path. Rejects "https://evil", "//evil.com"
+  // (protocol-relative) and "\\evil.com" (browser-normalised backslashes).
+  if (!/^\/(?!\/)/.test(s) || s.includes('\\')) return '/admin/contracts';
+  return s;
+}
+
 /* ─── Admin: generate a job contract from an application ───────────── */
 
 const GenerateSchema = z
@@ -63,7 +78,7 @@ export async function createContract(formData: FormData): Promise<void> {
     customContractUrl: formData.get('customContractUrl') ?? '',
     returnTo: formData.get('returnTo'),
   });
-  const fallback = (formData.get('returnTo') as string) || '/admin/contracts';
+  const fallback = safeReturnTo(formData.get('returnTo'));
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message ?? 'Invalid input.';
     redirect(withQuery(fallback, { error: msg }));
@@ -74,8 +89,8 @@ export async function createContract(formData: FormData): Promise<void> {
     inspectorPayoutDollars,
     contractTextMd,
     customContractUrl,
-    returnTo,
   } = parsed.data;
+  const returnTo = safeReturnTo(parsed.data.returnTo);
   if (inspectorPayoutDollars > clientPriceDollars) {
     redirect(
       withQuery(returnTo, { error: 'Inspector payout cannot exceed client price.' }),

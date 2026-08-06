@@ -77,9 +77,15 @@ export default function ClientDashboard() {
 
     try {
       setError(null);
-      // Fetch jobs with proposal count
+      // Fetch jobs with proposal count.
+      // ★ PRIVILEGE FIX (migration 20260801312000) — budget_cents was REVOKED
+      //   from the `authenticated` DB role on public.jobs, so naming it here
+      //   made PostgREST reject the WHOLE select ("permission denied for
+      //   column budget_cents") and the client's project list never loaded.
+      //   Buyers read pricing through jobs_secure_view (row filter:
+      //   client_id = auth.uid() OR agency_id = auth.uid() OR nx_is_admin()).
       const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select(`
           id,
           title,

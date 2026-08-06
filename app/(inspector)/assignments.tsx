@@ -105,7 +105,10 @@ export default function InspectorAssignmentsScreen() {
       appRows.forEach((a) => { const j = String(a.job_id ?? ''); if (j && !createdByJob.has(j)) createdByJob.set(j, String(a.created_at ?? '')); });
 
       const jobRes = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — payout revoked on the base table. These ids come
+        //   from the caller's own applications, so the view's assigned-or-
+        //   applied branch covers them.
+        .from('jobs_inspector_secure_view')
         .select('id, title, status, urgency, location_city, scheduled_date, inspector_payout_cents, payout_amount_cents, client_id, payout_status')
         .in('id', jobIds)
         .is('deleted_at', null);

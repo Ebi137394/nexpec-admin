@@ -24,8 +24,10 @@ export interface ClientReportState {
   clientPriceCents: number | null;
   /**
    * Identity of the inspector who completed the work — display only, and
-   * ONLY populated post-reveal (admin_confirmed_at set OR status completed).
-   * Pre-reveal these stay null and the UI shows `inspectorHandle` instead.
+   * ONLY populated when jobs.identity_mode permits it ('professional' |
+   * 'full') AND the workflow reveal boundary has passed (admin_confirmed_at
+   * set OR status completed). Under the default 'protected' policy these stay
+   * null forever and the UI shows `inspectorHandle` instead.
    */
   inspectorFullName: string | null;
   inspectorCompanyName: string | null;

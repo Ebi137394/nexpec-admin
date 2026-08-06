@@ -66,7 +66,15 @@ export async function fetchClientFinance(): Promise<ClientFinance> {
     // Read it alongside the job ledger; default to prepay if the row is absent.
     const [{ data: jobs, error }, { data: prof }] = await Promise.all([
       supabase
-        .from('jobs')
+        // PRIVILEGE (20260801312000): client_price_cents was REVOKED from the
+        // `authenticated` role on public.jobs. Selecting it off the base table
+        // fails the WHOLE query with "permission denied for column", which this
+        // fetcher swallows into EMPTY — the finance page then rendered $0 spend,
+        // $0 held, $0 paid out and "No financial activity yet" for every client.
+        // Buyers read pricing through the row-gated jobs_secure_view
+        // (client_id = auth.uid() OR agency_id = auth.uid() OR nx_is_admin());
+        // the explicit .eq('client_id', user.id) below still scopes admins.
+        .from('jobs_secure_view')
         .select(
           [
             'id',

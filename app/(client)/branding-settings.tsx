@@ -11,7 +11,8 @@ export default function BrandingSettings() {
   const [loading, setLoading] = useState(false);
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
-  const [primaryColor, setPrimaryColor] = useState('#7C3AED');
+  // primary_color is NOT a column on public.profiles — see fetchBranding().
+  // Kept only as the render-time default for locally styled report previews.
   const [companyName, setCompanyName] = useState('');
 
   useEffect(() => {
@@ -23,9 +24,15 @@ export default function BrandingSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // ★ SCHEMA FIX — there is NO `primary_color` column on public.profiles.
+      //   Naming it made PostgREST 42703 the whole select, so this screen
+      //   always failed with "Failed to load branding settings" and the
+      //   updateBranding() write below always failed too. Web already deferred
+      //   this field (apps/web/src/lib/data/clientBranding.ts selects exactly
+      //   the five columns below) — mobile now matches.
       const { data, error } = await supabase
         .from('profiles')
-        .select('company_logo_url, report_header_text, report_footer_text, use_custom_branding, primary_color, company_name')
+        .select('company_logo_url, report_header_text, report_footer_text, use_custom_branding, company_name')
         .eq('id', user.id)
         .single();
 
@@ -34,7 +41,6 @@ export default function BrandingSettings() {
       setBranding(data);
       setHeaderText(data?.report_header_text || '');
       setFooterText(data?.report_footer_text || '');
-      setPrimaryColor(data?.primary_color || '#7C3AED');
       setCompanyName(data?.company_name || '');
     } catch (error) {
       console.error('Error fetching branding:', error);
@@ -102,7 +108,8 @@ export default function BrandingSettings() {
           use_custom_branding: true,
           report_header_text: headerText,
           report_footer_text: footerText,
-          primary_color: primaryColor,
+          // primary_color intentionally omitted — not a column on profiles.
+          // Including it made every save fail with 42703. See fetchBranding().
           company_name: companyName,
           ...updates,
         })
@@ -186,16 +193,10 @@ export default function BrandingSettings() {
         />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Primary Color</Text>
-        <RNTextInput
-          value={primaryColor}
-          onChangeText={setPrimaryColor}
-          placeholder="#7C3AED"
-          style={styles.input}
-          placeholderTextColor="#94a3b8"
-        />
-      </View>
+      {/* "Primary Color" input removed — profiles has no primary_color column,
+          so the value could never be persisted. Leaving the field on screen
+          would silently discard whatever the client typed. Web has no such
+          field either (apps/web/src/app/client/branding-settings/page.tsx). */}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Company Name</Text>

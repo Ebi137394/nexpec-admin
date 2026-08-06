@@ -26,6 +26,14 @@ function pathForRole(role: string | null | undefined): string {
   if (r === 'client' || r === 'agency' || r === 'enterprise') {
     return '/client/dashboard';
   }
+  // #QA(2026-08-06) — 'supplier' was missing here even though the onboarding
+  // wizard offers the Vendor pathway and apply_onboarding_role accepts it
+  // (migration 20260801256000). destinationForUser() in lib/auth/actions.ts and
+  // the middleware post-sign-in bounce both route suppliers to
+  // /suppliers/dashboard; this function had drifted, so a vendor who signed up
+  // or signed in through Google/Apple/magic-link landed on the marketing root
+  // with no route into their portal.
+  if (r === 'supplier') return '/suppliers/dashboard';
   return '/';
 }
 

@@ -15,9 +15,16 @@
 export interface ClientReportRow {
   jobId: string;
   jobTitle: string;
-  /** Inspector who delivered the work. Their name shows here. */
+  /** Inspector who delivered the work. */
   inspectorId: string | null;
+  /**
+   * Real name — populated ONLY when jobs.identity_mode is 'professional' or
+   * 'full'. Under the default 'protected' policy this stays null and the UI
+   * must fall back to `inspectorHandle` (anti-poaching, …284000/…288000).
+   */
   inspectorFullName: string | null;
+  /** Pseudonymous NX- handle derived from the opaque id. Always safe to show. */
+  inspectorHandle: string | null;
   /** When admin handed the report off to the client. */
   adminConfirmedAt: string | null;
   /** Job completion timestamp (set when status → completed). */

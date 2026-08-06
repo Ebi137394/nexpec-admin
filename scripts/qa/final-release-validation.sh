@@ -47,13 +47,16 @@ for f in \
   supabase/migrations/20260801312000_jobs_column_privilege_price_blindness.sql \
   supabase/migrations/20260801314000_revoke_remaining_unguarded_definer_rpcs.sql \
   supabase/migrations/20260801316000_nx_notify_lockdown.sql \
+  supabase/migrations/20260801318000_jobs_payout_column_privilege_symmetry.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/inspector_price_blindness_test.sql \
+  supabase/tests/rls_jobs_price_blindness_test.sql \
   supabase/tests/rpc_authorization_test.sql \
-  supabase/rollback/20260801304000_to_316000_rollback.sql ; do
+  supabase/rollback/20260801304000_to_316000_rollback.sql \
+  supabase/rollback/20260801318000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "7 migrations, 3 new test suites and the rollback script are present"
+ok "8 migrations, 4 test suites and 2 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)
@@ -84,27 +87,106 @@ run_database_phase() {
   # Each migration ends in a DO $test$ block that RAISEs on failure, so a failed
   # self-test aborts the reset — applying IS testing.
   supabase db reset --local >/dev/null || die "supabase db reset failed — a migration or its self-test did not pass"
-  ok "304000 → 306000 → 308000 → 310000 → 312000 → 314000 → 316000 applied"
+  ok "304000 → 306000 → 308000 → 310000 → 312000 → 314000 → 316000 → 318000 applied"
   ok "every migration self-test passed"
+
+  # ── 3b. EXPLICITLY verify 318000 landed ──────────────────────────────────
+  #  `db reset` applying without error is necessary but not sufficient: assert
+  #  the objects 318000 introduces actually exist, so a silently-skipped or
+  #  reordered migration cannot pass the gate.
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL' || die "migration 20260801318000 did NOT apply"
+DO $v318$
+BEGIN
+  IF to_regprocedure('public.nx_jobs_seller_only_columns()') IS NULL
+     OR to_regprocedure('public.nx_jobs_margin_columns()')   IS NULL
+     OR to_regprocedure('public.nx_is_inspector()')          IS NULL THEN
+    RAISE EXCEPTION '318000 NOT APPLIED: helper function(s) missing';
+  END IF;
+  IF to_regclass('public.jobs_inspector_secure_view') IS NULL THEN
+    RAISE EXCEPTION '318000 NOT APPLIED: jobs_inspector_secure_view missing';
+  END IF;
+  IF position('nx_is_admin' in pg_get_viewdef('public.jobs_secure_view'::regclass, true)) = 0 THEN
+    RAISE EXCEPTION '318000 NOT APPLIED: jobs_secure_view still exposes margin columns unmasked';
+  END IF;
+  RAISE NOTICE '318000 verified: seller view + margin masking present';
+END
+$v318$;
+SQL
+  ok "migration 318000 verified (seller view, helpers, margin masking)"
+
+  # ── run_suite: psql alone is NOT sufficient for pgTAP ────────────────────
+  #  A DO-block suite RAISEs, so ON_ERROR_STOP fails the run. A pgTAP suite
+  #  (plan()/finish()) prints "not ok 3 - …" for a FAILED assertion and still
+  #  exits 0 — so every pgTAP file was previously non-gating here. Detect the
+  #  style and, for pgTAP, fail on "not ok" / a missing plan.
+  run_suite() {
+    local t="$1" out rc plan_n ok_n notok_n
+    if grep -qE '(^|[^a-z_])plan\(' "$t"; then
+      printf "   running %s (pgTAP)\n" "$t"
+      # ── psql OUTPUT FORMAT is load-bearing here ──────────────────────────
+      #  pgTAP emits its TAP stream as ordinary SELECT result rows. Under
+      #  psql's DEFAULT (aligned) format each line arrives padded inside a
+      #  table — a column header, a leading space, and a "(1 row)" footer:
+      #
+      #        ok
+      #      ------------------------------
+      #       ok 1 - BUYER cannot read payout
+      #      (1 row)
+      #
+      #  so anchored greps (^ok / ^not ok) match NOTHING. That produced two
+      #  bugs at once: a PASSING suite was reported as "no pgTAP output", and
+      #  — far worse — a suite with real "not ok" lines would have been
+      #  reported as PASSING, because the failure grep could never fire.
+      #
+      #  -A (unaligned) -t (tuples only) -X (ignore ~/.psqlrc, which could
+      #  re-enable formatting) give the bare TAP stream, so the checks below
+      #  are meaningful. We assert TAP semantics explicitly rather than
+      #  trusting psql's exit code, which is 0 for a failed assertion.
+      out="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f "$t" 2>&1)"; rc=$?
+      if [[ $rc -ne 0 ]]; then
+        printf '%s\n' "$out"
+        die "$(basename "$t") FAILED (psql exit $rc)"
+      fi
+      plan_n="$(printf '%s\n' "$out" | sed -n 's/^1\.\.\([0-9][0-9]*\).*/\1/p' | head -1)"
+      notok_n="$(printf '%s\n' "$out" | grep -cE '^not ok' || true)"
+      ok_n="$(printf '%s\n' "$out" | grep -cE '^ok [0-9]+' || true)"
+
+      if [[ -z "$plan_n" ]]; then
+        printf '%s\n' "$out"
+        die "$(basename "$t") emitted no TAP plan (1..N) — the suite did not run"
+      fi
+      if [[ "$notok_n" -gt 0 ]]; then
+        printf '%s\n' "$out" | grep -E '^not ok' || true
+        die "$(basename "$t") FAILED — $notok_n pgTAP assertion(s) not ok"
+      fi
+      if [[ "$ok_n" -ne "$plan_n" ]]; then
+        printf '%s\n' "$out"
+        die "$(basename "$t") ran $ok_n of $plan_n planned assertion(s) — incomplete run"
+      fi
+      ok "$(basename "$t") — $ok_n/$plan_n pgTAP assertions"
+      return 0
+    fi
+    printf "   running %s\n" "$t"
+    psql "$DB_URL" -X -v ON_ERROR_STOP=1 -q -f "$t" || die "$(basename "$t") FAILED"
+    ok "$(basename "$t")"
+  }
 
   step "4/5. Database test suites"
   for t in \
     supabase/tests/inspector_price_blindness_test.sql \
+    supabase/tests/rls_jobs_price_blindness_test.sql \
     supabase/tests/rpc_authorization_test.sql \
     supabase/tests/admin_direct_assignment_test.sql ; do
-    printf "   running %s\n" "$t"
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f "$t" || die "$t FAILED"
-    ok "$(basename "$t")"
+    run_suite "$t"
   done
 
   shopt -s nullglob
   for t in supabase/tests/*.sql; do
     case "$(basename "$t")" in
-      inspector_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql) continue ;;
+      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql) continue ;;
     esac
-    printf "   running %s (pre-existing)\n" "$t"
-    psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f "$t" || die "$(basename "$t") FAILED — a pre-existing suite regressed"
-    ok "$(basename "$t")"
+    printf "   (pre-existing) "
+    run_suite "$t"
   done
   shopt -u nullglob
 
@@ -117,12 +199,25 @@ BEGIN
      OR has_column_privilege('authenticated','public.jobs','contractor_payout_amount_cents','SELECT') THEN
     RAISE EXCEPTION 'PROBE FAILED: a forbidden pricing column is readable by authenticated';
   END IF;
-  IF NOT has_column_privilege('authenticated','public.jobs','inspector_payout_cents','SELECT')
-     OR NOT has_column_privilege('authenticated','public.jobs','payout_amount_cents','SELECT') THEN
-    RAISE EXCEPTION 'PROBE FAILED: the inspector lost their own payout columns';
+  -- ★ 20260801318000 — INVERTED. This probe used to require that payout stay
+  --   readable on the base table; that was the pre-318000 boundary and was the
+  --   margin leak itself (`authenticated` covers buyers too). Payout must now
+  --   be revoked on the table and reachable ONLY through the seller view.
+  IF has_column_privilege('authenticated','public.jobs','inspector_payout_cents','SELECT')
+     OR has_column_privilege('authenticated','public.jobs','payout_amount_cents','SELECT') THEN
+    RAISE EXCEPTION 'PROBE FAILED: payout is still readable on public.jobs — buyers can derive the margin';
+  END IF;
+  IF NOT has_table_privilege('authenticated','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'PROBE FAILED: jobs_inspector_secure_view unreachable — the inspector could not read any payout';
+  END IF;
+  IF has_table_privilege('anon','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'PROBE FAILED: anon can read the seller view';
   END IF;
   IF NOT has_table_privilege('authenticated','public.jobs_secure_view','SELECT') THEN
     RAISE EXCEPTION 'PROBE FAILED: jobs_secure_view is unreadable (client/admin pricing would break)';
+  END IF;
+  IF NOT has_column_privilege('service_role','public.jobs','inspector_payout_cents','SELECT') THEN
+    RAISE EXCEPTION 'PROBE FAILED: service_role lost payout access (payout Edge Functions would break)';
   END IF;
   IF has_function_privilege('authenticated','public.debit_wallet_for_payout(uuid,bigint)','EXECUTE') THEN
     RAISE EXCEPTION 'PROBE FAILED: wallet debit is reachable';
@@ -140,7 +235,10 @@ SQL
   ok "inspector denied · client/admin allowed · wallet denied · notification denied · service_role intact"
 
   step "8b. Smoke probes — migrated callers resolve"
-  psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL' || die "smoke probes FAILED"
+  psql "$DB_URL" -X -v ON_ERROR_STOP=1 -q <<'SQL' || die "smoke probes FAILED"
+-- One transaction, discarded at the end: probe (5) seeds a job + three users to
+-- exercise the boundary as real callers, and must leave the database untouched.
+BEGIN;
 DO $smoke$
 DECLARE
   v_missing text := '';
@@ -152,10 +250,15 @@ BEGIN
   END IF;
 
   -- ── (1) THE REAL INVARIANT, and the drift detector ──────────────────────
-  --  jobs_secure_view is `SELECT j.* FROM public.jobs j`, so its column set
-  --  must be IDENTICAL to public.jobs. Asserting that is strictly stronger
-  --  than any hand-maintained list: it catches the view being narrowed, and it
-  --  automatically covers every column a future caller might request.
+  --  jobs_secure_view must expose the SAME COLUMN SET as public.jobs. It was
+  --  literally `SELECT j.*` until 20260801318000; it is now an explicit column
+  --  list in ordinal order where the margin columns are wrapped in
+  --  `CASE WHEN nx_is_admin() THEN … END` — the VALUES are masked for
+  --  non-admins, the column set is deliberately unchanged. Asserting the set is
+  --  strictly stronger than any hand-maintained list: it catches the view being
+  --  narrowed, and it automatically covers every column a future caller might
+  --  request. (Masking is asserted separately: structurally in step 3b, and
+  --  behaviourally in probe (5) below.)
   --  (The previous version of this probe hard-coded a column list that had
   --  been derived by an unbounded source scan; it wrongly demanded
   --  `is_published`, which belongs to inspection_reports, not to jobs.)
@@ -202,31 +305,163 @@ BEGIN
     RAISE EXCEPTION 'SMOKE FAILED: jobs_secure_view is missing caller column(s): %', v_missing;
   END IF;
 
-  -- ── (3) Forbidden columns must NOT be reachable on the base table ───────
-  --  The view legitimately exposes pricing to owners/admins; the BASE TABLE
-  --  must still refuse it to `authenticated`. Re-asserted here so a future
-  --  change to the view can never quietly re-open the inspector path.
-  FOREACH v_col IN ARRAY public.nx_jobs_buyer_only_columns() LOOP
+  -- ── (3) BOTH money sides must be unreachable on the base table ──────────
+  --  ★ 20260801318000 — widened from nx_jobs_buyer_only_columns() to include
+  --  the seller/margin set. Before 318000 only the buyer half was revoked, so
+  --  a CLIENT could read inspector_payout_cents off public.jobs and derive the
+  --  platform margin. Both directions are now asserted here.
+  FOREACH v_col IN ARRAY (public.nx_jobs_buyer_only_columns() || public.nx_jobs_margin_columns()) LOOP
     IF has_column_privilege('authenticated','public.jobs',v_col,'SELECT') THEN
       RAISE EXCEPTION 'SMOKE FAILED: authenticated regained jobs.%', v_col;
     END IF;
   END LOOP;
 
-  -- ── (4) Inspector operational columns still resolve on the base table ───
-  FOREACH v_col IN ARRAY ARRAY['id','title','status','scheduled_date','inspector_payout_cents','payout_amount_cents'] LOOP
+  -- ── (4) Operational columns still resolve on the base table ─────────────
+  --  ★ 20260801318000 — REWRITTEN. This list used to include
+  --  inspector_payout_cents / payout_amount_cents and demanded they stay
+  --  readable on public.jobs. That was the pre-318000 boundary and was itself
+  --  the leak (`authenticated` covers buyers too). Payout is NOT an
+  --  operational column any more — it moved to jobs_inspector_secure_view and
+  --  is proven behaviourally in (5). Only the genuinely non-money operational
+  --  columns are asserted here.
+  FOREACH v_col IN ARRAY ARRAY['id','title','status','scheduled_date','contractor_id','hired_inspector_id'] LOOP
     IF NOT has_column_privilege('authenticated','public.jobs',v_col,'SELECT') THEN
-      RAISE EXCEPTION 'SMOKE FAILED: the inspector cannot read jobs.%', v_col;
+      RAISE EXCEPTION 'SMOKE FAILED: operational column jobs.% is unreadable', v_col;
     END IF;
   END LOOP;
 
-  RAISE NOTICE 'smoke probes passed';
+  -- ── (4b) The seller view is the ONLY payout route, and it is locked down ─
+  IF to_regclass('public.jobs_inspector_secure_view') IS NULL THEN
+    RAISE EXCEPTION 'SMOKE FAILED: jobs_inspector_secure_view does not exist — no route to payout at all';
+  END IF;
+  IF NOT has_table_privilege('authenticated','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'SMOKE FAILED: authenticated cannot read jobs_inspector_secure_view';
+  END IF;
+  IF has_table_privilege('anon','public.jobs_inspector_secure_view','SELECT') THEN
+    RAISE EXCEPTION 'SMOKE FAILED: anon can read jobs_inspector_secure_view';
+  END IF;
+  FOREACH v_col IN ARRAY ARRAY['inspector_payout_cents','payout_amount_cents'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema='public' AND table_name='jobs_inspector_secure_view'
+                      AND column_name=v_col) THEN
+      RAISE EXCEPTION 'SMOKE FAILED: jobs_inspector_secure_view lacks %', v_col;
+    END IF;
+  END LOOP;
+
+  RAISE NOTICE 'smoke probes (structural) passed';
 END
 $smoke$;
+
+-- ── (5) BEHAVIOURAL boundary probe ────────────────────────────────────────
+--  Catalog privileges alone cannot prove the boundary: the views are owned by
+--  postgres and bypass column privileges, so masking and row filters must be
+--  exercised as a REAL caller. Seeds one job and reads it as each role through
+--  request.jwt.claims + SET LOCAL ROLE (what PostgREST does per request).
+--  Everything is inside the transaction the surrounding ROLLBACK discards.
+DO $behav$
+DECLARE
+  v_client uuid := gen_random_uuid();
+  v_insp   uuid := gen_random_uuid();
+  v_admin  uuid := gen_random_uuid();
+  v_job    uuid;
+  v_n      bigint;
+  v_ok     boolean;
+BEGIN
+  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at) VALUES
+    (v_client,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','sm.client@test.nx',now(),now()),
+    (v_insp,  '00000000-0000-0000-0000-000000000000','authenticated','authenticated','sm.insp@test.nx',  now(),now()),
+    (v_admin, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','sm.admin@test.nx', now(),now());
+  INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
+    (v_client,'client','Smoke Client','sm.client@test.nx',true),
+    (v_insp,  'inspector','Smoke Inspector','sm.insp@test.nx',true),
+    (v_admin, 'admin','Smoke Admin','sm.admin@test.nx',true);
+  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status,
+                           moderation_status, client_price_cents, inspector_payout_cents, payout_amount_cents)
+  VALUES (gen_random_uuid(), v_client, v_insp, 'SMOKE BOUNDARY', 'smoke', 'assigned', 'approved',
+          250000, 155500, 155500)
+  RETURNING id INTO v_job;
+
+  -- ── INSPECTOR ───────────────────────────────────────────────────────────
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_insp::text)::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+
+  v_ok := false;
+  BEGIN
+    EXECUTE format('SELECT inspector_payout_cents FROM public.jobs WHERE id = %L', v_job) INTO v_n;
+    v_ok := true;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+  IF v_ok THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the inspector read payout DIRECTLY from public.jobs';
+  END IF;
+
+  EXECUTE format('SELECT inspector_payout_cents FROM public.jobs_inspector_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS DISTINCT FROM 155500 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: inspector payout via the seller view reads % (expected 155500)', v_n;
+  END IF;
+
+  EXECUTE format('SELECT client_price_cents FROM public.jobs_inspector_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the seller view leaked client_price_cents (%) to an inspector', v_n;
+  END IF;
+  EXECUTE 'RESET ROLE';
+
+  -- ── CLIENT / AGENCY ─────────────────────────────────────────────────────
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text)::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+
+  EXECUTE format('SELECT inspector_payout_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the buyer read inspector_payout_cents (%) via jobs_secure_view', v_n;
+  END IF;
+  EXECUTE format('SELECT platform_spread_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS NOT NULL THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the buyer read platform_spread_cents (%) — the margin itself', v_n;
+  END IF;
+  EXECUTE format('SELECT client_price_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS DISTINCT FROM 250000 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the buyer lost their own client_price_cents (got %)', v_n;
+  END IF;
+  EXECUTE 'SELECT count(*) FROM public.jobs_inspector_secure_view' INTO v_n;
+  IF v_n <> 0 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the seller view returned % row(s) to a buyer', v_n;
+  END IF;
+  EXECUTE 'RESET ROLE';
+
+  -- ── ADMIN — must still see BOTH sides ───────────────────────────────────
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  EXECUTE format('SELECT inspector_payout_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS DISTINCT FROM 155500 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the admin lost the inspector payout (got %)', v_n;
+  END IF;
+  EXECUTE format('SELECT client_price_cents FROM public.jobs_secure_view WHERE id = %L', v_job) INTO v_n;
+  IF v_n IS DISTINCT FROM 250000 THEN
+    EXECUTE 'RESET ROLE';
+    RAISE EXCEPTION 'SMOKE FAILED: the admin lost the client price (got %)', v_n;
+  END IF;
+  EXECUTE 'RESET ROLE';
+
+  RAISE NOTICE 'smoke probes (behavioural) passed';
+END
+$behav$;
+ROLLBACK;
 SQL
   ok "jobs_secure_view column set is identical to public.jobs (no drift)"
   ok "every caller column resolves on the view"
-  ok "forbidden pricing columns still denied on the base table"
-  ok "inspector operational columns still resolve on public.jobs"
+  ok "both money sides denied on the base table (buyer AND seller)"
+  ok "operational columns still resolve on public.jobs"
+  ok "behavioural: inspector denied direct payout, reads it via the seller view"
+  ok "behavioural: buyer gets NULL payout/margin and zero seller-view rows"
+  ok "behavioural: admin still reads both sides"
 }
 
 if [[ $STATIC_ONLY -eq 0 ]]; then

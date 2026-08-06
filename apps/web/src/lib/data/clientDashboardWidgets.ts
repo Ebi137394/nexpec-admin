@@ -68,42 +68,79 @@ export async function fetchClientDashboardWidgets(): Promise<ClientDashboardWidg
 
     // Pending — job contracts awaiting MY signature (V3 job_contracts via the
     // client-scoped view, which is blind to the inspector payout by design)
+    // NOTE on the error handling in this file: PostgREST reports a failure as
+    // { data: null, error } — it does NOT throw. A bare try/catch therefore
+    // never fires, and a permission denial / bad column silently renders 0 or
+    // an empty list with nothing in the logs. Every block below now inspects
+    // `error` explicitly and warns. The tiles still degrade to 0 rather than
+    // 500-ing the dashboard, but the failure is no longer invisible.
     let unsignedContracts = 0;
-    try {
-      const { count } = await supabase
+    {
+      const { count, error: contractsErr } = await supabase
         .from('client_job_contracts_view')
         .select('id', { count: 'exact', head: true })
         .eq('client_id', user.id)
         .eq('status', 'pending_client_signature');
-      unsignedContracts = count ?? 0;
-    } catch {
-      /* view may not exist or RLS denies — keep 0 */
+      if (contractsErr) {
+        console.warn(
+          '[clientDashboardWidgets] unsigned-contracts count failed:',
+          contractsErr.message,
+        );
+      } else {
+        unsignedContracts = count ?? 0;
+      }
     }
 
     // Pending — open disputes I opened
     let openDisputesByMe = 0;
-    try {
-      const { count } = await supabase
+    {
+      const { count, error: disputesErr } = await supabase
         .from('disputes')
         .select('id', { count: 'exact', head: true })
         .eq('opener_id', user.id)
         .in('status', ['open', 'investigating']);
-      openDisputesByMe = count ?? 0;
-    } catch {
-      /* ignore */
+      if (disputesErr) {
+        console.warn(
+          '[clientDashboardWidgets] open-disputes count failed:',
+          disputesErr.message,
+        );
+      } else {
+        openDisputesByMe = count ?? 0;
+      }
     }
 
-    // Pending — jobs awaiting review (status in_progress or under_review on my jobs)
+    // Pending — reports admin has forwarded that the client has not closed out.
+    //
+    // SCHEMA: this used to filter .in('status', ['under_review',
+    // 'awaiting_approval']). Neither value is admissible — jobs_status_check
+    // restricts status to pending_approval|open|assigned|in_progress|completed|
+    // paid|cancelled|disputed — so the predicate matched ZERO rows on every
+    // account and the "Jobs awaiting review" tile was permanently 0, even when
+    // reports were sitting on the client's desk.
+    //
+    // GOLDEN_RULE_6 defines the real "awaiting your decision" set: admin has
+    // handed the report off (admin_confirmed_at IS NOT NULL) and the job has
+    // not yet been closed out. That's the same gate /client/jobs/[id]/release
+    // uses to decide whether to render the approve / request-revision CTAs.
     let jobsPendingMyReview = 0;
-    try {
-      const { count } = await supabase
+    {
+      const { count, error: pendingErr } = await supabase
         .from('jobs')
         .select('id', { count: 'exact', head: true })
         .eq('client_id', user.id)
-        .in('status', ['under_review', 'awaiting_approval']);
-      jobsPendingMyReview = count ?? 0;
-    } catch {
-      /* ignore */
+        .not('admin_confirmed_at', 'is', null)
+        .in('status', ['assigned', 'in_progress'])
+        .is('deleted_at', null);
+      // PostgREST returns { data: null, error } instead of throwing, so a bare
+      // try/catch here would silently render 0 for a real failure. Log it.
+      if (pendingErr) {
+        console.warn(
+          '[clientDashboardWidgets] pending-review count failed:',
+          pendingErr.message,
+        );
+      } else {
+        jobsPendingMyReview = count ?? 0;
+      }
     }
 
     // Unread messages (sum of unread_for_user across own conversations)
@@ -139,24 +176,39 @@ export async function fetchClientDashboardWidgets(): Promise<ClientDashboardWidg
 
     // Recent jobs — last 5
     let recentJobs: RecentJob[] = [];
-    try {
-      const { data: jobs } = await supabase
+    {
+      const { data: jobs, error: recentErr } = await supabase
         .from('jobs')
-        .select('id, title, status, created_at, escrow_status')  // SCHEMA: escrow_paused does not exist; escrow_status is the real column.
+        // Operational columns only — no revoked pricing column here, so the
+        // base table is correct and jobs_secure_view is not needed.
+        .select('id, title, status, created_at, escrow_status, deleted_at')
         .eq('client_id', user.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(5);
+      if (recentErr) {
+        console.warn(
+          '[clientDashboardWidgets] recent-jobs query failed:',
+          recentErr.message,
+        );
+      }
       if (jobs) {
         recentJobs = (jobs as unknown as Array<Record<string, unknown>>).map((j) => ({
           id: String(j.id),
           title: String(j.title ?? 'Inspection'),
           status: String(j.status ?? 'open'),
           createdAt: String(j.created_at ?? ''),
-          escrowPaused: (j.escrow_paused as boolean | null) ?? null,
+          // SCHEMA: the select above (correctly) asks for escrow_status, but
+          // this mapper read j.escrow_paused — a column that does not exist on
+          // public.jobs and was never in the projection. It was therefore
+          // ALWAYS undefined → null, so the "hold paused" badge on the
+          // dashboard's Recent-jobs list could never render, even for a job
+          // whose payment hold really was frozen. escrow_status is constrained
+          // to pending|funded|released|refunded|disputed (jobs_escrow_status_chk);
+          // 'disputed' is the state in which funds stop moving.
+          escrowPaused: String(j.escrow_status ?? '') === 'disputed',
         }));
       }
-    } catch {
-      /* ignore */
     }
 
     // Recent notifications — last 5

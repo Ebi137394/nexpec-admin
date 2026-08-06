@@ -48,7 +48,9 @@ export async function fetchClientJobReport(
     const { data: rawJob, error: jobErr } = await supabase
       .from('jobs_secure_view')
       .select(
-        'id, title, status, client_price_cents, payout_status, admin_confirmed_at, hired_inspector_id, contractor_id',
+        // identity_mode is the admin-set disclosure policy (…284000); it lives
+        // on jobs and therefore on jobs_secure_view (SELECT j.*).
+        'id, title, status, client_price_cents, payout_status, admin_confirmed_at, hired_inspector_id, contractor_id, identity_mode',
       )
       .eq('id', jobId)
       .eq('client_id', user.id)
@@ -64,16 +66,32 @@ export async function fetchClientJobReport(
 
     const j = rawJob as unknown as Record<string, unknown>;
 
-    // 2. Inspector identity — IDENTITY ESCROW. Resolve the real name ONLY
-    //    after the reveal boundary (admin forwarded the report, or the job is
-    //    completed). Pre-reveal the client sees the pseudonymous NX- handle.
+    // 2. Inspector identity — IDENTITY ESCROW.
+    //
+    //    FIX: the reveal boundary used to be "admin forwarded the report OR the
+    //    job is completed" alone. That is NOT the disclosure rule. The
+    //    authoritative policy is jobs.identity_mode (…284000), which
+    //    client_job_contracts_view enforces for every other buyer surface:
+    //    'protected' (the DEFAULT on every legacy job) means the client NEVER
+    //    sees the real name. Because profiles RLS permits a job-sharing client
+    //    to read the inspector's row (nx_can_read_profile, …248000), the old
+    //    condition succeeded and printed the real name + company on the
+    //    "Inspector on file" tile the moment admin confirmed — bypassing the
+    //    policy. Disclosure now requires professional/full AND the existing
+    //    workflow boundary (fail-closed: stricter than the DB rule, never
+    //    looser).
     const inspectorId =
       ((j.hired_inspector_id as string | null) ?? null) ||
       ((j.contractor_id as string | null) ?? null);
 
+    const identityMode = String(j.identity_mode ?? 'protected');
+    const policyPermitsName =
+      identityMode === 'professional' || identityMode === 'full';
+
     const identityRevealed =
-      !!(j.admin_confirmed_at as string | null) ||
-      String(j.status ?? '') === 'completed';
+      policyPermitsName &&
+      (!!(j.admin_confirmed_at as string | null) ||
+        String(j.status ?? '') === 'completed');
 
     let inspectorFullName: string | null = null;
     let inspectorCompanyName: string | null = null;

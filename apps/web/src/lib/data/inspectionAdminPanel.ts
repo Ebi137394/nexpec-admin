@@ -19,7 +19,15 @@ export interface InspectionAdminPanelData {
   jobStatus: string;
   identityMode: IdentityMode;
   replacementMode: ReplacementMode;
-  clientPriceCents: number;
+  /**
+   * ★ 2026-08-06 — null when the job carries NO agreed client price yet.
+   * Previously coerced to 0, which the panel rendered as "Client price
+   * (preserved) 0.00" and then submitted verbatim to admin_replace_inspector,
+   * whose envelope check (`p_client_price_cents <> COALESCE(job, old_contract,
+   * p)`) would either reject it or — with no prior contract — mint a
+   * replacement contract at a $0 client price. Unknown must stay unknown.
+   */
+  clientPriceCents: number | null;
   activeContract: { id: string; status: string; clientApprovalType: string } | null;
   applications: { id: string; applicantLabel: string; status: string }[];
 }
@@ -45,7 +53,12 @@ export async function getInspectionAdminPanelData(
 
     if (jobErr || !job) {
       // A missing-column error (PostgREST 42703) lands here → not migrated yet.
-      return { available: false, isInspectionJob: false, jobStatus: '', identityMode: 'protected', replacementMode: 'client_reapproval', clientPriceCents: 0, activeContract: null, applications: [] };
+      // Log it: this sentinel renders "migrations not applied", so a PERMISSION
+      // or network failure would otherwise masquerade as a deployment problem.
+      if (jobErr && typeof console !== 'undefined') {
+        console.error('[getInspectionAdminPanelData] job read failed:', jobErr.code, jobErr.message);
+      }
+      return { available: false, isInspectionJob: false, jobStatus: '', identityMode: 'protected', replacementMode: 'client_reapproval', clientPriceCents: null, activeContract: null, applications: [] };
     }
 
     const base: InspectionAdminPanelData = {
@@ -54,7 +67,10 @@ export async function getInspectionAdminPanelData(
       jobStatus: String(job.status ?? ''),
       identityMode: ((job.identity_mode as string) ?? 'protected') as IdentityMode,
       replacementMode: ((job.replacement_mode as string) ?? 'client_reapproval') as ReplacementMode,
-      clientPriceCents: Number(job.client_price_cents ?? 0),
+      clientPriceCents:
+        job.client_price_cents === null || job.client_price_cents === undefined
+          ? null
+          : Number(job.client_price_cents),
       activeContract: null,
       applications: [],
     };
@@ -102,7 +118,10 @@ export async function getInspectionAdminPanelData(
       }));
 
     return base;
-  } catch {
-    return { available: false, isInspectionJob: false, jobStatus: '', identityMode: 'protected', replacementMode: 'client_reapproval', clientPriceCents: 0, activeContract: null, applications: [] };
+  } catch (e) {
+    if (typeof console !== 'undefined') {
+      console.error('[getInspectionAdminPanelData] threw:', e);
+    }
+    return { available: false, isInspectionJob: false, jobStatus: '', identityMode: 'protected', replacementMode: 'client_reapproval', clientPriceCents: null, activeContract: null, applications: [] };
   }
 }

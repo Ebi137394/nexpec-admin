@@ -107,8 +107,14 @@ export default function JobDetailScreen() {
     try {
       // GR2 (Strict price visibility) — client is a buyer-tier role.
       // Projection excludes payout_amount_cents / inspector_payout_cents.
+      // ★ PRIVILEGE FIX (migration 20260801312000) — BUYER_JOB_FIELDS names
+      //   client_price_cents / budget_*_cents / price_cents, all REVOKED from
+      //   the `authenticated` DB role on public.jobs. Selecting them off the
+      //   base table 42501'd the ENTIRE request, so this screen only ever
+      //   showed "Failed to load job details". Buyers read pricing through
+      //   jobs_secure_view (client_id/agency_id/admin row filter).
       const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select(BUYER_JOB_FIELDS)
         .eq('id', id)
         .single();

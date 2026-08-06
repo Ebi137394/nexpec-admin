@@ -57,7 +57,9 @@ export async function fetchInspectorDashboardMetrics(): Promise<InspectorDashboa
     if (jobIds.length > 0) {
       // 2. Jobs — GOLDEN_RULE_2 — only payout columns + status / payout_paid_at.
       const { data: jobs, error: jobsErr } = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — payout revoked on the base table. These ids come
+        //   from the caller's own applications → inspector view covers them.
+        .from('jobs_inspector_secure_view')
         .select(
           'id, status, inspector_payout_cents, payout_amount_cents, payout_status, payout_paid_at',
         )

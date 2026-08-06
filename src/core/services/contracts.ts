@@ -23,7 +23,14 @@ export async function hireContractor(params: HireContractorParams) {
     if (!finalPrice || finalPrice <= 0) {
       console.log('Price is missing/zero, fetching job budget...');
       const { data: job } = await supabase
-        .from('jobs')
+        // ★ PRIVILEGE FIX (20260801312000): client_price_cents / budget_cents
+        //   were revoked from `authenticated` on the base table, so this read
+        //   now fails outright (the error is swallowed below and the price
+        //   silently collapses to the hard-coded 100). Buyers read those
+        //   columns through the row-gated jobs_secure_view.
+        //   NOTE: hireContractor/handleHirePress currently have ZERO call
+        //   sites — this is dead legacy code kept correct, not live behaviour.
+        .from('jobs_secure_view')
         .select('client_price_cents, budget_cents')  // SCHEMA: jobs has no price/budget; the real columns are *_cents.
         .eq('id', jobId)
         .single();

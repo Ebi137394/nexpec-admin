@@ -16,7 +16,7 @@ import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 // ★ Library section deprecated — ReferenceHub + MicroLearning no longer
 //   imported. The Resources tab is now strictly Project Documents.
 import { supabase } from '../../lib/supabase';
-import { jobFieldsForRole } from '../../lib/jobsProjection';
+import { jobFieldsForRole, jobsRelationForRole } from '../../lib/jobsProjection';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 
@@ -301,7 +301,9 @@ export default function ResourcesScreen() {
       // the caller's role. Inspector NEVER receives client_price_cents;
       // buyer roles (client/agency/enterprise) NEVER receive payout.
       const projection = jobFieldsForRole(userRole);
-      let jobQuery = supabase.from('jobs').select(projection).order('created_at', { ascending: false });
+      // ★ PRIVILEGE FIX (20260801312000): buyer/admin projections name columns
+      //   revoked from the base table → jobs_secure_view. Inspector → `jobs`.
+      let jobQuery = supabase.from(jobsRelationForRole(userRole)).select(projection).order('created_at', { ascending: false });
       if (userRole === 'inspector') {
         jobQuery = jobQuery.eq('contractor_id', user.id);
       } else {

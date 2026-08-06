@@ -235,7 +235,16 @@ function DispatchForm({
           <div>
             <dt className="text-zinc-500">Inspector bid</dt>
             <dd className="mt-0.5 font-mono font-semibold text-cyan-glow">
-              {formatCents(application.payout_amount_cents)}
+              {/* ★ 2026-08-06 — this read `application.payout_amount_cents`,
+                  which dispatchQueue.ts hardcodes to null (there is no
+                  payout_amount_cents column on public.applications — the admin
+                  payout is job-level). So the ONE number the operator needs
+                  while setting the spread always rendered as '—'. The real,
+                  post-negotiation bid is bid_amount_cents — the same field the
+                  payout input is seeded from a few lines above. */}
+              {application.bid_amount_cents != null
+                ? formatCents(application.bid_amount_cents)
+                : 'No counter, accepts admin price'}
             </dd>
           </div>
           <div>

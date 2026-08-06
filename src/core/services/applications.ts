@@ -142,7 +142,9 @@ export async function getMyApplications(): Promise<{
     let jobsById = new Map<string, any>();
     if (jobIds.length > 0) {
       const { data: jobs, error: jobsError } = await supabase
-        .from('jobs')
+        // ★ 20260801318000 — INSPECTOR_JOB_FIELDS names payout columns that are
+        //   revoked on the base table; read via the inspector view.
+        .from('jobs_inspector_secure_view')
         .select(INSPECTOR_JOB_FIELDS)
         .in('id', jobIds);
       // Non-fatal — applications still return without their job payload.

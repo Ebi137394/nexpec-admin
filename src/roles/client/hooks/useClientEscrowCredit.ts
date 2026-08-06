@@ -73,6 +73,12 @@ interface UseClientFinanceReturn extends ClientFinance {
   isLoading: boolean;
   isRefreshing: boolean;
   refresh: () => Promise<void>;
+  /**
+   * Non-null when the load failed. Consumers MUST render this instead of the
+   * (all-zero) EMPTY payload — "the query was denied" and "you have spent
+   * nothing" are indistinguishable once they both render as $0.
+   */
+  error: string | null;
 }
 
 const EMPTY_ESCROW_CREDIT: ClientEscrowCredit = {
@@ -114,6 +120,7 @@ export function useClientFinance(): UseClientFinanceReturn {
   const [data, setData] = useState<ClientFinance>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(
     async (showRefresh = false) => {
@@ -125,6 +132,7 @@ export function useClientFinance(): UseClientFinanceReturn {
       try {
         if (showRefresh) setIsRefreshing(true);
         else setIsLoading(true);
+        setError(null);
 
         const [jobsRes, profRes] = await Promise.all([
           supabase
@@ -141,6 +149,16 @@ export function useClientFinance(): UseClientFinanceReturn {
             .eq('id', user.id)
             .maybeSingle(),
         ]);
+
+        // ★ SILENT-FAILURE FIX — jobsRes.error used to be discarded by `?? []`,
+        //   so a denied or malformed read published totalSpend/escrow/credit as
+        //   $0 across the whole finance hub. A failed read is NOT "you have
+        //   spent nothing": rethrow so the catch below marks it as an error.
+        if (jobsRes.error) throw jobsRes.error;
+        if (profRes.error) {
+          // Non-fatal: terms/limit fall back to prepay/0, but say so.
+          console.warn('[useClientFinance] credit profile read failed:', profRes.error);
+        }
 
         const jobs = (jobsRes.data ?? []) as Record<string, unknown>[];
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
@@ -249,8 +267,12 @@ export function useClientFinance(): UseClientFinanceReturn {
           recentActivity: recentActivity.slice(0, 25),
         });
       } catch (err) {
+        // EMPTY is all zeros. Publishing it alone was the bug: a denied read
+        // rendered as "$0 spend / $0 escrow / 0 jobs". Flag it so the finance
+        // hub shows an error banner instead of fake zeroes.
         console.error('❌ useClientFinance:', err);
         setData(EMPTY);
+        setError((err as Error)?.message ?? 'Could not load your finance data.');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -267,6 +289,7 @@ export function useClientFinance(): UseClientFinanceReturn {
     ...data,
     isLoading,
     isRefreshing,
+    error,
     refresh: () => fetchData(true),
   };
 }

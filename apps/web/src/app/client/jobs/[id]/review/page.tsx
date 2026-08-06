@@ -9,6 +9,7 @@ import { ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { canReviewJob } from '@/lib/data/reviews';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 
 export const metadata: Metadata = { title: 'Leave a review' };
 export const dynamic = 'force-dynamic';
@@ -28,10 +29,17 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent(`/client/jobs/${jobId}/review`));
 
-  // Fetch the job + inspector label
+  // Fetch the job + inspector label.
+  //
+  // ANTI-POACHING FIX: this used to embed profiles(full_name, email) and hand
+  // the inspector's REAL NAME to the review form unconditionally. jobs
+  // .identity_mode is the authoritative disclosure policy (…284000/…288000)
+  // and defaults to 'protected', under which the client must only ever see the
+  // pseudonymous NX- handle. The embed is gone; the name is resolved separately
+  // and only when the policy permits it.
   const { data: job } = await supabase
     .from('jobs')
-    .select('id, title, status, contractor_id, client_id, inspector:profiles!jobs_contractor_id_fkey(full_name, email)')
+    .select('id, title, status, contractor_id, client_id, identity_mode')
     .eq('id', jobId)
     .eq('client_id', user.id)
     .maybeSingle();
@@ -41,9 +49,23 @@ export default async function ClientReviewPage({ params, searchParams }: PagePro
   const j = job as unknown as Record<string, unknown>;
   const assignedInspectorId = (j.contractor_id as string | null) ?? null;
   const status = (j.status as string | null) ?? '';
-  const inspectorLabel =
-    ((j.inspector as { full_name?: string | null; email?: string | null } | null) ?? null)
-      ?.full_name ?? null;
+  const identityMode = String(j.identity_mode ?? 'protected');
+  const nameDisclosureAllowed =
+    identityMode === 'professional' || identityMode === 'full';
+
+  let inspectorLabel: string | null = assignedInspectorId
+    ? nxHandle(assignedInspectorId)
+    : null;
+  if (assignedInspectorId && nameDisclosureAllowed) {
+    const { data: insp } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', assignedInspectorId)
+      .maybeSingle();
+    inspectorLabel =
+      ((insp as { full_name?: string | null } | null)?.full_name ?? null) ||
+      inspectorLabel;
+  }
 
   const eligible =
     status === 'completed' && !!assignedInspectorId

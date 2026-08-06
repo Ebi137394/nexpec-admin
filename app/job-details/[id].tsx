@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { jobFieldsForRole } from '@/lib/jobsProjection';
+import { jobFieldsForRole, jobsRelationForRole } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 // ============================================
@@ -82,7 +82,8 @@ export default function JobDetailsScreen() {
         _role = (_p as { role?: string } | null)?.role ?? null;
       }
       const { data, error } = await supabase
-        .from('jobs')
+        // ★ PRIVILEGE FIX (20260801312000): see jobsRelationForRole().
+        .from(jobsRelationForRole(_role))
         .select(jobFieldsForRole(_role))
         .eq('id', jobId)
         .single();

@@ -374,7 +374,7 @@ export default function DashboardHome() {
       // 2) Recent jobs assigned to this inspector (contractor_id).
       //    Client info pulled from `profiles` via the `clients` relation alias.
       const { data: realJobs, error } = await supabase
-        .from('jobs')
+        .from('jobs_inspector_secure_view')
         .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
         .eq('contractor_id', user.id)
         .order('created_at', { ascending: false })
@@ -422,7 +422,9 @@ export default function DashboardHome() {
       let totalEarnings = 0;
       try {
         const { data: earningsRows } = await supabase
-          .from('jobs')
+          // ★ 20260801318000 — payout revoked on the base table; read via the
+          //   inspector view (row-gated to the assigned inspector).
+          .from('jobs_inspector_secure_view')
           .select('payout_amount_cents')
           .eq('contractor_id', user.id)
           .eq('status', 'completed');

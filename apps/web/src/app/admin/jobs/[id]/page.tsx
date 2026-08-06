@@ -104,7 +104,14 @@ export default async function AdminJobDetailPage({ params }: { params: Promise<{
           jobStatus={String(job.status)}
           identityMode={(job.identity_mode as 'protected' | 'professional' | 'full') ?? 'protected'}
           replacementMode={(job.replacement_mode as 'client_reapproval' | 'admin_authorized') ?? 'client_reapproval'}
-          clientPriceCents={Number(job.client_price_cents ?? 0)}
+          clientPriceCents={
+            // ★ 2026-08-06 — null (not 0) when the job has no agreed price yet.
+            // 0 rendered as a real "$0.00 preserved" envelope and was submitted
+            // to admin_replace_inspector verbatim. See inspectionAdminPanel.ts.
+            job.client_price_cents === null || job.client_price_cents === undefined
+              ? null
+              : Number(job.client_price_cents)
+          }
           activeContract={activeContract}
           applications={applications}
         />

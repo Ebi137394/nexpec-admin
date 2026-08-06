@@ -63,7 +63,9 @@ export default function UserProfileDetail() {
       setProfile(p);
 
       try {
-        let jobQuery = supabase.from('jobs').select('id, title, status, inspector_payout_cents, created_at').order('created_at', { ascending: false });
+        // ★ 20260801318000 — payout revoked on the base table. Admin surface:
+        //   jobs_secure_view unmasks the payout when nx_is_admin().
+        let jobQuery = supabase.from('jobs_secure_view').select('id, title, status, inspector_payout_cents, created_at').order('created_at', { ascending: false });
         if (p.role === 'inspector') jobQuery = jobQuery.eq('contractor_id', id);
         else if (p.role === 'client') jobQuery = jobQuery.eq('client_id', id);
         else if (p.role === 'agency' || p.role === 'enterprise') jobQuery = jobQuery.eq('agency_id', id);

@@ -35,6 +35,26 @@ const COLORS = {
 
 const { width } = Dimensions.get('window');
 
+/**
+ * Canonical BUYER price for a job, in integer cents.
+ *
+ * ★ PARITY FIX — the web client portal (apps/web/src/lib/data/clientJobReport.ts,
+ *   clientFinance.ts, clientDashboardMetrics.ts) and the mobile ClientDashboard
+ *   all read `client_price_cents` — the admin-set price the client agreed to.
+ *   This screen read the legacy `price_cents`, which is null on every job the
+ *   admin priced through the broker flow, so "Agreed Price" and the amount
+ *   handed to /payment-screen both rendered $0. `budget_cents` is the
+ *   pre-pricing fallback; `price_cents` stays last for legacy rows.
+ *   GR2-safe: buyers see the client price, never payout or platform spread.
+ */
+const buyerPriceCents = (j: any): number => {
+  for (const v of [j?.client_price_cents, j?.budget_cents, j?.price_cents]) {
+    const n = Number(v);
+    if (v != null && Number.isFinite(n) && n > 0) return n;
+  }
+  return 0;
+};
+
 export default function ApproveScreen() {
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const router = useRouter();
@@ -46,6 +66,8 @@ export default function ApproveScreen() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  /** Non-null when the job load failed — rendered instead of a blank $0 card. */
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -53,10 +75,19 @@ export default function ApproveScreen() {
 
   const fetchData = async () => {
     if (!jobId || !user) { setLoading(false); return; }
+    setLoadError(null);
     try {
       // 1. Fetch Job Info — GR2: client is buyer-tier, no payout columns.
+      // ★ PRIVILEGE FIX (migration 20260801312000) — BUYER_JOB_FIELDS names
+      //   client_price_cents / budget_*_cents / price_cents, and those columns
+      //   were REVOKED from the `authenticated` DB role on public.jobs. Reading
+      //   them off the base table now fails with "permission denied for column",
+      //   which killed this ENTIRE select (PostgREST rejects the whole request)
+      //   and left the Approve & Pay screen permanently blank. Buyers read
+      //   pricing through jobs_secure_view, whose row filter is
+      //   client_id = auth.uid() OR agency_id = auth.uid() OR nx_is_admin().
       const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select(BUYER_JOB_FIELDS)
         .eq('id', jobId)
         .single();
@@ -92,7 +123,11 @@ export default function ApproveScreen() {
       }
 
     } catch (err: any) {
-      console.error('Error fetching data:', err.message);
+      // A failed load must not render as an empty-but-normal screen — the
+      // Approve & Pay button would sit there against a phantom "$0" job.
+      console.error('Error fetching data:', err?.message ?? err);
+      setLoadError(err?.message ?? 'Failed to load this job.');
+      setJob(null);
     } finally {
       setLoading(false);
     }
@@ -102,7 +137,7 @@ export default function ApproveScreen() {
     if (!job) return;
 
     // ★ Task 4: pass cents end-to-end. payment-screen no longer multiplies.
-    const cents = (job as any).price_cents ?? 0;
+    const cents = buyerPriceCents(job);
     Alert.alert(
       'Proceed to Payment',
       `Navigate to payment screen for $${(cents / 100).toFixed(2)}?`,
@@ -147,6 +182,31 @@ export default function ApproveScreen() {
     );
   }
 
+  // A failed / denied job load renders an explicit error, never a $0 job card
+  // with a live "Approve & Pay" button next to it.
+  if (loadError || !job) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Job Details</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.emptyState}>
+          <Ionicons name="alert-circle-outline" size={40} color={COLORS.error} />
+          <Text style={styles.emptyText}>
+            {loadError ?? 'This job could not be loaded.'}
+          </Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => fetchData()}>
+            <Text style={[styles.emptyText, { color: COLORS.primary }]}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -178,7 +238,9 @@ export default function ApproveScreen() {
           <View style={styles.divider} />
 
           <Text style={styles.priceLabel}>Agreed Price</Text>
-          <Text style={styles.priceValue}>${(((job?.price_cents ?? 0) / 100)).toLocaleString()}</Text>
+          {/* Canonical buyer figure — see buyerPriceCents(). Was job.price_cents,
+              which is null on broker-priced jobs and rendered a false "$0". */}
+          <Text style={styles.priceValue}>${(buyerPriceCents(job) / 100).toLocaleString()}</Text>
         </View>
 
         {/* 2. Inspection Report Section */}

@@ -181,7 +181,11 @@ export default function AdminDisputesScreen() {
     try {
       // 1. Disputed jobs — ADMIN projection (admin can see both prices)
       const { data: jobRows, error: jobErr } = await supabase
-        .from('jobs')
+        // ★ PRIVILEGE FIX (20260801312000): ADMIN_JOB_FIELDS names the buyer
+        //   pricing columns, which were revoked from `authenticated` on the
+        //   base table. Admins read them back through the row-gated
+        //   jobs_secure_view (its filter includes nx_is_admin()).
+        .from('jobs_secure_view')
         .select(ADMIN_JOB_FIELDS)
         .eq('status', 'disputed')
         .order('updated_at', { ascending: false })

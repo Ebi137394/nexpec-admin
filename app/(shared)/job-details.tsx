@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, Award, Clock, AlertCircle, Zap, User, Users, FileText, ChevronRight, ThumbsUp, ThumbsDown, X, Star } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
-import { jobFieldsForRole } from '../../lib/jobsProjection';
+import { jobFieldsForRole, jobsRelationForRole } from '../../lib/jobsProjection';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 const C = { bg: '#020420', card: '#0A0D2C', border: '#1E293B', primary: '#7C3AED', primaryMuted: 'rgba(124, 58, 237, 0.12)', primaryBorder: 'rgba(124, 58, 237, 0.28)', text: '#FFFFFF', textSec: '#94A3B8', textMuted: '#64748B', inputBg: '#0A0E2E', success: '#10B981', successBg: 'rgba(16, 185, 129, 0.10)', error: '#EF4444', errorBg: 'rgba(239, 68, 68, 0.08)', warning: '#F59E0B', warningBg: 'rgba(245, 158, 11, 0.10)', blue: '#3B82F6' };
@@ -93,7 +93,10 @@ export default function JobDetailsScreen() {
         _role = (_p as { role?: string } | null)?.role ?? null;
       }
       const { data: jobData } = await supabase
-        .from('jobs')
+        // ★ PRIVILEGE FIX (20260801312000): buyer/admin projections name
+        //   columns revoked from the base table → read via jobs_secure_view.
+        //   Inspectors stay on `jobs` (view would return them zero rows).
+        .from(jobsRelationForRole(_role))
         .select(jobFieldsForRole(_role))
         .eq('id', jobId)
         .single();

@@ -11,9 +11,22 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 import type { ClientReportRow } from './clientReports.types';
 
 export type { ClientReportRow };
+
+/**
+ * IDENTITY DISCLOSURE (20260801284000 / …288000). jobs.identity_mode is the
+ * admin-set project policy governing how much of the assigned inspector the
+ * client may see: 'protected' (default for every legacy job) → pseudonymous
+ * NX- handle only; 'professional' | 'full' → real name. Fail-closed on
+ * anything unrecognised.
+ */
+function nameDisclosureAllowed(mode: unknown): boolean {
+  const m = String(mode ?? 'protected');
+  return m === 'professional' || m === 'full';
+}
 
 export async function fetchClientReports(): Promise<ClientReportRow[]> {
   try {
@@ -29,7 +42,9 @@ export async function fetchClientReports(): Promise<ClientReportRow[]> {
     const { data: rawJobs, error } = await supabase
       .from('jobs_secure_view')
       .select(
-        'id, title, hired_inspector_id, contractor_id, admin_confirmed_at, status, updated_at, client_price_cents, payout_status',
+        // identity_mode drives the anti-poaching disclosure gate below. It is
+        // on jobs (…284000) and therefore on jobs_secure_view (SELECT j.*).
+        'id, title, hired_inspector_id, contractor_id, admin_confirmed_at, status, updated_at, client_price_cents, payout_status, identity_mode',
       )
       .eq('client_id', user.id)
       .not('admin_confirmed_at', 'is', null)
@@ -49,8 +64,19 @@ export async function fetchClientReports(): Promise<ClientReportRow[]> {
     // 2. Hydrate inspector names. Prefer hired_inspector_id, fall back to
     //    contractor_id — different parts of the codebase historically used
     //    either. Both reference auth.users; we read full_name from profiles.
+    //
+    //    IDENTITY DISCLOSURE FIX: this used to hydrate a name for EVERY row.
+    //    profiles RLS lets a client read any profile they share a job with
+    //    (nx_can_read_profile, …248000), so the query succeeded and the real
+    //    name was rendered on /client/reports even for a 'protected' job —
+    //    bypassing the identity policy the rest of the buyer surface enforces
+    //    via client_job_contracts_view. Only ask for names on jobs whose
+    //    identity_mode actually permits disclosure.
     const inspectorIds = new Set<string>();
     for (const j of rawJobs) {
+      if (!nameDisclosureAllowed((j as Record<string, unknown>).identity_mode)) {
+        continue;
+      }
       const hid = (j.hired_inspector_id as string | null) ?? null;
       const cid = (j.contractor_id as string | null) ?? null;
       if (hid) inspectorIds.add(hid);
@@ -76,13 +102,21 @@ export async function fetchClientReports(): Promise<ClientReportRow[]> {
       const inspectorId =
         ((j.hired_inspector_id as string | null) ?? null) ||
         ((j.contractor_id as string | null) ?? null);
+      const disclose = nameDisclosureAllowed(j.identity_mode);
       return {
         jobId: String(j.id),
         jobTitle: String(j.title ?? '(untitled)'),
         inspectorId,
-        inspectorFullName: inspectorId
-          ? inspectorNameById.get(inspectorId) ?? null
-          : null,
+        // Real name ONLY under professional/full. Under protected the map was
+        // never populated for this row, so this is null by construction too —
+        // the explicit `disclose` guard is belt-and-braces.
+        inspectorFullName:
+          inspectorId && disclose
+            ? inspectorNameById.get(inspectorId) ?? null
+            : null,
+        // Always-safe pseudonymous label so the column still renders something
+        // meaningful (and stable) when the policy is 'protected'.
+        inspectorHandle: inspectorId ? nxHandle(inspectorId) : null,
         adminConfirmedAt: (j.admin_confirmed_at as string | null) ?? null,
         completedAt:
           (j.status as string) === 'completed'

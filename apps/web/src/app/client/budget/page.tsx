@@ -61,6 +61,7 @@ import {
   isSupportedCurrency,
 } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { nxHandle } from '@/lib/identity/inspectorHandle';
 
 export const metadata: Metadata = {
   title: 'Budget Overview',
@@ -317,7 +318,16 @@ export async function BudgetOverviewView(
             </p>
           </div>
         </header>
-        <InspectorTable rows={byInspector} />
+        {/* ANTI-POACHING: get_budget_by_inspector / get_budget_recent_activity
+            are SECURITY DEFINER and return COALESCE(full_name, email) with NO
+            identity_mode gate, so a buyer was shown every hired inspector's
+            real name (or email) here regardless of the project's disclosure
+            policy. Buyers now get the pseudonymous NX- handle; the operator
+            (platform scope = admin/super_admin) keeps the real names. */}
+        <InspectorTable
+          rows={byInspector}
+          discloseNames={scopeMeta.scope === 'platform'}
+        />
       </section>
 
       {/* ── By department (cost-center roll-up) ──────────────────────
@@ -572,7 +582,14 @@ function LegendDot({ label, cls }: { label: string; cls: string }) {
   );
 }
 
-function InspectorTable({ rows }: { rows: BudgetInspectorTotal[] }) {
+function InspectorTable({
+  rows,
+  discloseNames,
+}: {
+  rows: BudgetInspectorTotal[];
+  /** Only the platform operator (admin) may see real inspector names here. */
+  discloseNames: boolean;
+}) {
   if (!rows.length) {
     return (
       <p className="mt-6 text-center text-sm text-zinc-500">
@@ -597,9 +614,9 @@ function InspectorTable({ rows }: { rows: BudgetInspectorTotal[] }) {
               <td className="px-4 py-3 text-sm">
                 <Link
                   href={`/p/${r.inspectorId}`}
-                  className="font-medium text-white transition-colors hover:text-violet-glow"
+                  className={`font-medium text-white transition-colors hover:text-violet-glow ${discloseNames ? '' : 'font-mono'}`}
                 >
-                  {r.inspectorName}
+                  {discloseNames ? r.inspectorName : nxHandle(r.inspectorId)}
                 </Link>
               </td>
               <td className="px-4 py-3 text-right font-mono text-sm text-zinc-300">
@@ -634,6 +651,8 @@ function ActivityStream({
     );
   }
   const showClientCol = scope.scope === 'org' || scope.scope === 'platform';
+  // Real inspector names are operator-only (see the gate below).
+  const isOperator = scope.scope === 'platform';
   return (
     <ul className="mt-5 divide-y divide-white/[0.04]">
       {rows.map((r) => (
@@ -654,9 +673,15 @@ function ActivityStream({
               {r.clientName}
             </span>
           )}
-          {r.inspectorName && (
+          {/* Same anti-poaching gate as the table above: the RPC hands back the
+              inspector's real name with no identity_mode check, so any buyer —
+              including an org-scoped agency/enterprise viewer — sees the
+              pseudonymous NX- handle. Only the platform operator sees names. */}
+          {r.inspectorId && (
             <span className="hidden truncate text-xs text-zinc-500 lg:inline">
-              {r.inspectorName}
+              {isOperator && r.inspectorName
+                ? r.inspectorName
+                : nxHandle(r.inspectorId)}
             </span>
           )}
           <span className="font-mono text-xs font-semibold text-violet-glow">

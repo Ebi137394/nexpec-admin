@@ -253,7 +253,10 @@ export default function InspectorDirectoryScreen() {
         // RLS already restricts to their own jobs; the .or() is
         // defense-in-depth on the column filter.
         const { data, error: jErr } = await supabase
-          .from('jobs')
+          // ★ PRIVILEGE FIX (20260801312000): BUYER_JOB_FIELDS names revoked
+          //   columns on the base table. jobs_secure_view returns them for the
+          //   buyer's own rows (client_id / agency_id), matching this .or().
+          .from('jobs_secure_view')
           .select(projection)
           .or(`client_id.eq.${user.id},agency_id.eq.${user.id}`)
           .in('status', ['open', 'pending_approval'])

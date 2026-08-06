@@ -32,7 +32,7 @@ export default function LiveRadar() {
 
       // Step 1: Fetch active jobs
       const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('*')
         .in('status', ACTIVE_STATUSES)
         .order('updated_at', { ascending: false });

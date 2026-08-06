@@ -46,7 +46,7 @@ export async function fetchClientJobReport(
     // 1. Job row, ownership-gated.
     //    GOLDEN_RULE_2 — explicit projection, no inspector payout columns.
     const { data: rawJob, error: jobErr } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select(
         'id, title, status, client_price_cents, payout_status, admin_confirmed_at, hired_inspector_id, contractor_id',
       )

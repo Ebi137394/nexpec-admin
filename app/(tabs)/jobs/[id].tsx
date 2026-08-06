@@ -145,7 +145,11 @@ export default function JobDetailScreen() {
       if (applicantIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
-          .select('*')
+          // Project the SAME allowlist sanitizeProfile() applies. Selecting '*'
+          // and filtering afterwards still shipped every applicant's email,
+          // phone, cv_url and address over the wire — sanitising in JS does not
+          // un-send a payload.
+          .select(SAFE_PROFILE_FIELDS.join(', '))
           .in('id', applicantIds);
 
         if (profilesError) console.error('[JobDetails] Profiles fetch error:', profilesError);

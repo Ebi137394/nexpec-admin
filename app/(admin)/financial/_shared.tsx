@@ -450,7 +450,7 @@ export const PipelineRow: React.FC<{ item: PipelineItem }> = React.memo(({ item 
 export async function fetchOperationalData(): Promise<OperationalData> {
   const [allJobsRes, escrowJobsRes, pendingPayoutsRes] = await Promise.all([
     supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select(`
         id, title, status, payout_status, escrow_status,
         client_id, contractor_id, agency_id,
@@ -460,7 +460,7 @@ export async function fetchOperationalData(): Promise<OperationalData> {
       `)
       .is('deleted_at', null),
     supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select('client_price_cents, status')
       .in('status', ['assigned', 'in_progress']),
     // Money tables stay RLS-locked; admin reads via SECURITY DEFINER RPC

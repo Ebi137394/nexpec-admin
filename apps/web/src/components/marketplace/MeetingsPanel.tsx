@@ -14,6 +14,9 @@ const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2 text-s
 
 export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; rfqId?: string; parties?: Party[] }) {
   const [items, setItems] = useState<Meeting[]>([]);
+  // Distinct from `err` (which reports a failed SCHEDULE attempt): this is a
+  // failed/denied READ, and must never be rendered as "No meetings scheduled."
+  const [loadError, setLoadError] = useState<{ denied: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -24,7 +27,21 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const load = () => { setLoading(true); fetchMeetings({ jobId, rfqId }).then(setItems).catch(() => {}).finally(() => setLoading(false)); };
+  const load = () => {
+    setLoading(true);
+    setLoadError(null);
+    fetchMeetings({ jobId, rfqId })
+      .then((res) => {
+        if (res.kind === 'ok') {
+          setItems(res.meetings);
+          return;
+        }
+        // denied | error — surface it, never fall through to the empty state.
+        setItems([]);
+        setLoadError({ denied: res.kind === 'denied', message: res.message });
+      })
+      .finally(() => setLoading(false));
+  };
   useEffect(() => { load(); }, [jobId, rfqId]);
 
   const toggle = (id: string) => setInvited((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -60,6 +77,13 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
       </div>
 
       {loading ? <p className="text-sm text-white/50">Loading…</p>
+        : loadError ? (
+          <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            {loadError.denied
+              ? 'You are not authorized to view meetings for this job.'
+              : `Could not load meetings. ${loadError.message}`}
+          </p>
+        )
         : items.length === 0 ? <p className="text-sm text-white/50">No meetings scheduled.</p>
         : (
           <ul className="space-y-2">

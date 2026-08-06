@@ -749,7 +749,7 @@ export default function FinancialDashboard() {
         await Promise.all([
           // 1. Jobs in current range — drives KPIs, cash flow, revenue-by-role
           supabase
-            .from('jobs')
+            .from('jobs_secure_view')
             .select(
               'id, client_id, client_price_cents, inspector_payout_cents, platform_spread_cents, status, payout_status, escrow_status, created_at, admin_confirmed_at',
             )
@@ -758,7 +758,7 @@ export default function FinancialDashboard() {
 
           // 2. Jobs in previous range — for KPI deltas
           supabase
-            .from('jobs')
+            .from('jobs_secure_view')
             .select(
               'client_price_cents, inspector_payout_cents, platform_spread_cents, status, payout_status, created_at',
             )
@@ -767,7 +767,7 @@ export default function FinancialDashboard() {
 
           // 3. Payment hold in-flight — jobs with money locked but not yet released
           supabase
-            .from('jobs')
+            .from('jobs_secure_view')
             .select('client_price_cents, status, escrow_status')
             .in('status', ['assigned', 'in_progress']),
 

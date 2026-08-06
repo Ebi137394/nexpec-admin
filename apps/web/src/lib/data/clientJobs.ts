@@ -33,7 +33,7 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
     if (!user) return [];
 
     const { data, error } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select(
         'id, title, status, moderation_status, created_at, budget_cents, applications_count, location_city, urgency',
       )

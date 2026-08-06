@@ -13,8 +13,22 @@ import { useMeetings, scheduleMeeting, type Meeting } from '@/src/hooks/useMeeti
 interface Party { id: string; label: string; role: string; }
 const PROVIDERS: ReadonlyArray<readonly [string, string]> = [['zoom', 'Zoom'], ['teams', 'Teams'], ['meet', 'Meet'], ['other', 'Other']];
 
-export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; rfqId?: string; parties?: Party[] }) {
-  const { items, loading, refetch } = useMeetings({ jobId, rfqId });
+/**
+ * `canSchedule` (default true — every existing admin/RFQ call site is unchanged).
+ *
+ * Pass false on surfaces that must stay READ-ONLY under the anti-poaching rule:
+ * the party may still see and join a meeting an admin convened them into, but
+ * gets no "Schedule" button and no "Invite" list. This exists because the
+ * inspector Job Details screen was rendering a full Schedule-and-invite-Client
+ * workflow to anyone merely viewing an open job. schedule_meeting() would have
+ * refused that submission, but only after the user filled the whole form —
+ * and the control implied a direct client channel that NEXPEC does not permit.
+ *
+ * When read-only AND there is nothing to show, the panel renders nothing at all
+ * rather than an empty "Meetings" card.
+ */
+export function MeetingsPanel({ jobId, rfqId, parties = [], canSchedule = true }: { jobId?: string; rfqId?: string; parties?: Party[]; canSchedule?: boolean }) {
+  const { items, loading, error, refetch } = useMeetings({ jobId, rfqId });
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
@@ -47,16 +61,26 @@ export function MeetingsPanel({ jobId, rfqId, parties = [] }: { jobId?: string; 
     } finally { setBusy(false); }
   };
 
+  // Read-only surface with nothing to show → render nothing, rather than an
+  // empty "Meetings" card on a job the inspector is only applying to.
+  // NOTE: this must stay BELOW every hook above — returning earlier would skip
+  // the useState calls and change hook order between renders.
+  if (!canSchedule && !loading && !error && items.length === 0) return null;
+
   return (
     <View style={s.wrap}>
       <View style={s.head}>
         <Text style={s.title}>Meetings</Text>
-        <TouchableOpacity style={s.add} onPress={() => setOpen(true)} activeOpacity={0.85}>
-          <Ionicons name="videocam" size={14} color="#fff" /><Text style={s.addTxt}>Schedule</Text>
-        </TouchableOpacity>
+        {canSchedule && (
+          <TouchableOpacity style={s.add} onPress={() => setOpen(true)} activeOpacity={0.85}>
+            <Ionicons name="videocam" size={14} color="#fff" /><Text style={s.addTxt}>Schedule</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? <ActivityIndicator color={T.colors.primary} style={{ marginVertical: 12 }} />
+        // A failed/denied read must NOT masquerade as "no meetings".
+        : error ? <Text style={s.error}>Could not load meetings. {error}</Text>
         : items.length === 0 ? <Text style={s.empty}>No meetings scheduled.</Text>
         : items.map((m) => (
           <View key={m.id} style={[s.card, m.status === 'cancelled' && { opacity: 0.5 }]}>
@@ -123,6 +147,7 @@ const s = StyleSheet.create({
   add: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.colors.primary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: T.borderRadius.full },
   addTxt: { color: '#fff', fontSize: T.fontSize.xs, fontWeight: '700' },
   empty: { color: T.colors.textMuted, fontSize: T.fontSize.sm, paddingVertical: 8 },
+  error: { color: T.colors.error, fontSize: T.fontSize.sm, paddingVertical: 8 },
   card: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: T.colors.inputBorder },
   mTitle: { color: T.colors.text, fontSize: T.fontSize.sm, fontWeight: '600' },
   mMeta: { color: T.colors.textSecondary, fontSize: T.fontSize.xs, marginTop: 2 },

@@ -16,9 +16,14 @@ export async function fetchPayoutsQueue(): Promise<PayoutsQueueResult> {
 
   // Jobs in completed status whose payout hasn't been settled.
   const { data: rawJobs, error } = await supabase
-    .from('jobs')
+    .from('jobs_secure_view')
     .select(
-      'id, title, location, completed_at, updated_at, client_id, contractor_id, client_price_cents, payout_amount_cents, payout_status',
+      // `completed_at` does not exist on public.jobs; naming it 42703'd the whole
+      // query, so this queue silently returned ZERO rows and the admin payouts
+      // screen looked empty. The queue is already keyed on status='completed'
+      // ordered by updated_at — which IS when the job reached completed —
+      // and payout_paid_at is the canonical settlement stamp once paid.
+      'id, title, location, updated_at, payout_paid_at, client_id, contractor_id, client_price_cents, payout_amount_cents, payout_status',
     )
     .eq('status', 'completed')
     .not('payout_status', 'eq', 'paid')
@@ -71,7 +76,8 @@ export async function fetchPayoutsQueue(): Promise<PayoutsQueueResult> {
       id: j.id as string,
       title: (j.title as string | null) ?? null,
       location: (j.location as string | null) ?? null,
-      completed_at: (j.completed_at as string | null) ?? null,
+      completed_at: (j.updated_at as string | null) ?? null,
+      payout_paid_at: (j.payout_paid_at as string | null) ?? null,
       updated_at: (j.updated_at as string | null) ?? null,
       client_id: (j.client_id as string | null) ?? null,
       client_name: client?.full_name ?? null,

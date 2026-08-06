@@ -27,7 +27,7 @@ export async function fetchClientReports(): Promise<ClientReportRow[]> {
     //    Filter to current client + soft-deleted exclusion.
     //    GOLDEN_RULE_2 — explicit projection, no inspector_payout / spread.
     const { data: rawJobs, error } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select(
         'id, title, hired_inspector_id, contractor_id, admin_confirmed_at, status, updated_at, client_price_cents, payout_status',
       )

@@ -52,15 +52,21 @@ export async function GET(_req: Request, ctx: RouteContext) {
     // #QA — jobs has no platform_fee_cents column (the platform margin is the
     // GENERATED, admin-only platform_spread_cents — never exposed to the inspector,
     // as it would leak the client price). Selecting it 500'd this route.
-    .select('id, title, paid_at, completed_at, inspector_payout_cents, payout_status')
+    // #QA(2026-08-05) — `paid_at` and `completed_at` are NOT columns on
+      // public.jobs either; naming them 42703'd this whole route, so the
+      // inspector's statement was always empty. Canonical columns:
+      // payout_paid_at = when the payout was actually settled;
+      // updated_at     = last state change (the completion signal for a
+      //                  status='completed' job). Both are inspector-safe.
+      .select('id, title, payout_paid_at, updated_at, inspector_payout_cents, payout_status')
     // #QA — canonical column is jobs.contractor_id; assigned_inspector_id does NOT exist.
     .eq('contractor_id', user.id)
     // #QA — 'released' is not a valid jobs.payout_status (CHECK = unpaid/processing/
     // paid/disputed); it never matched. 'paid' is the terminal settled state.
     .in('payout_status', ['paid'])
-    .gte('paid_at', range.start)
-    .lt('paid_at', range.end)
-    .order('paid_at', { ascending: true });
+    .gte('payout_paid_at', range.start)
+    .lt('payout_paid_at', range.end)
+    .order('payout_paid_at', { ascending: true });
 
   if (error) {
     return new NextResponse('Could not load earnings: ' + error.message, { status: 500 });
@@ -85,7 +91,7 @@ export async function GET(_req: Request, ctx: RouteContext) {
       jobId: String(row.id),
       jobTitle: String(row.title ?? 'Inspection'),
       paidAt:
-        (row.paid_at as string | null) ?? (row.completed_at as string | null) ?? null,
+        (row.payout_paid_at as string | null) ?? (row.updated_at as string | null) ?? null,
       inspectorPayoutCents: payout,
       platformFeeCents: fee,
       netCents: net,

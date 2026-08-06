@@ -203,7 +203,7 @@ export default function ProfileScreen() {
         const filterColumn = userRole === 'agency' ? 'agency_id' : 'client_id';
         const { count: jobsCount, error: jobsCountErr } = await supabase
           .from('jobs')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq(filterColumn, userId);
 
         if (jobsCountErr) {
@@ -236,7 +236,7 @@ export default function ProfileScreen() {
         // Inspections: completed jobs as contractor
         const { count: inspectionCount } = await supabase
           .from('jobs')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('contractor_id', userId)
           .eq('status', 'completed');
 

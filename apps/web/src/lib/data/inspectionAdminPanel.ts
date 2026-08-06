@@ -38,7 +38,7 @@ export async function getInspectionAdminPanelData(
 
     // Reading identity_mode/replacement_mode forces the "is it migrated?" check.
     const { data: job, error: jobErr } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select('id, source_rfq_id, identity_mode, replacement_mode, client_price_cents, status, contractor_id')
       .eq('id', jobId)
       .maybeSingle();

@@ -1070,8 +1070,19 @@ const fetchApplication = async (uid: string) => {
               </Text>
             </View>
           </View>
-          {/* Brokered War Room — meetings on this job (list + launch + schedule) */}
-          <MeetingsPanel jobId={String(id)} parties={job.client_id ? [{ id: job.client_id, label: t('Client'), role: 'client' }] : []} />
+          {/* Brokered War Room — READ-ONLY on the inspector surface.
+              Client↔inspector meetings are brokered by NEXPEC admin under the
+              anti-poaching rule, so an inspector never gets a "Schedule" button
+              and the client is never offered as an invitable party — not even
+              after hire, and regardless of the job's identity policy. (This
+              panel previously rendered unconditionally with the client passed in
+              as a party, so an inspector merely viewing an open job was shown a
+              full "Invite Client → Schedule & notify" workflow.)
+              The inspector can still see and join a meeting an admin convened
+              them into: job_meetings RLS already limits the list to meetings
+              they organize or participate in, and the panel renders nothing at
+              all when that list is empty. */}
+          <MeetingsPanel jobId={String(id)} parties={[]} canSchedule={false} />
 
           <AuditTimeline
             jobId={String(id)}

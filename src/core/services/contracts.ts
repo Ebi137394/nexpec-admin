@@ -24,12 +24,14 @@ export async function hireContractor(params: HireContractorParams) {
       console.log('Price is missing/zero, fetching job budget...');
       const { data: job } = await supabase
         .from('jobs')
-        .select('price, budget')
+        .select('client_price_cents, budget_cents')  // SCHEMA: jobs has no price/budget; the real columns are *_cents.
         .eq('id', jobId)
         .single();
       
       // Use Price, then Budget, then fallback to 100 to prevent crash
-      finalPrice = job?.price || job?.budget || 100; 
+      // The real columns are CENTS; `price`/`budget` never existed, so this
+      // fallback silently always resolved to the hard-coded 100.
+      finalPrice = (job as any)?.client_price_cents || (job as any)?.budget_cents || 100;
     }
 
     const safePrice = finalPrice && finalPrice > 0 ? finalPrice : 100;

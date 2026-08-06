@@ -19,7 +19,7 @@ export async function fetchDisputesQueue(): Promise<{
   const supabase = await createSupabaseServerClient();
 
   const { data: rawJobs, error } = await supabase
-    .from('jobs')
+    .from('jobs_secure_view')
     .select(
       'id, title, location, created_at, updated_at, client_id, contractor_id, client_price_cents, payout_amount_cents',
     )

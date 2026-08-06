@@ -69,7 +69,7 @@ export default function Dashboard() {
       // We now fetch payout_amount instead of inspector_payout
       // ★ Task 4: integer cents end-to-end. Math is unit-agnostic.
       const { data: jobs, error: jErr } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('client_price_cents, payout_amount_cents, payout_status, status, admin_confirmed_at');
       if (jErr) throw jErr;
       const all = jobs ?? [];
@@ -142,7 +142,7 @@ export default function Dashboard() {
 
       // 4. Recent jobs (Updated columns for Stealth Markup)
       const { data: rec } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, status, client_price_cents, payout_amount_cents, created_at')
         .order('created_at', { ascending: false })
         .limit(6);

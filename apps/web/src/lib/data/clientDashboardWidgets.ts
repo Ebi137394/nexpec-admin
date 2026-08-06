@@ -142,7 +142,7 @@ export async function fetchClientDashboardWidgets(): Promise<ClientDashboardWidg
     try {
       const { data: jobs } = await supabase
         .from('jobs')
-        .select('id, title, status, created_at, escrow_paused')
+        .select('id, title, status, created_at, escrow_status')  // SCHEMA: escrow_paused does not exist; escrow_status is the real column.
         .eq('client_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);

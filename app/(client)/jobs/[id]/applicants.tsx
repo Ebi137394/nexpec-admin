@@ -1105,7 +1105,7 @@ export default function ApplicantsScreen(): React.JSX.Element {
       if (!isRefresh) setLoading(true);
 
       const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, status, budget_min_cents, budget_max_cents, budget_type, currency, applications_count')
         .eq('id', id)
         .single();

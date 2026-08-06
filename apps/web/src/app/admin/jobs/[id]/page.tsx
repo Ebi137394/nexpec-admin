@@ -21,7 +21,7 @@ export default async function AdminJobDetailPage({ params }: { params: Promise<{
   const supabase = await createSupabaseServerClient();
 
   const { data: job } = await supabase
-    .from('jobs')
+    .from('jobs_secure_view')
     .select('id, title, status, client_id, contractor_id, scheduled_date, description, location, job_country, source_rfq_id, identity_mode, replacement_mode, client_price_cents')
     .eq('id', id)
     .maybeSingle();

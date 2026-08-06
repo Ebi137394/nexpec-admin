@@ -10,17 +10,29 @@ export interface Meeting {
 export function useMeetings(opts: { jobId?: string; rfqId?: string }) {
   const [items, setItems] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
+  // ★ 2026-08-05: the query error used to be discarded (`const { data } = await q`),
+  //   so a denied or failed read was indistinguishable from a genuinely empty
+  //   list and the panel rendered a confident "No meetings scheduled." Callers
+  //   now receive the error and must render it distinctly.
+  const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     let q = supabase.from('job_meetings').select('*').order('scheduled_at', { ascending: true });
     if (opts.jobId) q = q.eq('job_id', opts.jobId);
     else if (opts.rfqId) q = q.eq('rfq_id', opts.rfqId);
-    const { data } = await q;
-    setItems((data ?? []) as Meeting[]);
+    const { data, error: qError } = await q;
+    if (qError) {
+      console.error('[useMeetings] job_meetings read failed →', qError);
+      setError(qError.message || 'Could not load meetings.');
+      setItems([]);
+    } else {
+      setItems((data ?? []) as Meeting[]);
+    }
     setLoading(false);
   }, [opts.jobId, opts.rfqId]);
   useEffect(() => { load(); }, [load]);
-  return { items, loading, refetch: load };
+  return { items, loading, error, refetch: load };
 }
 
 export const scheduleMeeting = (a: {

@@ -44,7 +44,7 @@ export function useDashboard(): UseDashboardReturn {
     const [jobsRes, txRes] = await Promise.all([
       supabase
         .from('jobs')
-        .select('id, title, address, status, scheduled_date, created_at, updated_at, inspector_id, client_id')
+        .select('id, title, location, status, scheduled_date, created_at, updated_at, inspector_id, client_id')
         .eq(userFilter, user.id)
         .order('created_at', { ascending: false })
         .limit(20),
@@ -56,7 +56,7 @@ export function useDashboard(): UseDashboardReturn {
         .eq('status', 'completed'),
     ]);
 
-    const jobs = (jobsRes.data ?? []) as Job[];
+    const jobs = (jobsRes.data ?? []) as unknown as Job[];
     const transactions = (txRes.data ?? []) as Pick<Transaction, 'amount'>[];
 
     setStats({

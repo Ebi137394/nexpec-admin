@@ -61,7 +61,7 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
     (async () => {
       try {
         const { data, error } = await supabase
-          .from('jobs')
+          .from('jobs_secure_view')
           .select('client_price_cents')
           .in('status', ['assigned', 'in_progress'])
           .not('client_price_cents', 'is', null);

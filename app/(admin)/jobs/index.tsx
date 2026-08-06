@@ -34,7 +34,7 @@ export default function JobModeration() {
 
       // Step 1: Fetch all jobs
       const { data: jobsData, error: jobsError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('*')
         .order('created_at', { ascending: false });
 

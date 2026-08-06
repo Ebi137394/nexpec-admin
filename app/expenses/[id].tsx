@@ -42,7 +42,9 @@ interface Expense {
 interface Job {
   id: string;
   title: string;
-  company_name: string;
+  /** NOT a column on public.jobs — resolve via jobs.client_id → profiles if
+   *  ever needed. Renders the documented 'Private Client' fallback. */
+  company_name?: string | null;
 }
 
 // =============================================================================
@@ -174,7 +176,7 @@ export default function ExpensesScreen() {
   const fetchJob = async () => {
     const { data, error } = await supabase
       .from('jobs')
-      .select('id, title, company_name')
+      .select('id, title')  // SCHEMA: company_name is not a jobs column; the UI falls back to 'Private Client'.
       .eq('id', jobId)
       .single();
 
@@ -552,7 +554,7 @@ export default function ExpensesScreen() {
       {job && (
         <View style={styles.jobHeader}>
           <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
-          <Text style={styles.jobCompany}>{job.company_name}</Text>
+          <Text style={styles.jobCompany}>{job.company_name ?? 'Private Client'}</Text>
         </View>
       )}
 

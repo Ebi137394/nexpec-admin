@@ -33,7 +33,7 @@ export async function fetchClientDashboardMetrics(): Promise<ClientDashboardMetr
     // 1. All non-deleted jobs owned by this client.
     //    Strict projection — no inspector_payout_cents in this SELECT.
     const { data: jobs, error: jobsErr } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')
       .select('id, status, client_price_cents, admin_confirmed_at')
       .eq('client_id', user.id)
       .is('deleted_at', null);

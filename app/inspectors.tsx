@@ -151,7 +151,7 @@ export default function InspectorsScreen() {
 
       // 1) all jobs owned by this agency
       const { data: jobsRow, error: jobsErr } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, status, contractor_id, client_price_cents, updated_at')
         .eq('client_id', me);
       if (jobsErr) throw jobsErr;

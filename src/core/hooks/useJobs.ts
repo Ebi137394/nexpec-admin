@@ -3,6 +3,11 @@ import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import type { Job, JobApplication } from '@/types/core';
 import { useAuth } from '@/src/contexts/AuthContext';
+// GR2 (blind pricing) allowlists — the single source of truth for which
+// columns each role may read off `jobs`. INSPECTOR_JOB_FIELDS contains the
+// inspector's OWN payout but never client_price_cents, platform_spread_cents
+// or the budget_* family. Never replace these with select('*').
+import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 
 // ============================================================================
 // TYPES
@@ -66,10 +71,9 @@ export function useJobs(): UseJobsReturn {
         console.log('🔍 Fetching available jobs (status: open)...');
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
-          .select(`
-            *,
-            client:profiles!jobs_client_id_fkey(full_name, avatar_url, company_name)
-          `)
+          // GR2: explicit inspector allowlist. GOLDEN_RULE_4/7: the client embed
+          // is company_name only — never full_name / email / phone.
+          .select(`${INSPECTOR_JOB_FIELDS}, client:profiles!jobs_client_id_fkey(id, company_name)`)
           .eq('status', 'open')
           .order('created_at', { ascending: false });
 
@@ -87,50 +91,81 @@ export function useJobs(): UseJobsReturn {
         
         setAvailableJobs(mappedJobs as Job[]);
 
-        // 2. Fetch My Applications (FIXED: applications table, applicant_id column)
+        // 2. Fetch My Applications
+        //
+        // ★ PGRST200 FIX (2026-08-05). This used to embed `job:jobs(...)`, which
+        //   PostgREST can only resolve through a real foreign key. There is NO
+        //   applications.job_id → jobs.id constraint in the schema (applications
+        //   only has applicant_id → profiles.id and user_id → auth.users.id), so
+        //   every call failed with:
+        //     "Could not find a relationship between 'applications' and 'jobs'".
+        //   Because the error was thrown, step 3 below never ran: Active Missions
+        //   stayed empty AND myApplications stayed [], which silently made
+        //   hasAppliedToJob() always return false and let an inspector submit a
+        //   second application that the DB then rejected.
+        //
+        //   Fixed with the same manual fetch/stitch already used by
+        //   app/(admin)/pending-hires.tsx rather than by adding an FK, so no
+        //   schema change and no RLS change is required.
         console.log('🔍 Fetching my applications...');
         const { data: applicationsData, error: applicationsError } = await supabase
           .from('applications')
-          .select(`
-            *,
-            job:jobs(
-              *,
-              client:profiles!jobs_client_id_fkey(full_name, avatar_url, company_name)
-            )
-          `)
+          .select('*')
           .eq('applicant_id', user.id)
           .order('created_at', { ascending: false });
 
         if (applicationsError) {
           throw applicationsError;
         }
-        
-        const mappedApplications = (applicationsData || []).map((app: any) => {
-          if (app.job && typeof app.job === 'object' && !Array.isArray(app.job)) {
-            return {
-              ...app,
-              job: {
-                ...app.job,
-                budget_min: app.job.budget !== undefined ? app.job.budget : (app.job.budget_min || 0),
-                budget_max: app.job.budget_max || app.job.budget || app.job.budget_min || 0,
-                is_featured: app.job.is_featured ?? false, 
-                urgency: app.job.urgency || 'normal', 
-              },
-            };
+
+        // Stitch the jobs on separately. GOLDEN_RULE_2: this is an INSPECTOR
+        // surface, so it uses the shared GR2 allowlist INSPECTOR_JOB_FIELDS.
+        const appJobIds = Array.from(
+          new Set(
+            (applicationsData || [])
+              .map((a: any) => a?.job_id)
+              .filter((v: any): v is string => typeof v === 'string' && v.length > 0)
+          )
+        );
+
+        let jobsById = new Map<string, any>();
+        if (appJobIds.length > 0) {
+          const { data: appJobs, error: appJobsError } = await supabase
+            .from('jobs')
+            .select(INSPECTOR_JOB_FIELDS)
+            .in('id', appJobIds);
+
+          // Non-fatal: a missing job row must not blank out My Applications or
+          // abort the Active Missions fetch below.
+          if (appJobsError) {
+            console.warn('⚠️ Could not load jobs for applications', appJobsError);
+          } else {
+            jobsById = new Map((appJobs || []).map((j: any) => [j.id, j]));
           }
-          return app;
+        }
+
+        const mappedApplications = (applicationsData || []).map((app: any) => {
+          const job = jobsById.get(app.job_id);
+          if (!job) return app;
+          return {
+            ...app,
+            job: {
+              ...job,
+              is_featured: job.is_featured ?? false,
+              urgency: job.urgency || 'normal',
+            },
+          };
         });
-        
+
         setMyApplications(mappedApplications as JobApplication[]);
 
         // 3. Fetch My Active Missions
         console.log('🔍 Fetching my active jobs...');
         const { data: myJobsData, error: myJobsError } = await supabase
           .from('jobs')
-          .select(`
-            *,
-            client:profiles!jobs_client_id_fkey(full_name, avatar_url, company_name)
-          `)
+          // GR2 + GOLDEN_RULE_4/7, as above. Being the assigned inspector does
+          // not entitle them to the client price or the platform spread.
+          .select(`${INSPECTOR_JOB_FIELDS}, client:profiles!jobs_client_id_fkey(id, company_name)`)
           .eq('contractor_id', user.id)
           .in('status', ['assigned', 'in_progress'])
           .order('updated_at', { ascending: false });
@@ -304,7 +339,10 @@ export function useJobs(): UseJobsReturn {
       try {
         const { data, error } = await supabase
           .from('jobs')
-          .select(`*, client:profiles!jobs_client_id_fkey(*)`)
+          // Was `*, client:profiles(*)` — that shipped client_price_cents,
+          // platform_spread_cents and the client's ENTIRE profile row
+          // (email/phone/cv_url) to any inspector opening the apply screen.
+          .select(`${INSPECTOR_JOB_FIELDS}, client:profiles!jobs_client_id_fkey(id, company_name)`)
           .eq('id', jobId)
           .single();
 
@@ -313,12 +351,17 @@ export function useJobs(): UseJobsReturn {
         }
 
         if (data) {
+          // supabase-js parses the select string at the TYPE level, so a
+          // template literal (`${INSPECTOR_JOB_FIELDS}, …`) is not statically
+          // analyzable and `data` degrades to a non-object parser type. Narrow
+          // once here rather than casting at every property access.
+          const row = data as unknown as Record<string, unknown>;
           const mappedJob = {
-            ...data,
-            budget_min: (data as any).budget !== undefined ? (data as any).budget : ((data as any).budget_min || 0),
-            budget_max: (data as any).budget_max || (data as any).budget || (data as any).budget_min || 0,
+            ...row,
+            budget_min: row.budget !== undefined ? row.budget : (row.budget_min || 0),
+            budget_max: row.budget_max || row.budget || row.budget_min || 0,
           };
-          return mappedJob as Job;
+          return mappedJob as unknown as Job;
         }
 
         return null;

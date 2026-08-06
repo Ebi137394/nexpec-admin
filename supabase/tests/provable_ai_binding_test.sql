@@ -16,6 +16,15 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+-- pgTAP must be installed by the suite itself. Every suite here ends in
+-- ROLLBACK, which also rolls back `create extension`, so pgTAP never persists
+-- between files — each one has to create it. This file was the only pgTAP suite
+-- in the repo missing the line, so it passed only when something else happened
+-- to have installed pgTAP first, and failed with
+-- `function plan(integer) does not exist` on a clean database.
+-- Canonical form, identical to the other 12 suites:
+create extension if not exists pgtap;
+
 SELECT plan(7);
 
 SET LOCAL session_replication_role = 'replica';  -- FK-free seeding

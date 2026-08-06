@@ -100,7 +100,7 @@ export default function SpreadEditor() {
 
       // 1. Fetch the job
       const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('*')
         .eq('id', id)
         .single();

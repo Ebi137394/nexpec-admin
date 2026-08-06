@@ -68,7 +68,7 @@ export default function ClientReportsScreen() {
       // Deliverables = jobs handed off to the client (admin-reviewed).
       // RLS already scopes to the client; we also filter client_id for parity.
       const { data, error: qErr } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, hired_inspector_id, contractor_id, admin_confirmed_at, status, updated_at, client_price_cents, payout_status')
         .eq('client_id', user.id)
         .not('admin_confirmed_at', 'is', null)

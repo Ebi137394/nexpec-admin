@@ -85,10 +85,8 @@ export function useInspectorData(): InspectorDataReturn {
       .select(`
         id,
         title,
-        job_code,
-        address,
         status,
-        priority,
+        urgency,
         contractor_id,
         client_id,
         scheduled_date,

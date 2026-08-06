@@ -145,6 +145,8 @@ interface DashStats {
   open: number;            // status = 'open'
   completed: number;       // status = 'completed'
   totalInvestment: number; // Σ amounts on completed jobs
+  /** TRUE when the spend query failed. Renders '—', never a misleading $0. */
+  investmentUnavailable: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -167,7 +169,14 @@ const dateLabel = (d: Date) =>
 // ★ Task 4: returns integer CENTS. daily_rate is dollars × duration_days, so
 //   multiply by 100 to keep the unit consistent.
 const computeJobAmount = (
-  j: Pick<Job, 'client_price_cents' | 'total_amount_cents' | 'daily_rate' | 'duration_days' | 'budget_cents'>,
+  // ★ SCHEMA FIX — total_amount_cents / daily_rate / duration_days are NOT
+  //   columns on public.jobs. Naming them made PostgREST 42703 the whole
+  //   select, so `completedJobs` came back null and Total Invested always
+  //   rendered $0. The authoritative buyer figure is client_price_cents (the
+  //   admin-set price the client agreed to; GR2-safe — buyers see the client
+  //   price, never payout or spread), with budget_cents as the pre-pricing
+  //   fallback for jobs completed before a price was set.
+  j: Pick<Job, 'client_price_cents' | 'budget_cents'>,
 ): number => {
   // ★ $0-BUG FIX — the admin-set client_price_cents is the authoritative buyer
   //   figure (GR2-safe: buyers see client_price_cents, never payout/spread).
@@ -176,12 +185,6 @@ const computeJobAmount = (
   if (j.client_price_cents && Number.isFinite(Number(j.client_price_cents))) {
     return Number(j.client_price_cents);
   }
-  if (j.total_amount_cents && Number.isFinite(Number(j.total_amount_cents))) {
-    return Number(j.total_amount_cents);
-  }
-  const rate = Number(j.daily_rate || 0);
-  const days = Number(j.duration_days || 0);
-  if (rate > 0 && days > 0) return Math.round(rate * days * 100);
   if (j.budget_cents && Number.isFinite(Number(j.budget_cents))) return Number(j.budget_cents);
   return 0;
 };
@@ -278,6 +281,7 @@ export default function ClientDashboardScreen() {
     open: 0,
     completed: 0,
     totalInvestment: 0,
+    investmentUnavailable: false,
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -350,19 +354,29 @@ export default function ClientDashboardScreen() {
       ]);
 
       // 3) Total investment — sum amounts of completed jobs
+      // A failed query must NEVER be reported as $0 — that is indistinguishable
+      // from "you have spent nothing", and is exactly how the 42703 above hid
+      // itself for so long. On failure we flag it and the UI renders '—'.
       let totalInvestment = 0;
+      let investmentUnavailable = false;
       try {
-        const { data: completedJobs } = await supabase
-          .from('jobs')
-          .select('client_price_cents, total_amount_cents, daily_rate, duration_days, budget_cents')
+        const { data: completedJobs, error: investErr } = await supabase
+          .from('jobs_secure_view')
+          .select('client_price_cents, budget_cents')
           .eq('client_id', userId)
           .eq('status', 'completed');
-        totalInvestment = (completedJobs ?? []).reduce(
-          (acc: number, j: any) => acc + computeJobAmount(j),
-          0,
-        );
-      } catch {
-        /* ignore */
+        if (investErr) {
+          console.error('[ClientDashboard] total investment query failed:', investErr);
+          investmentUnavailable = true;
+        } else {
+          totalInvestment = (completedJobs ?? []).reduce(
+            (acc: number, j: any) => acc + computeJobAmount(j),
+            0,
+          );
+        }
+      } catch (e) {
+        console.error('[ClientDashboard] total investment threw:', e);
+        investmentUnavailable = true;
       }
 
       setStats({
@@ -370,13 +384,17 @@ export default function ClientDashboardScreen() {
         open: openRes.count ?? 0,
         completed: completedRes.count ?? 0,
         totalInvestment,
+        investmentUnavailable,
       });
 
       // 4) Recent jobs with contractor profile join
       const { data: recent, error: recentErr } = await supabase
         .from('jobs')
+        // Explicit projection: `*` now fails because the buyer-pricing columns
+        // were revoked from `authenticated` (migration 20260801312000). Pricing
+        // for this dashboard is fetched separately from jobs_secure_view.
         .select(
-          '*, contractor:contractor_id ( full_name, avatar_url )',
+          'id, title, status, created_at, updated_at, scheduled_date, location, location_city, job_type, urgency, contractor_id, client_id, moderation_status, escrow_status, payout_status, contractor:contractor_id ( full_name, avatar_url )',
         )
         .eq('client_id', userId)
         .order('created_at', { ascending: false })
@@ -812,7 +830,7 @@ export default function ClientDashboardScreen() {
               />
               <KpiCard
                 icon={<TrendingUp size={14} color={C.pink} />}
-                value={formatMoney(stats.totalInvestment)}
+                value={stats.investmentUnavailable ? '—' : formatMoney(stats.totalInvestment)}
                 label={t('Total Invested')}
                 accent={C.pink}
               />
@@ -963,7 +981,7 @@ export default function ClientDashboardScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.7}
                   >
-                    {formatMoney(stats.totalInvestment)}
+                    {stats.investmentUnavailable ? '—' : formatMoney(stats.totalInvestment)}
                   </Text>
                   <Text style={s.finSub}>
                     {t('Across')} {stats.completed} {t('completed operations')}

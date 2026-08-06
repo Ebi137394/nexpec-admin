@@ -82,7 +82,7 @@ export async function fetchTreasury(): Promise<TreasuryData> {
       supabase.from('withdrawal_requests').select('*').in('status', ['paid', 'rejected', 'cancelled']).order('updated_at', { ascending: false }).limit(8),
       supabase.from('payout_advances').select('*').in('status', ['requested', 'approved']).order('requested_at', { ascending: true }),
       supabase.from('wallets').select('available_balance, pending_amount'),
-      supabase.from('jobs').select('client_price_cents').eq('payment_mode', 'net_terms').not('admin_confirmed_at', 'is', null).is('client_settled_at', null).is('deleted_at', null),
+      supabase.from('jobs_secure_view').select('client_price_cents').eq('payment_mode', 'net_terms').not('admin_confirmed_at', 'is', null).is('client_settled_at', null).is('deleted_at', null),
     ]);
 
     const open = (openRes.data ?? []) as Record<string, unknown>[];

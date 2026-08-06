@@ -6,7 +6,14 @@
 //  RPCs; this panel only collects input and reflects derived state.
 // ════════════════════════════════════════════════════════════════════════════
 import { useState, useTransition } from 'react';
-import { setProjectPolicy, voidContract, replaceInspector } from '@/lib/actions/inspectionAdmin';
+import {
+  setProjectPolicy,
+  voidContract,
+  replaceInspector,
+  searchAssignableInspectors,
+  assignInspectorDirectly,
+  type AssignableInspector,
+} from '@/lib/actions/inspectionAdmin';
 
 type IdentityMode = 'protected' | 'professional' | 'full';
 type ReplacementMode = 'client_reapproval' | 'admin_authorized';
@@ -41,6 +48,19 @@ export function InspectionMarketplaceAdminPanel(props: {
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [pending, start] = useTransition();
 
+  // Direct assignment — book a known inspector who never applied.
+  const [dirQuery, setDirQuery] = useState('');
+  const [dirResults, setDirResults] = useState<AssignableInspector[] | null>(null);
+  const [dirPicked, setDirPicked] = useState<AssignableInspector | null>(null);
+  const [dirPayout, setDirPayout] = useState('');
+  const [dirPrice, setDirPrice] = useState(
+    clientPriceCents > 0 ? String(clientPriceCents / 100) : '',
+  );
+  const [dirReason, setDirReason] = useState('');
+  const [dirSearching, setDirSearching] = useState(false);
+  // ADMIN-ONLY override state. None of this is ever sent to a client surface.
+  const [dirIncludeUnverified, setDirIncludeUnverified] = useState(false);
+
   // Derived replacement progress (never a new Job status; derived from contract state).
   const awaitingReplacement = jobStatus === 'in_progress' && !activeContract;
   const awaitingClientSig = activeContract?.status === 'pending_client_signature';
@@ -52,6 +72,24 @@ export function InspectionMarketplaceAdminPanel(props: {
       setMsg(null);
       const res = await fn();
       setMsg(res.ok ? { kind: 'ok', text: okText } : { kind: 'err', text: res.error ?? 'Failed' });
+    });
+
+  // Direct assignment is offered only where the DB will actually accept it:
+  // an open job with no live contract, or a job awaiting replacement.
+  const canAssignDirectly = !activeContract && (jobStatus === 'open' || awaitingReplacement);
+
+  const runSearch = () =>
+    start(async () => {
+      setDirSearching(true);
+      setMsg(null);
+      const res = await searchAssignableInspectors(dirQuery, dirIncludeUnverified);
+      setDirSearching(false);
+      if (!res.ok) {
+        setDirResults([]);
+        setMsg({ kind: 'err', text: res.error });
+        return;
+      }
+      setDirResults(res.inspectors);
     });
 
   const field = 'w-full rounded-lg border border-ink-600 bg-ink-900/60 px-3 py-2 text-sm text-white';
@@ -87,6 +125,199 @@ export function InspectionMarketplaceAdminPanel(props: {
         <p className={`rounded-lg px-3 py-2 text-xs ${msg.kind === 'ok' ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border border-red-500/40 bg-red-500/10 text-red-200'}`}>
           {msg.text}
         </p>
+      )}
+
+      {/* ── Direct assignment ──────────────────────────────────────────────
+          Book a trusted inspector who never applied. The RPC manufactures the
+          ordinary applications row the hire pipeline already expects and then
+          delegates to admin_dispatch_job / admin_replace_inspector, so the
+          client's workflow, wording and notifications are exactly the ones
+          they would see for a normal applicant. Provenance is recorded in an
+          admin-only table; nothing about this route is client-visible. */}
+      {canAssignDirectly && (
+        <div className="space-y-3 rounded-xl border border-violet/30 bg-violet/[0.06] p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-glow">
+              Assign a known inspector
+            </p>
+            <span className="text-[10px] text-white/40">Internal — invisible to the client</span>
+          </div>
+          <p className="text-xs leading-relaxed text-white/50">
+            For an inspector you already trust who never applied here. They still
+            have to accept the contract before becoming active, and the client
+            sees the standard flow throughout.
+          </p>
+
+          <div className="flex gap-2">
+            <input
+              className={field}
+              placeholder="Search by name, email, city, user id or NX handle"
+              value={dirQuery}
+              onChange={(e) => setDirQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  runSearch();
+                }
+              }}
+            />
+            <button type="button" className={btn} disabled={pending} onClick={runSearch}>
+              {dirSearching ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs text-white/60">
+            <input
+              type="checkbox"
+              checked={dirIncludeUnverified}
+              onChange={(e) => {
+                setDirIncludeUnverified(e.target.checked);
+                setDirResults(null);
+                setDirPicked(null);
+              }}
+            />
+            Include inspectors who are not yet platform-verified
+          </label>
+
+          {dirResults !== null && dirResults.length === 0 && !dirSearching && (
+            <p className="text-xs text-white/40">No verified inspectors matched.</p>
+          )}
+
+          {dirResults !== null && dirResults.length > 0 && (
+            <ul className="max-h-56 space-y-1 overflow-y-auto">
+              {dirResults.map((ins) => {
+                const picked = dirPicked?.id === ins.id;
+                return (
+                  <li key={ins.id}>
+                    <button
+                      type="button"
+                      onClick={() => setDirPicked(picked ? null : ins)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                        picked
+                          ? 'border-violet/60 bg-violet/15'
+                          : 'border-ink-600 hover:border-violet/40 hover:bg-white/[0.03]'
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-white">
+                        {ins.fullName ?? `Inspector ${ins.id.slice(0, 8)}`}
+                      </span>
+                      <span className="block text-[11px] text-white/50">
+                        {[ins.headline, ins.locationCity, ins.email].filter(Boolean).join(' · ') ||
+                          'Inspector'}
+                      </span>
+                      {/* ADMIN-ONLY markers. Deliberately not persisted to any
+                          client-visible field and not shown on any client surface. */}
+                      <span className="mt-1 flex flex-wrap gap-1.5">
+                        {ins.isSelf && (
+                          <span className="rounded-full bg-violet/20 px-2 py-0.5 text-[10px] font-semibold text-violet-glow">
+                            You
+                          </span>
+                        )}
+                        {(ins.role === 'admin' || ins.role === 'super_admin') && (
+                          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70">
+                            Platform admin
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            ins.isVerified
+                              ? 'bg-accent-green/15 text-accent-green'
+                              : 'bg-amber-500/15 text-amber-300'
+                          }`}
+                        >
+                          {ins.isVerified ? 'Verified' : 'Not verified'}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {dirPicked && (
+            <div className="space-y-3 border-t border-white/10 pt-3">
+              <p className="text-xs text-white/60">
+                Assigning <span className="font-semibold text-white">{dirPicked.fullName ?? dirPicked.id.slice(0, 8)}</span>
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-xs text-white/60">Client price (USD)</span>
+                  <input
+                    className={field}
+                    inputMode="decimal"
+                    value={dirPrice}
+                    onChange={(e) => setDirPrice(e.target.value)}
+                    placeholder="2300"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs text-white/60">Inspector payout (USD)</span>
+                  <input
+                    className={field}
+                    inputMode="decimal"
+                    value={dirPayout}
+                    onChange={(e) => setDirPayout(e.target.value)}
+                    placeholder="1200"
+                  />
+                </label>
+              </div>
+              {/* ADMIN-ONLY override warning. Never rendered on a client surface,
+                  never persisted to a client-readable field. */}
+              {(!dirPicked.isVerified || dirPicked.isSelf) && (
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {!dirPicked.isVerified && dirPicked.isSelf
+                    ? 'Override: you are assigning yourself, and this account is not platform-verified.'
+                    : !dirPicked.isVerified
+                      ? 'Override: this inspector has not completed platform verification. You are vouching for their qualifications.'
+                      : 'Override: you are assigning yourself as the inspector for this job.'}
+                  {' '}A written internal reason is required. The client will not
+                  see this, or that the assignment was made directly.
+                </p>
+              )}
+              <label className="block space-y-1">
+                <span className="text-xs text-white/60">
+                  Reason (audit trail, internal)
+                  {(!dirPicked.isVerified || dirPicked.isSelf) && (
+                    <span className="ml-1 text-amber-300">required — min 10 characters</span>
+                  )}
+                </span>
+                <input
+                  className={field}
+                  value={dirReason}
+                  onChange={(e) => setDirReason(e.target.value)}
+                  placeholder="e.g. Agreed directly with the inspector for this site"
+                />
+              </label>
+              <button
+                type="button"
+                className={btn}
+                disabled={
+                  pending || !dirPayout.trim() || !dirPrice.trim() ||
+                  // Mirrors the DB rule exactly; the RPC remains the real gate.
+                  (((!dirPicked.isVerified || dirPicked.isSelf)
+                    ? dirReason.trim().length < 10
+                    : dirReason.trim().length === 0))
+                }
+                onClick={() =>
+                  run(
+                    () =>
+                      assignInspectorDirectly(
+                        jobId,
+                        dirPicked.id,
+                        Math.round(Number(dirPrice) * 100),
+                        Math.round(Number(dirPayout) * 100),
+                        dirReason,
+                      ),
+                    'Inspector assigned. Generate the contract from Contracts; they must still accept it.',
+                  )
+                }
+              >
+                Assign inspector
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Project policies */}

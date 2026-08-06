@@ -466,12 +466,46 @@ export interface Meeting {
   title: string; provider: string; url: string; scheduled_at: string; duration_min: number; status: string;
 }
 
-export async function fetchMeetings(opts: { jobId?: string; rfqId?: string }): Promise<Meeting[]> {
-  let q = sb().from('job_meetings').select('*').order('scheduled_at', { ascending: true });
-  if (opts.jobId) q = q.eq('job_id', opts.jobId);
-  else if (opts.rfqId) q = q.eq('rfq_id', opts.rfqId);
-  const { data } = await q;
-  return (data ?? []) as Meeting[];
+/**
+ * Result of a meetings read. Deliberately a discriminated union so callers
+ * CANNOT collapse "denied" or "network failed" into "no meetings".
+ *
+ * ★ 2026-08-05: this used to be `Promise<Meeting[]>` with `const { data } = await q`
+ *   — the error was discarded and the panel rendered a confident
+ *   "No meetings scheduled." for an authorization failure. Mirrors the mobile
+ *   src/hooks/useMeetings.ts correction.
+ */
+export type MeetingsResult =
+  | { kind: 'ok'; meetings: Meeting[] }
+  | { kind: 'denied'; message: string }
+  | { kind: 'error'; message: string };
+
+/** Postgres/PostgREST codes that mean "you are not allowed", not "it broke". */
+function isAuthorizationFailure(code: string | null | undefined): boolean {
+  // 42501 insufficient_privilege · PGRST301 JWT/permission · 42P01 relation not
+  // visible to this role.
+  return code === '42501' || code === 'PGRST301' || code === '42P01';
+}
+
+export async function fetchMeetings(opts: { jobId?: string; rfqId?: string }): Promise<MeetingsResult> {
+  try {
+    let q = sb().from('job_meetings').select('*').order('scheduled_at', { ascending: true });
+    if (opts.jobId) q = q.eq('job_id', opts.jobId);
+    else if (opts.rfqId) q = q.eq('rfq_id', opts.rfqId);
+    const { data, error } = await q;
+    if (error) {
+      console.error('[marketplace] job_meetings read failed →', error);
+      return isAuthorizationFailure(error.code)
+        ? { kind: 'denied', message: 'You are not authorized to view meetings for this job.' }
+        : { kind: 'error', message: error.message || 'Could not load meetings.' };
+    }
+    // A genuinely empty list — distinct from both failure cases above.
+    return { kind: 'ok', meetings: (data ?? []) as Meeting[] };
+  } catch (e) {
+    // Network / transport failure never reaches the `error` field above.
+    console.error('[marketplace] job_meetings request threw →', e);
+    return { kind: 'error', message: e instanceof Error ? e.message : 'Could not reach the server.' };
+  }
 }
 
 export const scheduleMeeting = (a: {

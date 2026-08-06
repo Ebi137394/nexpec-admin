@@ -131,14 +131,14 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, client_price_cents, status, updated_at')
         .eq('client_id', user.id)
         .eq('status', 'pending_approval')
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, client_price_cents, status, updated_at')
         .eq('client_id', user.id)
         .eq('status', 'assigned')
@@ -377,7 +377,7 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
       milestoneReqRes,
     ] = await Promise.all([
       supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, updated_at, client_price_cents')
         .eq('status', 'pending_approval')
         .order('updated_at', { ascending: false })
@@ -389,14 +389,14 @@ async function loadPipeline(tone: Tone): Promise<PipelineItem[]> {
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, updated_at, client_price_cents, admin_confirmed_at')
         .eq('status', 'completed')
         .is('admin_confirmed_at', null)
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select('id, title, updated_at, client_price_cents')
         .eq('status', 'disputed')
         .order('updated_at', { ascending: false })

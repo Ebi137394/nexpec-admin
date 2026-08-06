@@ -6,7 +6,11 @@ export interface PayoutJob {
   id: string;
   title: string | null;
   location: string | null;
+  /** Derived from jobs.updated_at — public.jobs has no completed_at column.
+   *  status='completed' + updated_at is the moment the job reached completed. */
   completed_at: string | null;
+  /** Canonical settlement stamp once the payout has actually been paid. */
+  payout_paid_at: string | null;
   updated_at: string | null;
   client_id: string | null;
   client_name: string | null;

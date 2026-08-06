@@ -262,7 +262,7 @@ const BadgeWall: React.FC = () => {
         try {
           const { count } = await supabase
             .from('jobs')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('contractor_id', userId)
             .eq('status', 'completed');
           progressMap['100_club'] = Math.min((count ?? 0) / 100, 1);
@@ -319,10 +319,13 @@ const BadgeWall: React.FC = () => {
         // ── Safety First: jobs with JSA completed ──
         try {
           const { count } = await supabase
-            .from('jobs')
-            .select('*', { count: 'exact', head: true })
-            .eq('contractor_id', userId)
-            .eq('jsa_completed', true);
+            // SCHEMA: `jsa_completed` is not a column on public.jobs — naming it
+            // 42703'd the count, so this badge sat permanently at 0. JSA data
+            // lives in public.safety_checks (job_id, user_id, completed_at).
+            .from('safety_checks')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .not('completed_at', 'is', null);
           progressMap['safety_first'] = Math.min((count ?? 0) / 5, 1);
         } catch {
           progressMap['safety_first'] = 0;

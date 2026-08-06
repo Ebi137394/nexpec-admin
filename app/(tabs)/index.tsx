@@ -395,12 +395,12 @@ export default function DashboardHome() {
         await Promise.all([
           supabase
             .from('jobs')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .in('status', ['assigned', 'in_progress']),
           supabase
             .from('jobs')
-            .select('*', { count: 'exact', head: true })
+            .select('id', { count: 'exact', head: true })
             .eq('contractor_id', user.id)
             .eq('status', 'completed'),
         ]);

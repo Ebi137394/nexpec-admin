@@ -25,7 +25,11 @@ interface PendingJob {
   payout_amount_cents: number | null;// ★ Task 4
   description: string;
   location_city: string;
-  location_province: string;
+  // public.jobs has NO location_province column — naming it made PostgREST
+  // 42703 the whole select, so the moderation queue rendered empty. The
+  // canonical region qualifier on jobs is job_country (location_city +
+  // job_country; there is no province/state column in this schema).
+  job_country: string | null;
   created_at: string;
 }
 
@@ -42,7 +46,7 @@ export default function JobModerationScreen() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')
         .select(`
           id,
           title,
@@ -50,7 +54,7 @@ export default function JobModerationScreen() {
           payout_amount_cents,
           description,
           location_city,
-          location_province,
+          job_country,
           created_at
         `)
         .eq('status', 'pending_approval')
@@ -154,7 +158,7 @@ export default function JobModerationScreen() {
               {item.title}
             </Text>
             <Text style={styles.jobLocation}>
-              {item.location_city}{item.location_province ? `, ${item.location_province}` : ''}
+              {item.location_city}{item.job_country ? `, ${item.job_country}` : ''}
             </Text>
           </View>
           <View style={styles.priceContainer}>

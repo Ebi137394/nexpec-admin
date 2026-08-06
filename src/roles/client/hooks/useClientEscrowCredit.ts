@@ -128,7 +128,7 @@ export function useClientFinance(): UseClientFinanceReturn {
 
         const [jobsRes, profRes] = await Promise.all([
           supabase
-            .from('jobs')
+            .from('jobs_secure_view')
             .select(
               'id, title, status, client_price_cents, payout_status, payment_mode, escrow_status, client_settled_at, admin_confirmed_at, payout_paid_at, created_at, updated_at',
             )

@@ -32,10 +32,16 @@ export async function GET(_req: Request, ctx: RouteContext) {
 
   // STRICT projection — no payout columns.
   const { data: job, error: jobErr } = await supabase
-    .from('jobs')
+    .from('jobs_secure_view')
     // #QA — jobs has no platform_fee_cents column; the margin is admin-only
     // (platform_spread_cents). Selecting a non-existent column 500'd this route.
-    .select('id, title, location_city, client_price_cents, completed_at, status, client_id, currency')
+    // `completed_at` is NOT a column on public.jobs — naming it made PostgREST
+    // 42703 the WHOLE select, so this route 404'd instead of rendering an
+    // invoice. The canonical settlement timestamps ARE real columns:
+    // client_settled_at (stamped by the settlement RPC) and client_invoiced_at.
+    .select(
+      'id, title, location_city, client_price_cents, client_settled_at, client_invoiced_at, updated_at, status, client_id, currency',
+    )
     .eq('id', jobId)
     .eq('client_id', user.id)
     .maybeSingle();
@@ -72,7 +78,13 @@ export async function GET(_req: Request, ctx: RouteContext) {
     job: {
       jobId: String(j.id),
       jobTitle: String(j.title ?? 'Inspection'),
-      completedAt: (j.completed_at as string | null) ?? null,
+      // Settlement first, then invoice issue, then last write. Never a
+      // fabricated date — null still renders as unset on the invoice.
+      completedAt:
+        (j.client_settled_at as string | null) ??
+        (j.client_invoiced_at as string | null) ??
+        (j.updated_at as string | null) ??
+        null,
       locationCity: (j.location_city as string | null) ?? null,
       clientPriceCents:
         typeof j.client_price_cents === 'number'

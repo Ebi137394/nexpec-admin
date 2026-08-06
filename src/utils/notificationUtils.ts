@@ -120,50 +120,22 @@ export async function sendNotificationWithSettingsCheck(
   await sendPushWithSettingsCheck(userId, pushData, pushType);
 }
 
-/**
- * Creates a notification record via the v3 `nx_notify` RPC.
- *
- * Web v3 (migration 20260518400000) revoked client INSERT on
- * `public.notifications`; the only legal write path is the SECURITY DEFINER
- * `nx_notify(p_recipient, p_title, p_body, p_kind, p_link, p_job_id)`
- * function, which also bumps `profiles.unread_notifications_count`.
- *
- * The legacy direct-insert version of this helper silently failed against
- * the v3 schema (the `type`/`user_id` columns no longer exist), which is why
- * mobile-triggered notifications stopped delivering. This wrapper preserves
- * the old call sites by accepting the legacy field names and translating
- * them on the wire.
- *
- * @param notificationData - Legacy-shape payload; translated to v3 RPC args.
- */
-export async function createNotification(notificationData: {
-  /** Recipient user id (v3 column: recipient_id). */
-  user_id: string;
-  /** Category key — maps to v3 `kind` (e.g. 'dispute_update'). */
-  type: string;
-  title: string;
-  body: string;
-  /** Optional structured payload — may carry { jobId?: string } for routing. */
-  data?: { jobId?: string; projectId?: string; link?: string } | null;
-}): Promise<void> {
-  try {
-    const jobId =
-      notificationData.data?.jobId ?? notificationData.data?.projectId ?? null;
-    const link = notificationData.data?.link ?? null;
+// ── REMOVED 2026-08-05 ─────────────────────────────────────────────────────
+//  createNotification() was a legacy compatibility wrapper over the
+//  SECURITY DEFINER RPC `nx_notify`. It had ZERO call sites, and it was the
+//  only application-code caller of that RPC.
+//
+//  nx_notify takes an arbitrary recipient with an arbitrary title/body and
+//  performs no authorization, so exposing it to `authenticated` gave any
+//  logged-in user an unsolicited-notification / phishing primitive. Because
+//  this wrapper was dead, EXECUTE could be revoked from anon AND
+//  authenticated outright (migration 20260801316000) with no loss of
+//  function: every legitimate notification is emitted by database triggers
+//  and SECURITY DEFINER functions, which run as their owner (postgres) and
+//  are unaffected by that revoke.
+//
+//  If a browser-initiated notification is ever needed again, add a
+//  domain-specific RPC that derives the recipient from the engagement —
+//  never a generic "notify this uuid" call.
+// ───────────────────────────────────────────────────────────────────────────
 
-    const { error } = await supabase.rpc('nx_notify', {
-      p_recipient: notificationData.user_id,
-      p_title: notificationData.title,
-      p_body: notificationData.body,
-      p_kind: notificationData.type,
-      p_link: link,
-      p_job_id: jobId,
-    });
-
-    if (error) {
-      console.error('Error creating notification:', error.message);
-    }
-  } catch (error) {
-    console.error('Error creating notification:', error);
-  }
-}

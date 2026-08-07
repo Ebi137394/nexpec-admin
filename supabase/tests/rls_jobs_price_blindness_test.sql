@@ -18,7 +18,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(20);
 
 \set CL   'e1111111-1111-1111-1111-111111111111'
 \set INSP 'e2222222-2222-2222-2222-222222222222'
@@ -154,6 +154,42 @@ select is_empty(
       where coalesce((d.job->>'inspector_payout_cents')::bigint, 0) > 0
          or coalesce((d.job->>'payout_amount_cents')::bigint, 0) > 0 $$,
   'a BUYER calling discover_jobs harvests no inspector payout');
+
+-- ── MARKETPLACE VISIBILITY (BUG 2) ─────────────────────────────────────────
+--  The earlier assertions only proved discover_jobs EXECUTES. They would still
+--  pass if it returned zero rows — which is exactly what runtime QA hit
+--  ("Nothing open right now" for an approved, open job). These prove an
+--  eligible job is ACTUALLY RETURNED, and that neither side leaks.
+\set MKT 'e7777777-7777-7777-7777-777777777777'
+insert into public.jobs (
+  id, title, client_id, status, moderation_status, deleted_at,
+  client_price_cents, budget_cents, inspector_payout_cents, payout_amount_cents
+) values (
+  :'MKT','marketplace visibility job', :'CL', 'open','approved', null,
+  null, 230000, 200000, 200000
+);
+
+set local request.jwt.claims to '{"sub":"e2222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+-- (a) the open+approved job is RETURNED to an eligible inspector
+select isnt_empty(
+  $$ select 1 from public.discover_jobs('e2222222-2222-2222-2222-222222222222'::uuid,
+       null, null, null, null, 100, 0) d
+      where (d.job->>'id')::uuid = 'e7777777-7777-7777-7777-777777777777' $$,
+  'MARKETPLACE: an approved + open job IS returned to an eligible inspector');
+
+-- (b) the same row is readable through the seller view (the web Open-jobs path)
+select isnt_empty(
+  $$ select 1 from public.jobs_inspector_secure_view
+      where id = 'e7777777-7777-7777-7777-777777777777'
+        and status = 'open' and moderation_status = 'approved' $$,
+  'MARKETPLACE: the web Open-jobs source returns the job to an inspector');
+
+-- (c) …and it carries the advertised payout but NO buyer pricing
+select is(
+  (select payout_amount_cents from public.jobs_inspector_secure_view where id = :'MKT'),
+  200000::bigint,
+  'MARKETPLACE: inspector sees the advertised payout, and client budget stays masked');
 
 select * from finish();
 rollback;

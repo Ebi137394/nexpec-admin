@@ -72,7 +72,15 @@ export async function fetchOpenJobs(
     //    to this SELECT. Future maintainers: see the type file header.
     const f = opts.filters ?? {};
     let q = supabase
-      .from('jobs')
+      // ★ 20260801318000 — this projection names inspector_payout_cents /
+      //   payout_amount_cents, which are REVOKED from `authenticated` on the
+      //   base table. The query therefore threw "permission denied", the catch
+      //   below swallowed it and returned [], so the inspector marketplace
+      //   rendered "Nothing open right now" for genuinely open+approved jobs.
+      //   The seller view returns open+approved rows to an inspector-role
+      //   caller and MASKS every buyer-pricing column, so price privacy is
+      //   strengthened, not weakened. Same source the mobile Discover RPC uses.
+      .from('jobs_inspector_secure_view')
       .select(
         [
           'id',

@@ -112,7 +112,30 @@ export default function JobDetailScreen() {
         console.error('[JobDetails] Job fetch error:', jobError);
         throw jobError;
       }
-      setJob(jobData);
+      // ★ CANONICAL LOCATION (runtime route). My Projects navigates here
+      //   (/(tabs)/jobs/[id]) — NOT app/(client)/job/[id].tsx — so this is the
+      //   seam the client actually hits. Web job creation writes
+      //   jobs.location_city; mobile creation writes jobs.location. Both ship in
+      //   the projection, so collapse them once here and let the UI render the
+      //   single canonical job.location.
+      //   TS NOTE: `.select()` here receives a RUNTIME string
+      //   (jobFieldsForRole(__role)), so supabase-js cannot type the projection
+      //   and infers `GenericStringError | null` — literally
+      //   `{ error: true } & "Received a generic string"`. Deriving the row type
+      //   with `typeof jobData` inherited that STRING-LITERAL member, and an
+      //   intersection containing a primitive is not an object type, so the
+      //   spread failed with TS2698. Narrow to a concrete object type instead.
+      if (!jobData || typeof jobData !== 'object') {
+        throw new Error('Job not found');
+      }
+      const jobRow = jobData as unknown as Record<string, unknown> & {
+        location?: string | null;
+        location_city?: string | null;
+      };
+      setJob({
+        ...jobRow,
+        location: jobRow.location || jobRow.location_city || null,
+      });
 
       // 2) RAW APPLICATIONS FETCH — NO JOINS
       const { data: rawApps, error: appsError } = await supabase

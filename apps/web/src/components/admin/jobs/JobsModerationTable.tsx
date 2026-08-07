@@ -51,7 +51,11 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
             <th className="px-4 py-3 font-semibold">Job</th>
             <th className="px-4 py-3 font-semibold">Client</th>
             <th className="px-4 py-3 font-semibold">Inspector</th>
-            <th className="px-4 py-3 text-right font-semibold">Payment hold</th>
+            {/* ★ This column previously read "Payment hold" but rendered
+                client_price_cents, so an unpriced job showed "Payment hold
+                $0.00" and the client side was invisible. Label it for what it
+                actually is, using the SAME semantics as the moderation drawer. */}
+            <th className="px-4 py-3 text-right font-semibold">Client price / budget</th>
             <th className="px-4 py-3 text-right font-semibold">Payout</th>
           </tr>
         </thead>
@@ -106,9 +110,20 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
                   <Link href={href} replace>
-                    <p className="font-mono text-sm font-semibold text-zinc-200">
-                      {fmtCents(job.client_price_cents)}
-                    </p>
+                    {typeof job.client_price_cents === 'number' && job.client_price_cents > 0 ? (
+                      <p className="font-mono text-sm font-semibold text-zinc-200">
+                        {fmtCents(job.client_price_cents)}
+                      </p>
+                    ) : typeof job.client_budget_cents === 'number' && job.client_budget_cents > 0 ? (
+                      <>
+                        <p className="font-mono text-sm font-semibold text-zinc-200">
+                          {fmtCents(job.client_budget_cents)}
+                        </p>
+                        <p className="text-[10px] uppercase tracking-wide text-zinc-500">budget</p>
+                      </>
+                    ) : (
+                      <p className="font-mono text-sm font-semibold text-zinc-500">&mdash;</p>
+                    )}
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right align-top">
@@ -119,7 +134,9 @@ export function JobsModerationTable({ jobs, selectedId }: JobsModerationTablePro
                     className="flex items-center justify-end gap-2"
                   >
                     <p className="font-mono text-sm font-semibold text-cyan-glow">
-                      {fmtCents(job.payout_amount_cents)}
+                      {typeof job.payout_amount_cents === 'number' && job.payout_amount_cents > 0
+                        ? fmtCents(job.payout_amount_cents)
+                        : '\u2014'}
                     </p>
                     <ChevronRight
                       className={cn(

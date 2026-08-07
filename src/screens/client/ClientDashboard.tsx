@@ -31,7 +31,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import RNAnimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import {
   Briefcase,
@@ -425,6 +425,34 @@ export default function ClientDashboardScreen() {
     setRefreshing(false);
   }, [fetchAll]);
 
+  // ★ BUG 3 — DASHBOARD SHOWED STALE STATE.
+  //   This screen lives in a tab navigator, so it MOUNTS ONCE and stays
+  //   mounted. fetchAll() previously ran only from the mount effect and from
+  //   manual pull-to-refresh, so after the client posted a job — or after an
+  //   admin approved one — returning to the Dashboard kept rendering the row
+  //   set captured at first mount. My Projects (which refetches) and the
+  //   Dashboard therefore disagreed about whether a job existed, and the
+  //   banner/Live Operations/Open Tenders counts stayed frozen.
+  //
+  //   Refetching on focus makes every section re-derive from current backend
+  //   state on each visit. Business semantics are untouched: the counts still
+  //   come from the same exact-count queries and focusJob still applies the
+  //   documented in_progress > assigned > open priority (so "Pressure" remains
+  //   Priority Mission while it is in_progress — that rule is correct).
+  //
+  //   didMountRef skips the first focus, because the mount effect above has
+  //   already issued that fetch; without it every cold open fires twice.
+  const didMountRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!didMountRef.current) {
+        didMountRef.current = true;
+        return;
+      }
+      void fetchAll();
+    }, [fetchAll]),
+  );
+
   // ── Derived ──
   const greeting = useMemo(() => greetingFor(new Date()), []);
   const today = useMemo(() => dateLabel(new Date()), []);
@@ -489,7 +517,11 @@ export default function ClientDashboardScreen() {
     [safeNav],
   );
   const onViewAllJobs = useCallback(
-    () => safeNav('/my-jobs'),
+    // ★ BUG 4 — this sent the CLIENT to /my-jobs, which is the INSPECTOR
+    //   "My Active Jobs" screen (it also carries a __DEV__-only test-job
+    //   generator whose insert is correctly refused by jobs RLS). A client must
+    //   land on their own projects list.
+    () => safeNav('/(tabs)/jobs'),
     [safeNav],
   );
   const onOpenLedger = useCallback(

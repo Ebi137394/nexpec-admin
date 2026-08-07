@@ -20,6 +20,15 @@ export interface ModerationJob {
   contractor_id: string | null;
   contractor_name: string | null;
   client_price_cents: number | null;
+  /**
+   * ★ The CLIENT's own posted budget (jobs.budget_cents). Distinct from
+   * client_price_cents, which is the ADMIN-set marked-up price and is NULL
+   * until an admin prices the job in the Spread Editor. Showing $0.00 for a
+   * freshly posted job was wrong: the client did enter a figure, it just
+   * lives in budget_cents. Buyer-only column — readable through
+   * jobs_secure_view (admins/owners), never granted on public.jobs.
+   */
+  client_budget_cents: number | null;
   payout_amount_cents: number | null;
   payout_status: string | null;
   // Layer 1 expansion. Backfilled to 'industrial_ndt' for every existing job;

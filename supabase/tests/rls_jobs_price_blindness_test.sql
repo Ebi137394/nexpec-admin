@@ -18,7 +18,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(17);
 
 \set CL   'e1111111-1111-1111-1111-111111111111'
 \set INSP 'e2222222-2222-2222-2222-222222222222'
@@ -124,6 +124,36 @@ select lives_ok(
   $$ insert into public.jobs (title, client_id, status)
      values ('gr2 write-path job','e1111111-1111-1111-1111-111111111111','pending_approval') $$,
   'BUYER can still CREATE a job (INSERT privilege untouched)');
+
+-- ── DISCOVER FEED (the mobile runtime path that 500'd) ──────────────────────
+--  useDiscoverJobs → public.discover_jobs. It is SECURITY INVOKER and used to
+--  do `SELECT j.* FROM public.jobs j`, which needs SELECT on EVERY column —
+--  impossible after 312000/318000 left `authenticated` with a column subset, so
+--  it failed with "permission denied for table jobs". It now reads the
+--  price-blind seller view. These assertions pin the RUNTIME behaviour.
+set local request.jwt.claims to '{"sub":"e2222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+select lives_ok(
+  $$ select * from public.discover_jobs('e2222222-2222-2222-2222-222222222222'::uuid,
+       null, null, null, null, 10, 0) $$,
+  'INSPECTOR can call discover_jobs (no permission denied for table jobs)');
+
+-- The feed must never carry buyer pricing, even though the row is discoverable.
+select is_empty(
+  $$ select 1 from public.discover_jobs('e2222222-2222-2222-2222-222222222222'::uuid,
+       null, null, null, null, 50, 0) d
+      where (d.job ? 'client_price_cents') or (d.job ? 'budget_cents')
+         or (d.job ? 'platform_spread_cents') $$,
+  'discover_jobs emits NO buyer pricing key to an inspector');
+
+-- A BUYER calling it must not harvest payout for their own open jobs.
+set local request.jwt.claims to '{"sub":"e1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+select is_empty(
+  $$ select 1 from public.discover_jobs('e1111111-1111-1111-1111-111111111111'::uuid,
+       null, null, null, null, 50, 0) d
+      where coalesce((d.job->>'inspector_payout_cents')::bigint, 0) > 0
+         or coalesce((d.job->>'payout_amount_cents')::bigint, 0) > 0 $$,
+  'a BUYER calling discover_jobs harvests no inspector payout');
 
 select * from finish();
 rollback;

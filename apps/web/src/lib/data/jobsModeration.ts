@@ -54,9 +54,9 @@ export async function fetchJobsModerationPage(
     // so try the canonical projection first and fall through if columns
     // don't exist.
     const WIDE =
-      'id, title, location_city, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, domain';
+      'id, title, location, location_city, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, budget_cents, budget_min_cents, budget_max_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, domain';
     const MID =
-      'id, title, location_city, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, payout_amount_cents, moderation_status';
+      'id, title, location, location_city, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, budget_cents, payout_amount_cents, moderation_status';
     const NARROW =
       'id, title, status, created_at, updated_at, client_id';
 
@@ -148,6 +148,10 @@ export async function fetchJobsModerationPage(
         contractor_id: inspectorId,
         contractor_name: inspectorId ? (profileMap.get(inspectorId) ?? null) : null,
         client_price_cents: (j.client_price_cents as number | null) ?? null,
+      client_budget_cents:
+        ((j.budget_cents as number | null) ??
+          (j.budget_max_cents as number | null) ??
+          (j.budget_min_cents as number | null)) ?? null,
         payout_amount_cents:
           ((j.inspector_payout_cents as number | null) ?? (j.payout_amount_cents as number | null)) ?? null,
         payout_status: (j.payout_status as string | null) ?? null,
@@ -314,9 +318,9 @@ export async function fetchModerationJob(
     const supabase = await createSupabaseServerClient();
 
     const WIDE =
-      'id, title, location_city, description, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, moderation_reviewed_at, moderation_reviewed_by, moderation_notes';
+      'id, title, location, location_city, description, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, budget_cents, budget_min_cents, budget_max_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, moderation_reviewed_at, moderation_reviewed_by, moderation_notes';
     const MID =
-      'id, title, location_city, description, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, payout_amount_cents, moderation_status, moderation_notes';
+      'id, title, location, location_city, description, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, budget_cents, payout_amount_cents, moderation_status, moderation_notes';
     const NARROW =
       'id, title, description, status, created_at, updated_at, client_id, moderation_status';
 
@@ -393,6 +397,10 @@ export async function fetchModerationJob(
       contractor_name: contractor?.name ?? null,
       contractor_email: contractor?.email ?? null,
       client_price_cents: (j.client_price_cents as number | null) ?? null,
+      client_budget_cents:
+        ((j.budget_cents as number | null) ??
+          (j.budget_max_cents as number | null) ??
+          (j.budget_min_cents as number | null)) ?? null,
       payout_amount_cents:
         ((j.inspector_payout_cents as number | null) ??
           (j.payout_amount_cents as number | null)) ?? null,

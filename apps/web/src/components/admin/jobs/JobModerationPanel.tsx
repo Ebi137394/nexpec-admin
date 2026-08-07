@@ -152,16 +152,32 @@ export function JobModerationPanel({
                 {job.contractor_name ?? job.contractor_email ?? '—'}
               </dd>
             </div>
+            {/* ★ client_price_cents is the ADMIN-set marked-up price and is NULL
+                until the job is priced in the Spread Editor. The CLIENT's own
+                posted figure lives in jobs.budget_cents. Rendering the unset
+                admin price as "$0.00" made a $2,300 job look free, so show the
+                client's budget (clearly labelled) until an admin price exists,
+                and never print $0.00 for "not set yet". */}
             <div>
-              <dt className="text-zinc-500">Client price</dt>
+              <dt className="text-zinc-500">
+                {typeof job.client_price_cents === 'number' && job.client_price_cents > 0
+                  ? 'Client price'
+                  : 'Client budget (not yet priced)'}
+              </dt>
               <dd className="mt-0.5 font-mono font-semibold text-zinc-200">
-                {fmtCents(job.client_price_cents)}
+                {typeof job.client_price_cents === 'number' && job.client_price_cents > 0
+                  ? fmtCents(job.client_price_cents)
+                  : typeof job.client_budget_cents === 'number' && job.client_budget_cents > 0
+                    ? fmtCents(job.client_budget_cents)
+                    : '—'}
               </dd>
             </div>
             <div>
               <dt className="text-zinc-500">Inspector payout</dt>
               <dd className="mt-0.5 font-mono font-semibold text-cyan-glow">
-                {fmtCents(job.payout_amount_cents)}
+                {typeof job.payout_amount_cents === 'number' && job.payout_amount_cents > 0
+                  ? fmtCents(job.payout_amount_cents)
+                  : '—'}
               </dd>
             </div>
           </dl>

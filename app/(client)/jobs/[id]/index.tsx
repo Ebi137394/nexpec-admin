@@ -120,7 +120,13 @@ export default function JobDetailScreen() {
         .single();
 
       if (jobError) throw jobError;
-      setJob(jobData as unknown as Job);
+      // ★ CANONICAL LOCATION — normalise at the mapping seam, not in the UI.
+      //   Web job creation writes jobs.location_city (apps/web/src/lib/actions/
+      //   jobs.ts); mobile creation writes jobs.location. Both columns ship in
+      //   BUYER_JOB_FIELDS, so collapse them here and let every view render the
+      //   single canonical `job.location`. No DB-specific alias leaks into JSX.
+      const jobRow = jobData as unknown as Job & { location_city?: string | null };
+      setJob({ ...jobRow, location: jobRow.location || jobRow.location_city || '' });
 
       // Fetch proposals with applicant profiles
       // ✅ Using standard join syntax with Foreign Key relationship (applications.applicant_id -> profiles.id)
@@ -398,7 +404,7 @@ export default function JobDetailScreen() {
             <View style={styles.jobDetails}>
               <View style={styles.detailRow}>
                 <MapPin size={18} color={COLORS.textSecondary} />
-                <Text style={styles.detailText}>{job.location}</Text>
+                <Text style={styles.detailText}>{job.location || '\u2014'}</Text>
               </View>
               <View style={styles.detailRow}>
                 <Calendar size={18} color={COLORS.textSecondary} />

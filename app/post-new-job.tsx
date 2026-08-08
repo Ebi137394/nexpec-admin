@@ -25,6 +25,7 @@ import SpecialtyPicker from '../src/components/SpecialtyPicker';
 //    matcher reads these to filter the inspector job feed by legal
 //    eligibility.
 import CountryPicker from '../src/components/CountryPicker';
+import { toCanonicalScheduledDate } from '@nexpec/shared-core';
 
 const C = {
   bg: '#020420', card: '#0A0D2C', cardAlt: '#0F172A', cardBorder: '#1A1D3C',
@@ -304,7 +305,12 @@ export default function CreateJobScreen() {
         //   sponsorship_offered always carries a valid enum string.
         job_country: form.jobCountry,
         sponsorship_offered: form.sponsorshipOffered,
-        scheduled_date: form.scheduledDate?.toISOString() ?? null,
+        // ★ NOT .toISOString(). The picker returns a Date at LOCAL midnight;
+        //   serializing that instant shifts the calendar day for any creator
+        //   east of Greenwich. The shared helper extracts the local Y/M/D the
+        //   user actually saw and rebuilds the canonical noon-UTC anchor —
+        //   byte-identical to what the web create action writes.
+        scheduled_date: toCanonicalScheduledDate(form.scheduledDate),
         estimated_duration: form.estimatedDuration || null,
         urgency: form.urgency,
         status: 'pending_approval',

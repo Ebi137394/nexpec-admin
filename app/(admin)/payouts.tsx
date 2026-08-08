@@ -99,7 +99,7 @@ export default function PayoutsScreen() {
   const fetchPayouts = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('jobs')
+        .from('jobs_secure_view')  // ★ 20260801318000 — ADMIN payouts: payout_amount_cents is revoked on the base table; jobs_secure_view unmasks it for nx_is_admin()
         .select(`
           id,
           title,

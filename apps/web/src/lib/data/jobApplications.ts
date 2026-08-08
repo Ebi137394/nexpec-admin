@@ -43,7 +43,7 @@ export async function fetchClientJob(
     if (!user) return null;
 
     const { data, error } = await supabase
-      .from('jobs')
+      .from('jobs_secure_view')  // ★ 20260801318000 — buyer surface (fetchClientJob): budget_cents is revoked on the base table; the row-gated buyer view returns it to the owning client/admin
       .select(
         [
           'id',

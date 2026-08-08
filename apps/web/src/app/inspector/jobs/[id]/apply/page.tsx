@@ -97,7 +97,7 @@ export default async function InspectorApplyPage({
           <SummaryFact
             icon={<MapPin className="h-4 w-4" strokeWidth={1.75} />}
             label="Location"
-            value={job.locationCity ?? job.locationLabel ?? '—'}
+            value={job.locationLabel ?? job.locationCity ?? '—'}
           />
           <SummaryFact
             icon={<CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}

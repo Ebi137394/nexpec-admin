@@ -12,6 +12,7 @@ import { ArrowLeft } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { MeetingsPanel } from '@/components/marketplace/MeetingsPanel';
 import { InspectionMarketplaceAdminPanel } from '@/components/admin/InspectionMarketplaceAdminPanel';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = { title: 'Job detail' };
 export const dynamic = 'force-dynamic';
@@ -87,7 +88,7 @@ export default async function AdminJobDetailPage({ params }: { params: Promise<{
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span className="rounded-full border border-ink-600 px-2.5 py-1 font-semibold capitalize text-white/70">{String(job.status).replace(/_/g, ' ')}</span>
           {job.scheduled_date && (
-            <span className="rounded-full border border-ink-600 px-2.5 py-1 text-white/60">Scheduled {new Date(job.scheduled_date as string).toLocaleDateString()}</span>
+            <span className="rounded-full border border-ink-600 px-2.5 py-1 text-white/60">Scheduled {formatScheduledDate(job.scheduled_date as string)}</span>
           )}
           {job.job_country && <span className="rounded-full border border-ink-600 px-2.5 py-1 text-white/60">{job.job_country}</span>}
           {job.source_rfq_id && (

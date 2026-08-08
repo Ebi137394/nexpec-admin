@@ -18,7 +18,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(31);
 
 \set CL   'e1111111-1111-1111-1111-111111111111'
 \set INSP 'e2222222-2222-2222-2222-222222222222'
@@ -190,6 +190,99 @@ select is(
   (select payout_amount_cents from public.jobs_inspector_secure_view where id = :'MKT'),
   200000::bigint,
   'MARKETPLACE: inspector sees the advertised payout, and client budget stays masked');
+
+-- ── INSPECTOR JOB DETAIL (BUG A) ───────────────────────────────────────────
+--  Discover worked but "View Details" 42501'd: the detail screen still read
+--  public.jobs with payout_amount_cents in a JOINED-ARRAY projection (invisible
+--  to literal-string sweeps). These pin the DETAIL path, not just the list.
+set local request.jwt.claims to '{"sub":"e2222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+-- (a) the inspector can load a SINGLE open marketplace job's detail row
+select isnt_empty(
+  $$ select 1 from public.jobs_inspector_secure_view
+      where id = 'e7777777-7777-7777-7777-777777777777' $$,
+  'INSPECTOR DETAIL: can load an approved+open job by id via the seller view');
+
+-- (b) that detail row carries the authorized payout
+select is(
+  (select payout_amount_cents from public.jobs_inspector_secure_view where id = :'MKT'),
+  200000::bigint,
+  'INSPECTOR DETAIL: authorized payout is present');
+
+-- (c) …and NO buyer pricing, even on the detail surface
+select is_empty(
+  $$ select 1 from public.jobs_inspector_secure_view
+      where id = 'e7777777-7777-7777-7777-777777777777'
+        and (client_price_cents is not null or budget_cents is not null) $$,
+  'INSPECTOR DETAIL: buyer price and budget stay masked');
+
+-- ── WEB CREATION PARITY (scheduled_date + canonical site location) ─────────
+--  Web previously wrote ONLY location_city — no site text, no date — so a
+--  web-posted job reached mobile Job Details with a blank location and "N/A".
+--  These prove the canonical columns accept and return what web now writes.
+set local request.jwt.claims to '{"sub":"e1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+\set WEBJOB 'e8888888-8888-8888-8888-888888888888'
+insert into public.jobs (id, title, client_id, status, moderation_status,
+                         location, location_city, scheduled_date, budget_cents)
+values (:'WEBJOB','web-created parity job', :'CL', 'open','approved',
+        'Plant 3, 1200 Refinery Rd', 'Montreal', '2026-09-15T12:00:00Z', 230000);
+
+select is(
+  (select scheduled_date from public.jobs_secure_view where id = :'WEBJOB')::date,
+  '2026-09-15'::date,
+  'WEB PARITY: scheduled_date persists and is readable by the owning client');
+
+-- ★ CANONICAL CALENDAR-DATE ANCHOR ─────────────────────────────────────────
+--   jobs.scheduled_date is TIMESTAMPTZ, but it carries a CALENDAR DATE with no
+--   time-of-day meaning. Both platforms now serialize through
+--   packages/shared-core/src/domain/scheduledDate.ts, which anchors the
+--   user's LOCAL Y-M-D at 12:00:00.000Z.
+--
+--   Web previously stored 00:00Z (rendered a day early everywhere west of
+--   Greenwich) and mobile stored pickerDate.toISOString(), i.e. local midnight
+--   (stored a day early everywhere east of it). These assertions pin the anchor
+--   itself, then prove the intended day survives the three launch markets.
+select is(
+  (select scheduled_date from public.jobs_secure_view where id = :'WEBJOB'),
+  '2026-09-15T12:00:00Z'::timestamptz,
+  'ANCHOR: scheduled_date is stored at exactly the canonical noon-UTC instant');
+
+select is(
+  (select (scheduled_date AT TIME ZONE 'America/Toronto')::date
+     from public.jobs_secure_view where id = :'WEBJOB'),
+  '2026-09-15'::date,
+  'TZ PARITY: intended date survives a Montreal / America/Toronto viewer (UTC-4)');
+
+select is(
+  (select (scheduled_date AT TIME ZONE 'Europe/Berlin')::date
+     from public.jobs_secure_view where id = :'WEBJOB'),
+  '2026-09-15'::date,
+  'TZ PARITY: intended date survives a Europe/Berlin viewer (UTC+2)');
+
+select is(
+  (select (scheduled_date AT TIME ZONE 'Asia/Dubai')::date
+     from public.jobs_secure_view where id = :'WEBJOB'),
+  '2026-09-15'::date,
+  'TZ PARITY: intended date survives an Asia/Dubai viewer (UTC+4)');
+
+-- The anchor read back in UTC is the contract's own definition of the date,
+-- and is what every client now renders for canonical rows.
+select is(
+  (select (scheduled_date AT TIME ZONE 'UTC')::date
+     from public.jobs_secure_view where id = :'WEBJOB'),
+  '2026-09-15'::date,
+  'TZ PARITY: the UTC read-back equals the intended calendar date');
+
+select is(
+  (select location from public.jobs_secure_view where id = :'WEBJOB'),
+  'Plant 3, 1200 Refinery Rd',
+  'WEB PARITY: canonical site location (jobs.location) persists for the client');
+
+-- City must still be present: the concise label the list surfaces already use.
+select is(
+  (select location_city from public.jobs_secure_view where id = :'WEBJOB'),
+  'Montreal',
+  'WEB PARITY: existing city display is intact (no regression)');
 
 select * from finish();
 rollback;

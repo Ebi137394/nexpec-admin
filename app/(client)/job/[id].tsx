@@ -36,6 +36,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { nxHandle } from '@/src/core/utils/handle';
 // ★ AUDIT PARITY — per-job audit timeline (matches /(client)/jobs/[id]).
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 const COLORS = {
   background: '#020420',
@@ -368,7 +369,7 @@ export default function JobDetailScreen() {
               </View>
               <View style={styles.detailRow}>
                 <Calendar size={18} color={COLORS.textSecondary} />
-                <Text style={styles.detailText}>{formatDate(job.scheduled_date || new Date().toISOString())}</Text>
+                <Text style={styles.detailText}>{formatScheduledDate(job.scheduled_date)}</Text>
               </View>
               <View style={styles.detailRow}>
                 <DollarSign size={18} color={COLORS.success} />

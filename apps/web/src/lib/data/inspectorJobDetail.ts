@@ -45,7 +45,7 @@ export async function fetchInspectorJob(
     // 1. Job — STRICT projection. GOLDEN_RULE_2 enforced.
     //    DO NOT add budget_cents / client_price_cents / spread here.
     const { data: rawJob, error: jobErr } = await supabase
-      .from('jobs')
+      .from('jobs_inspector_secure_view')  // ★ 20260801318000 — WEB inspector job detail: payout columns are revoked on the base table; the seller view returns them and masks buyer pricing
       .select(
         [
           'id',

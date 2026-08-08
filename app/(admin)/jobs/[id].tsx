@@ -31,6 +31,7 @@ import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 import { adminDispatchJob } from '@/lib/assignJob';
 // ★ Layer 1+3 — passive inspection-domain badge (no-op for industrial_ndt)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 interface SelectedApplication {
   id: string;
@@ -785,7 +786,7 @@ export default function SpreadEditor() {
           <InfoRow
             icon="calendar-outline"
             label="Scheduled"
-            value={(job as any).scheduled_date ? new Date((job as any).scheduled_date).toLocaleDateString() : '—'}
+            value={formatScheduledDate((job as any).scheduled_date, { fallback: '—' })}
           />
           <InfoRow icon="cash-outline" label="Orig. Budget" value={currency((job as any).budget_cents)} />
         </View>

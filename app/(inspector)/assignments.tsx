@@ -20,6 +20,7 @@ import { router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 const C = {
   bg: '#020420', card: '#0B1138',
@@ -268,11 +269,11 @@ function formatCents(cents: number, currency = 'USD'): string {
   if (!Number.isFinite(cents)) return '$0.00';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(cents / 100);
 }
+// scheduled_date is a DATE-ONLY business field. Delegate to the one shared
+// contract (packages/shared-core/src/domain/scheduledDate.ts) so an inspector
+// in another timezone sees the same calendar day the client booked.
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatScheduledDate(iso, { fallback: '—' });
 }
 
 const s = StyleSheet.create({

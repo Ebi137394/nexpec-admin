@@ -386,7 +386,7 @@ export default function EnterpriseDashboard() {
 
       // 2) Jobs — GR2-safe projection. NO payout_amount_cents.
       const jobsPromise = supabase
-        .from('jobs')
+        .from('jobs_secure_view')  // ★ 20260801318000 — enterprise (buyer) dashboard: client_price_cents/price_cents are revoked on the base table; buyer view is row-gated to their own jobs
         .select(
           [
             'id',

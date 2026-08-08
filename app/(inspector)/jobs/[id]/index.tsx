@@ -28,6 +28,7 @@ import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 // =============================================================================
 // TYPES
@@ -119,6 +120,10 @@ export default function InspectorJobDetailScreen() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  // ★ Without this the fetch failure below fell through to `return null`,
+  //   which rendered NOTHING — so expo-router showed its default header with
+  //   the raw filesystem route name ("jobs/[id]/index"). Never again.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [application, setApplication] = useState<Application | null>(null);
@@ -232,7 +237,15 @@ export default function InspectorJobDetailScreen() {
     // because PostgREST 42703s the whole query if any column is bogus.
     // The UI falls back to 'Private Client' when company_name is undefined.
     const { data, error } = await supabase
-      .from('jobs')
+      // ★ 20260801318000 — this projection names payout_amount_cents, which is
+      //   REVOKED from `authenticated` on the base table, so this read failed
+      //   with 42501 "permission denied for table jobs" and the inspector's
+      //   View Details screen never rendered. Read the seller view instead: it
+      //   returns assigned / applied / open+approved rows to an inspector-role
+      //   caller and MASKS every buyer-pricing column, so the inspector gets
+      //   the authorized payout and can never see client price, budget or
+      //   platform spread. Same source Discover and Open Jobs already use.
+      .from('jobs_inspector_secure_view')
       .select(
         [
           'id',
@@ -258,8 +271,15 @@ export default function InspectorJobDetailScreen() {
 
     if (error) {
       console.error('Error fetching job:', error);
+      setLoadError(
+        error.code === '42501'
+          ? "You don't have access to this job."
+          : 'We couldn\u2019t load this job. Pull to retry.',
+      );
+      setLoading(false);
       return;
     }
+    setLoadError(null);
 
     setJob(data as any);
   };
@@ -634,6 +654,7 @@ const fetchApplication = async (uid: string) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -641,7 +662,35 @@ const fetchApplication = async (uid: string) => {
     );
   }
 
-  if (!job) return null;
+  if (!job) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.manualHeader}>
+          <TouchableOpacity
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/jobs'))}
+            style={styles.backButtonContainer}
+          >
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={styles.manualHeaderTitle}>{t('Job Details')}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={40} color={COLORS.warning} />
+          <Text style={[styles.manualHeaderTitle, { marginTop: 16, textAlign: 'center' }]}>
+            {loadError ?? 'Job unavailable'}
+          </Text>
+          <TouchableOpacity
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/jobs'))}
+            style={{ marginTop: 20, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.primary }}
+          >
+            <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: '700' }}>Back to jobs</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // LOGIC: Who sees what?
   const isClient = userId === job.client_id;
@@ -988,7 +1037,7 @@ const fetchApplication = async (uid: string) => {
               <Ionicons name="calendar-outline" size={20} color={COLORS.success} />
               <View style={styles.durationInfo}>
                 <Text style={styles.durationLabel}>{t('Start Date')}</Text>
-                <Text style={styles.durationValue}>{formatDate(job.scheduled_date)}</Text>
+                <Text style={styles.durationValue}>{formatScheduledDate(job.scheduled_date)}</Text>
               </View>
             </View>
             <View style={styles.durationDivider} />

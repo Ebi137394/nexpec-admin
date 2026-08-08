@@ -31,6 +31,7 @@ import { OnboardingChecklist } from '@/src/shared-ui/onboarding/OnboardingCheckl
 // Sprint 13.M3 — mobile parity for the web Cmd+K Global Search
 import { GlobalSearchBar } from '@/src/shared-ui/search/GlobalSearchBar';
 import type { InspectorDataReturn, MappedInspectorJob } from '../../types/inspector';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -286,11 +287,7 @@ const JobCard = React.memo(({ item }: { item: MappedInspectorJob }) => {
           <View style={styles.jobMeta}>
             <Ionicons name="calendar-outline" size={12} color="#94A3B8" />
             <Text style={styles.jobMetaText}>
-              {new Date(item.scheduled_date).toLocaleDateString('en-SA', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })}
+              {formatScheduledDate(item.scheduled_date)}
             </Text>
           </View>
         )}

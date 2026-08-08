@@ -50,6 +50,7 @@ import type { InspectorApplicationStatus } from '@/lib/data/openJobs.types';
 import type { JobUrgency } from '@/lib/data/clientJobs.types';
 import { withdrawApplication } from '@/lib/actions/inspectorApply';
 import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -292,7 +293,7 @@ export default async function InspectorJobDetailPage({
         <FactTile
           icon={<MapPin className="h-4 w-4" strokeWidth={1.75} />}
           label="Location"
-          value={job.locationCity ?? job.locationLabel ?? '—'}
+          value={job.locationLabel ?? job.locationCity ?? '—'}
         />
         <FactTile
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
@@ -303,9 +304,7 @@ export default async function InspectorJobDetailPage({
           icon={<CalendarDays className="h-4 w-4" strokeWidth={1.75} />}
           label="Scheduled"
           value={
-            job.scheduledDate
-              ? new Date(job.scheduledDate).toLocaleDateString()
-              : 'TBD'
+            formatScheduledDate(job.scheduledDate, { fallback: 'TBD' })
           }
         />
       </section>

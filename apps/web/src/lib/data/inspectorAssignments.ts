@@ -171,7 +171,7 @@ export async function fetchInspectorAssignments(): Promise<BucketedAssignments> 
 
     // 3. Jobs — strict projection. GOLDEN_RULE_2 enforced.
     const { data: rawJobs, error: jobsErr } = await supabase
-      .from('jobs')
+      .from('jobs_inspector_secure_view')  // ★ 20260801318000 — inspector assignments: payout columns are revoked on the base table; seller view is the authorized source
       .select(
         [
           'id',

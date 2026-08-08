@@ -21,6 +21,14 @@ const DEFAULT_REGION: Region = { latitude: 45.5017, longitude: -73.5673, latitud
 const TABS = [ { key: 'discover', label: 'Discover', icon: 'compass-outline' as const }, { key: 'mywork', label: 'My Work', icon: 'briefcase-outline' as const } ];
 type ViewMode = 'work' | 'postings';
 
+// ★ LOCATION DISPLAY RULE (two distinct concepts, one rule each):
+//   • location_city  = concise city/market label  → preferred on CARDS/LISTS
+//   • location       = the site/address the client typed → preferred on DETAIL
+//   So: card = location_city ?? location ; detail = location ?? location_city.
+//   Detail screens apply this at their mapping seam (see (tabs)/jobs/[id].tsx);
+//   cards apply it here. Neither ever fabricates a location.
+
+
 const formatDate = (dateStr: string) => { const d = new Date(dateStr); const diffMins = Math.floor((new Date().getTime() - d.getTime()) / 60000); if (diffMins < 1) return 'Just now'; if (diffMins < 60) return `${diffMins}m ago`; return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
 const getJobStatusConfig = (status: string) => { switch (status) { case 'assigned': case 'in_progress': return { label: 'Active', color: COLORS.blue, bg: COLORS.blueBg, icon: 'play-circle' as const }; case 'pending': case 'pending_approval': return { label: 'Pending', color: COLORS.amber, bg: COLORS.amberBg, icon: 'time' as const }; case 'completed': return { label: 'Completed', color: COLORS.green, bg: COLORS.greenBg, icon: 'checkmark-circle' as const }; case 'cancelled': return { label: 'Cancelled', color: COLORS.red, bg: COLORS.redBg, icon: 'close-circle' as const }; case 'open': return { label: 'Open', color: COLORS.cyan, bg: COLORS.cyanBg, icon: 'radio-button-on' as const }; default: return { label: status, color: COLORS.textMuted, bg: 'rgba(100,116,139,0.12)', icon: 'ellipse' as const }; } };
 
@@ -44,7 +52,7 @@ const DiscoverJobCard: React.FC<{ job: any; selected: boolean; onPress: () => vo
   const distLabel = formatDistance(job.distance_km);
   return (
   <TouchableOpacity style={[st.discoverCard, selected && st.discoverCardSelected]} onPress={onPress} activeOpacity={0.85}>
-    <View style={st.discoverTop}><View style={{ flex: 1 }}><Text style={st.discoverTitle} numberOfLines={1}>{job.title || 'Untitled Job'}</Text><View style={st.discoverLocRow}><Ionicons name="location-outline" size={13} color={COLORS.textMuted} /><Text style={st.discoverAddress} numberOfLines={1}>{job.location || job.location_city || [job.city, job.state, job.country].filter(Boolean).join(', ') || 'No location'}</Text>{distLabel && (<Text style={st.discoverDistText} numberOfLines={1}>{distLabel}</Text>)}</View></View><View style={st.discoverBudgeBadge}><Text style={st.discoverBudgeText}>{job.payout_amount_cents > 0 ? `$${Math.round(job.payout_amount_cents / 100)}` : 'TBD'}</Text></View></View>
+    <View style={st.discoverTop}><View style={{ flex: 1 }}><Text style={st.discoverTitle} numberOfLines={1}>{job.title || 'Untitled Job'}</Text><View style={st.discoverLocRow}><Ionicons name="location-outline" size={13} color={COLORS.textMuted} /><Text style={st.discoverAddress} numberOfLines={1}>{job.location_city || job.location || [job.city, job.state, job.country].filter(Boolean).join(', ') || 'No location'}</Text>{distLabel && (<Text style={st.discoverDistText} numberOfLines={1}>{distLabel}</Text>)}</View></View><View style={st.discoverBudgeBadge}><Text style={st.discoverBudgeText}>{job.payout_amount_cents > 0 ? `$${Math.round(job.payout_amount_cents / 100)}` : 'TBD'}</Text></View></View>
     <View style={st.discoverTagRow}>
       <View style={[st.discoverTag, { backgroundColor: COLORS.greenBg }]}><Text style={[st.discoverTagText, { color: COLORS.green }]}>Open</Text></View>
       {(job.job_type || job.inspection_type) && ( <View style={[st.discoverTag, { backgroundColor: COLORS.primaryBg }]}><Text style={[st.discoverTagText, { color: COLORS.primaryLight }]}>{job.job_type || job.inspection_type}</Text></View> )}
@@ -92,7 +100,7 @@ const MyWorkJobCard: React.FC<{ job: any; onPress: () => void; onGeneratePDF: ()
   const cfg = getJobStatusConfig(job.status);
   return (
     <TouchableOpacity style={st.myJobCard} onPress={onPress} activeOpacity={0.85}>
-      <View style={st.myJobTopRow}><View style={{ flex: 1 }}><Text style={st.myJobTitle} numberOfLines={1}>{job.title || 'Untitled Job'}</Text><View style={st.myJobLocRow}><Ionicons name="location-outline" size={13} color={COLORS.textMuted} /><Text style={st.myJobAddress} numberOfLines={1}>{job.location || job.location_city || [job.city, job.state, job.country].filter(Boolean).join(', ') || 'No location'}</Text></View></View><View style={[st.statusBadge, { backgroundColor: cfg.bg }]}><Ionicons name={cfg.icon} size={12} color={cfg.color} /><Text style={[st.statusBadgeText, { color: cfg.color }]}>{cfg.label}</Text></View></View>
+      <View style={st.myJobTopRow}><View style={{ flex: 1 }}><Text style={st.myJobTitle} numberOfLines={1}>{job.title || 'Untitled Job'}</Text><View style={st.myJobLocRow}><Ionicons name="location-outline" size={13} color={COLORS.textMuted} /><Text style={st.myJobAddress} numberOfLines={1}>{job.location_city || job.location || [job.city, job.state, job.country].filter(Boolean).join(', ') || 'No location'}</Text></View></View><View style={[st.statusBadge, { backgroundColor: cfg.bg }]}><Ionicons name={cfg.icon} size={12} color={cfg.color} /><Text style={[st.statusBadgeText, { color: cfg.color }]}>{cfg.label}</Text></View></View>
       <View style={st.myJobActions}>
         <Text style={st.myJobDateText}>Created {formatDate(job.created_at)}</Text>
         <View style={st.myJobBtnRow}>

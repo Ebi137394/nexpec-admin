@@ -28,6 +28,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/src/contexts/AuthContext';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { toCanonicalScheduledDate } from '@nexpec/shared-core';
 
 const COLORS = {
   background: '#020420',
@@ -136,7 +137,13 @@ export default function CreateJobScreen() {
           title: formData.title.trim(),
           description: formData.description.trim(),
           location: formData.location.trim(),
-          scheduled_date: formData.scheduled_date.toISOString(),
+          // ★ NOT .toISOString(). The picker hands back a Date at LOCAL
+          //   midnight; serializing that instant shifts the calendar day for
+          //   any creator east of Greenwich (Berlin picks Sep 15 → Sep 14Z).
+          //   The helper extracts the LOCAL Y/M/D the user actually saw and
+          //   rebuilds the canonical noon-UTC anchor — the exact same string
+          //   the web action produces for the same chosen date.
+          scheduled_date: toCanonicalScheduledDate(formData.scheduled_date),
           // Canonical jobs money column is budget_cents (there is no `budget`
           // column) — form input is in dollars, store integer cents.
           budget_cents: Math.round(parseFloat(formData.budget) * 100),

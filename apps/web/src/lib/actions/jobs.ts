@@ -17,6 +17,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { toCanonicalScheduledDate } from '@nexpec/shared-core';
 
 const URGENCY_VALUES = ['low', 'normal', 'high', 'critical'] as const;
 const JOB_TYPES = ['on_site', 'remote'] as const;
@@ -37,6 +38,29 @@ const CreateJobSchema = z.object({
     .trim()
     .min(2, { message: 'City is required.' })
     .max(120),
+  // ★ WEB CREATION PARITY — mobile (app/(client)/create.tsx) has always written
+  //   jobs.location (the site/address text the client types) while web wrote
+  //   ONLY jobs.location_city. The web data layer already reads `location` and
+  //   surfaces it as `locationLabel` (inspectorJobDetail.ts, jobApplications.ts),
+  //   so the column is canonical and consumed — it was simply never populated
+  //   from web. Optional: not every buyer has a street address for a site.
+  siteLocation: z
+    .string()
+    .trim()
+    .max(300, { message: 'Site location is too long.' })
+    .optional()
+    .or(z.literal('')),
+  // ★ Canonical schedule column is jobs.scheduled_date (mobile already writes
+  //   it). Date-only in the existing UX, so we accept YYYY-MM-DD and store it
+  //   as a timestamptz at midnight. Optional by design: a flexible job may be
+  //   posted before a date is agreed — surfaces render "Not scheduled yet".
+  scheduledDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Use a valid date.' })
+    .refine((v) => !Number.isNaN(Date.parse(v)), { message: 'Use a valid date.' })
+    .optional()
+    .or(z.literal('')),
   budgetDollars: z
     .coerce.number({ message: 'Budget must be a number.' })
     .int({ message: 'Whole dollars only.' })
@@ -107,6 +131,8 @@ export async function createJob(formData: FormData): Promise<void> {
     title: formData.get('title'),
     description: formData.get('description'),
     locationCity: formData.get('locationCity'),
+    siteLocation: formData.get('siteLocation') ?? '',
+    scheduledDate: formData.get('scheduledDate') ?? '',
     budgetDollars: formData.get('budgetDollars'),
     urgency: formData.get('urgency') ?? 'normal',
     jobType: formData.get('jobType') ?? 'on_site',
@@ -324,6 +350,18 @@ export async function createJob(formData: FormData): Promise<void> {
     title: input.title,
     description: input.description,
     location_city: input.locationCity,
+    // Written only when the client actually supplied them — a NULL here means
+    // "not provided", which the read surfaces render as "Not scheduled yet" /
+    // fall back to the city. We never fabricate a site address or a date.
+    ...(input.siteLocation && input.siteLocation.length > 0
+      ? { location: input.siteLocation }
+      : {}),
+    // ★ ONE canonical calendar-date contract, shared with mobile. See
+    //   packages/shared-core/src/domain/scheduledDate.ts. Do not inline a
+    //   second serialization here — that divergence was the original bug.
+    ...(toCanonicalScheduledDate(input.scheduledDate)
+      ? { scheduled_date: toCanonicalScheduledDate(input.scheduledDate) as string }
+      : {}),
     budget_cents: input.budgetDollars * 100,
     urgency: input.urgency,
     job_type: input.jobType,

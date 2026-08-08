@@ -19,6 +19,7 @@ import { nxHandle } from '@/src/core/utils/handle';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 const COLORS = {
   background: '#020420', card: '#0A0D2C', cardBorder: '#1A1D3C',
@@ -36,14 +37,10 @@ const SAFE_PROFILE_FIELDS = [
   'rating_average', 'rating', 'completed_jobs_count', 'total_jobs',
 ] as const;
 
-const formatDate = (dateString?: string | null): string => {
-  if (!dateString) return 'N/A';
-  try {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric'
-    });
-  } catch (e) { return 'N/A'; }
-};
+// ★ The local formatDate() that used to live here rendered scheduled_date in
+//   the VIEWER's zone, which drifted a day for anchored calendar dates. All
+//   scheduled_date rendering now goes through formatScheduledDate() from
+//   @nexpec/shared-core — one contract, shared with web.
 
 // Helper: pick only whitelisted safe fields from a raw profile row
 const sanitizeProfile = (raw: any): Record<string, any> => {
@@ -495,7 +492,7 @@ export default function JobDetailScreen() {
               </View>
               <View style={styles.detailRow}>
                 <Calendar size={18} color={COLORS.textSecondary} />
-                <Text style={styles.detailText}>{formatDate(job.scheduled_date)}</Text>
+                <Text style={styles.detailText}>{formatScheduledDate(job.scheduled_date)}</Text>
               </View>
               <View style={styles.detailRow}>
                 <DollarSign size={18} color={COLORS.success} />

@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { CalendarDays, ClipboardList, MapPin, Users } from 'lucide-react';
 import { fetchTeamJobs } from '@/lib/data/teamWorkspace';
 import { domainLabel } from '@/lib/data/teaser';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const dynamic = 'force-dynamic';
 
@@ -107,11 +108,7 @@ export default async function TeamMissionsPage() {
                     {j.scheduled_date ? (
                       <span className="inline-flex items-center gap-1.5">
                         <CalendarDays className="h-3.5 w-3.5 text-violet-glow/70" aria-hidden />
-                        {new Date(j.scheduled_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatScheduledDate(j.scheduled_date)}
                       </span>
                     ) : (
                       '—'

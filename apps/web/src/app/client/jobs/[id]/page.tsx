@@ -35,6 +35,7 @@ import { EvidencePackButton } from '@/components/compliance/EvidencePackButton';
 // Layer 1+4 — passive, launch-state-gated inspection-domain badge.
 import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
 import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = {
   title: 'Job detail',
@@ -185,7 +186,7 @@ export default async function ClientJobDetailPage({
         <FactTile
           icon={<MapPin className="h-4 w-4" strokeWidth={1.75} />}
           label="Location"
-          value={job.locationCity ?? job.locationLabel ?? '—'}
+          value={job.locationLabel ?? job.locationCity ?? '—'}
         />
         <FactTile
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
@@ -196,9 +197,7 @@ export default async function ClientJobDetailPage({
           icon={<CalendarDays className="h-4 w-4" strokeWidth={1.75} />}
           label="Scheduled"
           value={
-            job.scheduledDate
-              ? new Date(job.scheduledDate).toLocaleDateString()
-              : 'TBD'
+            formatScheduledDate(job.scheduledDate, { fallback: 'TBD' })
           }
         />
       </section>

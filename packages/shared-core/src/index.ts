@@ -25,6 +25,7 @@ export * from './storage/signedUrls';
 export * from './domain/jobStatus';
 export * from './domain/money';
 export * from './domain/audit';
+export * from './domain/scheduledDate';
 export * from './schemas/jobs';
 export * from './schemas/disputes';
 export * from './schemas/payouts';

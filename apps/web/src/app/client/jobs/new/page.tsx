@@ -130,6 +130,27 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
               <option value="remote">Remote / desk review</option>
             </Select>
           </div>
+          {/* ★ WEB/MOBILE PARITY — mobile job creation has always captured the
+              site/location text into jobs.location; web captured only the city,
+              so a web-posted job reached the inspector with no site detail and
+              reached mobile Job Details blank. Both are optional: a buyer may
+              legitimately post before a site address is fixed, and we never
+              fabricate one. */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <Field
+              label="Inspection site / address"
+              name="siteLocation"
+              maxLength={300}
+              placeholder="Plant 3, 1200 Refinery Rd"
+              hint="Optional. Where the inspection actually happens — shown to the assigned inspector."
+            />
+            <Field
+              label="Scheduled date"
+              name="scheduledDate"
+              type="date"
+              hint="Optional. Leave blank if the date is still flexible."
+            />
+          </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Select label="Urgency" name="urgency" defaultValue="normal">
               <option value="low">Low, flexible scheduling</option>

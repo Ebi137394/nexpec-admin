@@ -28,6 +28,7 @@ import type {
   OpenJobRow,
 } from '@/lib/data/openJobs.types';
 import type { JobUrgency } from '@/lib/data/clientJobs.types';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = {
   title: 'Open jobs',
@@ -438,7 +439,7 @@ function JobCard({ job }: { job: OpenJobRow }) {
         )}
         {job.scheduledDate && (
           <span className="inline-flex items-center gap-1">
-            scheduled, {new Date(job.scheduledDate).toLocaleDateString()}
+            scheduled, {formatScheduledDate(job.scheduledDate)}
           </span>
         )}
         {job.acceptsRemoteInspectors && (

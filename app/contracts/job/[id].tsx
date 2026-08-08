@@ -101,6 +101,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { enqueueContractSign, isOnline, flushQueue, opStillQueued } from '@/lib/offline';
+import { formatScheduledDate } from '@nexpec/shared-core';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Theme — same vocabulary as enterprise dashboard + contracts hub
@@ -724,11 +725,7 @@ export default function JobContractSigningScreen() {
                     <View style={s.jobMetaChip}>
                       <Calendar size={10} color={C.textMuted} />
                       <Text style={s.jobMetaText} numberOfLines={1}>
-                        {new Date(job.scheduled_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatScheduledDate(job.scheduled_date)}
                       </Text>
                     </View>
                   ) : null}

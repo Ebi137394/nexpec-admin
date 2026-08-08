@@ -15,7 +15,12 @@ import { jobFieldsForRole, jobsRelationForRole } from '@/lib/jobsProjection';
 // ★ ANTI-POACHING + AUDIT PARITY — pseudonymous handle + per-job audit timeline,
 //   matching the canonical /(client)/jobs/[id] screen (this stale tab copy had
 //   diverged and still leaked real name/photo/CV).
-import { nxHandle } from '@/src/core/utils/handle';
+import {
+  fetchJobApplicantDisclosure,
+  displayNameFor,
+  mergeApplicantProfile,
+  type ApplicantDisclosure,
+} from '@/lib/identityDisclosure';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
@@ -63,6 +68,8 @@ export default function JobDetailScreen() {
 
   const [job, setJob] = useState<any>(null);
   const [proposals, setProposals] = useState<any[]>([]);
+  // Job-scoped identity disclosure (20260801322000). Empty map = protected.
+  const [disclosure, setDisclosure] = useState<Map<string, ApplicantDisclosure>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hiringId, setHiringId] = useState<string | null>(null);
@@ -217,7 +224,16 @@ export default function JobDetailScreen() {
         };
       });
 
-      setProposals(mappedProposals);
+      // ★ Job-scoped identity disclosure. After 20260801324000 the raw profiles
+      //   read above returns NOTHING to a buyer unless the job is in Full mode
+      //   — RLS enforces the mode now, not the projection. Merge the lawful
+      //   view over it so reputation/discipline survive under Protected.
+      const disc = await fetchJobApplicantDisclosure(String(id));
+      setDisclosure(disc);
+      setProposals(mappedProposals.map((mp: any) => {
+        const aid = String(resolveApplicantId(mp) ?? mp?.applicant?.id ?? '');
+        return { ...mp, applicant: mergeApplicantProfile(aid, mp?.applicant, disc.get(aid)) };
+      }));
     } catch (error: any) {
       console.error('[JobDetails] Fatal error in fetchJobDetails:', error);
     } finally {
@@ -517,14 +533,16 @@ export default function JobDetailScreen() {
                 activeOpacity={0.85}
                 onPress={() =>
                   acceptedProposal.applicant?.id &&
-                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}` as any)
+                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}?jobId=${id}` as any)
                 }
               >
                 <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
                   <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                 </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant?.id)}</Text>
+                  <Text style={styles.hiredName}>
+                    {displayNameFor(acceptedProposal.applicant?.id, disclosure.get(acceptedProposal.applicant?.id))}
+                  </Text>
                   <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.professional_title || t('Inspector')}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -650,7 +668,7 @@ export default function JobDetailScreen() {
                   activeOpacity={0.7}
                   onPress={() =>
                     proposal.applicant?.id &&
-                    router.push(`/(client)/inspector/${proposal.applicant.id}` as any)
+                    router.push(`/(client)/inspector/${proposal.applicant.id}?jobId=${id}` as any)
                   }
                 >
                   {/* ANTI-POACHING: pseudonymous sigil + NX handle only. Tapping
@@ -661,7 +679,9 @@ export default function JobDetailScreen() {
                     <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                   </View>
                   <View style={styles.proposalInfo}>
-                    <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
+                    <Text style={styles.proposalName}>
+                      {displayNameFor(proposal.applicant?.id, disclosure.get(proposal.applicant?.id))}
+                    </Text>
                     <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || t('Inspector')}</Text>
                   </View>
                 </TouchableOpacity>

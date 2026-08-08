@@ -34,6 +34,12 @@ import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { nxHandle } from '@/src/core/utils/handle';
+import {
+  fetchJobApplicantDisclosure,
+  displayNameFor,
+  mergeApplicantProfile,
+  type ApplicantDisclosure,
+} from '@/lib/identityDisclosure';
 // ★ AUDIT PARITY — per-job audit timeline (matches /(client)/jobs/[id]).
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { formatScheduledDate } from '@nexpec/shared-core';
@@ -87,6 +93,8 @@ export default function JobDetailScreen() {
   const { session } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  // Job-scoped identity disclosure (20260801322000). Empty map = protected.
+  const [disclosure, setDisclosure] = useState<Map<string, ApplicantDisclosure>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hiringId, setHiringId] = useState<string | null>(null);
@@ -128,6 +136,7 @@ export default function JobDetailScreen() {
         .from('applications')
         .select(`
           id,
+          applicant_id,
           proposed_price_cents,
           cover_letter,
           status,
@@ -159,6 +168,17 @@ export default function JobDetailScreen() {
       }));
 
       setProposals(mappedData as any);
+      // ★ Job-scoped identity disclosure: the DB resolves jobs.identity_mode
+      //   and NULLs every field the mode forbids. Protected stays protected.
+      const disc = await fetchJobApplicantDisclosure(String(params.id));
+      setDisclosure(disc);
+      // 20260801324000 darkens the raw profiles join outside Full mode.
+      // Key off applications.applicant_id: under Protected the raw join is
+      // NULL, so the joined profile's id is exactly what we cannot rely on.
+      setProposals(mappedData.map((mp: any) => {
+        const aid = String(mp?.applicant_id ?? mp?.applicant?.id ?? '');
+        return { ...mp, applicant: mergeApplicantProfile(aid, mp?.applicant, disc.get(aid)) };
+      }) as any);
       
       // Fetch inspection report for this job
       try {
@@ -416,14 +436,16 @@ export default function JobDetailScreen() {
                 activeOpacity={0.85}
                 onPress={() =>
                   acceptedProposal.applicant?.id &&
-                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}` as any)
+                  router.push(`/(client)/inspector/${acceptedProposal.applicant.id}?jobId=${id}` as any)
                 }
               >
                 <View style={[styles.hiredAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#312E81' }]}>
                   <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                 </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant?.id)}</Text>
+                  <Text style={styles.hiredName}>
+                    {displayNameFor(acceptedProposal.applicant?.id, disclosure.get(acceptedProposal.applicant?.id))}
+                  </Text>
                   <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.headline}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -519,7 +541,9 @@ export default function JobDetailScreen() {
                       <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                     </View>
                     <View style={styles.proposalInfo}>
-                      <Text style={styles.proposalName}>{nxHandle(proposal.applicant?.id)}</Text>
+                      <Text style={styles.proposalName}>
+                      {displayNameFor(proposal.applicant?.id, disclosure.get(proposal.applicant?.id))}
+                    </Text>
                       <Text style={styles.proposalHeadline} numberOfLines={1}>
                         {proposal.applicant?.headline}
                       </Text>

@@ -36,7 +36,13 @@ import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { hireContractor } from '@/lib/contracts';
-import { nxHandle } from '@/src/core/utils/handle';
+import {
+  fetchJobApplicantDisclosure,
+  displayNameFor,
+  isProfessionallyDisclosed,
+  mergeApplicantProfile,
+  type ApplicantDisclosure,
+} from '@/lib/identityDisclosure';
 import { formatScheduledDate } from '@nexpec/shared-core';
 
 const COLORS = {
@@ -96,6 +102,8 @@ export default function JobDetailScreen() {
   // Client → Admin selection modal (restored: state was referenced by
   // openApprovalModal/submitToAdmin + the modal JSX but never declared).
   const [proposalToApprove, setProposalToApprove] = useState<Proposal | null>(null);
+  // Job-scoped identity disclosure, keyed by applicant id. Empty = protected.
+  const [disclosure, setDisclosure] = useState<Map<string, ApplicantDisclosure>>(new Map());
   const [clientComment, setClientComment] = useState('');
   const [commentModalVisible, setCommentModalVisible] = useState(false);
 
@@ -135,6 +143,7 @@ export default function JobDetailScreen() {
         .from('applications')
         .select(`
           id,
+          applicant_id,
           bid_amount_cents,
           cover_letter,
           status,
@@ -176,7 +185,19 @@ export default function JobDetailScreen() {
                 completed_jobs_count: 0 
               },
         }));
-        setProposals(mappedProposals as any);
+        // ★ IDENTITY DISCLOSURE (job-scoped). The pseudonym is NOT the product
+        //   rule — jobs.identity_mode is. Read the server-resolved projection
+        //   for THIS job; it returns NULL for every field the mode forbids, so
+        //   Protected stays protected and no client branch can widen it.
+        //   20260801324000 darkens the raw profiles join outside Full mode, so
+        //   the merge key MUST be applications.applicant_id — the joined
+        //   profile's own id is absent exactly when Protected applies.
+        const disc = await fetchJobApplicantDisclosure(String(id));
+        setDisclosure(disc);
+        setProposals(mappedProposals.map((mp: any) => {
+          const aid = String(mp?.applicant_id ?? mp?.applicant?.id ?? '');
+          return { ...mp, applicant: mergeApplicantProfile(aid, mp?.applicant, disc.get(aid)) };
+        }) as any);
       }
 
       // Fetch the latest inspection report for this job so the report card
@@ -333,7 +354,11 @@ export default function JobDetailScreen() {
   const acceptedProposal = proposals.find((p) => ['accepted', 'CLIENT_SELECTED'].includes(p.status));
 
   // Helper to get headline from profile
+  // ★ Professional/Full may release a real headline; Protected must not. The
+  //   DB decides — a NULL here means "not disclosed", never "fall back to PII".
   const getHeadline = (applicant: Proposal['applicant']) => {
+    const d = disclosure.get(applicant.id);
+    if (isProfessionallyDisclosed(d) && d?.headline?.trim()) return d.headline.trim();
     return applicant.professional_title || applicant.title || 'Inspector';
   };
 
@@ -485,7 +510,9 @@ export default function JobDetailScreen() {
                   <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                 </View>
                 <View style={styles.hiredInfo}>
-                  <Text style={styles.hiredName}>{nxHandle(acceptedProposal.applicant.id)}</Text>
+                  <Text style={styles.hiredName}>
+                    {displayNameFor(acceptedProposal.applicant.id, disclosure.get(acceptedProposal.applicant.id))}
+                  </Text>
                   <Text style={styles.hiredHeadline}>{getHeadline(acceptedProposal.applicant)}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
@@ -541,7 +568,9 @@ export default function JobDetailScreen() {
                       <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>NX</Text>
                     </View>
                     <View style={styles.proposalInfo}>
-                      <Text style={styles.proposalName}>{nxHandle(proposal.applicant.id)}</Text>
+                      <Text style={styles.proposalName}>
+                        {displayNameFor(proposal.applicant.id, disclosure.get(proposal.applicant.id))}
+                      </Text>
                       <Text style={styles.proposalHeadline} numberOfLines={1}>
                         {getHeadline(proposal.applicant)}
                       </Text>

@@ -23,6 +23,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { nxHandle, nxHash } from '../../../src/core/utils/handle';
+import {
+  fetchApplicantDisclosure,
+  isProfessionallyDisclosed,
+  type ApplicantDisclosure,
+} from '@/lib/identityDisclosure';
 
 // PII-free columns — mirrors the web fetchInspectorTrustCard projection over the
 // `inspectors_directory` view. NEVER add name / avatar / bio / city / contact.
@@ -88,8 +93,13 @@ const sigilColors = (id: string): [string, string] => {
 
 export default function InspectorTrustCardScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // ★ jobId makes this screen JOB-SCOPED. Without it the screen is a pure
+  //   pre-engagement browse card and stays anonymous — which is correct.
+  //   With it, the per-job identity_mode governs what may be shown, and the
+  //   DB (job_applicant_identity_view) decides, not this component.
+  const { id, jobId } = useLocalSearchParams<{ id: string; jobId?: string }>();
   const [card, setCard] = useState<TrustCard | null>(null);
+  const [disclosure, setDisclosure] = useState<ApplicantDisclosure | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,6 +114,10 @@ export default function InspectorTrustCardScreen() {
           .eq('id', id)
           .maybeSingle();
         if (alive) setCard((data as unknown as TrustCard) ?? null);
+        if (jobId) {
+          const d = await fetchApplicantDisclosure(String(jobId), String(id));
+          if (alive) setDisclosure(d);
+        }
       } catch {
         if (alive) setCard(null);
       } finally {
@@ -111,9 +125,11 @@ export default function InspectorTrustCardScreen() {
       }
     })();
     return () => { alive = false; };
-  }, [id]);
+  }, [id, jobId]);
 
   const handle = nxHandle(id);
+  // Disclosed ONLY when the server released a real name for THIS job.
+  const disclosed = isProfessionallyDisclosed(disclosure) && !!disclosure?.displayName?.trim();
   const [g1, g2] = useMemo(() => sigilColors(id ?? ''), [id]);
 
   const competencies = useMemo(() => {
@@ -167,8 +183,10 @@ export default function InspectorTrustCardScreen() {
                 <Text style={s.sigilGlyph}>{handle.slice(3, 5)}</Text>
               </LinearGradient>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.title}>NEXPEC-Verified Inspector</Text>
-                <Text style={s.handle}>{handle}</Text>
+                <Text style={s.title}>
+                  {disclosed ? disclosure?.displayName : 'NEXPEC-Verified Inspector'}
+                </Text>
+                <Text style={s.handle}>{disclosed ? (disclosure?.headline ?? handle) : handle}</Text>
                 <Text style={s.sub}>Inspector{region ? `, Region: ${region}` : ''}</Text>
                 {isVerified && (
                   <View style={s.badge}>
@@ -178,14 +196,25 @@ export default function InspectorTrustCardScreen() {
                 )}
               </View>
             </View>
-            <View style={s.lockNote}>
-              <Ionicons name="lock-closed" size={14} color={C.cyan} style={{ marginTop: 1 }} />
-              <Text style={s.lockTxt}>
-                Identity is protected by NEXPEC. You’re seeing platform-verified capability
-                and performance — no résumé, no bias. Engagement happens securely through
-                NEXPEC with payment hold and dispute protection.
-              </Text>
-            </View>
+            {disclosed ? (
+              <View style={s.lockNote}>
+                <Ionicons name="id-card" size={14} color={C.cyan} style={{ marginTop: 1 }} />
+                <Text style={s.lockTxt}>
+                  {disclosure?.identityMode === 'full'
+                    ? 'Full disclosure is authorized for this project. Contact details are released to you for this project only.'
+                    : 'Professional disclosure is authorized for this project: name, résumé and certifications. Private contact details remain protected.'}
+                </Text>
+              </View>
+            ) : (
+              <View style={s.lockNote}>
+                <Ionicons name="lock-closed" size={14} color={C.cyan} style={{ marginTop: 1 }} />
+                <Text style={s.lockTxt}>
+                  Identity is protected by NEXPEC. You’re seeing platform-verified capability
+                  and performance — no résumé, no bias. Engagement happens securely through
+                  NEXPEC with payment hold and dispute protection.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Performance metrics */}

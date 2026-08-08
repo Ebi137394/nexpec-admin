@@ -39,7 +39,8 @@ interface Job {
   title: string;
   company_name: string;
   company_logo: string | null;
-  location: string;
+  location: string | null;
+  location_city?: string | null;
   job_type: string;
   // ★ Layer 1+4 — backfilled to 'industrial_ndt' for every existing job.
   //   The InspectionDomainBadge gates rendering on requireLaunched, so this
@@ -251,6 +252,11 @@ export default function InspectorJobDetailScreen() {
           'id',
           'title',
           'location',
+          // ★ BUG FIX — jobs created before the web site-address field existed
+          //   have location = NULL but a valid location_city (which is why
+          //   Discover shows "montreal" while this screen went blank). Ask for
+          //   BOTH and fall back; never fabricate an address.
+          'location_city',
           'job_type',
           'payout_amount_cents',
           'description',
@@ -400,7 +406,9 @@ const fetchApplication = async (uid: string) => {
     try {
       await Share.share({
         title: job.title,
-        message: `${t('Check out this job:')} ${job.title} ${t('in')} ${job.location}`,
+        message: `${t('Check out this job:')} ${job.title}${
+          job.location || job.location_city ? ` ${t('in')} ${job.location || job.location_city}` : ''
+        }`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -633,6 +641,14 @@ const fetchApplication = async (uid: string) => {
     });
   };
 
+  // ★ LOCATION DISPLAY RULE (detail screen = site-first). `location` is the
+  //   site/address the client typed; `location_city` is the concise market
+  //   label. Pre-existing jobs predate the web site-address field and carry
+  //   only the city — falling through to it is why Discover worked and this
+  //   screen did not. An honest empty state, never a fabricated address.
+  const jobLocationLabel =
+    job?.location?.trim() || job?.location_city?.trim() || t('Location not provided');
+
   const getJobStatusConfig = (status: string) => {
     switch (status) {
       case 'closed':
@@ -776,7 +792,7 @@ const fetchApplication = async (uid: string) => {
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
               <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.metaText}>{job.location}</Text>
+              <Text style={styles.metaText}>{jobLocationLabel}</Text>
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="briefcase-outline" size={16} color={COLORS.textSecondary} />

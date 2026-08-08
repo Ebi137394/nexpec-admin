@@ -48,15 +48,21 @@ for f in \
   supabase/migrations/20260801314000_revoke_remaining_unguarded_definer_rpcs.sql \
   supabase/migrations/20260801316000_nx_notify_lockdown.sql \
   supabase/migrations/20260801318000_jobs_payout_column_privilege_symmetry.sql \
+  supabase/migrations/20260801320000_discover_jobs_read_via_seller_view.sql \
+  supabase/migrations/20260801322000_job_scoped_applicant_identity_and_audit_actor.sql \
+  supabase/migrations/20260801324000_profiles_identity_mode_lockdown.sql \
   supabase/tests/admin_direct_assignment_test.sql \
+  supabase/tests/identity_disclosure_test.sql \
   supabase/tests/inspector_price_blindness_test.sql \
   supabase/tests/rls_jobs_price_blindness_test.sql \
   supabase/tests/rpc_authorization_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
-  supabase/rollback/20260801318000_rollback.sql ; do
+  supabase/rollback/20260801318000_rollback.sql \
+  supabase/rollback/20260801322000_rollback.sql \
+  supabase/rollback/20260801324000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "8 migrations, 4 test suites and 2 rollback scripts are present"
+ok "11 migrations, 5 test suites and 4 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)
@@ -113,6 +119,86 @@ END
 $v318$;
 SQL
   ok "migration 318000 verified (seller view, helpers, margin masking)"
+
+  # ── 3c. EXPLICITLY verify 322000 landed ──────────────────────────────────
+  #  Same reasoning as 3b: assert the OBJECTS exist and behave, not that a
+  #  filename appears in a migration list. A missing identity resolver here is
+  #  the difference between Professional disclosure working and the buyer
+  #  silently seeing a pseudonym — which is exactly how this shipped broken.
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL' || die "migration 20260801322000 did NOT apply"
+DO $v322$
+DECLARE v text;
+BEGIN
+  IF to_regprocedure('public.nx_job_effective_identity_mode(uuid)') IS NULL THEN
+    RAISE EXCEPTION '322000 NOT APPLIED: identity resolver missing';
+  END IF;
+  IF to_regclass('public.job_applicant_identity_view') IS NULL THEN
+    RAISE EXCEPTION '322000 NOT APPLIED: job_applicant_identity_view missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                  WHERE tgrelid='public.audit_events'::regclass
+                    AND tgname='trg_audit_events_fill_actor' AND NOT tgisinternal) THEN
+    RAISE EXCEPTION '322000 NOT APPLIED: audit actor back-fill trigger missing';
+  END IF;
+  -- behavioural: contact must be Full-mode only, counter bump relabelled
+  SELECT pg_get_viewdef('public.job_applicant_identity_view'::regclass, true) INTO v;
+  IF v !~* 'eff_mode\s*=\s*''full''::text\s+THEN\s+p\.email' THEN
+    RAISE EXCEPTION '322000 REGRESSION: Professional mode would disclose private contact';
+  END IF;
+  IF public.audit_public_summary('Job fields updated: applications_count', false)
+       <> 'Application received'
+     OR public.audit_public_summary('Job fields updated: description', false)
+       <> 'Job details updated' THEN
+    RAISE EXCEPTION '322000 REGRESSION: audit summary relabelling is wrong';
+  END IF;
+  RAISE NOTICE '322000 verified: job-scoped identity resolver + audit actor fix';
+END
+$v322$;
+SQL
+  ok "migration 322000 verified (identity resolver, disclosure view, audit actor)"
+
+  # ── 3d. IDENTITY-MODE IS ENFORCED BY THE DATABASE, NOT THE UI ────────────
+  #  This probe exists because the hole it guards shipped once already:
+  #  Protected was enforced only by which columns React chose to SELECT, while
+  #  profiles RLS handed a buyer the applicant's whole row the moment an
+  #  application existed. It builds a real Protected job + application and
+  #  asserts, as the BUYER, that a direct profiles read returns NOTHING.
+  #  Wrapped in BEGIN/ROLLBACK so it leaves no residue.
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL' || die "PROFILE PRIVACY REGRESSION: a Protected buyer can read applicant PII"
+BEGIN;
+DO $gate$
+DECLARE
+  v_cl  uuid := '0f000000-0000-4000-8000-0000000000c1';
+  v_in  uuid := '0f000000-0000-4000-8000-0000000000a1';
+  v_job uuid := '0f000000-0000-4000-8000-0000000000b1';
+  v_n   int;
+BEGIN
+  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at) VALUES
+    (v_cl,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','gate.cl@nx.test',now(),now()),
+    (v_in,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','gate.in@nx.test',now(),now());
+  INSERT INTO public.profiles (id,email,role,full_name,phone,specialty_slugs) VALUES
+    (v_cl,'gate.cl@nx.test','client','Gate Buyer',NULL,'{}'::text[]),
+    (v_in,'gate.in@nx.test','inspector','Gate Inspector Realname','+1-555-9999','{}'::text[]);
+  INSERT INTO public.jobs (id,title,client_id,status,moderation_status,identity_mode)
+    VALUES (v_job,'gate privacy probe',v_cl,'open','approved','protected');
+  INSERT INTO public.applications (job_id,applicant_id,status) VALUES (v_job,v_in,'pending');
+
+  SET LOCAL ROLE authenticated;
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('sub',v_cl::text,'role','authenticated')::text, true);
+
+  SELECT count(*) INTO v_n FROM public.profiles WHERE id = v_in;
+  IF v_n <> 0 THEN
+    RAISE EXCEPTION 'GATE FAILED: a Protected buyer reached the applicant profile row (% row(s)) — identity_mode is UI-only again', v_n;
+  END IF;
+
+  RESET ROLE;
+  RAISE NOTICE 'gate: Protected buyer cannot read applicant PII directly.';
+END
+$gate$;
+ROLLBACK;
+SQL
+  ok "identity_mode enforced at the DB boundary (Protected buyer cannot read applicant PII)"
 
   # ── run_suite: psql alone is NOT sufficient for pgTAP ────────────────────
   #  A DO-block suite RAISEs, so ON_ERROR_STOP fails the run. A pgTAP suite
@@ -175,6 +261,7 @@ SQL
   for t in \
     supabase/tests/inspector_price_blindness_test.sql \
     supabase/tests/rls_jobs_price_blindness_test.sql \
+    supabase/tests/identity_disclosure_test.sql \
     supabase/tests/rpc_authorization_test.sql \
     supabase/tests/admin_direct_assignment_test.sql ; do
     run_suite "$t"
@@ -183,7 +270,7 @@ SQL
   shopt -s nullglob
   for t in supabase/tests/*.sql; do
     case "$(basename "$t")" in
-      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql) continue ;;
+      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql) continue ;;
     esac
     printf "   (pre-existing) "
     run_suite "$t"

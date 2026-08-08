@@ -3,26 +3,36 @@
 //
 //  Mobile parity with the web public trust card (apps/web/src/app/p/[userId]).
 //
-//  ANTI-POACHING BY CONSTRUCTION. This screen renders ZERO identity. It reads
-//  ONLY the PII-free `inspectors_directory` projection (no name, photo, bio,
-//  headline, city, email, or phone ever enters the query), so there is nothing
-//  on screen, in the network response, or in memory to disintermediate with.
-//  The inspector appears as a stable pseudonymous handle (NX-XXXXXX) + a
-//  deterministic Trust Sigil generated from the opaque id.
+//  TWO MODES, ONE SCREEN.
 //
-//  ONE DOOR. The only way to engage is the admin-brokered, held flow
-//  (Golden Rules). Identity is revealed inside an engagement, never before.
+//  • BROWSE (no `jobId`) — anti-poaching by construction. Reads ONLY the
+//    PII-free `inspectors_directory` projection (no name, photo, bio, headline,
+//    city, email or phone ever enters the query), so there is nothing on
+//    screen, in the network response, or in memory to disintermediate with.
+//    The inspector is a stable pseudonymous handle (NX-XXXXXX) + Trust Sigil.
+//
+//  • JOB-SCOPED (`?jobId=`) — additionally reads job_applicant_identity_view,
+//    where the DATABASE resolves that job's identity_mode and NULLs every
+//    field the mode forbids (20260801322000 / 324000). Protected therefore
+//    still renders exactly the browse card. Professional adds name, headline,
+//    résumé and certifications. Full additionally releases contact — which is
+//    NOT rendered here; this screen never shows email or phone in any mode.
+//
+//  ONE DOOR. Engagement is always the admin-brokered, held flow (Golden
+//  Rules). Identity is released by policy, never by the client asking nicely.
 // ════════════════════════════════════════════════════════════════════════════
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar, Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { nxHandle, nxHash } from '../../../src/core/utils/handle';
+import { refreshAsSignedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 import {
   fetchApplicantDisclosure,
   isProfessionallyDisclosed,
@@ -100,37 +110,82 @@ export default function InspectorTrustCardScreen() {
   const { id, jobId } = useLocalSearchParams<{ id: string; jobId?: string }>();
   const [card, setCard] = useState<TrustCard | null>(null);
   const [disclosure, setDisclosure] = useState<ApplicantDisclosure | null>(null);
+  // Résumé/CV lives in a PRIVATE bucket. We never render the stored URL
+  // directly and never make the bucket public: the link is minted on demand by
+  // the existing `mint-doc-url` edge function, which authorizes server-side.
+  const [resumeDocUrl, setResumeDocUrl] = useState<string | null>(null);
+  const [resumeDocPending, setResumeDocPending] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!id) { setLoading(false); return; }
-      try {
-        // PII-free read only — never `.from('profiles')` on a buyer surface.
-        const { data } = await supabase
-          .from('inspectors_directory')
-          .select(CARD_COLS)
-          .eq('id', id)
-          .maybeSingle();
-        if (alive) setCard((data as unknown as TrustCard) ?? null);
-        if (jobId) {
-          const d = await fetchApplicantDisclosure(String(jobId), String(id));
-          if (alive) setDisclosure(d);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ★ ONE loader, used by mount, focus and pull-to-refresh.
+  //   DISCLOSURE DECREASES MUST NOT LEAVE RESIDUE. An admin can drop this job
+  //   from Professional back to Protected at any time, so every load RESETS
+  //   the disclosure and the minted résumé link to null BEFORE fetching, and
+  //   writes back only what the server returns this time round. Merging into
+  //   previous state would leave a revoked name/résumé rendered on screen.
+  const load = useCallback(async (): Promise<void> => {
+    if (!id) { setLoading(false); return; }
+    try {
+      // PII-free read only — never `.from('profiles')` on a buyer surface.
+      const { data } = await supabase
+        .from('inspectors_directory')
+        .select(CARD_COLS)
+        .eq('id', id)
+        .maybeSingle();
+      setCard((data as unknown as TrustCard) ?? null);
+
+      // Clear first: a revoked policy must blank the screen, not persist.
+      setDisclosure(null);
+      setResumeDocUrl(null);
+
+      if (jobId) {
+        const d = await fetchApplicantDisclosure(String(jobId), String(id));
+        setDisclosure(d);
+
+        const stored = d?.resumeUrl?.trim() || d?.cvUrl?.trim() || null;
+        if (stored) {
+          setResumeDocPending(true);
+          try {
+            setResumeDocUrl(await refreshAsSignedUrl(stored, SIGNED_URL_TTL.RESUME));
+          } finally {
+            setResumeDocPending(false);
+          }
         }
-      } catch {
-        if (alive) setCard(null);
-      } finally {
-        if (alive) setLoading(false);
       }
-    })();
-    return () => { alive = false; };
+    } catch {
+      setCard(null);
+      setDisclosure(null);
+      setResumeDocUrl(null);
+    } finally {
+      setLoading(false);
+    }
   }, [id, jobId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Reflect an admin policy change when the client returns to this screen.
+  // No realtime subscription this release — focus + manual pull only.
+  useFocusEffect(
+    useCallback(() => { void load(); }, [load]),
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void load().finally(() => setRefreshing(false));
+  }, [load]);
 
   const handle = nxHandle(id);
   // Disclosed ONLY when the server released a real name for THIS job.
   const disclosed = isProfessionallyDisclosed(disclosure) && !!disclosure?.displayName?.trim();
   const [g1, g2] = useMemo(() => sigilColors(id ?? ''), [id]);
+  // "On file" = the SERVER released a résumé pointer for this job. Distinguishes
+  // "inspector has no résumé" from "résumé exists but the link could not be minted".
+  const hasResumeDoc = !!(disclosure?.resumeUrl?.trim() || disclosure?.cvUrl?.trim());
+  // The name used in prose. Never hard-code the pseudonym: a Professional/Full
+  // profile that says "inspector2" at the top must not say "NX-…" at the bottom.
+  const engageName = disclosed ? (disclosure?.displayName?.trim() || handle) : handle;
 
   const competencies = useMemo(() => {
     if (!card) return [];
@@ -175,7 +230,13 @@ export default function InspectorTrustCardScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.violet} />
+          }
+        >
           {/* Header card: sigil + pseudonymous handle + verification */}
           <View style={s.block}>
             <View style={s.headRow}>
@@ -226,6 +287,85 @@ export default function InspectorTrustCardScreen() {
             <Metric label="On NEXPEC" value={yearOf(card.created_at)} sub="since" tone={C.cyan} />
           </View>
 
+          {/* ★ Professional dossier — Professional + Full ONLY.
+              These fields were already fetched into ApplicantDisclosure but had
+              no JSX, so the lock note promised "name, résumé and certifications"
+              while the screen rendered only the name. Contact is deliberately
+              absent: email/phone belong to Full mode and are shown nowhere here. */}
+          {disclosed && (
+            <View style={s.block}>
+              <View style={s.secHead}>
+                <Ionicons name="document-text-outline" size={18} color={C.violetGlow} />
+                <Text style={s.secTitle}>Professional dossier</Text>
+              </View>
+              <Text style={s.secSub}>
+                Released for this project only, under the project&apos;s identity policy.
+              </Text>
+
+              {/* Résumé summary */}
+              {disclosure?.resumeSummary?.trim() ? (
+                <Text style={s.dossierBody}>{disclosure.resumeSummary.trim()}</Text>
+              ) : (
+                <Text style={s.muted}>No résumé summary provided.</Text>
+              )}
+
+              {/* Résumé / CV document — private bucket, signed on demand */}
+              {resumeDocUrl ? (
+                <TouchableOpacity
+                  style={s.docBtn}
+                  activeOpacity={0.85}
+                  onPress={() => Linking.openURL(resumeDocUrl)}
+                >
+                  <Ionicons name="document-attach-outline" size={16} color={C.cyan} />
+                  <Text style={s.docBtnTxt}>Open résumé / CV</Text>
+                  <Ionicons name="open-outline" size={14} color={C.cyan} />
+                </TouchableOpacity>
+              ) : hasResumeDoc ? (
+                <Text style={s.muted}>
+                  {resumeDocPending
+                    ? 'Preparing résumé link…'
+                    : 'Résumé is on file but could not be opened for your account.'}
+                </Text>
+              ) : (
+                <Text style={s.muted}>No résumé document on file.</Text>
+              )}
+
+              {/* Certifications released by the disclosure policy */}
+              <View style={s.dossierSub}>
+                <Text style={s.dossierLabel}>Certifications</Text>
+                {disclosure?.certifications && disclosure.certifications.length > 0 ? (
+                  <View style={s.chips}>
+                    {disclosure.certifications.map((c) => (
+                      <View key={`cert-${c}`} style={s.chip}>
+                        <Ionicons name="ribbon-outline" size={12} color={C.violetGlow} />
+                        <Text style={s.chipTxt}>{c}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={s.muted}>No certifications on file.</Text>
+                )}
+              </View>
+
+              {/* Qualifications / disciplines released by the policy */}
+              <View style={s.dossierSub}>
+                <Text style={s.dossierLabel}>Qualifications</Text>
+                {disclosure?.qualifications && disclosure.qualifications.length > 0 ? (
+                  <View style={s.chips}>
+                    {disclosure.qualifications.map((q) => (
+                      <View key={`qual-${q}`} style={s.chip}>
+                        <Ionicons name="school-outline" size={12} color={C.violetGlow} />
+                        <Text style={s.chipTxt}>{prettySlug(q)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={s.muted}>No qualifications on file.</Text>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Verified competencies (platform-vouched, not a CV) */}
           <View style={s.block}>
             <View style={s.secHead}>
@@ -247,17 +387,43 @@ export default function InspectorTrustCardScreen() {
             )}
           </View>
 
-          {/* Engage through NEXPEC — the only door */}
+          {/* ★ Engage block — context-aware.
+              Two bugs lived here. (1) The body always interpolated {handle},
+              so a Professional profile showed the real name at the top and the
+              NX- pseudonym at the bottom. Use whatever identity the server
+              actually released, falling back to the pseudonym. (2) When this
+              screen is opened FROM an existing proposal (jobId present) the
+              client has already made the request — telling them to "Start a
+              request" sends them to post a SECOND job. In job context, return
+              them to the proposal instead. Browse context is unchanged. */}
           <LinearGradient colors={['rgba(124,58,237,0.16)', 'rgba(34,211,238,0.06)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.block, s.engage]}>
-            <Text style={s.engageTitle}>Request this inspector through NEXPEC</Text>
-            <Text style={s.engageBody}>
-              Post your scope and NEXPEC assigns {handle} (or a peer of equal verification)
-              with payment hold, signed deliverables, and dispute protection built in.
-            </Text>
-            <TouchableOpacity style={s.cta} activeOpacity={0.85} onPress={() => router.push('/post-new-job' as any)}>
-              <Text style={s.ctaTxt}>Start a request</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
+            {jobId ? (
+              <>
+                <Text style={s.engageTitle}>This inspector applied to your project</Text>
+                <Text style={s.engageBody}>
+                  {engageName} is one of the inspectors proposing on this project. Review
+                  the proposal to accept or decline — payment hold, signed deliverables and
+                  dispute protection are built in.
+                </Text>
+                <TouchableOpacity style={s.cta} activeOpacity={0.85} onPress={goBack}>
+                  <Text style={s.ctaTxt}>Back to the proposal</Text>
+                  <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={s.engageTitle}>Request this inspector through NEXPEC</Text>
+                <Text style={s.engageBody}>
+                  Post your scope and NEXPEC assigns {engageName} (or a peer of equal
+                  verification) with payment hold, signed deliverables, and dispute
+                  protection built in.
+                </Text>
+                <TouchableOpacity style={s.cta} activeOpacity={0.85} onPress={() => router.push('/post-new-job' as any)}>
+                  <Text style={s.ctaTxt}>Start a request</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </>
+            )}
           </LinearGradient>
 
           {/* Client reviews — aggregate only; reviewer identity is never fetched here */}
@@ -300,6 +466,11 @@ const s = StyleSheet.create({
   unavailBody: { color: C.dim, fontSize: 13, lineHeight: 19, textAlign: 'center' },
   scroll: { padding: 16, gap: 14 },
   block: { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 18, padding: 16 },
+  dossierBody: { color: C.text, fontSize: 13.5, lineHeight: 20, marginTop: 10 },
+  dossierSub: { marginTop: 14 },
+  dossierLabel: { color: C.dim, fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
+  docBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(34,211,238,0.35)', backgroundColor: 'rgba(34,211,238,0.08)' },
+  docBtnTxt: { flex: 1, color: C.cyan, fontSize: 13, fontWeight: '700' },
   headRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   sigil: { width: 72, height: 72, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   sigilGlyph: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 1 },

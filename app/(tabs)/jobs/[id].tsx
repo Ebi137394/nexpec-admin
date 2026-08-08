@@ -80,6 +80,20 @@ export default function JobDetailScreen() {
   const [reportData, setReportData] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ★ SECONDARY LABEL — one rule for both cards and the profile screen.
+  //   `headline` is identity-gated (professional+), `professional_title` is
+  //   pseudonym-safe and available in every mode. Preferring the released
+  //   headline is what makes the card and the profile agree in Professional
+  //   mode; under Protected the headline is NULL, so this degrades to exactly
+  //   the previous behaviour.
+  const secondaryLabel = useCallback((applicantId?: string | null): string => {
+    const d = applicantId ? disclosure.get(String(applicantId)) : undefined;
+    const released = d?.headline?.trim();
+    if (released) return released;
+    const rep = d?.reputation;
+    return rep?.professional_title?.trim() || rep?.title?.trim() || t('Inspector');
+  }, [disclosure, t]);
+
   const fetchJobDetails = useCallback(async () => {
     if (!id) {
       setLoading(false);
@@ -543,7 +557,7 @@ export default function JobDetailScreen() {
                   <Text style={styles.hiredName}>
                     {displayNameFor(acceptedProposal.applicant?.id, disclosure.get(acceptedProposal.applicant?.id))}
                   </Text>
-                  <Text style={styles.hiredHeadline}>{acceptedProposal.applicant?.professional_title || t('Inspector')}</Text>
+                  <Text style={styles.hiredHeadline}>{secondaryLabel(acceptedProposal.applicant?.id)}</Text>
                   <View style={styles.hiredStats}>
                     <View style={styles.stat}>
                       <Star size={14} color={COLORS.warning} />
@@ -682,7 +696,7 @@ export default function JobDetailScreen() {
                     <Text style={styles.proposalName}>
                       {displayNameFor(proposal.applicant?.id, disclosure.get(proposal.applicant?.id))}
                     </Text>
-                    <Text style={styles.proposalHeadline}>{proposal.applicant?.professional_title || t('Inspector')}</Text>
+                    <Text style={styles.proposalHeadline}>{secondaryLabel(proposal.applicant?.id)}</Text>
                   </View>
                 </TouchableOpacity>
 

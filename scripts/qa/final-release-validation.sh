@@ -51,18 +51,24 @@ for f in \
   supabase/migrations/20260801320000_discover_jobs_read_via_seller_view.sql \
   supabase/migrations/20260801322000_job_scoped_applicant_identity_and_audit_actor.sql \
   supabase/migrations/20260801324000_profiles_identity_mode_lockdown.sql \
+  supabase/migrations/20260801326000_resume_disclosure_doc_access.sql \
+  supabase/migrations/20260801328000_live_identity_authority_and_lifecycle_gate.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
+  supabase/tests/resume_disclosure_access_test.sql \
+  supabase/tests/identity_lifecycle_test.sql \
   supabase/tests/inspector_price_blindness_test.sql \
   supabase/tests/rls_jobs_price_blindness_test.sql \
   supabase/tests/rpc_authorization_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
   supabase/rollback/20260801318000_rollback.sql \
   supabase/rollback/20260801322000_rollback.sql \
-  supabase/rollback/20260801324000_rollback.sql ; do
+  supabase/rollback/20260801324000_rollback.sql \
+  supabase/rollback/20260801326000_rollback.sql \
+  supabase/rollback/20260801328000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "11 migrations, 5 test suites and 4 rollback scripts are present"
+ok "13 migrations, 7 test suites and 6 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)
@@ -200,6 +206,53 @@ ROLLBACK;
 SQL
   ok "identity_mode enforced at the DB boundary (Protected buyer cannot read applicant PII)"
 
+  # ── 3e. RESUME DISCLOSURE IS JOB-SCOPED AND FORWARD-GATED ────────────────
+  #  Professional is DEFINED to release the applicant resume. Before 326000
+  #  nx_can_access_doc had no branch for it at all, so the feature silently
+  #  did nothing while the UI promised it. Assert BOTH directions: a dead
+  #  feature and an over-permissive one must each fail the gate.
+  psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL' || die "RESUME DISCLOSURE REGRESSION detected"
+BEGIN;
+DO $gate$
+DECLARE
+  v_b uuid := '0e000000-0000-4000-8000-0000000000b1';
+  v_i uuid := '0e000000-0000-4000-8000-0000000000a1';
+  v_j uuid := '0e000000-0000-4000-8000-0000000000c1';
+  v_p text := '0e000000-0000-4000-8000-0000000000a1/resume-gate.pdf';
+BEGIN
+  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at) VALUES
+    (v_b,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','g.res.b@nx.test',now(),now()),
+    (v_i,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','g.res.i@nx.test',now(),now());
+  INSERT INTO public.profiles (id,email,role,full_name,resume_url,specialty_slugs) VALUES
+    (v_b,'g.res.b@nx.test','client','Gate Buyer',NULL,'{}'::text[]),
+    (v_i,'g.res.i@nx.test','inspector','Gate Inspector',
+       'https://x/storage/v1/object/sign/resumes/'||v_p,'{}'::text[]);
+  INSERT INTO public.jobs (id,title,client_id,status,moderation_status,identity_mode)
+    VALUES (v_j,'gate resume probe',v_b,'open','approved','protected');
+  INSERT INTO public.applications (job_id,applicant_id,status,forwarded_to_client_at)
+    VALUES (v_j,v_i,'pending',now());
+
+  IF public.nx_can_access_doc(v_b,'resumes',v_p) THEN
+    RAISE EXCEPTION 'GATE FAILED: a PROTECTED buyer can mint the applicant resume';
+  END IF;
+
+  UPDATE public.jobs SET identity_mode='professional' WHERE id=v_j;
+  IF NOT public.nx_can_access_doc(v_b,'resumes',v_p) THEN
+    RAISE EXCEPTION 'GATE FAILED: a PROFESSIONAL buyer CANNOT mint the applicant resume (feature is dead)';
+  END IF;
+
+  UPDATE public.applications SET forwarded_to_client_at=NULL WHERE job_id=v_j;
+  IF public.nx_can_access_doc(v_b,'resumes',v_p) THEN
+    RAISE EXCEPTION 'GATE FAILED: an UNFORWARDED application grants resume access';
+  END IF;
+
+  RAISE NOTICE 'gate: resume disclosure is job-scoped, forward-gated and mode-gated.';
+END
+$gate$;
+ROLLBACK;
+SQL
+  ok "resume disclosure verified (protected denies, professional allows, unforwarded denies)"
+
   # ── run_suite: psql alone is NOT sufficient for pgTAP ────────────────────
   #  A DO-block suite RAISEs, so ON_ERROR_STOP fails the run. A pgTAP suite
   #  (plan()/finish()) prints "not ok 3 - …" for a FAILED assertion and still
@@ -262,6 +315,8 @@ SQL
     supabase/tests/inspector_price_blindness_test.sql \
     supabase/tests/rls_jobs_price_blindness_test.sql \
     supabase/tests/identity_disclosure_test.sql \
+    supabase/tests/resume_disclosure_access_test.sql \
+    supabase/tests/identity_lifecycle_test.sql \
     supabase/tests/rpc_authorization_test.sql \
     supabase/tests/admin_direct_assignment_test.sql ; do
     run_suite "$t"
@@ -270,7 +325,7 @@ SQL
   shopt -s nullglob
   for t in supabase/tests/*.sql; do
     case "$(basename "$t")" in
-      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql) continue ;;
+      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql|resume_disclosure_access_test.sql|identity_lifecycle_test.sql) continue ;;
     esac
     printf "   (pre-existing) "
     run_suite "$t"

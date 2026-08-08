@@ -28,6 +28,15 @@ export const SIGNED_URL_TTL = {
   THUMB:        5 * 60,         //  5 minutes
   /** Full-screen image / PDF view from a detail screen. */
   VIEW:         60 * 60,        //  1 hour
+  /**
+   * Applicant résumé / CV released by job-scoped identity disclosure.
+   * DELIBERATELY SHORT. Revoking disclosure stops the NEXT mint but cannot
+   * invalidate a URL already issued, so the TTL IS the revocation window.
+   * 10 minutes is long enough to open a PDF and short enough that a policy
+   * downgrade takes effect in minutes rather than an hour. Applies to résumés
+   * only — report/contract/dispute documents keep VIEW.
+   */
+  RESUME:       10 * 60,        // 10 minutes
   /** Explicit "Download" action (saves the file via share sheet). */
   DOWNLOAD:     60 * 60,        //  1 hour
   /** Embedded image inside a server-rendered HTML artifact (affidavit). */

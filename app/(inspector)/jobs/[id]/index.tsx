@@ -1346,7 +1346,11 @@ const fetchApplication = async (uid: string) => {
       {application && !isHired && (
         <View style={styles.actionBar}>
            <View style={[styles.applyButton, { backgroundColor: COLORS.cardBorder }]}>
-             <Text style={styles.applyButtonText}>{t('Status:')} {application.status.toUpperCase()}</Text>
+             {/* ★ This is applications.status for THIS inspector — the block only
+                 renders when `application` exists. It is NOT jobs.status, which
+                 is shown as the badge at the top ("Open"). The bare label
+                 "Status:" made the two look contradictory. */}
+             <Text style={styles.applyButtonText}>{t('Application:')} {application.status.toUpperCase()}</Text>
            </View>
         </View>
       )}

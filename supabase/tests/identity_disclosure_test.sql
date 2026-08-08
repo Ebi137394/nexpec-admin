@@ -29,7 +29,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
-select plan(48);
+select plan(56);
 
 \set CL    'd1111111-1111-1111-1111-111111111111'
 \set INSP  'd2222222-2222-2222-2222-222222222222'
@@ -421,6 +421,74 @@ select throws_ok(
   '42501',
   null,
   'GR2: the buyer still cannot read inspector payout after the lockdown');
+
+-- ══════════════════════════════════════════════════════════════════════════
+--  7. FULL-MODE CONTACT: release, revoke, and job isolation
+--
+--  Runtime QA found Full looking identical to Professional. The DB was right
+--  all along — the client screen simply had no Contact block — but nothing
+--  here proved contact SURVIVES a downgrade or stays confined to its own job,
+--  so those two gaps are closed now.
+-- ══════════════════════════════════════════════════════════════════════════
+reset role;
+update public.jobs set identity_mode = 'full'      where id = :'JOBP';
+update public.jobs set identity_mode = 'protected' where id = :'JOBF';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select inspector_email from public.job_applicant_identity_view where application_id = :'APPP'),
+  'in.idy@test.nx',
+  'FULL CONTACT: email is released on the full-mode job');
+
+select is(
+  (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPP'),
+  '+1-555-0134',
+  'FULL CONTACT: phone is released on the full-mode job');
+
+-- ★ JOB ISOLATION: the SAME inspector on a protected job must stay silent
+--   while job A is fully disclosed.
+select is(
+  (select inspector_email from public.job_applicant_identity_view where application_id = :'APPF'),
+  null,
+  'FULL CONTACT: an unrelated PROTECTED job discloses no email for the same inspector');
+
+select is(
+  (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPF'),
+  null,
+  'FULL CONTACT: an unrelated PROTECTED job discloses no phone for the same inspector');
+
+-- ★ DOWNGRADE Full -> Protected must revoke contact on the very next read.
+reset role;
+update public.jobs set identity_mode = 'protected' where id = :'JOBP';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select inspector_email from public.job_applicant_identity_view where application_id = :'APPP'),
+  null,
+  'DOWNGRADE: Full -> Protected revokes email immediately');
+
+select is(
+  (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPP'),
+  null,
+  'DOWNGRADE: Full -> Protected revokes phone immediately');
+
+-- And Professional must NOT re-open contact on the way back up.
+reset role;
+update public.jobs set identity_mode = 'professional' where id = :'JOBP';
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select is(
+  (select inspector_display_name from public.job_applicant_identity_view where application_id = :'APPP'),
+  'Dana Okafor',
+  'DOWNGRADE: Professional restores the NAME');
+
+select is(
+  (select inspector_email from public.job_applicant_identity_view where application_id = :'APPP'),
+  null,
+  'DOWNGRADE: ...but Professional still withholds contact');
 
 select * from finish();
 rollback;

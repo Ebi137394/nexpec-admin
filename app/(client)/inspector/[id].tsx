@@ -7,7 +7,7 @@
 //
 //  • BROWSE (no `jobId`) — anti-poaching by construction. Reads ONLY the
 //    PII-free `inspectors_directory` projection (no name, photo, bio, headline,
-//    city, email or phone ever enters the query), so there is nothing on
+//    city, email or phone ever enters that query), so there is nothing on
 //    screen, in the network response, or in memory to disintermediate with.
 //    The inspector is a stable pseudonymous handle (NX-XXXXXX) + Trust Sigil.
 //
@@ -15,8 +15,9 @@
 //    where the DATABASE resolves that job's identity_mode and NULLs every
 //    field the mode forbids (20260801322000 / 324000). Protected therefore
 //    still renders exactly the browse card. Professional adds name, headline,
-//    résumé and certifications. Full additionally releases contact — which is
-//    NOT rendered here; this screen never shows email or phone in any mode.
+//    résumé and certifications. Full additionally releases email and phone,
+//    rendered ONLY in the Full-mode Contact details block below — never in
+//    Protected or Professional, where the server returns them as null.
 //
 //  ONE DOOR. Engagement is always the admin-brokered, held flow (Golden
 //  Rules). Identity is released by policy, never by the client asking nicely.
@@ -186,6 +187,14 @@ export default function InspectorTrustCardScreen() {
   // The name used in prose. Never hard-code the pseudonym: a Professional/Full
   // profile that says "inspector2" at the top must not say "NX-…" at the bottom.
   const engageName = disclosed ? (disclosure?.displayName?.trim() || handle) : handle;
+  // ★ FULL-ONLY CONTACT. The DB already gates these to eff_mode='full'
+  //   (job_applicant_identity_view), so a non-null value here IS the server's
+  //   authorization decision — this component adds no policy of its own and
+  //   cannot widen disclosure. In Professional they arrive null and the block
+  //   below renders nothing.
+  const fullDisclosed = disclosure?.identityMode === 'full';
+  const contactEmail = fullDisclosed ? (disclosure?.email?.trim() || null) : null;
+  const contactPhone = fullDisclosed ? (disclosure?.phone?.trim() || null) : null;
 
   const competencies = useMemo(() => {
     if (!card) return [];
@@ -290,8 +299,8 @@ export default function InspectorTrustCardScreen() {
           {/* ★ Professional dossier — Professional + Full ONLY.
               These fields were already fetched into ApplicantDisclosure but had
               no JSX, so the lock note promised "name, résumé and certifications"
-              while the screen rendered only the name. Contact is deliberately
-              absent: email/phone belong to Full mode and are shown nowhere here. */}
+              while the screen rendered only the name. Contact is NOT here:
+              email/phone belong to Full mode and live in their own block. */}
           {disclosed && (
             <View style={s.block}>
               <View style={s.secHead}>
@@ -363,6 +372,51 @@ export default function InspectorTrustCardScreen() {
                   <Text style={s.muted}>No qualifications on file.</Text>
                 )}
               </View>
+            </View>
+          )}
+
+          {/* ★ Contact details — FULL MODE ONLY.
+              Professional must never reach this block: contactEmail/contactPhone
+              are null unless the server released them. Rows render only for
+              values that actually exist — no placeholder rows, no fake data. */}
+          {fullDisclosed && (
+            <View style={s.block}>
+              <View style={s.secHead}>
+                <Ionicons name="call-outline" size={18} color={C.cyan} />
+                <Text style={s.secTitle}>Contact details</Text>
+              </View>
+              <Text style={s.secSub}>
+                Released for this project only, under Full disclosure.
+              </Text>
+
+              {contactEmail || contactPhone ? (
+                <>
+                  {contactEmail ? (
+                    <TouchableOpacity
+                      style={s.contactRow}
+                      activeOpacity={0.8}
+                      onPress={() => Linking.openURL(`mailto:${contactEmail}`)}
+                    >
+                      <Ionicons name="mail-outline" size={16} color={C.dim} />
+                      <Text style={s.contactLabel}>Email</Text>
+                      <Text style={s.contactValue} numberOfLines={1}>{contactEmail}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {contactPhone ? (
+                    <TouchableOpacity
+                      style={s.contactRow}
+                      activeOpacity={0.8}
+                      onPress={() => Linking.openURL(`tel:${contactPhone}`)}
+                    >
+                      <Ionicons name="call-outline" size={16} color={C.dim} />
+                      <Text style={s.contactLabel}>Phone</Text>
+                      <Text style={s.contactValue} numberOfLines={1}>{contactPhone}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={s.muted}>No contact details on file.</Text>
+              )}
             </View>
           )}
 
@@ -471,6 +525,9 @@ const s = StyleSheet.create({
   dossierLabel: { color: C.dim, fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
   docBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(34,211,238,0.35)', backgroundColor: 'rgba(34,211,238,0.08)' },
   docBtnTxt: { flex: 1, color: C.cyan, fontSize: 13, fontWeight: '700' },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.card2 },
+  contactLabel: { color: C.dim, fontSize: 12, fontWeight: '700', width: 52 },
+  contactValue: { flex: 1, color: C.text, fontSize: 13.5, fontWeight: '600' },
   headRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   sigil: { width: 72, height: 72, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   sigilGlyph: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 1 },

@@ -71,6 +71,15 @@ export default function SupplierDashboard() {
             {profile?.verified && <Ionicons name="shield-checkmark" size={18} color={T.colors.success} />}
           </View>
         </View>
+        {/* ★ Supplier entry point into both operational channels
+            (20260801340000/342000). A hub rather than a per-contract button,
+            because a buyer relationship exists from the moment a quote is
+            presented — before any job, and for purely procurement RFQs no job
+            is ever spawned. The hub lists only relationships the server
+            already authorizes. */}
+        <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/chat/hub' as any)} activeOpacity={0.8}>
+          <Ionicons name="chatbubbles-outline" size={24} color={T.colors.primaryLight} />
+        </TouchableOpacity>
         <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/profile' as any)} activeOpacity={0.8}>
           <Ionicons name="person-circle-outline" size={26} color={T.colors.primaryLight} />
         </TouchableOpacity>

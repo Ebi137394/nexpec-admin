@@ -22,6 +22,7 @@ import {
   type ApplicantDisclosure,
 } from '@/lib/identityDisclosure';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import JobChatActions from '@/src/components/chat/JobChatActions';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { signedUrl, SIGNED_URL_TTL } from '@/src/core/storage/signedUrls';
 import { formatScheduledDate } from '@nexpec/shared-core';
@@ -598,6 +599,22 @@ export default function JobDetailScreen() {
 
             </View>
           )}
+
+          {/* ★ FULL-MODE DIRECT CHAT (20260801334000 / 336000).
+              This screen is the SHARED buyer surface — Client, Agency and
+              Enterprise all land here (see app/(tabs)/_layout.tsx: only the
+              dashboards differ by role), so one entry point serves all three
+              buyer account types and no role-specific copy is needed.
+
+              Deliberately OUTSIDE the acceptedProposal block. That block needs
+              a hired proposal row to render, but an admin-dispatched job can
+              have a live contract with no matching proposal — keying the
+              button off the proposal would have silently hidden direct chat on
+              exactly those jobs. liveInspectorId is the real relationship.
+
+              The button self-gates against nx_direct_chat_authorized(), so
+              Protected/Professional and any non-buyer viewer render nothing. */}
+          <JobChatActions jobId={String(id)} heading={t('Direct messaging')} />
 
           {/* --- CLIENT REPORT STATUS & CHAT --- */}
           <View style={{ marginBottom: 24, marginTop: 16 }}>

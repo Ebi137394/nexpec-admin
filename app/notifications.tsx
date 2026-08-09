@@ -76,6 +76,20 @@ interface Notification {
   data?: any;
 }
 
+/**
+ * Map historical/incorrect notification paths onto real Expo Router routes.
+ * Exported so tests can assert both the legacy and the corrected form resolve.
+ */
+export function normalizeNotificationHref(href: string): string {
+  if (!href) return '';
+  // '/inspector/contracts/job/<id>' → '/contracts/job/<id>'  (dead route)
+  const legacyContract = /^\/inspector\/contracts\/job\/(.+)$/.exec(href);
+  if (legacyContract) return `/contracts/job/${legacyContract[1]}`;
+  // '/chat/<direct|supplier-inspector|buyer-supplier>/<uuid>' are all real
+  // mobile routes and match the web paths exactly — pass them through untouched.
+  return href;
+}
+
 export default function NotificationsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -148,6 +162,7 @@ export default function NotificationsScreen() {
     }
   };
 
+
   // NX-DEEPLINK-003 — notifications from nx_notify carry their target on the
   // ROW (v3 columns: kind + top-level job_id + link_href), NOT in a `data` blob.
   // The old `if (!parsedData) return;` therefore bailed on every real
@@ -165,6 +180,19 @@ export default function NotificationsScreen() {
 
     const kind = item.kind ?? item.type ?? '';
     const jobId = item.job_id ?? parsedData?.job_id ?? null;
+
+    // 0) ★ FULL-MODE DIRECT ROOM (20260801334000) — MUST be evaluated before
+    //    every other rule. tg_direct_message_fanout emits kind='message' WITH a
+    //    job_id, so rules 1 and 2 below would both swallow it: rule 1 would open
+    //    the admin-mediated thread for that job and rule 2 the job details page.
+    //    Neither is the room the notification is about. The link_href is the
+    //    only field that identifies the specific conversation, and the pattern
+    //    is exact so no other notification can be captured by it.
+    const directHref = /^\/chat\/(direct|supplier-inspector|buyer-supplier)\/[0-9a-fA-F-]{36}$/.exec(item.link_href ?? '');
+    if (directHref) {
+      router.push(directHref[0] as any);
+      return;
+    }
 
     // 1) Message → open the thread. The mobile thread route is keyed on JOB id
     //    (it resolves the siloed conversation itself), so route by job_id, never
@@ -191,10 +219,14 @@ export default function NotificationsScreen() {
       return;
     }
 
-    // 4) Last resort: only follow link_href if it is ALREADY a valid in-app path
-    //    (never a web route like `/client/jobs/…`, which 404s on mobile).
-    const href = item.link_href ?? '';
-    if (/^\/(job-details|messages|contracts|report)\//.test(href)) {
+    // 4) Last resort: follow link_href, after normalising known-dead prefixes.
+    //    ★ LEGACY CONTRACT DEEP LINK. client_sign_job_contract shipped
+    //    '/inspector/contracts/job/<id>', but app/(inspector)/contracts/ does
+    //    not exist — the real screen is app/contracts/job/[id].tsx. Rows
+    //    ALREADY in Production carry the dead path and cannot be rewritten, so
+    //    map it here. 20260801330000 fixes it for future notifications.
+    const href = normalizeNotificationHref(item.link_href ?? '');
+    if (/^\/(job-details|messages|contracts|report|chat\/(direct|supplier-inspector|buyer-supplier))\//.test(href)) {
       router.push(href as any);
     }
   };

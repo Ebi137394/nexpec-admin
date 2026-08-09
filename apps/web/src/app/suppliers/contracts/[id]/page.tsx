@@ -23,6 +23,7 @@ import {
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchSupplierContractById } from '@/lib/data/supplierContracts';
 import { supplierSignContract } from '@/lib/actions/supplierContracts';
+import JobChatActions from '@/components/messaging/JobChatActions';
 
 export const metadata: Metadata = { title: 'Sign agreement' };
 export const dynamic = 'force-dynamic';
@@ -105,6 +106,21 @@ export default async function SupplierContractPage({
           Counterparty:{' '}
           <span className="text-zinc-200">NEXPEC (Broker of record)</span>
         </p>
+
+        {/* ★ Supplier-side entry points (20260801340000/342000). Rendered from
+            nx_job_chat_counterparts when this contract names a job, so the
+            supplier reaches the assigned inspector for site coordination and
+            the buyer for commercial matters. Both are relationship-gated —
+            neither depends on the buyer's identity_mode. */}
+        {contract.jobId && (
+          <div className="mt-5">
+            <JobChatActions
+              jobId={contract.jobId}
+              returnTo={`/suppliers/contracts/${contract.id}`}
+              heading="Messaging"
+            />
+          </div>
+        )}
       </header>
 
       {sp.signed && (

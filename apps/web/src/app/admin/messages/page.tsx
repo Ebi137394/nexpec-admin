@@ -42,6 +42,26 @@ export default async function AdminMessagesPage({ searchParams }: PageProps) {
           Every help-support and job-scoped room is visible here. Open one to
           respond, clients and inspectors never share a room.
         </p>
+
+        {/* ★ The two-party channels are DELIBERATELY separate destinations.
+            Those rooms are not admin-mediated: admin observes them through the
+            admin_direct_* / admin_operational_* views and never becomes a
+            participant, so mixing them into the inbox above — where every row
+            is a room admin can reply in — would be actively misleading. */}
+        <nav className="mt-4 flex flex-wrap gap-2">
+          <a
+            href="/admin/communications/direct"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/5"
+          >
+            Monitor Buyer ↔ Inspector rooms →
+          </a>
+          <a
+            href="/admin/communications/operational"
+            className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-white/5"
+          >
+            Monitor Supplier ↔ Inspector / Buyer ↔ Supplier rooms →
+          </a>
+        </nav>
       </header>
 
       <FilterBar currentKind={kind} currentStatus={status} />

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../src/lib/supabase';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
@@ -181,6 +181,16 @@ export default function DashboardHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeJobForChat, setActiveJobForChat] = useState<JobRow | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // ★ NOTIFICATION unread — distinct from unreadMessages (CHAT unread), which
+  //   stays exactly as it was and still drives the messages tile. The bell was
+  //   showing the chat metric, so notifications could read 9 unread while the
+  //   bell showed nothing.
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  // Contracts awaiting THIS inspector's signature. A REQUIRED ACTION, never an
+  // Active Job — deliberately kept out of stats.activeJobs.
+  const [pendingContracts, setPendingContracts] = useState<
+    Array<{ contractId: string; jobId: string; jobTitle: string }>
+  >([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
@@ -200,6 +210,16 @@ export default function DashboardHome() {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  // ★ FOCUS REFRESH, not timers. Returning to the dashboard after the client
+  //   signs, after the inspector counter-signs, or after Start Job re-runs the
+  //   whole load — jobs, counts, pending contracts and the unread badge — so
+  //   none of those surfaces can go stale without an app restart.
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, []),
+  );
 
   useEffect(() => {
     if (!loading) {
@@ -375,8 +395,15 @@ export default function DashboardHome() {
       //    Client info pulled from `profiles` via the `clients` relation alias.
       const { data: realJobs, error } = await supabase
         .from('jobs_inspector_secure_view')
+      // ★ TWO ASSIGNMENT PATHS, TWO COLUMNS.
+      //   admin_dispatch_job          → jobs.contractor_id
+      //   inspector_sign_job_contract → jobs.hired_inspector_id  (ONLY)
+      //   Filtering on contractor_id alone returned ZERO rows for every
+      //   contract-signature assignment — the "No active assignments" /
+      //   Active Jobs 0 bug with a fully executed contract in hand.
+      //   Read-side union only; assignment columns and RLS are untouched.
         .select(`${INSPECTOR_JOB_FIELDS}, clients:client_id(full_name, avatar_url)`)
-        .eq('contractor_id', user.id)
+        .or(`contractor_id.eq.${user.id},hired_inspector_id.eq.${user.id}`)
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -396,12 +423,12 @@ export default function DashboardHome() {
           supabase
             .from('jobs')
             .select('id', { count: 'exact', head: true })
-            .eq('contractor_id', user.id)
+            .or(`contractor_id.eq.${user.id},hired_inspector_id.eq.${user.id}`)
             .in('status', ['assigned', 'in_progress']),
           supabase
             .from('jobs')
             .select('id', { count: 'exact', head: true })
-            .eq('contractor_id', user.id)
+            .or(`contractor_id.eq.${user.id},hired_inspector_id.eq.${user.id}`)
             .eq('status', 'completed'),
         ]);
 
@@ -426,7 +453,7 @@ export default function DashboardHome() {
           //   inspector view (row-gated to the assigned inspector).
           .from('jobs_inspector_secure_view')
           .select('payout_amount_cents')
-          .eq('contractor_id', user.id)
+          .or(`contractor_id.eq.${user.id},hired_inspector_id.eq.${user.id}`)
           .eq('status', 'completed');
         totalEarnings = (earningsRows || []).reduce(
           (sum: number, j: any) =>
@@ -436,6 +463,42 @@ export default function DashboardHome() {
       } catch (_) {
         /* best effort */
       }
+
+      // 5b) Contracts awaiting this inspector's signature (actionable jobs only).
+      try {
+        const { data: pc } = await supabase
+          .from('job_contracts')
+          .select('id, job_id, status, jobs:job_id ( title, status )')
+          .eq('inspector_id', user.id)
+          .eq('status', 'pending_inspector_signature')
+          .order('created_at', { ascending: false });
+        setPendingContracts(
+          ((pc ?? []) as unknown as Array<Record<string, unknown>>)
+            .map((r) => {
+              const j = r.jobs as { title?: string; status?: string } | Array<{ title?: string; status?: string }> | null;
+              const job = Array.isArray(j) ? j[0] : j;
+              return {
+                contractId: String(r.id),
+                jobId: String(r.job_id),
+                jobTitle: job?.title ?? 'Untitled job',
+                jobStatus: job?.status ?? '',
+              };
+            })
+            // still actionable: the job must not be closed out
+            .filter((r) => !['completed', 'cancelled', 'paid'].includes(r.jobStatus))
+            .map(({ contractId, jobId, jobTitle }) => ({ contractId, jobId, jobTitle })),
+        );
+      } catch (_) { /* best effort */ }
+
+      // 5c) Unread NOTIFICATIONS for the bell badge (v3 columns: recipient_id/is_read).
+      try {
+        const { count: unreadN } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_id', user.id)
+          .eq('is_read', false);
+        setUnreadNotifications(unreadN || 0);
+      } catch (_) { /* best effort */ }
 
       setStats({
         activeJobs: activeCount || 0,
@@ -601,6 +664,24 @@ export default function DashboardHome() {
                 </View>
 
                 <View style={styles.headerRight}>
+                  {/* ★ Two-party conversations hub (20260801340000/342000).
+                      Reaches the relationships that are NOT job-scoped: a
+                      buyer↔supplier room exists from the moment a quote is
+                      presented, and for a purely procurement RFQ no job is ever
+                      created, so a job screen can never link to it. The hub
+                      lists only what the server already authorizes, and renders
+                      empty for anyone with no such relationships. */}
+                  <Pressable
+                    style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+                    onPress={() => {
+                      try { router.push('/chat/hub' as any); } catch (e) { console.log(e); }
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Conversations"
+                  >
+                    <Ionicons name="chatbubbles-outline" size={20} color={BRAND.textPrimary} />
+                  </Pressable>
                   <Pressable
                     style={({ pressed }) => [
                       styles.iconBtn,
@@ -620,7 +701,7 @@ export default function DashboardHome() {
                       size={20}
                       color={BRAND.textPrimary}
                     />
-                    {unreadMessages > 0 && <View style={styles.iconDot} />}
+                    {unreadNotifications > 0 && <View style={styles.iconDot} />}
                   </Pressable>
                 </View>
               </View>
@@ -711,6 +792,34 @@ export default function DashboardHome() {
                     ]}
                     style={StyleSheet.absoluteFill}
                   />
+                  {/* ★ PENDING SIGNATURE OUTRANKS THE EMPTY STATE.
+                      With a contract awaiting their signature the inspector has
+                      a critical action, not "no assignments". This is rendered
+                      INSTEAD of the empty state and is NOT counted in
+                      stats.activeJobs — it is a required action, not work. */}
+                  {pendingContracts.length > 0 ? (
+                    <>
+                      <View style={styles.emptyFocusIcon}>
+                        <Ionicons name="document-text" size={20} color={BRAND.primary} />
+                      </View>
+                      <Text style={styles.emptyFocusTitle}>
+                        {t('Contract awaiting your signature')}
+                      </Text>
+                      <Text style={styles.emptyFocusSub} numberOfLines={2}>
+                        {pendingContracts[0].jobTitle}
+                      </Text>
+                      <Pressable
+                        onPress={() =>
+                          router.push(`/contracts/job/${pendingContracts[0].contractId}` as any)
+                        }
+                        style={styles.emptyFocusCta}
+                      >
+                        <Text style={styles.emptyFocusCtaText}>{t('Review & Sign')}</Text>
+                        <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
                   <View style={styles.emptyFocusIcon}>
                     <Ionicons name="sparkles" size={20} color={BRAND.primary} />
                   </View>
@@ -720,6 +829,8 @@ export default function DashboardHome() {
                   <Text style={styles.emptyFocusSub}>
                     {t('No active assignments, tap below to find your next job.')}
                   </Text>
+                    </>
+                  )}
                 </View>
               )}
 
@@ -1900,6 +2011,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  emptyFocusCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, paddingVertical: 11, paddingHorizontal: 18, borderRadius: 12, backgroundColor: BRAND.primary },
+  emptyFocusCtaText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 
   // ── Operations Hub + SOS row
   envRow: {

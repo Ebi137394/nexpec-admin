@@ -32,6 +32,7 @@ import type {
 } from '@/lib/data/clientJobs.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import { EvidencePackButton } from '@/components/compliance/EvidencePackButton';
+import JobChatActions from '@/components/messaging/JobChatActions';
 // Layer 1+4 — passive, launch-state-gated inspection-domain badge.
 import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
 import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
@@ -147,6 +148,14 @@ export default async function ClientJobDetailPage({
             surface a clean error to non-eligible callers. */}
         <div className="mt-4 flex items-center justify-end">
           <EvidencePackButton jobId={job.id} jobTitle={job.title} />
+        </div>
+
+        {/* ★ WEB PARITY for the two-party channels (20260801334000/340000/342000).
+            Self-resolving: nx_job_chat_counterparts returns only the ids this
+            caller may message, so Protected/Professional render nothing and an
+            org viewer renders nothing. Same resolver the mobile screen uses. */}
+        <div className="mt-4">
+          <JobChatActions jobId={job.id} returnTo={`/client/jobs/${job.id}`} heading="Direct messaging" />
         </div>
       </header>
 

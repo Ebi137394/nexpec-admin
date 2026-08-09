@@ -205,12 +205,27 @@ export default function JobDetailsScreen() {
           </TouchableOpacity>
         )}
 
-         {/* Status Message if already assigned */}
+         {/* ★ OPERATIONAL STATUS COPY — derived from jobs.status, never hard-coded.
+             Under 20260801330000 a counter-signed contract leaves the job
+             ASSIGNED, so "currently assigned" straight after signing is correct
+             and expected; IN PROGRESS appears only after Start Job. The old
+             `status.replace('_',' ')` produced machine-ish strings like
+             "pending approval" instead of telling the inspector what to do. */}
          {job?.status !== 'open' && (
            <View style={styles.statusBox}>
              <Ionicons name="information-circle-outline" size={24} color={COLORS.textSecondary} />
              <Text style={styles.statusText}>
-               This job is currently {job?.status.replace('_', ' ')}.
+               {job?.status === 'assigned'
+                 ? 'This job is currently assigned. Start the job when you begin work on site.'
+                 : job?.status === 'in_progress'
+                 ? 'This job is in progress.'
+                 : job?.status === 'completed'
+                 ? 'This job is completed.'
+                 : job?.status === 'cancelled'
+                 ? 'This job was cancelled.'
+                 : job?.status === 'disputed'
+                 ? 'This job is under dispute.'
+                 : `This job is currently ${String(job?.status ?? '').replace(/_/g, ' ')}.`}
              </Text>
            </View>
          )}

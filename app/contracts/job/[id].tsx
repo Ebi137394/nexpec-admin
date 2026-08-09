@@ -981,8 +981,13 @@ export default function JobContractSigningScreen() {
                 </View>
                 <Text style={s.executedTitle}>Contract is binding</Text>
                 <Text style={s.executedBody}>
-                  Both parties have signed. The job has moved to in-progress
-                  status. Use the messages tab to coordinate with the admin
+                  {/* ★ 20260801330000: counter-signing ASSIGNS the inspector;
+                      it does not start field work. Saying "in-progress" here
+                      contradicted Job Details, which correctly read jobs.status
+                      as assigned. */}
+                  Both parties have signed. You are now assigned to this job —
+                  start it when you begin work on site. Use the messages tab to
+                  coordinate with the admin
                   desk on scheduling and dispatch.
                 </Text>
               </Animated.View>

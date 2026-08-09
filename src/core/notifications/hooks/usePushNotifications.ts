@@ -34,6 +34,12 @@ Notifications.setNotificationHandler({
 const ALLOWED_DEEP_LINK_PATTERNS: readonly RegExp[] = [
   /^\/jobs\/[0-9a-f-]+(?:\/[a-z][a-z0-9_-]*)*$/i,
   /^\/messages\/[0-9a-f-]+$/i,
+  // ★ Full-mode Client↔Inspector direct room (20260801334000). Without this
+  //   entry a push tap fell through to the `/jobs/<job_id>` reconstruction
+  //   below and landed on the job page instead of the conversation. The
+  //   conversation id is the only thing that identifies the room, so the
+  //   explicit link must be allowed through.
+  /^\/chat\/(direct|supplier-inspector|buyer-supplier)\/[0-9a-f-]{36}$/i,
   /^\/reviews\/submit\/[0-9a-f-]+$/i,
   /^\/payment-screen(?:\?.*)?$/,
   /^\/agreements$/,

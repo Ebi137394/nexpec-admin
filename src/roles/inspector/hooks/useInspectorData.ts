@@ -27,7 +27,10 @@ const DB_TO_UI_STATUS: Record<string, UIJobStatus> = {
   //   pending_approval, open, assigned, in_progress, completed, paid, cancelled, disputed
   pending_approval: 'Pending',
   open:             'Pending',     // available / awaiting assignment
-  assigned:         'In Progress', // dispatched to this inspector
+  // ★ ASSIGNED ≠ IN PROGRESS (20260801330000). A fully executed contract means
+  //   the inspector is assigned and authorized; work starts only when they
+  //   press Start Job. Collapsing the two hid that distinction from the user.
+  assigned:         'Assigned',
   in_progress:      'In Progress',
   completed:        'Completed',
   paid:             'Completed',
@@ -37,6 +40,7 @@ const DB_TO_UI_STATUS: Record<string, UIJobStatus> = {
 
 const STATUS_STYLE: Record<UIJobStatus, { color: string; bg: string }> = {
   'Critical':    { color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
+  'Assigned':    { color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
   'In Progress': { color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
   'Pending':     { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
   'Completed':   { color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
@@ -88,6 +92,7 @@ export function useInspectorData(): InspectorDataReturn {
         status,
         urgency,
         contractor_id,
+        hired_inspector_id,
         client_id,
         scheduled_date,
         created_at,
@@ -98,7 +103,15 @@ export function useInspectorData(): InspectorDataReturn {
           avatar_url
         )
       `)
-      .eq('contractor_id', user.id)
+      // ★ TWO ASSIGNMENT PATHS WRITE TWO DIFFERENT COLUMNS.
+      //   admin_dispatch_job          → jobs.contractor_id
+      //   inspector_sign_job_contract → jobs.hired_inspector_id  (ONLY)
+      //   Filtering on contractor_id alone returned ZERO rows for every
+      //   contract-signature assignment, which is why the dashboard showed
+      //   "No active assignments" with a fully executed contract in hand.
+      //   Read-side union — deliberately NOT mutating assignment columns to
+      //   suit the UI, because RLS branches key on them.
+      .or(`contractor_id.eq.${user.id},hired_inspector_id.eq.${user.id}`)
       .order('created_at', { ascending: false });
 
     if (err) {
@@ -230,7 +243,13 @@ export function useInspectorData(): InspectorDataReturn {
 
   // ── Derived stats (memoized to prevent re-renders on tab switches) ────────
 
-  const activeJobsCount    = useMemo(() => jobs.filter((j) => j.uiStatus === 'In Progress').length, [jobs]);
+  // An assigned engagement IS a live commitment, so it counts as active; a
+  // contract still awaiting signature does NOT (it is a pending action, and is
+  // surfaced separately on the dashboard).
+  const activeJobsCount    = useMemo(
+    () => jobs.filter((j) => j.uiStatus === 'Assigned' || j.uiStatus === 'In Progress' || j.uiStatus === 'Critical').length,
+    [jobs],
+  );
   const criticalJobsCount  = useMemo(() => jobs.filter((j) => j.uiStatus === 'Critical').length,    [jobs]);
   const completedJobsCount = useMemo(() => jobs.filter((j) => j.uiStatus === 'Completed').length,   [jobs]);
   const totalEarned        = useMemo(() => earnings?.total_earned ?? 0,          [earnings]);

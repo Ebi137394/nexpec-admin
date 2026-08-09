@@ -31,7 +31,7 @@ export interface InspectorJob {
 }
 
 // UI-level status badge values
-export type UIJobStatus = 'Critical' | 'In Progress' | 'Pending' | 'Completed' | 'Cancelled';
+export type UIJobStatus = 'Critical' | 'Assigned' | 'In Progress' | 'Pending' | 'Completed' | 'Cancelled';
 
 // Job shape after DB → UI mapping
 export interface MappedInspectorJob extends InspectorJob {

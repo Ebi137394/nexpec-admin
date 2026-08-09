@@ -53,10 +53,27 @@ for f in \
   supabase/migrations/20260801324000_profiles_identity_mode_lockdown.sql \
   supabase/migrations/20260801326000_resume_disclosure_doc_access.sql \
   supabase/migrations/20260801328000_live_identity_authority_and_lifecycle_gate.sql \
+  supabase/migrations/20260801330000_countersign_stops_at_assigned.sql \
+  supabase/migrations/20260801332000_direct_chat_enum_value.sql \
+  supabase/migrations/20260801334000_full_mode_direct_chat.sql \
+  supabase/migrations/20260801336000_direct_chat_role_parity.sql \
+  supabase/migrations/20260801338000_operational_chat_enum_values.sql \
+  supabase/migrations/20260801340000_supplier_operational_chat.sql \
+  supabase/migrations/20260801342000_chat_counterpart_resolvers.sql \
+  supabase/migrations/20260801344000_conversations_kind_shape_all_channels.sql \
+  supabase/migrations/20260801346000_conversations_uniqueness_multichannel.sql \
+  supabase/migrations/20260801348000_two_party_media_live_gate.sql \
+  supabase/migrations/20260801350000_current_job_inspector_engagement_aware.sql \
+  supabase/migrations/20260801352000_brokered_engagement_no_silent_reassign.sql \
+  supabase/migrations/20260801354000_resolvers_engagement_model_aware.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
   supabase/tests/resume_disclosure_access_test.sql \
   supabase/tests/identity_lifecycle_test.sql \
+  supabase/tests/countersign_lifecycle_test.sql \
+  supabase/tests/direct_chat_access_test.sql \
+  supabase/tests/direct_chat_role_parity_test.sql \
+  supabase/tests/supplier_chat_access_test.sql \
   supabase/tests/inspector_price_blindness_test.sql \
   supabase/tests/rls_jobs_price_blindness_test.sql \
   supabase/tests/rpc_authorization_test.sql \
@@ -65,10 +82,21 @@ for f in \
   supabase/rollback/20260801322000_rollback.sql \
   supabase/rollback/20260801324000_rollback.sql \
   supabase/rollback/20260801326000_rollback.sql \
-  supabase/rollback/20260801328000_rollback.sql ; do
+  supabase/rollback/20260801328000_rollback.sql \
+  supabase/rollback/20260801330000_rollback.sql \
+  supabase/rollback/20260801334000_rollback.sql \
+  supabase/rollback/20260801336000_rollback.sql \
+  supabase/rollback/20260801340000_rollback.sql \
+  supabase/rollback/20260801342000_rollback.sql \
+  supabase/rollback/20260801344000_rollback.sql \
+  supabase/rollback/20260801346000_rollback.sql \
+  supabase/rollback/20260801348000_rollback.sql \
+  supabase/rollback/20260801350000_rollback.sql \
+  supabase/rollback/20260801352000_rollback.sql \
+  supabase/rollback/20260801354000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "13 migrations, 7 test suites and 6 rollback scripts are present"
+ok "26 migrations, 11 test suites and 17 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)
@@ -317,6 +345,10 @@ SQL
     supabase/tests/identity_disclosure_test.sql \
     supabase/tests/resume_disclosure_access_test.sql \
     supabase/tests/identity_lifecycle_test.sql \
+    supabase/tests/countersign_lifecycle_test.sql \
+    supabase/tests/direct_chat_access_test.sql \
+    supabase/tests/direct_chat_role_parity_test.sql \
+    supabase/tests/supplier_chat_access_test.sql \
     supabase/tests/rpc_authorization_test.sql \
     supabase/tests/admin_direct_assignment_test.sql ; do
     run_suite "$t"
@@ -325,7 +357,7 @@ SQL
   shopt -s nullglob
   for t in supabase/tests/*.sql; do
     case "$(basename "$t")" in
-      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql|resume_disclosure_access_test.sql|identity_lifecycle_test.sql) continue ;;
+      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql|resume_disclosure_access_test.sql|identity_lifecycle_test.sql|countersign_lifecycle_test.sql|direct_chat_access_test.sql|direct_chat_role_parity_test.sql|supplier_chat_access_test.sql) continue ;;
     esac
     printf "   (pre-existing) "
     run_suite "$t"

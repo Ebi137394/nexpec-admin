@@ -23,6 +23,7 @@ import { signedUrl } from '@/src/core/storage/signedUrls';
 import { rpcWithRetry } from '@/src/core/net/supabaseRetry';
 // ★ Phase 5 — Industrial Black Box (inspector view, RLS-gated to their job)
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
+import JobChatActions from '@/src/components/chat/JobChatActions';
 import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
@@ -41,6 +42,7 @@ interface Job {
   company_logo: string | null;
   location: string | null;
   location_city?: string | null;
+  hired_inspector_id?: string | null;
   job_type: string;
   // ★ Layer 1+4 — backfilled to 'industrial_ndt' for every existing job.
   //   The InspectionDomainBadge gates rendering on requireLaunched, so this
@@ -257,6 +259,9 @@ export default function InspectorJobDetailScreen() {
           //   Discover shows "montreal" while this screen went blank). Ask for
           //   BOTH and fall back; never fabricate an address.
           'location_city',
+          // ★ required by isHired: the contract-signature path records the
+          //   assignment here, not in contractor_id.
+          'hired_inspector_id',
           'job_type',
           'payout_amount_cents',
           'description',
@@ -710,7 +715,13 @@ const fetchApplication = async (uid: string) => {
 
   // LOGIC: Who sees what?
   const isClient = userId === job.client_id;
-  const isHired = userId === job.contractor_id;
+  // ★ LAUNCH BLOCKER. inspector_sign_job_contract records hired_inspector_id;
+  //   only admin_dispatch_job writes contractor_id. Testing contractor_id alone
+  //   made isHired false for every contract-signature assignment, which hid the
+  //   Start Job action — the sole route from assigned → in_progress. Accept
+  //   either column; assignment columns and RLS are untouched.
+  const isHired =
+    !!userId && (userId === job.contractor_id || userId === (job as { hired_inspector_id?: string | null }).hired_inspector_id);
   // God-mode: admin oversees any job, never applies to it.
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
   const isJobActive = job.status === 'assigned' || job.status === 'in_progress';
@@ -965,6 +976,14 @@ const fetchApplication = async (uid: string) => {
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
+
+             {/* ★ FULL-MODE DIRECT CHAT (20260801334000). Self-gating: it asks
+                 nx_direct_chat_authorized() for THIS (job, me) pair and renders
+                 nothing unless the live identity mode is Full and this inspector
+                 still holds the active contract. Sits above "Chat with Admin"
+                 because the admin channel remains the default door — direct chat
+                 is the exception, not the replacement. */}
+             {isHired && <JobChatActions jobId={String(id)} />}
 
              {/* Chat with Admin Button */}
              <TouchableOpacity

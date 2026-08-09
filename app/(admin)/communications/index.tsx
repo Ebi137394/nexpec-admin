@@ -227,6 +227,31 @@ export default function ChatOversight() {
         <Text style={s.supportLinkText}>Open Support Center →</Text>
       </TouchableOpacity>
 
+      {/* ★ Full-mode Client ↔ Inspector direct rooms (20260801334000).
+          Deliberately a SEPARATE destination: those rooms are two-party and
+          admin observes them without becoming a participant, so they must not
+          be mixed into the admin's own conversation list below. */}
+      <TouchableOpacity
+        style={s.supportLink}
+        onPress={() => router.push('/(admin)/communications/direct-rooms' as any)}
+      >
+        <Ionicons name="eye-outline" size={18} color={SA.warning} />
+        <Text style={s.supportLinkText}>Monitor Buyer ↔ Inspector direct rooms →</Text>
+      </TouchableOpacity>
+
+      {/* ★ Supplier-side operational channels (20260801340000). Separate from
+          the admin-mediated list below for the same reason as the direct rooms:
+          admin observes these, it does not participate in them. */}
+      <TouchableOpacity
+        style={s.supportLink}
+        onPress={() => router.push('/(admin)/communications/operational-rooms' as any)}
+      >
+        <Ionicons name="eye-outline" size={18} color={SA.warning} />
+        <Text style={s.supportLinkText}>
+          Monitor Supplier ↔ Inspector / Buyer ↔ Supplier rooms →
+        </Text>
+      </TouchableOpacity>
+
       {error && (
         <TouchableOpacity style={s.errorBanner} onPress={load}>
           <Text style={s.errorText}>{error}</Text>

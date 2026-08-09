@@ -42,6 +42,7 @@ import { InspectionDomainBadge } from '@/components/inspection-domain/Inspection
 import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
 import type { InspectorReport } from '@/lib/data/inspectorReport.types';
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
+import JobChatActions from '@/components/messaging/JobChatActions';
 import type {
   InspectorJobDetail,
   InspectorOwnApplication,
@@ -188,6 +189,11 @@ export default async function InspectorJobDetailPage({
 
           {/* Primary CTA — context-aware (apply / withdraw / submit report) */}
           <PrimaryAction job={job} report={report} />
+
+          {/* ★ Two-party channels for the inspector side. Self-resolving via
+              nx_job_chat_counterparts, so "Message Supplier" appears only when
+              a supplier is genuinely attached to THIS inspection. */}
+          <JobChatActions jobId={job.id} returnTo={`/inspector/jobs/${job.id}`} />
         </div>
       </header>
 

@@ -308,6 +308,16 @@ export default function InspectorNotificationsScreen() {
 
     const jobId = n.job_id ?? parsedData?.job_id ?? null;
 
+    // 0) ★ FULL-MODE DIRECT ROOM (20260801334000) — must precede rules 1 and 2.
+    //    The fanout emits kind='message' WITH a job_id, so without this the
+    //    inspector's tap would open the admin-mediated thread for the job
+    //    instead of the client's direct room. Exact-shape match only.
+    const directHref = /^\/chat\/(direct|supplier-inspector|buyer-supplier)\/[0-9a-fA-F-]{36}$/.exec(n.link_href ?? '');
+    if (directHref) {
+      router.push(directHref[0] as any);
+      return;
+    }
+
     // 1) Message → open the thread. The mobile thread route is keyed on JOB id
     //    (it resolves the siloed conversation itself), so route by job_id, never
     //    the web conversation link. No job → the messages inbox.
@@ -336,7 +346,7 @@ export default function InspectorNotificationsScreen() {
     // 4) Last resort: only follow an explicit path if it is ALREADY a valid
     //    in-app route (never a web path like `/client/jobs/…`, which 404s here).
     const target = n.link_href || n.route || n.link || '';
-    if (/^\/(job-details|messages|contracts|report)\//.test(target)) {
+    if (/^\/(job-details|messages|contracts|report|chat\/(direct|supplier-inspector|buyer-supplier))\//.test(target)) {
       router.push(target as any);
     }
   };

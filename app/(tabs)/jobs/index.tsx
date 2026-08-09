@@ -30,7 +30,10 @@ type ViewMode = 'work' | 'postings';
 
 
 const formatDate = (dateStr: string) => { const d = new Date(dateStr); const diffMins = Math.floor((new Date().getTime() - d.getTime()) / 60000); if (diffMins < 1) return 'Just now'; if (diffMins < 60) return `${diffMins}m ago`; return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
-const getJobStatusConfig = (status: string) => { switch (status) { case 'assigned': case 'in_progress': return { label: 'Active', color: COLORS.blue, bg: COLORS.blueBg, icon: 'play-circle' as const }; case 'pending': case 'pending_approval': return { label: 'Pending', color: COLORS.amber, bg: COLORS.amberBg, icon: 'time' as const }; case 'completed': return { label: 'Completed', color: COLORS.green, bg: COLORS.greenBg, icon: 'checkmark-circle' as const }; case 'cancelled': return { label: 'Cancelled', color: COLORS.red, bg: COLORS.redBg, icon: 'close-circle' as const }; case 'open': return { label: 'Open', color: COLORS.cyan, bg: COLORS.cyanBg, icon: 'radio-button-on' as const }; default: return { label: status, color: COLORS.textMuted, bg: 'rgba(100,116,139,0.12)', icon: 'ellipse' as const }; } };
+// ★ OPERATIONAL job status only — never applications.status. 'assigned' means a
+//   fully executed contract awaiting Start Job; 'in_progress' means work has
+//   begun. Collapsing both to "Active" hid that difference from the inspector.
+const getJobStatusConfig = (status: string, applicationStage?: string) => { if (applicationStage === 'applied' && !['assigned','in_progress','completed','cancelled'].includes(status)) { return { label: 'Applied', color: COLORS.amber, bg: COLORS.amberBg, icon: 'time' as const }; } switch (status) { case 'assigned': return { label: 'Assigned', color: COLORS.blue, bg: COLORS.blueBg, icon: 'briefcase' as const }; case 'in_progress': return { label: 'In Progress', color: COLORS.blue, bg: COLORS.blueBg, icon: 'play-circle' as const }; case 'pending': case 'pending_approval': return { label: 'Pending', color: COLORS.amber, bg: COLORS.amberBg, icon: 'time' as const }; case 'completed': return { label: 'Completed', color: COLORS.green, bg: COLORS.greenBg, icon: 'checkmark-circle' as const }; case 'cancelled': return { label: 'Cancelled', color: COLORS.red, bg: COLORS.redBg, icon: 'close-circle' as const }; case 'open': return { label: 'Open', color: COLORS.cyan, bg: COLORS.cyanBg, icon: 'radio-button-on' as const }; default: return { label: status, color: COLORS.textMuted, bg: 'rgba(100,116,139,0.12)', icon: 'ellipse' as const }; } };
 
 const SegmentedControl: React.FC<{ activeIndex: number; onChange: (i: number) => void; }> = React.memo(({ activeIndex, onChange }) => {
   const slideAnim = useRef(new Animated.Value(0)).current; const segmentW = (SCREEN_WIDTH - 40) / 2;
@@ -97,7 +100,7 @@ const AnimatedFilterPill: React.FC<{ label: string; icon: keyof typeof Ionicons.
 });
 
 const MyWorkJobCard: React.FC<{ job: any; onPress: () => void; onGeneratePDF: () => void; isGeneratingPDF: boolean; isClient: boolean; }> = React.memo(({ job, onPress, onGeneratePDF, isGeneratingPDF, isClient }) => {
-  const cfg = getJobStatusConfig(job.status);
+  const cfg = getJobStatusConfig(job.status, (job as any).applicationStage);
   return (
     <TouchableOpacity style={st.myJobCard} onPress={onPress} activeOpacity={0.85}>
       <View style={st.myJobTopRow}><View style={{ flex: 1 }}><Text style={st.myJobTitle} numberOfLines={1}>{job.title || 'Untitled Job'}</Text><View style={st.myJobLocRow}><Ionicons name="location-outline" size={13} color={COLORS.textMuted} /><Text style={st.myJobAddress} numberOfLines={1}>{job.location_city || job.location || [job.city, job.state, job.country].filter(Boolean).join(', ') || 'No location'}</Text></View></View><View style={[st.statusBadge, { backgroundColor: cfg.bg }]}><Ionicons name={cfg.icon} size={12} color={cfg.color} /><Text style={[st.statusBadgeText, { color: cfg.color }]}>{cfg.label}</Text></View></View>
@@ -217,9 +220,15 @@ export default function JobsScreen() {
         let pendingJobsData: any[] = [];
         if (uniquePendingJobIds.length > 0) {
           const { data: pJobs } = await supabase.from('jobs_inspector_secure_view').select(INSPECTOR_JOB_FIELDS).in('id', uniquePendingJobIds);
-          if (pJobs) pendingJobsData = (pJobs as any[]).map(j => ({ ...j, status: 'pending' }));
+          // ★ DO NOT overwrite jobs.status. These rows are jobs the inspector has
+          //   APPLIED to; the application stage is a separate axis from the job's
+          //   operational status. Injecting status:'pending' made a fully
+          //   executed, assigned job render as "Pending". Keep the real status
+          //   and carry the application stage in its own field.
+          if (pJobs) pendingJobsData = (pJobs as any[]).map(j => ({ ...j, applicationStage: 'applied' }));
         }
 
+        // Applied-but-not-yet-assigned. Identity is by job id, not by status.
         const actualPendingJobs = pendingJobsData.filter(p => !allAssigned.some(a => a.id === p.id));
 
         let combinedJobs = [];

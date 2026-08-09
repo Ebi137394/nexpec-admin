@@ -288,24 +288,53 @@ $noguard$;
 -- while the same call succeeds while the relationship is live, and the sender
 -- keeps their own upload throughout.
 DO $behaviour$
+--  ── FIXTURE ISOLATION (hardened after a PRODUCTION failure) ────────────────
+--  This proof failed on Production with
+--      SELFTEST: admin monitoring lost access to direct-chat media
+--  while passing on a freshly reset local database. The product path is fine —
+--  nx_can_access_doc still short-circuits on v_role IN ('admin','super_admin')
+--  — so the difference was the FIXTURE, not the gate.
+--
+--  The original block used hard-coded ids with ON CONFLICT (id) DO NOTHING.
+--  On a non-empty database that is silent failure by design: if a row with
+--  that id already exists with any other role, DO NOTHING keeps the old row,
+--  nx_can_access_doc reads that role, and the assertion blames the product for
+--  a fixture that was never created. Local resets are empty, so it only ever
+--  showed up against real data.
+--
+--  Fixed the same way 350000/352000/354000 were: every id generated, NO
+--  ON CONFLICT anywhere, and the fixture asserts its own preconditions before
+--  any product assertion runs — so a fixture problem reports itself instead of
+--  masquerading as a security regression.
 DECLARE
-  v_buyer uuid := '00000000-0000-4000-8000-0000000000e1';
-  v_insp  uuid := '00000000-0000-4000-8000-0000000000e2';
-  v_job   uuid := '00000000-0000-4000-8000-0000000000f1';
-  v_admin uuid := '00000000-0000-4000-8000-0000000000e3';
+  v_buyer uuid := gen_random_uuid();
+  v_insp  uuid := gen_random_uuid();
+  v_admin uuid := gen_random_uuid();
+  v_job   uuid := gen_random_uuid();
+  v_tag   text := 'nx348-' || replace(gen_random_uuid()::text,'-','') || '@selftest.nx';
   v_conv  uuid;
-  v_att   text := '00000000-0000-4000-8000-0000000000e2/proof-note.m4a';
+  v_att   text := gen_random_uuid()::text || '/proof-note.m4a';
+  v_role  text;
 BEGIN
-  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  VALUES (v_buyer,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','media.buyer@selftest.nx',now(),now()),
-         (v_insp, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','media.insp@selftest.nx',now(),now())
-  ON CONFLICT (id) DO NOTHING;
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (v_buyer,'media.buyer@selftest.nx','client'), (v_insp,'media.insp@selftest.nx','inspector')
-  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at) VALUES
+    (v_buyer,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','b.'||v_tag,now(),now()),
+    (v_insp, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','i.'||v_tag,now(),now()),
+    (v_admin,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','a.'||v_tag,now(),now());
+  INSERT INTO public.profiles (id, email, role) VALUES
+    (v_buyer,'b.'||v_tag,'client'), (v_insp,'i.'||v_tag,'inspector'),
+    (v_admin,'a.'||v_tag,'admin');
+
+  -- ★ PRECONDITION, ASSERTED. If a trigger or default rewrites the role, this
+  --   names the real problem instead of letting the admin assertion below fail
+  --   as though the gate had regressed. role='admin' (never 'super_admin') so
+  --   cleanup cannot trip the LAST_SUPER_ADMIN invariant from 20260801278000.
+  SELECT role INTO v_role FROM public.profiles WHERE id = v_admin;
+  IF v_role IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION 'SELFTEST FIXTURE: the admin principal has role % (expected admin) — fixture problem, not a gate regression', COALESCE(v_role,'<missing>');
+  END IF;
+
   INSERT INTO public.jobs (id, title, client_id, status, moderation_status, identity_mode)
-  VALUES (v_job, 'media selftest', v_buyer, 'in_progress', 'approved', 'full')
-  ON CONFLICT (id) DO NOTHING;
+  VALUES (v_job, 'media selftest 348000', v_buyer, 'in_progress', 'approved', 'full');
   INSERT INTO public.job_contracts (job_id, client_id, inspector_id, status,
                                     client_price_cents, inspector_payout_cents)
   VALUES (v_job, v_buyer, v_insp, 'fully_executed', 100000, 80000);
@@ -331,22 +360,6 @@ BEGIN
   END IF;
 
   -- Admin monitoring must be unaffected.
-  --
-  -- ★ role = 'admin', NEVER 'super_admin'. A migration runs before seed data,
-  --   so a temporary super_admin here is the ONLY active one, and deleting it
-  --   during cleanup correctly trips the LAST_SUPER_ADMIN invariant from
-  --   20260801278000 — aborting the migration. That guard is right and must
-  --   stay untouched; the fixture was wrong. nx_can_access_doc short-circuits
-  --   on `v_role IN ('admin','super_admin')`, so 'admin' exercises the exact
-  --   same monitoring path, and no invariant protects the last plain admin.
-  --   Any super_admin-specific proof belongs in the pgTAP suites, which run
-  --   inside a transaction that is rolled back.
-  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  VALUES (v_admin,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','media.adm@selftest.nx',now(),now())
-  ON CONFLICT (id) DO NOTHING;
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (v_admin,'media.adm@selftest.nx','admin')
-  ON CONFLICT (id) DO NOTHING;
   IF NOT public.nx_can_access_doc(v_admin, 'chat_attachments', v_att) THEN
     RAISE EXCEPTION 'SELFTEST: admin monitoring lost access to direct-chat media';
   END IF;
@@ -356,31 +369,25 @@ BEGIN
     RAISE EXCEPTION 'SELFTEST: revocation deleted history';
   END IF;
 
-  -- ── CLEANUP. Must leave the database exactly as it was found. ────────────
-  --    The messages INSERT above fires tg_direct_message_fanout, which writes a
-  --    notifications row for the recipient — easy to miss, and it would have
-  --    been permanent residue from a migration. Deleted explicitly here.
+  -- ── CLEANUP. The messages INSERT fires tg_direct_message_fanout, which
+  --    writes a notifications row — permanent residue if missed.
   DELETE FROM public.notifications WHERE recipient_id IN (v_buyer, v_insp, v_admin);
   DELETE FROM public.messages      WHERE conversation_id = v_conv;
-  DELETE FROM public.conversations WHERE id = v_conv;
+  DELETE FROM public.conversations WHERE id = v_conv OR job_id = v_job;
   DELETE FROM public.job_contracts WHERE job_id = v_job;
   DELETE FROM public.jobs          WHERE id = v_job;
   DELETE FROM public.profiles      WHERE id IN (v_buyer, v_insp, v_admin);
   DELETE FROM auth.users           WHERE id IN (v_buyer, v_insp, v_admin);
 
-  -- Prove the cleanup, rather than assuming it. A migration that leaks test
-  -- principals into Production is worse than one that fails loudly.
   IF EXISTS (SELECT 1 FROM public.profiles WHERE id IN (v_buyer, v_insp, v_admin))
      OR EXISTS (SELECT 1 FROM auth.users   WHERE id IN (v_buyer, v_insp, v_admin))
      OR EXISTS (SELECT 1 FROM public.jobs  WHERE id = v_job)
      OR EXISTS (SELECT 1 FROM public.conversations WHERE id = v_conv)
-     OR EXISTS (SELECT 1 FROM public.messages      WHERE conversation_id = v_conv)
-     OR EXISTS (SELECT 1 FROM public.job_contracts WHERE job_id = v_job)
      OR EXISTS (SELECT 1 FROM public.notifications WHERE recipient_id IN (v_buyer, v_insp, v_admin)) THEN
     RAISE EXCEPTION 'SELFTEST: the behavioural proof left fixtures behind';
   END IF;
 
-  RAISE NOTICE 'Two-party media now follows the live gate; admin monitoring and history intact; fixtures removed.';
+  RAISE NOTICE 'Two-party media follows the live gate; admin monitoring and history intact; fixtures removed.';
 END
 $behaviour$;
 

@@ -29,7 +29,15 @@ export type OperationKind =
   | 'expense_add'
   // #Step2 — contract signing routed through the outbox (offline-durable; the
   // broker sign RPCs are idempotent on signer + contract state).
-  | 'contract_sign';
+  | 'contract_sign'
+  // #Phase3 — ONE ITP execution act (nx_itp_record_result). The payload is the
+  // frozen ItpExecutionRequest verbatim, so the queued path and the online path
+  // are the same shape reaching the same RPC. Idempotency is NOT client_op_id
+  // here: the frozen RPC takes no client-op parameter and instead upserts over
+  // the partial unique indexes (point_id, job_id, visit_id) /
+  // (point_id, job_id) WHERE visit_id IS NULL — see
+  // supabase/migrations/20260801398000_itp_points_foundation.sql:147-150,353-370.
+  | 'itp_record_result';
 
 // 'conflict' (#56) is terminal-pending: the server state diverged (row gone /
 // sealed / RLS-filtered / optimistic-lock miss). It is NOT auto-retried — it

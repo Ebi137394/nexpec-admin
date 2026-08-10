@@ -22,6 +22,7 @@
 //  flushes on its own when connectivity returns.
 // ─────────────────────────────────────────────────────────────────
 
+import type { ItpExecutionRequest } from '@nexpec/shared-core';
 import { enqueue } from './outbox';
 import {
   flushQueue,
@@ -55,6 +56,9 @@ export type {
   FailureClass,
 } from './outbox';
 export { isOnline } from './network';
+// #Phase3 — the result_id an ITP op landed, readable once after an awaited
+// drain (the outbox row itself is deleted on success). See operations.ts.
+export { takeItpResultId } from './operations';
 
 // ── UUID v4 (no extra deps) ────────────────────────────────────────
 //
@@ -358,6 +362,31 @@ export async function enqueueFlashReportRaise(input: FlashReportRaiseInput): Pro
  */
 export function newClientId(): string {
   return makeUuid();
+}
+
+// ── #Phase3 · ITP execution (offline-durable) ──────────────────────
+
+/**
+ * Enqueue ONE ITP execution act. `req` is the frozen ItpExecutionRequest from
+ * @nexpec/shared-core and is stored verbatim, so the queued payload IS the
+ * cross-surface contract rather than a private re-encoding of it.
+ *
+ * Like the flash-report helpers this does NOT auto-flush: recordItpResult()
+ * (src/lib/itp/execution.ts) awaits flushQueue() itself so it can report a
+ * definite outcome — landed, queued for replay, or refused. Callers should use
+ * recordItpResult() rather than this helper directly; it is exported because
+ * every other operation kind exposes its typed entry point here.
+ *
+ * Each call gets a FRESH op id on purpose. A deterministic id derived from
+ * (point, job, visit) would collapse a correction made while still offline into
+ * the first payload (enqueue is INSERT OR IGNORE), silently discarding the
+ * inspector's second, truer answer. Two acts, two ops, replayed in FIFO order —
+ * the last one the inspector recorded is the one that stands.
+ */
+export async function enqueueItpRecordResult(req: ItpExecutionRequest): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({ client_op_id: opId, kind: 'itp_record_result', payload: req });
+  return opId;
 }
 
 export interface FlashReportTransitionInput {

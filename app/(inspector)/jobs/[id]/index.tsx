@@ -30,6 +30,10 @@ import { JobTeamPanel } from '@/src/components/team/JobTeamPanel';
 //   deliberately no second mobile job-detail system. Read-only for inspectors:
 //   every visit mutation is Admin-only and lives on the web admin surface.
 import { JobVisitsPanel } from '@/src/components/visits/JobVisitsPanel';
+// ★ Phase 3A — ITP execution. Extends THIS existing job-detail screen; the
+//   panel self-gates on nx_job_itp (which authorises in its own body) and
+//   renders nothing for a job with no scope template.
+import { JobItpPanel } from '@/src/components/itp/JobItpPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
@@ -1180,6 +1184,19 @@ const fetchApplication = async (uid: string) => {
               never materialises it, so merely opening this screen cannot backfill
               a visit. No mutation controls are exposed here. */}
           <JobVisitsPanel jobId={String(id)} />
+
+          {/* Inspection & Test Plan for this job. nx_job_itp is the canonical
+              read and carries its own authorisation, so the panel hides itself
+              for anyone not engaged on the job and for a job with no scope
+              template. Results are written through the ITP execution module
+              (online path + offline outbox), never from this screen. No hold
+              release is offered here — that is an admin/buyer act. */}
+          <JobItpPanel
+            jobId={String(id)}
+            viewerId={userId}
+            isAdmin={isAdmin}
+            clientId={job.client_id}
+          />
 
           <MeetingsPanel jobId={String(id)} parties={[]} canSchedule={false} />
 

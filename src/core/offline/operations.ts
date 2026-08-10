@@ -13,7 +13,8 @@
 // ─────────────────────────────────────────────────────────────────
 
 import * as FileSystem from 'expo-file-system';
-import { SyncConflictError } from '@nexpec/shared-core';
+import { ITP_RPC, SyncConflictError } from '@nexpec/shared-core';
+import type { ItpExecutionRequest } from '@nexpec/shared-core';
 import { supabase } from '@/src/core/supabase/supabase';
 import type { OperationKind, OutboxRow } from './outbox';
 
@@ -546,6 +547,88 @@ async function handleContractSign(row: OutboxRow): Promise<void> {
   }
 }
 
+// ── itp_record_result ─────────────────────────────────────────────
+//
+// #Phase3 — ONE ITP execution act. The payload is the frozen
+// ItpExecutionRequest verbatim (shared-core/src/domain/itp.ts:160), and THIS
+// HANDLER IS THE ONLY PLACE IN THE APP THAT CALLS nx_itp_record_result. The
+// "online" path is not a second code path: it enqueues and drains immediately
+// (src/lib/itp/execution.ts), so an act recorded on wifi and the same act
+// recorded in a tunnel reach the identical RPC with identical arguments.
+//
+// AUTHORISATION is deliberately NOT checked here. The RPC re-decides it at
+// replay time from auth.uid() of the USER'S OWN client
+// (20260801398000:333-339 — admin OR job contractor OR
+// nx_is_active_job_team_member). An inspector removed from the job between
+// queueing and draining is refused server-side with 42501 → classified fatal →
+// the op is preserved and surfaced, never silently applied.
+//
+// IDEMPOTENCY is server-side and structural, not client_op_id based: the
+// frozen RPC takes no client-op parameter. It INSERTs ... ON CONFLICT DO
+// NOTHING against the partial unique indexes on (point_id, job_id, visit_id)
+// and (point_id, job_id) WHERE visit_id IS NULL, then UPDATEs the existing row
+// in place (20260801398000:353-370). A re-delivered op therefore lands on the
+// SAME row and returns the SAME result_id — one ITP result, never two. The
+// dup-key branch below is a backstop for a future direct-write path; the RPC
+// as frozen does not surface 23505.
+async function handleItpRecordResult(row: OutboxRow): Promise<void> {
+  const req = JSON.parse(row.payload_json) as ItpExecutionRequest;
+  const { data, error } = await supabase.rpc(ITP_RPC.recordResult, itpRequestToRpcArgs(req));
+  if (error) {
+    if (isDuplicateKey(error)) return; // already recorded — idempotent
+    throw error;
+  }
+  rememberItpResultId(row.client_op_id, readResultId(data));
+}
+
+/**
+ * The frozen ItpExecutionRequest → the frozen nx_itp_record_result signature
+ * (p_point_id, p_job_id, p_result, p_visit_id, p_comments, p_witnessed_by).
+ * Exported so a test can assert the mapping rather than trusting it, and so
+ * there is exactly ONE translation of the contract in the app.
+ */
+export function itpRequestToRpcArgs(req: ItpExecutionRequest): Record<string, unknown> {
+  return {
+    p_point_id: req.pointId,
+    p_job_id: req.jobId,
+    p_result: req.result,
+    // NULL means job-level — the same meaning inspection_captures.visit_id has.
+    p_visit_id: req.visitId ?? null,
+    p_comments: req.comments ?? null,
+    p_witnessed_by: req.witnessedBy ?? null,
+  };
+}
+
+function readResultId(data: unknown): string | null {
+  const j = (Array.isArray(data) ? data[0] : data) as { result_id?: unknown } | null | undefined;
+  const id = j?.result_id;
+  return typeof id === 'string' ? id : null;
+}
+
+// A drained op's row is DELETED by markSuccess, so the RPC's returned result_id
+// would otherwise be unobservable. Callers that awaited the drain (the field
+// screen needs the id to raise an NCR from a failed point) read it back through
+// takeItpResultId(). Bounded and read-once so it cannot grow: a background
+// drain that nobody is awaiting simply ages out.
+const ITP_RESULT_ID_CACHE_MAX = 50;
+const itpResultIds = new Map<string, string | null>();
+
+function rememberItpResultId(clientOpId: string, resultId: string | null): void {
+  if (itpResultIds.size >= ITP_RESULT_ID_CACHE_MAX) {
+    const oldest = itpResultIds.keys().next().value;
+    if (oldest !== undefined) itpResultIds.delete(oldest);
+  }
+  itpResultIds.set(clientOpId, resultId);
+}
+
+/** Read-once accessor for the result_id an ITP op landed. undefined = not (yet) landed. */
+export function takeItpResultId(clientOpId: string): string | null | undefined {
+  if (!itpResultIds.has(clientOpId)) return undefined;
+  const v = itpResultIds.get(clientOpId);
+  itpResultIds.delete(clientOpId);
+  return v;
+}
+
 // ── Registry ──────────────────────────────────────────────────────
 
 export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> = {
@@ -563,6 +646,7 @@ export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> 
   withdrawal_request: handleWithdrawalRequest,
   expense_add: handleExpenseAdd,
   contract_sign: handleContractSign,
+  itp_record_result: handleItpRecordResult,
 };
 
 // ── tiny base64 → bytes (no native deps) ──────────────────────────

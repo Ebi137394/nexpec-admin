@@ -34,7 +34,6 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const offlineDir = path.resolve(here, '..');
-const repoRoot = path.resolve(here, '../../../..');
 
 const url = (p) => pathToFileURL(p).href;
 
@@ -42,7 +41,9 @@ const BARE = new Map([
   ['expo-sqlite', url(path.join(here, 'fakes/expoSqlite.mjs'))],
   ['expo-file-system', url(path.join(here, 'fakes/expoFileSystem.mjs'))],
   ['@/src/core/supabase/supabase', url(path.join(here, 'fakes/supabaseServer.mjs'))],
-  ['@nexpec/shared-core', url(path.join(repoRoot, 'packages/shared-core/src/offline/syncErrors.ts'))],
+  // The REAL shared-core sources (classifier + frozen ITP contract), re-exported
+  // by fakes/sharedCore.mjs. Nothing in it is simulated.
+  ['@nexpec/shared-core', url(path.join(here, 'fakes/sharedCore.mjs'))],
 ]);
 
 const NETWORK_FAKE = url(path.join(here, 'fakes/network.mjs'));

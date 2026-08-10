@@ -37,6 +37,12 @@ export const server = {
   visits: new Map(),
   /** inspection_captures, keyed by PK id */
   captures: new Map(),
+  /** itp_points (DEFINITION), keyed by id — 20260801398000:55 */
+  itpPoints: new Map(),
+  /** itp_point_results (EXECUTION), keyed by id — 20260801398000:103 */
+  itpResults: new Map(),
+  /** every rpc() call, in order: { name, args, uid } */
+  rpcCalls: [],
   /** every storage object write, in order */
   storageWrites: [],
   /** refreshSession() outcome for the injected auth seam */
@@ -48,6 +54,9 @@ export const server = {
     this.team.clear();
     this.visits.clear();
     this.captures.clear();
+    this.itpPoints.clear();
+    this.itpResults.clear();
+    this.rpcCalls.length = 0;
     this.storageWrites.length = 0;
     this.sessionRefreshable = true;
   },
@@ -68,6 +77,35 @@ export const server = {
   },
   addVisit(visitId, jobId, status = 'scheduled') {
     this.visits.set(visitId, { job_id: jobId, status });
+  },
+  /** One itp_points row. Defaults mirror the DDL (20260801398000:55-92). */
+  addItpPoint(pointId, over = {}) {
+    this.itpPoints.set(pointId, {
+      point_type: 'normal',
+      blocks_progress: false,
+      requires_signoff: false,
+      is_active: true,
+      ...over,
+    });
+  },
+  /**
+   * The reader's join predicate, transcribed from nx_job_itp
+   * (20260801398000:274-281): a result belongs to a (job, visit) view only when
+   *   r.job_id = p_job_id AND r.visit_id IS NOT DISTINCT FROM p_visit_id
+   * — which is exactly why a result left on a superseded visit disappears from
+   * the successor visit's ITP and the point reads 'pending' again.
+   */
+  itpResultFor(jobId, pointId, visitId = null) {
+    for (const r of this.itpResults.values()) {
+      if (r.job_id === jobId && r.point_id === pointId && (r.visit_id ?? null) === (visitId ?? null)) {
+        return r;
+      }
+    }
+    return null;
+  },
+  /** Every result row for a job, oldest first. */
+  itpResultsForJob(jobId) {
+    return [...this.itpResults.values()].filter((r) => r.job_id === jobId);
   },
 
   // ── transcribed predicates ──────────────────────────────────────
@@ -179,6 +217,117 @@ function insertCapture(row) {
   return { data: [inserted], error: null };
 }
 
+// ── nx_itp_record_result — 20260801398000:309-375, transcribed line for line ──
+//
+//  SECURITY DEFINER owned by postgres, so the itp_results_write RLS policy is
+//  NOT the gate here: the function's own check at :333-339 is, and the policy
+//  (:194-201) is a byte-for-byte mirror of it for any direct writer. Either way
+//  the decision is made from auth.uid() when the call actually happens — i.e.
+//  at REPLAY time for a queued op.
+//
+//  SQLSTATE → HTTP follows PostgREST's mapping, because that is what the
+//  shared-core classifier sees:
+//     42501 → 403 fatal   28000 → (never reached: an expired JWT is refused as
+//     22023 → 400 fatal            401/PGRST301 before the body runs)
+//     P0002 → 404 fatal   23503 → 409 conflict
+const ITP_RESULTS = new Set(['pending', 'passed', 'failed', 'waived', 'not_applicable']);
+
+const errPg = (code, status, message) => ({ status, code, message });
+
+function itpRecordResult(args) {
+  // PostgREST rejects an expired/absent JWT before the function body executes,
+  // so this is a 401, not the function's own 28000 branch.
+  if (!server.uid) return { data: null, error: errNoSession() };
+  const uid = server.uid;
+
+  // :328-330 — invalid result.
+  if (!ITP_RESULTS.has(args.p_result)) {
+    return { data: null, error: errPg('22023', 400, `invalid result ${args.p_result}`) };
+  }
+
+  // :333-339 — SAME authorisation as evidence: on the job right now, or admin.
+  // Evaluated NOW, from this session's uid.
+  if (!(server.isContractor(args.p_job_id, uid) || server.nx_is_active_job_team_member(args.p_job_id, uid))) {
+    return {
+      data: null,
+      error: errPg('42501', 403, 'not authorized to record on this job — row-level security'),
+    };
+  }
+
+  // :341-344 — the point must exist and be active.
+  const point = server.itpPoints.get(args.p_point_id);
+  if (!point || !point.is_active) {
+    return { data: null, error: errPg('P0002', 404, 'itp point not found or inactive') };
+  }
+
+  // :347-351 — a witness point must say who witnessed it.
+  if (
+    point.point_type === 'witness' &&
+    (args.p_result === 'passed' || args.p_result === 'failed') &&
+    !(args.p_witnessed_by ?? '').trim()
+  ) {
+    return { data: null, error: errPg('22023', 400, 'a witness point requires who witnessed it') };
+  }
+
+  // itp_point_results.visit_id REFERENCES job_visits(id) — :109. NOTE what is
+  // NOT here: itp_point_results has no equivalent of tg_guard_capture_visit
+  // (20260801388000/396000), so there is no job-coherence check on the visit
+  // and no forwarding past a rescheduled one. The FK is the only visit rule.
+  const visitId = args.p_visit_id ?? null;
+  if (visitId !== null && !server.visits.has(visitId)) {
+    return {
+      data: null,
+      error: errPg('23503', 409, 'insert on itp_point_results violates foreign key constraint "itp_point_results_visit_id_fkey"'),
+    };
+  }
+
+  const comments = (args.p_comments ?? '').trim() || null;
+  const witnessedBy = (args.p_witnessed_by ?? '').trim() || null;
+
+  // :353-370 — INSERT ... ON CONFLICT DO NOTHING over the partial unique
+  // indexes (point_id, job_id, visit_id) and (point_id, job_id) WHERE visit_id
+  // IS NULL (:147-150), then UPDATE the existing row in place. NULL visit_id
+  // needs its own index because NULL is not equal to itself; itpResultFor()
+  // reproduces that with IS NOT DISTINCT FROM.
+  let row = server.itpResultFor(args.p_job_id, args.p_point_id, visitId);
+  if (row) {
+    row.result = args.p_result;
+    row.inspector_id = uid;
+    row.recorded_at = new Date().toISOString();
+    row.comments = comments ?? row.comments;
+    row.witnessed_by = witnessedBy ?? row.witnessed_by;
+    row.write_count += 1;
+  } else {
+    row = {
+      id: globalThis.crypto.randomUUID(),
+      point_id: args.p_point_id,
+      job_id: args.p_job_id,
+      visit_id: visitId,
+      result: args.p_result,
+      inspector_id: uid,
+      recorded_at: new Date().toISOString(),
+      comments,
+      witnessed_by: witnessedBy,
+      released_at: null,
+      flash_report_id: null,
+      /** Not a column — lets a test see an in-place update vs a second row. */
+      write_count: 1,
+    };
+    server.itpResults.set(row.id, row);
+  }
+
+  return {
+    data: {
+      ok: true,
+      result_id: row.id,
+      result: args.p_result,
+      point_type: point.point_type,
+      blocks_progress: point.blocks_progress,
+    },
+    error: null,
+  };
+}
+
 function insertGeneric(table, row) {
   if (!server.uid) return { data: null, error: errNoSession() };
   return { data: [row], error: null };
@@ -221,6 +370,8 @@ export const supabase = {
   },
 
   rpc(name, args) {
+    server.rpcCalls.push({ name, args, uid: server.uid });
+    if (name === 'nx_itp_record_result') return Promise.resolve(itpRecordResult(args ?? {}));
     return Promise.resolve({ data: null, error: server.uid ? null : errNoSession() });
   },
 

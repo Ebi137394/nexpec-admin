@@ -52,6 +52,7 @@ import type { JobUrgency } from '@/lib/data/clientJobs.types';
 import { withdrawApplication } from '@/lib/actions/inspectorApply';
 import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
 import JobVisitsPanel from '@/components/visits/JobVisitsPanel';
+import JobItpPanel from '@/components/jobs/JobItpPanel';
 import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = {

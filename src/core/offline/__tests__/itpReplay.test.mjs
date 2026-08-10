@@ -324,6 +324,33 @@ describe('Q13-Q15 canonical ITP rules hold on the replay path', () => {
     );
   });
 
+  it('an inspector cannot WAIVE their own blocking hold through the queue', async () => {
+    // 20260801402000. 'waived' sits inside the cleared set (398000:272), so
+    // before that migration recording it was a second, quieter road around
+    // nx_itp_release_hold's admin/buyer rule — no forged column needed.
+    const opId = await offlineApi.enqueueItpRecordResult(
+      itpReq({ pointId: POINT_HOLD, result: 'waived' }),
+    );
+    await drain();
+
+    assert.equal(server.itpResults.size, 0, 'the waiver is refused at replay');
+    assert.equal((await rowFor(opId)).status, 'abandoned', '42501 is fatal, not retried');
+  });
+
+  it('the buyer principal MAY waive — the rule is authority, not a blanket ban', async () => {
+    const buyer = uuid();
+    server.jobs.get(JOB).client_id = buyer;
+    server.team.set(`${JOB}|${buyer}`, 'active'); // buyer must still pass the row check
+    server.uid = buyer;
+
+    await offlineApi.enqueueItpRecordResult(itpReq({ pointId: POINT_HOLD, result: 'waived' }));
+    await drain();
+
+    const row = resultFor(JOB, POINT_HOLD, null);
+    assert.ok(row, 'a waiver by the buyer principal is accepted');
+    assert.equal(row.result, 'waived');
+  });
+
   it('a witness point cannot be passed offline without naming the witness', async () => {
     const opId = await offlineApi.enqueueItpRecordResult(
       itpReq({ pointId: POINT_WITNESS, result: 'passed', witnessedBy: null }),

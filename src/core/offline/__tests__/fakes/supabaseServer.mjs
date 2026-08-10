@@ -68,8 +68,18 @@ export const server = {
     this.uid = null;
   },
 
-  addJob(jobId, contractorId) {
-    this.jobs.set(jobId, { contractor_id: contractorId });
+  /**
+   * jobs_owner_xor: exactly one of client_id / agency_id is set, and the buyer
+   * principal is COALESCE(agency_id, client_id). Carried here so nx_itp_may_waive
+   * (20260801402000) can be modelled honestly.
+   */
+  addJob(jobId, contractorId, over = {}) {
+    this.jobs.set(jobId, {
+      contractor_id: contractorId,
+      client_id: null,
+      agency_id: null,
+      ...over,
+    });
   },
   /** status: 'assigned' | 'active' | 'removed' | 'replaced' */
   setTeamStatus(jobId, inspectorId, status) {
@@ -127,6 +137,14 @@ export const server = {
   // nx_can_record_visit_work (20260801388000, amended by 396000). 'rescheduled'
   // is refused because the guard forwards past it before reaching here;
   // 'cancelled' is permitted so late offline evidence is never destroyed.
+  // nx_itp_may_waive (20260801402000): admin or the buyer principal
+  // COALESCE(agency_id, client_id). Deliberately NOT the contractor or the
+  // inspection team — a waiver by the inspected party is the bypass it closes.
+  mayWaive(jobId, uid) {
+    const j = this.jobs.get(jobId);
+    if (!j || !uid) return false;
+    return (j.agency_id ?? j.client_id ?? null) === uid;
+  },
   canRecordVisitWork(visitId, uid) {
     const v = this.visits.get(visitId);
     if (!v || !uid) return false;
@@ -252,6 +270,14 @@ function itpRecordResult(args) {
       data: null,
       error: errPg('42501', 403, 'not authorized to record on this job — row-level security'),
     };
+  }
+
+  // 20260801402000 — waiving ACCEPTS a nonconformity, so it carries release
+  // authority, not recording authority. Without this an inspector could waive
+  // their own blocking Hold point ('waived' is inside the cleared set at
+  // 398000:272) and never reach nx_itp_release_hold's admin/buyer rule.
+  if (args.p_result === 'waived' && !server.mayWaive(args.p_job_id, uid)) {
+    return { data: null, error: errPg('42501', 403, 'ITP_WAIVE_DENIED: waiving requires release authority') };
   }
 
   // :341-344 — the point must exist and be active.

@@ -10,6 +10,8 @@
 //    • admin_replace_inspector    → void-and-reissue in one transaction
 //    • admin_search_assignable_inspectors / admin_assign_inspector_directly
 //                                 → book a known inspector who never applied
+//    • nx_match_inspectors_for_job → RANKED recommendations (additive to the
+//                                    name search, which is preserved)
 //  Disclosure/authorization decisions live in the DB, never here.
 // ════════════════════════════════════════════════════════════════════════════
 import { revalidatePath } from 'next/cache';
@@ -30,6 +32,36 @@ export interface AssignableInspector {
   role: string | null;
   /** ADMIN-ONLY. True when this row is the signed-in admin (self-assignment). */
   isSelf: boolean;
+}
+
+/**
+ * A ranked candidate from the deterministic matching engine (20260801358000).
+ *
+ * This is ADDITIVE to AssignableInspector, not a replacement: name search
+ * answers "find the person I already have in mind", recommendations answer
+ * "who should I even be considering". Both remain available in the UI.
+ *
+ * Every number here is a MATCH score, never money — the ranking RPC reads no
+ * pricing column at all, so this type cannot carry a payout or a margin.
+ */
+export interface RecommendedInspector {
+  id: string;
+  fullName: string | null;
+  /** 0–100, deterministic and reproducible. */
+  score: number;
+  /** Sub-scores, so an admin can see WHY — never a black box. */
+  specialtyPts: number;
+  certPts: number;
+  distancePts: number;
+  /** Null when the job or the inspector has no coordinates. */
+  distanceKm: number | null;
+  /** Flag only. Deliberately NOT a filter — the admin decides. */
+  workAuthorized: boolean;
+  isVerified: boolean;
+  ratingAverage: number | null;
+  completedJobs: number | null;
+  /** Human-readable justifications, e.g. 'covers 2/2 discipline(s)'. */
+  reasons: string[];
 }
 
 export async function setProjectPolicy(
@@ -107,6 +139,57 @@ export async function searchAssignableInspectors(
         isVerified: Boolean(r.is_verified),
         role: (r.role as string | null) ?? null,
         isSelf: Boolean(r.is_self),
+      })),
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'unexpected error' };
+  }
+}
+
+/**
+ * Ranked inspector recommendations for a job.
+ *
+ * Complements searchAssignableInspectors — it does not replace it. Search is
+ * for "I know who I want"; this is for "who should I consider". The RPC is
+ * admin-gated in its own body, so this wrapper adds no authorization of its own
+ * (the two layers must not drift).
+ *
+ * `includeUnverified` surfaces unverified inspectors so the existing admin
+ * override path stays reachable; they are excluded by default.
+ */
+export async function recommendInspectorsForJob(
+  jobId: string,
+  limit = 10,
+  includeUnverified = false,
+): Promise<{ ok: true; inspectors: RecommendedInspector[] } | { ok: false; error: string }> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc('nx_match_inspectors_for_job', {
+      p_job_id: jobId,
+      p_limit: limit,
+      p_include_unverified: includeUnverified,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    const num = (v: unknown): number | null =>
+      v === null || v === undefined ? null : Number(v);
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    return {
+      ok: true,
+      inspectors: rows.map((r) => ({
+        id: String(r.inspector_id),
+        fullName: (r.full_name as string | null) ?? null,
+        score: Number(r.score ?? 0),
+        specialtyPts: Number(r.specialty_pts ?? 0),
+        certPts: Number(r.cert_pts ?? 0),
+        distancePts: Number(r.distance_pts ?? 0),
+        distanceKm: num(r.distance_km),
+        workAuthorized: Boolean(r.work_authorized),
+        isVerified: Boolean(r.is_verified),
+        ratingAverage: num(r.rating),
+        completedJobs: num(r.completed_jobs),
+        reasons: Array.isArray(r.reasons) ? (r.reasons as string[]) : [],
       })),
     };
   } catch (e) {

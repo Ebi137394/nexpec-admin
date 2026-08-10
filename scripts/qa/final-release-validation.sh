@@ -70,6 +70,7 @@ for f in \
   supabase/migrations/20260801358000_inspector_job_matching_engine.sql \
   supabase/migrations/20260801360000_targeted_job_broadcast.sql \
   supabase/migrations/20260801362000_certification_expiry_activation.sql \
+  supabase/migrations/20260801364000_admin_report_review_activation.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
   supabase/tests/resume_disclosure_access_test.sql \
@@ -85,6 +86,7 @@ for f in \
   supabase/tests/inspector_matching_test.sql \
   supabase/tests/targeted_job_broadcast_test.sql \
   supabase/tests/certification_expiry_test.sql \
+  supabase/tests/admin_report_review_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
   supabase/rollback/20260801318000_rollback.sql \
   supabase/rollback/20260801322000_rollback.sql \
@@ -105,10 +107,11 @@ for f in \
   supabase/rollback/20260801356000_rollback.sql \
   supabase/rollback/20260801358000_rollback.sql \
   supabase/rollback/20260801360000_rollback.sql \
-  supabase/rollback/20260801362000_rollback.sql ; do
+  supabase/rollback/20260801362000_rollback.sql \
+  supabase/rollback/20260801364000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "30 migrations, 15 test suites and 21 rollback scripts are present"
+ok "31 migrations, 16 test suites and 22 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)
@@ -674,7 +677,7 @@ ok "mobile tsc (full project)"
 step "7. Lint and QA guards"
 ( cd apps/web && npx eslint src ) || die "web eslint failed"
 ok "web eslint"
-for g in qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:admin-money qa:sql-schema qa:db-refs qa:rls-admin qa:outbox; do
+for g in qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:admin-money qa:sql-schema qa:admin-routes qa:db-refs qa:rls-admin qa:outbox; do
   npm run --silent "$g" >/dev/null || die "$g failed"
   ok "$g"
 done

@@ -26,6 +26,14 @@ import {
   Sparkles,
   EyeOff,
   BrainCircuit,
+  ClipboardCheck,
+  MessagesSquare,
+  Radio,
+  ReceiptText,
+  PiggyBank,
+  Percent,
+  Archive,
+  Stethoscope,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -67,12 +75,20 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Find Suppliers', href: '/directory', icon: Store },
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
       { label: 'Messages', href: '/admin/messages', icon: MessageCircle },
+      // Built and working, but previously reachable only by typing the URL.
+      { label: 'Direct Threads', href: '/admin/communications/direct', icon: MessagesSquare },
+      { label: 'Operational Threads', href: '/admin/communications/operational', icon: Radio },
+      { label: 'Report Review', href: '/admin/reports', icon: ClipboardCheck },
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
       { label: 'Reviews', href: '/admin/reviews', icon: Star },
       { label: 'Marketplace Curation', href: '/admin/marketplace', icon: Sparkles },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
       { label: 'Supplier Releases', href: '/admin/supplier-payouts', icon: Banknote },
       { label: 'Treasury', href: '/admin/treasury', icon: Landmark },
+      // Also previously unreachable from the nav.
+      { label: 'Invoices', href: '/admin/invoices', icon: ReceiptText },
+      { label: 'Budget', href: '/admin/budget', icon: PiggyBank },
+      { label: 'Tax Center', href: '/admin/tax-center', icon: Percent },
     ],
   },
   {
@@ -88,6 +104,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Organizations', href: '/admin/orgs', icon: Building2 },
       { label: 'Compliance', href: '/admin/compliance', icon: ShieldCheck },
       { label: 'Documents', href: '/admin/documents', icon: FolderOpen },
+      { label: 'Document Vault', href: '/admin/vault', icon: Archive },
     ],
   },
   {
@@ -103,6 +120,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       // civil, electrical, mechanical). Hidden until typed manually before
       // this row landed.
       { label: 'Domains', href: '/admin/domains', icon: Globe2 },
+      { label: 'Diagnostics', href: '/admin/diagnostics', icon: Stethoscope },
       { label: 'Settings', href: '/admin/settings', icon: Settings },
     ],
   },

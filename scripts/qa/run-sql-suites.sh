@@ -80,7 +80,7 @@ done
 
 # ── 3. Static guards (these also run in the sandbox) ───────────────────────
 say ""; say "── static guards ──"
-for g in qa:sql-schema qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:admin-money qa:db-refs; do
+for g in qa:sql-schema qa:admin-routes qa:gr2 qa:gr2-inspector qa:assignment-privacy qa:jobs-columns qa:admin-money qa:db-refs; do
   if npm run --silent "$g" >/tmp/nx-$g.log 2>&1; then ok "$g"; else bad "$g"; sed 's/^/    /' /tmp/nx-$g.log | tail -6; fail=$((fail+1)); fi
 done
 

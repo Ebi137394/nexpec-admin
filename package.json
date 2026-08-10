@@ -32,6 +32,8 @@
     "qa:jobs-columns": "node scripts/qa/check-jobs-column-existence.mjs",
     "qa:admin-money": "node scripts/qa/check-admin-money-mapping.mjs",
     "qa:sql-schema": "node scripts/qa/check-sql-schema-refs.mjs",
+    "qa:admin-routes": "node scripts/qa/check-admin-route-reachability.mjs",
+    "qa:reconcile": "node scripts/qa/capability-reconciliation.mjs",
     "qa:model-shas": "node scripts/qa/check-model-shas.mjs"
   },
   "dependencies": {

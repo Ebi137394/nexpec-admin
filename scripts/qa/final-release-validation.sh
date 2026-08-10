@@ -79,6 +79,7 @@ for f in \
   supabase/migrations/20260801376000_multi_inspector_teams.sql \
   supabase/migrations/20260801378000_team_evidence_and_report_contribution.sql \
   supabase/migrations/20260801380000_team_conversation_authorization.sql \
+  supabase/migrations/20260801382000_schedule_conflict_preview.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
   supabase/tests/resume_disclosure_access_test.sql \
@@ -102,6 +103,7 @@ for f in \
   supabase/tests/multi_inspector_test.sql \
   supabase/tests/team_evidence_contribution_test.sql \
   supabase/tests/team_conversation_auth_test.sql \
+  supabase/tests/schedule_conflict_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
   supabase/rollback/20260801318000_rollback.sql \
   supabase/rollback/20260801322000_rollback.sql \
@@ -130,10 +132,11 @@ for f in \
   supabase/rollback/20260801374000_rollback.sql \
   supabase/rollback/20260801376000_rollback.sql \
   supabase/rollback/20260801378000_rollback.sql \
-  supabase/rollback/20260801380000_rollback.sql ; do
+  supabase/rollback/20260801380000_rollback.sql \
+  supabase/rollback/20260801382000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "39 migrations, 23 test suites and 29 rollback scripts are present"
+ok "40 migrations, 24 test suites and 30 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)

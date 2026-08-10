@@ -49,6 +49,52 @@ export interface JobTeamMember {
   fromFallback: boolean;
 }
 
+export interface ScheduleConflict {
+  conflictCount: number;
+  conflictDates: string[];
+  jobScheduledDate: string | null;
+  /** False when the job itself has no date — distinct from "checked, none found". */
+  jobHasDate: boolean;
+}
+
+/**
+ * Advisory same-day clash preview for a candidate.
+ *
+ * Uses the SAME predicate as nx_job_add_inspector, so what the admin is shown
+ * before clicking cannot disagree with what happens after. Returns counts and
+ * dates only — never another job's title, client or pricing.
+ *
+ * Errors are swallowed to a neutral result on purpose: a conflict hint is
+ * decoration on the assignment decision, and failing to load it must not take
+ * the whole team page down.
+ */
+export async function fetchScheduleConflicts(
+  jobId: string,
+  inspectorId: string,
+): Promise<ScheduleConflict> {
+  const neutral: ScheduleConflict = {
+    conflictCount: 0, conflictDates: [], jobScheduledDate: null, jobHasDate: false,
+  };
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc('nx_job_schedule_conflicts', {
+      p_job_id: jobId,
+      p_inspector_id: inspectorId,
+    });
+    if (error) return neutral;
+    const r = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+    if (!r) return neutral;
+    return {
+      conflictCount: Number(r.conflict_count ?? 0),
+      conflictDates: Array.isArray(r.conflict_dates) ? (r.conflict_dates as string[]) : [],
+      jobScheduledDate: (r.job_scheduled_date as string | null) ?? null,
+      jobHasDate: Boolean(r.job_has_date),
+    };
+  } catch {
+    return neutral;
+  }
+}
+
 export async function fetchJobTeam(jobId: string): Promise<JobTeamMember[]> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.rpc('nx_job_inspectors', { p_job_id: jobId });

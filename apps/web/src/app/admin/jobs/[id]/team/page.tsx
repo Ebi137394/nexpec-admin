@@ -22,9 +22,13 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   Users, Crown, ArrowLeft, UserMinus, UserPlus, ShieldCheck, AlertTriangle,
+  CalendarClock,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { fetchJobTeam, TEAM_ROLE_LABELS, type TeamRole } from '@/lib/data/jobTeam';
+import {
+  fetchJobTeam, fetchScheduleConflicts, TEAM_ROLE_LABELS,
+  type TeamRole, type ScheduleConflict,
+} from '@/lib/data/jobTeam';
 import { recommendInspectorsForJob } from '@/lib/actions/inspectionAdmin';
 import { addTeamMember, removeTeamMember, setTeamLead } from '@/lib/actions/jobTeam';
 
@@ -56,7 +60,16 @@ export default async function AdminJobTeamPage({
   // Ranked candidates from the deterministic matcher, minus anyone already on.
   const onTeam = new Set(team.map((t) => t.inspectorId));
   const rec = await recommendInspectorsForJob(jobId, 12, false);
-  const candidates = rec.ok ? rec.inspectors.filter((c) => !onTeam.has(c.id)) : [];
+  const shortlist = rec.ok ? rec.inspectors.filter((c) => !onTeam.has(c.id)) : [];
+
+  // Advisory clash preview per candidate, using the SAME predicate the add path
+  // uses, so the hint shown here cannot disagree with the outcome.
+  const conflictById = new Map<string, ScheduleConflict>(
+    await Promise.all(
+      shortlist.map(async (c) => [c.id, await fetchScheduleConflicts(jobId, c.id)] as const),
+    ),
+  );
+  const candidates = shortlist;
 
   async function addAction(formData: FormData) {
     'use server';
@@ -227,6 +240,21 @@ export default async function AdminJobTeamPage({
                       {c.reasons.length ? c.reasons.join(' · ') : 'no match detail'}
                       {c.workAuthorized ? '' : ' · not work-authorised here'}
                     </p>
+                    {(() => {
+                      const k = conflictById.get(c.id);
+                      if (!k || !k.jobHasDate || k.conflictCount === 0) return null;
+                      return (
+                        <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-300 ring-1 ring-inset ring-amber-500/20">
+                          <CalendarClock className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          Already on {k.conflictCount} other job
+                          {k.conflictCount === 1 ? '' : 's'} on{' '}
+                          {k.jobScheduledDate
+                            ? new Date(k.jobScheduledDate).toLocaleDateString()
+                            : 'this date'}
+                          {' '}— you can still assign them
+                        </p>
+                      );
+                    })()}
                   </div>
 
                   <form action={addAction} className="flex flex-wrap items-center gap-2">

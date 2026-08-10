@@ -129,6 +129,62 @@ repaired; the live one built on the canonical table (`20260801362000`).
 
 ---
 
+## AI — end-to-end verification (not inferred from routes)
+
+The trained NEXPEC AI is real, intact, and reachable on **both** surfaces.
+Verified against the model bytes, not against the presence of an admin console.
+
+**Weights on disk — 93 MB, in two locations, byte-identical:**
+
+| model | task | classes | size |
+|---|---|---|---|
+| `corrosion_yolo26s_seg_1024_fp32.tflite` | instance segmentation | 11 | 41 MB |
+| `wda_fissures_yolo26s_seg_1024_fp32.tflite` | instance segmentation | 5 | 41 MB |
+| `yolov9t_2class_fp32.tflite` | detection | 2 | 8.1 MB |
+| `mobilenet_v2.tflite` | classification | — | 3.5 MB |
+
+Metadata sidecars name them *"NEXPEC Corrosion YOLO26s Segmentation"* and
+*"NEXPEC WDA Weld-Defect YOLO26s Segmentation (RAW head)"*, each recording its
+`source_checkpoint` under `nexpec_ai/…/weights/best.pt`, `ultralytics_version`
+8.4.95, export timestamp and `tflite_sha256`.
+
+- **Registry / AI Core — already exists.**
+  `@nexpec/shared-core/ml/modelRegistry` is the single source of truth shared by
+  web and mobile. Each entry carries slug, semver, SHA-256, labels and an
+  `outputParser` (`yolo-seg` / `yolo-seg-e2e` / `yolo-det`) describing exactly
+  how to decode that model's tensors. **This is already the pluggable
+  "NEXPEC AI Core"** — a new model is a registry entry plus a file, not an
+  application rewrite. Nothing needs generalising.
+- **Registered slugs:** `corrosion-detector` v2.0.0 (Corrosion / rust),
+  `wda-fissure-detector` v1.0.0 (Welding / WDA defects),
+  `yolov9t-weld-detector` v1.0.0 (**Coating pinhole / inclusion**).
+- **Mobile:** `src/core/ml/vision/{segModelManager,tfliteVision,preprocess,SegOverlay}.ts`,
+  runtime `react-native-fast-tflite`, weights bundled via `require()` → fully
+  offline. Callers: `app/ai-coinspector.tsx`,
+  `app/(inspector)/compliance/job/[id]/capture.tsx`.
+- **Web:** `apps/web/src/lib/ai/visionModel.ts` runs the **same** `.tflite`
+  in-browser on TFLite WASM. Weights served from `apps/web/public/models/`
+  (89 MB present), WASM from `public/tf`. Caller:
+  `/inspector/ai-coinspector`, linked from the inspector sidebar.
+- **Integrity:** `npm run qa:model-shas` → *3 models × 2 locations verified
+  against the shared registry*. Web additionally re-verifies SHA-256 at load and
+  throws `MODEL_SHA_MISMATCH` before handing bytes to the runtime.
+- **Tests — actually executed:** `npm run qa:ml-tests` → **43 assertions, 5
+  suites, 0 failures** (decode, coordinate handling, clustering, refinement,
+  finding validation, canonical attestation). Proven non-vacuous by fault
+  injection.
+- **Paid API dependency: NONE.** All inference is local/on-device. The only
+  hits for hosted-AI vendor names were false positives — `statusBadgeMini`
+  contains the substring "geMini". No hosted-AI package in any `package.json`.
+
+**Verdict: ✅ COMPLETE on mobile and web. Do not rebuild, do not replace.**
+The one honest caveat is licensing, not function: the weights were exported with
+Ultralytics 8.4.95, which is **AGPL-3.0**. That is a pre-existing decision on
+your own trained models and nothing here changes it — flagged only so it is a
+deliberate choice rather than an accident.
+
+---
+
 ## Payment — frozen, observed only
 
 Two defects recorded, **not** acted on, pending explicit direction:
@@ -143,3 +199,56 @@ Two defects recorded, **not** acted on, pending explicit direction:
    `inspector_earnings`.
 
 Both need architectural decisions inside the frozen domain.
+
+---
+
+## Final matrix
+
+✅ **COMPLETE — leave alone**
+
+| capability | evidence |
+|---|---|
+| Welding AI (WDA) | 41 MB trained seg model, registry slug `wda-fissure-detector`, SHA-verified, mobile + web |
+| Coating AI | `yolov9t-weld-detector` = "Coating pinhole / inclusion", 2-class detector, both surfaces |
+| Corrosion AI | `corrosion-detector` v2.0.0, 11 classes, both surfaces |
+| AI Core / registry | `shared-core/ml/modelRegistry` with per-model `outputParser` — already pluggable |
+| Local/offline inference | fast-tflite (mobile, bundled) + TFLite WASM (web, same files) |
+| AI tests | 43 assertions executed, 0 failures |
+| Cryptographic sealing | SHA-256, `pi_report_seals`, chain-of-custody, seal screens |
+| Blockchain / OpenTimestamps / Bitcoin anchoring | `inspection_seal_anchors` + `anchor-inspection-seals` / `confirm-inspection-anchors` Edge Functions |
+| NCR / Flash Reports | full state machine, attachments, correlation ids |
+| Supplier / RFQ / quotes / deals | 29 db / 68 mobile / 88 web files |
+| Offline field execution | outbox, sync queue, idempotent replay; compliance capture already offline |
+| Scheduling / availability / conflict detection | 20 db / 79 mobile / 56 web |
+| Enterprise orgs / departments / invitations | `organizations`, `org_members`, `departments`, `org_invitations`, `/admin/orgs/[id]/structure` |
+| Report templates + branding | `report_templates` with client/org scope, header/footer, `template_spec`, versioning, locking |
+| PDF generation, revisions, client approval + delivery | working end to end |
+| Structured inspection (compliance path) | scope template → evidence requirements → captures → seal |
+| Admin report review | activated `20260801364000` + `/admin/reports` |
+| Credential expiry | activated `20260801362000` |
+| Smart matching / targeted notifications | `20260801358000` / `20260801360000` |
+
+🟡 **PARTIAL — finish**
+
+| capability | what is missing |
+|---|---|
+| `inspection_items` execution UI | table + NCR bridge exist; no screen creates items (one screen reads them) |
+| Structured inspection for `quality` jobs | `jobs_compliance_requires_template` restricts it to compliance jobs |
+| Projects | `projects` + `project_documents` exist; job/supplier linkage is thin |
+| Report template selection UI | backend is rich (org/client scope, header/footer); selection surfaces are limited |
+| Enterprise / project / supplier analytics | dashboards exist; scoped aggregate RPCs are thin |
+| Web/mobile/admin parity | broadly consistent; report review is now web-only (mobile pending) |
+
+🔴 **GENUINELY MISSING — build (verified absent, not just unfound)**
+
+| capability | proof of absence |
+|---|---|
+| Multi-inspector jobs | no `lead_inspector` / `co_inspector` / `job_inspectors` / `inspection_team` object anywhere; a job has one `contractor_id` |
+| Multi-visit / recurring inspections | no visit table of any kind |
+| ITP hold / witness / review / surveillance points | only prose in document templates and seed data |
+| Supplier scorecards | no scorecard / vendor-rating / performance table |
+| Programs | no `programs` table (`projects` exists) |
+| Enterprise SSO (SAML/OIDC/SCIM) | OAuth exists; no enterprise SSO |
+
+⚪ **FUTURE / LOW PRIORITY** — QCP (no evidence; low value until ITP lands),
+ERP connectors (keep integration-ready, build on demand).

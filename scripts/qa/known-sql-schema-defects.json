@@ -3,72 +3,87 @@
     "PRE-EXISTING schema defects in baseline function bodies, recorded so the",
     "guard fails on anything NEW while keeping these visible.",
     "",
-    "These are NOT suppressed because they are acceptable. Every entry is a real",
-    "42703 or 23502 that fires when the function runs. They are listed rather",
-    "than fixed because six of the eight sit inside the FROZEN PAYMENT DOMAIN,",
-    "where the standing instruction is to report and not modify.",
+    "COUNT CLARIFICATION: 8 SITES across 7 FUNCTIONS.",
+    "handle_job_completion has TWO defective INSERT sites (11944 and 11959).",
+    "An earlier report said 'eight remain live' (sites) but then listed seven",
+    "names (functions). Both numbers were right; the units were conflated.",
     "",
-    "Fixing one means: repair it in a forward migration, add a regression test,",
-    "then DELETE its entry here. Never delete an entry to make the guard quiet.",
+    "TRIAGE ADDED: each entry now records whether the function is LIVE (attached",
+    "as a trigger, or called from app code) or DEAD (neither). A defect in dead",
+    "code has no runtime impact and repairing it can have side effects — see the",
+    "auto-settlement warning on handle_job_completion / handle_job_cancellation.",
     "",
-    "Format: 'baseline_line': { fn, domain, defect, impact }"
+    "Fixing one means: repair in a forward migration, add a regression test,",
+    "then DELETE its entry here. Never delete an entry to make the guard quiet."
   ],
 
   "1482": {
     "fn": "accept_offer",
     "domain": "messaging",
-    "defect": "INSERT INTO conversations (job_id, client_id, inspector_id) — conversations has no inspector_id, and kind/user_id are NOT NULL with no default",
-    "impact": "accepting an offer via this function would 42703. The live hire path goes through admin_dispatch_job / applications, so reachability is unconfirmed.",
-    "status": "NOT FIXED — non-payment, fixable, caller reachability to be confirmed first"
+    "liveness": "DEAD-ish — no trigger; hire path runs through admin_dispatch_job / applications",
+    "defect": "INSERT INTO conversations (job_id, client_id, inspector_id) — no inspector_id column; kind and user_id are NOT NULL with no default",
+    "canonical": "conversations is BROKERED: conversations_kind_shape permits job_client_admin / job_inspector_admin (job_id NOT NULL) and help_support (job_id NULL). ensure_job_conversation(p_job_id, p_kind) is the canonical creator.",
+    "impact": "42703 if called. Note the original intent — a DIRECT client<->inspector conversation — contradicts the current brokered privacy model, so this is not a pure column rename.",
+    "status": "NOT FIXED — needs the brokered-model decision, not a mechanical repair"
   },
   "7431": {
     "fn": "create_organization",
     "domain": "enterprise",
-    "defect": "INSERT INTO organizations (name, kind, owner_id, is_active) omits slug, which is NOT NULL with no default",
-    "impact": "23502 whenever this RPC runs. Organizations DO exist and are reachable in the deployed Admin UI, so orgs are evidently created by another path — this particular RPC is the broken one.",
-    "status": "NOT FIXED — non-payment, fixable; needs caller trace before repair"
+    "liveness": "to confirm — organizations exist and are reachable in Admin UI, so another path evidently creates them",
+    "defect": "INSERT INTO organizations (name, kind, owner_id, is_active) omits slug, which is NOT NULL with UNIQUE constraint organizations_slug_key",
+    "canonical": "slug must be deterministic, collision-safe and unique",
+    "impact": "23502 whenever this RPC runs",
+    "status": "NOT FIXED — safe to fix; needs a canonical slug generator"
   },
 
   "11099": {
     "fn": "get_or_create_wallet",
-    "domain": "PAYMENT (frozen)",
-    "defect": "references wallets.frozen_balance, which does not exist",
-    "impact": "wallet bootstrap raises 42703",
-    "status": "REPORTED ONLY — frozen payment domain, awaiting explicit direction"
+    "domain": "PAYMENT",
+    "liveness": "DEAD — 0 triggers, 0 app callers. Its only consumers are the two dead settlement functions below.",
+    "defect": "INSERT INTO wallets (user_id, balance, frozen_balance, total_earned) — wallets has no frozen_balance",
+    "impact": "none at runtime; nothing calls it",
+    "status": "NOT FIXED — dead code; repairing it only matters if the settlement triggers are revived"
   },
   "11835": {
     "fn": "handle_job_cancellation",
-    "domain": "PAYMENT (frozen)",
-    "defect": "INSERT INTO transactions (wallet_id, ...) — transactions has no wallet_id; user_id (NOT NULL) not supplied",
-    "impact": "cancellation bookkeeping raises 42703 at the moment it runs",
-    "status": "REPORTED ONLY — frozen payment domain"
+    "domain": "PAYMENT",
+    "liveness": "DEAD — trigger-shaped (IF NEW.status = 'cancelled') but NO TRIGGER IS ATTACHED, 0 app callers",
+    "defect": "INSERT INTO transactions (wallet_id, ...) — no wallet_id column; user_id (NOT NULL) unsupplied",
+    "impact": "none at runtime",
+    "status": "DELIBERATELY NOT FIXED — see warning below",
+    "warning": "AUTOMATIC MONEY MOVEMENT. This function does `balance = balance + v_price` on the client wallet when a job flips to cancelled. Repairing it and attaching the trigger would create automatic refunds on cancellation. Requires an explicit business decision, not a correctness fix."
   },
   "11944": {
     "fn": "handle_job_completion",
-    "domain": "PAYMENT (frozen)",
-    "defect": "INSERT INTO transactions (wallet_id, net_amount, fee_amount, ...) — none of the three exist; user_id (NOT NULL) not supplied",
-    "impact": "completion settlement bookkeeping raises 42703",
-    "status": "REPORTED ONLY — frozen payment domain"
+    "domain": "PAYMENT",
+    "liveness": "DEAD — trigger-shaped (IF NEW.status = 'completed') but NO TRIGGER IS ATTACHED, 0 app callers",
+    "defect": "INSERT INTO transactions (wallet_id, net_amount, fee_amount, ...) — none of the three exist; user_id (NOT NULL) unsupplied. Canonical columns are gross_amount_halalas / platform_fee_halalas / net_amount_halalas.",
+    "impact": "none at runtime",
+    "status": "DELIBERATELY NOT FIXED — see warning below",
+    "warning": "AUTOMATIC INSPECTOR SETTLEMENT. This credits the inspector wallet (balance + net_amount, total_earned + net_amount) and the platform (balance + platform_fee) the moment a job reaches 'completed'. Repairing it is precisely 'auto-transfer money when a job completes', which the payment freeze forbids. The fact that it is broken is currently the only thing preventing that behaviour."
   },
   "11959": {
     "fn": "handle_job_completion",
-    "domain": "PAYMENT (frozen)",
-    "defect": "second INSERT site, same transactions.wallet_id defect",
-    "impact": "as above",
-    "status": "REPORTED ONLY — frozen payment domain"
+    "domain": "PAYMENT",
+    "liveness": "DEAD — second INSERT site in the same unattached function",
+    "defect": "same transactions.wallet_id defect",
+    "impact": "none at runtime",
+    "status": "DELIBERATELY NOT FIXED — same auto-settlement warning as 11944"
   },
   "16413": {
     "fn": "request_milestone_release",
-    "domain": "PAYMENT (frozen)",
-    "defect": "INSERT INTO audit_events (event_kind, payload) — real columns are event_type/metadata; subject_table, subject_id and summary are NOT NULL and unsupplied",
-    "impact": "milestone release raises 42703 on its AUDIT write. The defect itself is not monetary, but the function is squarely inside the frozen domain.",
-    "status": "REPORTED ONLY — frozen payment domain"
+    "domain": "PAYMENT-adjacent",
+    "liveness": "LIVE — 1 app caller",
+    "defect": "INSERT INTO audit_events (event_kind, payload) — real columns are event_type / metadata; subject_table, subject_id and summary are NOT NULL and unsupplied. Its own duplicate-request guard reads the same phantom columns.",
+    "impact": "42703 on every call. The defect is in the AUDIT write only — the function REQUESTS a release for admin action, it does not itself move money.",
+    "status": "NOT FIXED YET — safe to repair (audit-only, no money semantics change)"
   },
   "21231": {
     "fn": "wallet_credit_topup",
-    "domain": "PAYMENT (frozen)",
-    "defect": "INSERT INTO transactions omits amount and type, both NOT NULL with no default",
-    "impact": "top-up crediting raises 23502",
-    "status": "REPORTED ONLY — frozen payment domain"
+    "domain": "PAYMENT",
+    "liveness": "LIVE — 3 app callers",
+    "defect": "INSERT INTO transactions omits amount and type, both NOT NULL with no default in the baseline DDL",
+    "impact": "23502 on every top-up credit, if amount/type are still NOT NULL",
+    "status": "NOT FIXED YET — verify the NOT NULL status against the live schema first; this records a buyer-initiated Stripe deposit, so repairing it automates nothing new"
   }
 }

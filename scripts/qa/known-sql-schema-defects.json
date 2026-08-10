@@ -16,10 +16,12 @@
     "Fixing one means: repair in a forward migration, add a regression test,",
     "then DELETE its entry here. Never delete an entry to make the guard quiet.",
     "",
-    "NEW CLASS FOUND 2026-08: writes to GENERATED ALWAYS columns (428C9).",
-    "transactions.net_amount_halalas is GENERATED ALWAYS AS (gross - fee) STORED,",
-    "so naming it in an INSERT column list is an error. Four baseline sites do.",
-    "The schema guard does NOT yet detect this class — see 'generated_column_writes'."
+    "",
+    "STATUS 20260801374000: create_organization, request_milestone_release and",
+    "wallet_credit_topup are FIXED and removed from this register. What remains is",
+    "four INTENTIONALLY INERT LEGACY entries (accept_offer + the three dead",
+    "settlement functions), all unreachable after 20260801372000 revoked their",
+    "grants, plus one FIXED note kept for the correction it records."
   ],
   "1482": {
     "fn": "accept_offer",
@@ -29,15 +31,6 @@
     "canonical": "conversations is BROKERED: conversations_kind_shape permits job_client_admin / job_inspector_admin (job_id NOT NULL) and help_support (job_id NULL). ensure_job_conversation(p_job_id, p_kind) is the canonical creator.",
     "impact": "42703 if called. Note the original intent — a DIRECT client<->inspector conversation — contradicts the current brokered privacy model, so this is not a pure column rename.",
     "status": "NOT FIXED — needs the brokered-model decision, not a mechanical repair"
-  },
-  "7431": {
-    "fn": "create_organization",
-    "domain": "enterprise",
-    "liveness": "to confirm — organizations exist and are reachable in Admin UI, so another path evidently creates them",
-    "defect": "INSERT INTO organizations (name, kind, owner_id, is_active) omits slug, which is NOT NULL with UNIQUE constraint organizations_slug_key",
-    "canonical": "slug must be deterministic, collision-safe and unique",
-    "impact": "23502 whenever this RPC runs",
-    "status": "NOT FIXED — safe to fix; needs a canonical slug generator"
   },
   "11099": {
     "fn": "get_or_create_wallet",
@@ -73,30 +66,12 @@
     "impact": "none at runtime",
     "status": "DELIBERATELY NOT FIXED — same auto-settlement warning as 11944"
   },
-  "16413": {
-    "fn": "request_milestone_release",
-    "domain": "PAYMENT-adjacent",
-    "liveness": "LIVE — 1 app caller",
-    "defect": "INSERT INTO audit_events (event_kind, payload) — real columns are event_type / metadata; subject_table, subject_id and summary are NOT NULL and unsupplied. Its own duplicate-request guard reads the same phantom columns.",
-    "impact": "42703 on every call. The defect is in the AUDIT write only — the function REQUESTS a release for admin action, it does not itself move money.",
-    "status": "NOT FIXED YET — safe to repair (audit-only, no money semantics change)"
-  },
-  "21231": {
-    "fn": "wallet_credit_topup",
-    "domain": "PAYMENT",
-    "liveness": "LIVE — 3 app callers",
-    "defect": "INSERT INTO transactions omits amount and type, both NOT NULL with no default in the baseline DDL",
-    "impact": "23502 on every top-up credit, if amount/type are still NOT NULL",
-    "status": "NOT FIXED YET — verify the NOT NULL status against the live schema first; this records a buyer-initiated Stripe deposit, so repairing it automates nothing new",
-    "fix_known": "amount = p_amount_halalas / 100.0 (numeric(12,2) major units — convention confirmed from admin_fund_advance, which pairs `amount` major-unit with gross_amount_halalas minor-unit), type = 'deposit' (permitted by transactions_type_check)"
-  },
   "generated_column_writes": {
-    "fn": "admin_fund_advance (baseline:1984) + 3 more sites (2356, 2366, 7570)",
+    "fn": "admin_fund_advance, admin_mark_withdrawal_paid (x2), credit_inspector_earning_on_approval",
     "domain": "PAYMENT",
-    "liveness": "LIVE — admin_fund_advance is called from apps/web/src/lib/actions/treasury.ts (the Early-Payout / Treasury admin surface)",
-    "defect": "INSERT INTO transactions (... net_amount_halalas ...) — that column is GENERATED ALWAYS AS (gross_amount_halalas - platform_fee_halalas) STORED. Postgres rejects any explicit value with 428C9.",
-    "impact": "Treasury early-payout funding fails at runtime. This is an ADMIN-INITIATED manual action, so repairing it automates nothing — it restores a manual control that is currently broken.",
-    "fix": "remove net_amount_halalas from the INSERT column list at all four sites; it computes itself",
-    "status": "NOT FIXED — found at the end of this pass; payment domain, needs its own tested slice"
+    "liveness": "SUPERSEDED / ALREADY FIXED",
+    "defect": "baseline bodies wrote the GENERATED column transactions.net_amount_halalas",
+    "resolution": "ALREADY FIXED by 20260801140000_fix_generated_net_halalas_insert — every live definition omits the generated column. My earlier claim that this broke live Treasury funding was WRONG: I inspected the baseline instead of each function's LATEST definition. Treasury early-payout funding is NOT broken.",
+    "status": "FIXED (by a pre-existing migration) — retained here only to record the correction"
   }
 }

@@ -55,7 +55,10 @@ export default async function AdminJobTeamPage({
   if (!isAdminData) redirect('/');
 
   const team = await fetchJobTeam(jobId);
-  const isFallback = team.length > 0 && team[0].fromFallback;
+  // Indexed access is unchecked under the shared tsconfig, so the length test
+  // alone does not narrow team[0]. Read it once and test the value.
+  const firstMember = team[0];
+  const isFallback = firstMember != null && firstMember.fromFallback;
 
   // Ranked candidates from the deterministic matcher, minus anyone already on.
   const onTeam = new Set(team.map((t) => t.inspectorId));

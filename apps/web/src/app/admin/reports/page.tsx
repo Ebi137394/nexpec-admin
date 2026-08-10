@@ -18,6 +18,14 @@
 //     Settlement stays manual. Nothing on this page moves money.
 //   • No pricing is displayed — the queue RPC returns no money column.
 //
+//  ── VISIT CONTEXT (Phase 2G) ───────────────────────────────────────────────
+//  A multi-visit job produces ONE consolidated report, so "is this reviewable
+//  yet?" is now a real question: signing off a surveillance report with two of
+//  five visits still outstanding is a different act from signing off a finished
+//  one. The rollup rides inside the existing queue RPC — one round trip, not
+//  one per report — and a job with no explicit visits shows nothing, because a
+//  single scheduled date is not a programme.
+//
 //  Admin gating is enforced by app/admin/layout.tsx and re-checked here via
 //  nx_is_admin (fail closed on any future routing slip); the RPCs check again
 //  server-side.
@@ -35,10 +43,14 @@ import {
   CircleDashed,
   Eye,
   ExternalLink,
+  CalendarDays,
+  Repeat,
+  AlertCircle,
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchReportReviewQueue, type ReportReviewRow } from '@/lib/data/reportReview';
 import { reviewInspectionReport } from '@/lib/actions/reportReview';
+import { isRealProgramme, type ReportVisitRollup } from '@/lib/data/reportVisits';
 
 export const metadata: Metadata = { title: 'Admin, Report review' };
 export const dynamic = 'force-dynamic';
@@ -56,6 +68,46 @@ function StatePill({ on, label, Icon }: { on: boolean; label: string; Icon: type
       <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
       {label}
     </span>
+  );
+}
+
+/**
+ * Programme context for ONE report. Renders nothing for a job with no explicit
+ * visits: nx_report_visit_rollup marks that case fromFallback, and dressing a
+ * single scheduled date up as a one-visit "programme" would be noise on every
+ * legacy report in the queue.
+ */
+function VisitContext({ rollup }: { rollup: ReportVisitRollup | null }) {
+  if (!isRealProgramme(rollup) || !rollup) return null;
+
+  const chip =
+    'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset';
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className={chip + ' bg-violet/10 text-violet-glow ring-violet/25'}>
+        <CalendarDays className="h-3.5 w-3.5" strokeWidth={1.75} />
+        {rollup.completed} of {rollup.visitCount} visits completed
+      </span>
+      {rollup.isRecurring && (
+        <span className={chip + ' bg-white/[0.03] text-zinc-400 ring-white/[0.06]'}>
+          <Repeat className="h-3.5 w-3.5" strokeWidth={1.75} />
+          Recurring
+        </span>
+      )}
+      {rollup.outstanding > 0 && (
+        <span className={chip + ' bg-amber-500/10 text-amber-300 ring-amber-500/20'}>
+          <AlertCircle className="h-3.5 w-3.5" strokeWidth={1.75} />
+          {rollup.outstanding} visit{rollup.outstanding === 1 ? '' : 's'} still
+          outstanding
+        </span>
+      )}
+      {rollup.lastCompletedAt && (
+        <span className="text-[11px] text-zinc-600">
+          last worked {new Date(rollup.lastCompletedAt).toLocaleDateString()}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -188,6 +240,8 @@ export default async function AdminReportReviewPage() {
                   <StatePill on={r.isClientApproved} label="Client approved" Icon={Eye} />
                 </div>
               </div>
+
+              <VisitContext rollup={r.visitRollup} />
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.05] pt-4">
                 <ReviewButtons row={r} />

@@ -18,6 +18,13 @@ export type ClientReportSignal =
 export interface ClientReportState {
   jobId: string;
   jobTitle: string;
+  /**
+   * The job's report of record, for surfaces that want to show WHAT is being
+   * approved (per-visit record, contributor attribution). NULL when the
+   * inspector has not filed one yet. An id only — no report content, and no
+   * inspector identity, is carried here.
+   */
+  reportId: string | null;
   /** When admin handed the report off to the client. NULL if not yet. */
   adminConfirmedAt: string | null;
   /** Client-side final price (admin-set). NEVER the inspector's payout. */

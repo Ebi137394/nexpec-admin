@@ -77,7 +77,10 @@ export default async function AdminJobVisitsPage({
   // synthetic team-of-one fallback is not an assignable membership.
   const crew = team.filter((m) => !m.fromFallback);
 
-  const legacyOnly = visits.length === 1 && visits[0].fromFallback;
+  // Indexed access is unchecked under the shared tsconfig, so the length test
+  // alone does not narrow visits[0]. Read it once and test the value.
+  const firstVisit = visits[0];
+  const legacyOnly = visits.length === 1 && firstVisit != null && firstVisit.fromFallback;
 
   // Advisory clash preview per (real visit × crew member), same predicate the
   // assignment uses, so the hint cannot disagree with the outcome.

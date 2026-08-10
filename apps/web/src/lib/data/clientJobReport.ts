@@ -1,13 +1,17 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  lib/data/clientJobReport.ts — fetcher for the report-approval surface
 //
-//  Three reads:
+//  Four reads:
 //    1. The job row (ownership-gated by client_id = auth.uid()).
 //    2. The inspector's profile (display only).
 //    3. The most recent client-originated event for this job in
 //       audit_events — used to render an idempotent UI ("you already
 //       approved this report on May 17 14:00") instead of re-firing the
 //       signal on every click.
+//    4. The report's id, so the approval surface can show WHAT is being
+//       approved (its per-visit record and contributor attribution) rather
+//       than only its price and status. Id only — no report content is read
+//       here, and the id is null when no report row exists yet.
 //
 //  GOLDEN_RULE_2 — Selects only client_price_cents, never inspector
 //  payout columns. The inspector identity is displayed; their bid /
@@ -136,9 +140,29 @@ export async function fetchClientJobReport(
       }
     }
 
+    // 4. The report id for this job. RLS ("Clients can view reports for their
+    //    jobs") already scopes this to the caller's own jobs; the job lookup
+    //    above has additionally proved ownership. A job can carry more than one
+    //    report row (one per inspector), and approve_inspection_report acts on
+    //    the whole job, so the oldest row is used as the job's report of
+    //    record — the same row the admin queue lists first.
+    let reportId: string | null = null;
+    {
+      const { data: rep } = await supabase
+        .from('inspection_reports')
+        .select('id')
+        .eq('job_id', jobId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      reportId = ((rep as Record<string, unknown> | null)?.id as string) ?? null;
+    }
+
     return {
       jobId: String(j.id),
       jobTitle: String(j.title ?? '(untitled)'),
+      reportId,
       adminConfirmedAt: (j.admin_confirmed_at as string | null) ?? null,
       clientPriceCents:
         typeof j.client_price_cents === 'string'

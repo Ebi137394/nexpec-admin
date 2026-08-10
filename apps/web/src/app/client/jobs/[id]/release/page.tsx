@@ -10,6 +10,16 @@
 //  GOLDEN_RULE_2 — Shows the client's price (their own money). Hides
 //  inspector payout / spread. Inspector identity is shown for context
 //  only.
+//
+//  ── WHAT IS BEING APPROVED (Phase 2G) ──────────────────────────────────────
+//  A multi-visit engagement produces ONE consolidated report, and approving it
+//  blind — with only a price and a date on screen — is a worse decision than it
+//  needs to be. ReportVisitLog renders the per-visit record and the contributor
+//  attribution behind the report, and only AFTER admin has forwarded it
+//  (GOLDEN_RULE_6): before that there is nothing for the buyer to see. Names in
+//  it are gated by nx_job_effective_identity_mode inside
+//  nx_report_contributors, so a 'protected' engagement shows NX- handles here
+//  exactly as the tile above does.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { notFound } from 'next/navigation';
@@ -25,6 +35,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { fetchClientJobReport } from '@/lib/data/clientJobReport';
+import ReportVisitLog from '@/components/reports/ReportVisitLog';
 import {
   clientApproveReport,
   clientRequestRevision,
@@ -132,6 +143,13 @@ export default async function ClientReleasePage({
           tone="violet"
         />
       </section>
+
+      {/* What the decision is about. Withheld until admin has forwarded the
+          report — GOLDEN_RULE_6 — so the buyer never previews a report that is
+          still on admin's desk. */}
+      {adminHasForwarded && state.reportId && (
+        <ReportVisitLog reportId={state.reportId} />
+      )}
 
       {/* Decision surface */}
       {!adminHasForwarded ? (

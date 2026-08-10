@@ -51,6 +51,7 @@ import type { InspectorApplicationStatus } from '@/lib/data/openJobs.types';
 import type { JobUrgency } from '@/lib/data/clientJobs.types';
 import { withdrawApplication } from '@/lib/actions/inspectorApply';
 import { FlashReportSection } from '@/components/flash-reports/FlashReportSection';
+import JobVisitsPanel from '@/components/visits/JobVisitsPanel';
 import { formatScheduledDate } from '@nexpec/shared-core';
 
 export const metadata: Metadata = {
@@ -206,6 +207,33 @@ export default async function InspectorJobDetailPage({
         assignments dashboard card, which the user often bypassed).
       */}
       <InspectorWorkflowPanel job={job} report={report} />
+
+      {/*
+        Multi-visit schedule (Phase 2D). Read-only: nx_job_visits is the only
+        RPC it touches, and the management RPCs are admin-gated in the database,
+        so an inspector cannot reschedule, cancel or crew a visit from here.
+        The panel hides itself for anyone nx_job_visits refuses (an applicant
+        browsing an open job) and for a legacy job whose only "visit" is the
+        synthetic jobs.scheduled_date fallback already shown as Scheduled above.
+        Entry points are handed in rather than recomputed, so the buttons here
+        cannot disagree with the workflow panel directly above.
+      */}
+      <JobVisitsPanel
+        jobId={job.id}
+        viewer="inspector"
+        inspection={
+          isHiredActive || report
+            ? {
+                reportHref: isHiredActive && !report
+                  ? `/inspector/jobs/${job.id}/submit-report`
+                  : null,
+                flashHref: flashRaiseHref,
+                reportSubmitted: report != null,
+                adminMessagesHref: '/inspector/messages',
+              }
+            : null
+        }
+      />
 
       {/* Flash Reports (NCRs) — raise + track mid-job non-conformances. */}
       <FlashReportSection

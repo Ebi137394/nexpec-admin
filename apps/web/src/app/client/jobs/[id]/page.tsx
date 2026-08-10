@@ -33,6 +33,7 @@ import type {
 import { PendingReviewCallout } from '@/components/reviews/PendingReviewCallout';
 import { EvidencePackButton } from '@/components/compliance/EvidencePackButton';
 import JobChatActions from '@/components/messaging/JobChatActions';
+import JobVisitsPanel from '@/components/visits/JobVisitsPanel';
 // Layer 1+4 — passive, launch-state-gated inspection-domain badge.
 import { InspectionDomainBadge } from '@/components/inspection-domain/InspectionDomainBadge';
 import { fetchLaunchedDomainSlugs } from '@/lib/data/inspectionDomains';
@@ -248,6 +249,17 @@ export default async function ClientJobDetailPage({
           </ul>
         </section>
       )}
+
+      {/*
+        Multi-visit schedule (Phase 2D) — the buyer's view of when work happens
+        on their site, its progress, and its history. viewer="buyer" never reads
+        the job team, and its one crew-shaped detail (a headcount) is gated on
+        nx_job_effective_identity_mode, so a 'protected' engagement stays
+        anonymous here exactly as it does everywhere else in this portal. The
+        panel hides itself on a legacy job whose only "visit" is the synthetic
+        jobs.scheduled_date fallback already shown as Scheduled above.
+      */}
+      <JobVisitsPanel jobId={job.id} viewer="buyer" />
 
       {/* Status timeline */}
       <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6 sm:p-8">

@@ -9,8 +9,17 @@
 //  Returns NO pricing column of any kind. Report review is a quality gate, not
 //  a commercial one; the queue RPC does not select a money column and this type
 //  has nowhere to put one.
+//
+//  ── VISIT CONTEXT (20260801390000) ─────────────────────────────────────────
+//  The queue now carries a per-report visit rollup so a reviewer can tell
+//  whether the work a consolidated report describes has actually finished
+//  ("3 of 5 visits done") before signing it off. It arrives INSIDE the existing
+//  queue RPC on purpose: fetching it per row would be one round trip per report.
 // ════════════════════════════════════════════════════════════════════════════
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { parseVisitRollup, type ReportVisitRollup } from './reportVisits';
+
+export type { ReportVisitRollup };
 
 export interface ReportReviewRow {
   reportId: string;
@@ -28,6 +37,12 @@ export interface ReportReviewRow {
   isPublished: boolean;
   isClientApproved: boolean;
   pdfUrl: string | null;
+  /**
+   * The visit programme this report consolidates. NULL when the rollup could
+   * not be shaped; fromFallback = true means the job is a classic single-date
+   * job with no explicit visits, which must NOT be rendered as a programme.
+   */
+  visitRollup: ReportVisitRollup | null;
 }
 
 export async function fetchReportReviewQueue(
@@ -59,5 +74,6 @@ export async function fetchReportReviewQueue(
     isPublished: Boolean(r.is_published),
     isClientApproved: Boolean(r.is_client_approved),
     pdfUrl: (r.pdf_url as string | null) ?? null,
+    visitRollup: parseVisitRollup(r.visit_rollup),
   }));
 }

@@ -26,6 +26,7 @@ export * from './domain/jobStatus';
 export * from './domain/money';
 export * from './domain/audit';
 export * from './domain/scheduledDate';
+export * from './domain/itp';
 export * from './schemas/jobs';
 export * from './schemas/disputes';
 export * from './schemas/payouts';

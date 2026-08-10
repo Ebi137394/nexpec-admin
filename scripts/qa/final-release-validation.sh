@@ -104,6 +104,7 @@ for f in \
   supabase/tests/team_evidence_contribution_test.sql \
   supabase/tests/team_conversation_auth_test.sql \
   supabase/tests/schedule_conflict_test.sql \
+  supabase/tests/team_offline_authorization_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
   supabase/rollback/20260801318000_rollback.sql \
   supabase/rollback/20260801322000_rollback.sql \
@@ -136,7 +137,7 @@ for f in \
   supabase/rollback/20260801382000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "40 migrations, 24 test suites and 30 rollback scripts are present"
+ok "40 migrations, 25 test suites and 30 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)

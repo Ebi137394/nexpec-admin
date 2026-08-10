@@ -252,3 +252,58 @@ Both need architectural decisions inside the frozen domain.
 
 ⚪ **FUTURE / LOW PRIORITY** — QCP (no evidence; low value until ITP lands),
 ERP connectors (keep integration-ready, build on demand).
+
+---
+
+## Addendum — the 42703 defect family (found via the Predictive Integrity report)
+
+The reported "column d.job_id does not exist" was **one of nine**. Root cause of
+the dispute pair: there are two dispute tables and two functions reach for the
+wrong one. `public.disputes` is work-order scoped (`project_id` FKs to
+`work_orders`, no `job_id`); `public.job_disputes` is job scoped. **Both are
+preserved**; the two job-scoped functions were repointed.
+
+**Fixed (`20260801368000`, `20260801370000`):**
+
+| function | defect | reachable from |
+|---|---|---|
+| `inspector_integrity_analytics` | joined `disputes.job_id` | web `/admin/integrity` **and** mobile `app/(admin)/integrity.tsx` |
+| `file_dispute` | inserted 5 columns that don't exist | live mobile disputes screens |
+| `invite_inspector_to_job` | `audit_events.event_kind`/`payload` phantom + 3 NOT NULLs unsupplied | `app/inspector-directory.tsx:281` |
+
+Each was repaired by reproducing the baseline body **byte-for-byte** and
+substituting only the defective line(s) — no behaviour, weight, threshold or
+authorization rule was altered.
+
+**Still live, recorded in `scripts/qa/known-sql-schema-defects.json`:**
+`accept_offer` and `create_organization` (non-payment, fixable, callers to be
+traced first); `get_or_create_wallet`, `handle_job_cancellation`,
+`handle_job_completion` ×2, `request_milestone_release`, `wallet_credit_topup`
+(**frozen payment domain — reported, not fixed**).
+
+`npm run qa:sql-schema` now scans the baseline too — the blind spot that let
+these survive — with supersession awareness (21 findings correctly skipped as
+dead code) and a known-defect register so it fails on anything **new**.
+
+## Addendum — AI Platform: unpopulated, not disconnected
+
+Confirmed: **24+ AI lifecycle tables exist** (`ai_dataset_versions`,
+`ai_training_runs`, `ai_golden_datasets`, `ai_hard_examples`,
+`ai_active_learning_scores`, `ai_monthly_snapshots`, `ai_export_history`,
+`ai_model_deployment_history`, `ai_rollback_history`, `ai_storage_quotas`,
+`ai_inference_statistics`, `ai_quality_statistics`, …), each with writers in the
+migrations and web pages reading them.
+
+**Dataset Versions = 0 and Training Runs = 0 mean the tables are UNPOPULATED,
+not unwired.** Training happens externally — the model sidecars record
+`source_checkpoint` paths under `nexpec_ai/…` and the Training page itself says
+to *"record a run when you train a new model version externally; attach its
+exported .tflite SHA."* So the zeros reflect a process not yet performed, not a
+missing subsystem.
+
+**Real gap (small, operational):** nothing back-fills a training-run or
+dataset-version record from the metadata sidecars that already ship beside each
+`.tflite` (`*_model_info.json` carries name, task, classes, input size,
+`source_checkpoint`, `tflite_sha256`, `exported_at_utc`). Registering the three
+existing models as historical training runs would populate the console from data
+already on disk. Additive, no new dependency.

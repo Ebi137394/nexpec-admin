@@ -25,6 +25,7 @@ import { rpcWithRetry } from '@/src/core/net/supabaseRetry';
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import JobChatActions from '@/src/components/chat/JobChatActions';
 import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
+import { JobTeamPanel } from '@/src/components/team/JobTeamPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
@@ -1166,6 +1167,8 @@ const fetchApplication = async (uid: string) => {
               them into: job_meetings RLS already limits the list to meetings
               they organize or participate in, and the panel renders nothing at
               all when that list is empty. */}
+          <JobTeamPanel jobId={String(id)} viewerId={userId} />
+
           <MeetingsPanel jobId={String(id)} parties={[]} canSchedule={false} />
 
           <AuditTimeline

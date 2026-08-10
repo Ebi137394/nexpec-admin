@@ -34,7 +34,8 @@
     "qa:sql-schema": "node scripts/qa/check-sql-schema-refs.mjs",
     "qa:admin-routes": "node scripts/qa/check-admin-route-reachability.mjs",
     "qa:reconcile": "node scripts/qa/capability-reconciliation.mjs",
-    "qa:model-shas": "node scripts/qa/check-model-shas.mjs"
+    "qa:model-shas": "node scripts/qa/check-model-shas.mjs",
+    "qa:ml-tests": "node scripts/qa/run-ml-tests.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

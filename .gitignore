@@ -82,3 +82,4 @@ supabase/.branches/
 # Python bytecode cache (e.g. scripts/ml tooling)
 __pycache__/
 *.pyc
+node_modules/.cache/nexpec-ml-tests/

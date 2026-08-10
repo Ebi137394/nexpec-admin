@@ -355,15 +355,18 @@ describe('Q7 duplicate replay is idempotent', () => {
 // ── Q8 · a visit reschedule must not corrupt queued evidence ───────────────
 
 describe('Q8 visit reschedule does not corrupt queued evidence', () => {
-  it('evidence stays attached to the visit that was actually worked', async () => {
+  it('evidence captured before a reschedule is forwarded, never destroyed', async () => {
     const cap = captureRow({ visit_id: VISIT_1 });
     const opId = await offlineApi.enqueueCaptureSave({ capture: cap });
 
-    // nx_job_reschedule_visit (migration 20260801384000:366) supersedes the old
-    // row rather than deleting it, and carries the crew to the new visit.
+    // nx_job_reschedule_visit (20260801384000:366, reordered by 394000)
+    // supersedes the old row rather than deleting it, carries the ACTIVE crew
+    // to the new visit, and — load-bearing here — stamps rescheduled_from_id
+    // on the replacement so the chain is walkable.
     const visit2 = uuid();
     server.visits.get(VISIT_1).status = 'rescheduled';
     server.addVisit(visit2, JOB, 'scheduled');
+    server.visits.get(visit2).rescheduled_from_id = VISIT_1;
 
     // The queued payload is untouched by the server-side reschedule.
     const queued = await rowFor(opId);
@@ -371,9 +374,39 @@ describe('Q8 visit reschedule does not corrupt queued evidence', () => {
 
     await drain();
 
+    // ★ This assertion was inverted before 20260801396000. It previously
+    //   required the capture to stay on the superseded visit — which in
+    //   production meant tg_guard_capture_visit raised 23514, shared-core
+    //   classified it FATAL, and the inspector's field evidence was discarded
+    //   permanently. The guard now walks rescheduled_from_id forward instead.
     const landed = server.captures.get(cap.id);
-    assert.equal(landed.visit_id, VISIT_1, 'attached to the worked visit');
-    assert.notEqual(landed.visit_id, visit2, 'never migrated to the replacement visit');
+    assert.ok(landed, 'the capture must land — a reschedule must never destroy evidence');
+    assert.equal(landed.visit_id, visit2, 'forwarded to the live successor visit');
+  });
+});
+
+// ── Q8b · the offline path is not a way around the cross-job guard ─────────
+
+describe('Q8b cross-job visit_id injection is rejected at replay', () => {
+  it('a forged visit_id from another job cannot be laundered through the outbox', async () => {
+    // The exploit the pre-integration review found against the raw API: stamp a
+    // capture with a visit_id guessed from someone else's job. The outbox must
+    // not be a softer path to the same thing — tg_guard_capture_visit
+    // (20260801388000) is a BEFORE trigger, so it binds the replay writer too.
+    const otherJob = uuid();
+    const otherVisit = uuid();
+    server.addJob(otherJob, uuid());
+    server.addVisit(otherVisit, otherJob, 'scheduled');
+
+    const cap = captureRow({ job_id: JOB, visit_id: otherVisit });
+    await offlineApi.enqueueCaptureSave({ capture: cap });
+    await drain();
+
+    assert.equal(
+      server.captures.get(cap.id),
+      undefined,
+      'a capture naming another job’s visit must never land',
+    );
   });
 });
 

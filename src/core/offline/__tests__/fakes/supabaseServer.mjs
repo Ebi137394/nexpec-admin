@@ -86,6 +86,17 @@ export const server = {
       this.nx_is_active_job_team_member(row.job_id, uid) || this.isContractor(row.job_id, uid)
     );
   },
+  // nx_can_record_visit_work (20260801388000, amended by 396000). 'rescheduled'
+  // is refused because the guard forwards past it before reaching here;
+  // 'cancelled' is permitted so late offline evidence is never destroyed.
+  canRecordVisitWork(visitId, uid) {
+    const v = this.visits.get(visitId);
+    if (!v || !uid) return false;
+    if (v.status === 'rescheduled') return false;
+    return (
+      this.nx_is_active_job_team_member(v.job_id, uid) || this.isContractor(v.job_id, uid)
+    );
+  },
 };
 
 // ── PostgREST-shaped errors ──────────────────────────────────────
@@ -98,6 +109,14 @@ const errRls = (table) => ({
   status: 403,
   code: '42501',
   message: `new row violates row-level security policy for table "${table}"`,
+});
+// 23514 — a CHECK/trigger rejection. shared-core classifies this as FATAL, so
+// a capture that trips it is discarded permanently rather than retried. That
+// is precisely why 396000 forwards superseded evidence instead of raising.
+const errCheck = (detail) => ({
+  status: 400,
+  code: '23514',
+  message: `new row for relation "inspection_captures" violates check constraint: ${detail}`,
 });
 const errDup = (constraint) => ({
   status: 409,
@@ -121,11 +140,43 @@ function insertCapture(row) {
   if (row.visit_id != null && !server.visits.has(row.visit_id)) {
     return { data: null, error: errFk('inspection_captures_visit_id_fkey') };
   }
-  if (server.captures.has(row.id)) {
+  // ── 20260801388000 + 20260801396000 BEFORE-INSERT guards ──────────────────
+  //  These were MISSING from this fake, which made it certify the opposite of
+  //  production: captures on a cancelled/rescheduled visit and cross-job
+  //  visit_id injection both "passed" here while Postgres rejects (or
+  //  rewrites) them. Transcribed from tg_guard_capture_visit.
+  let inserted = { ...row };
+  if (inserted.visit_id != null) {
+    const visit = server.visits.get(inserted.visit_id);
+
+    // Job coherence — the cross-job injection guard (388000). Fails closed.
+    if (visit.job_id !== inserted.job_id) {
+      return { data: null, error: errCheck('visit belongs to a different job') };
+    }
+
+    // Supersession forwarding (396000): a reschedule must move late-arriving
+    // offline evidence forward, never destroy it.
+    let hops = 0;
+    while (server.visits.get(inserted.visit_id)?.status === 'rescheduled' && hops < 50) {
+      const next = [...server.visits.entries()]
+        .find(([, v]) => v.rescheduled_from_id === inserted.visit_id);
+      if (!next) break;
+      inserted.visit_id = next[0];
+      hops += 1;
+    }
+    // 'cancelled' is deliberately accepted — see 396000.
+
+    // Actor rules (nx_can_record_visit_work): a removed inspector may not
+    // record NEW work, though their history stays attributed.
+    if (!server.canRecordVisitWork(inserted.visit_id, server.uid)) {
+      return { data: null, error: errRls('inspection_captures') };
+    }
+  }
+  if (server.captures.has(inserted.id)) {
     return { data: null, error: errDup('inspection_captures_pkey') };
   }
-  server.captures.set(row.id, { visit_id: null, ...row });
-  return { data: [row], error: null };
+  server.captures.set(inserted.id, { visit_id: null, ...inserted });
+  return { data: [inserted], error: null };
 }
 
 function insertGeneric(table, row) {

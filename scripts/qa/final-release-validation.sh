@@ -82,6 +82,11 @@ for f in \
   supabase/migrations/20260801382000_schedule_conflict_preview.sql \
   supabase/migrations/20260801384000_multi_visit_recurring.sql \
   supabase/migrations/20260801386000_visit_schedule_conflicts.sql \
+  supabase/migrations/20260801388000_visit_scoped_evidence.sql \
+  supabase/migrations/20260801390000_visit_aware_reporting.sql \
+  supabase/migrations/20260801394000_visit_lifecycle_defects.sql \
+  supabase/migrations/20260801396000_visit_evidence_survives_reschedule.sql \
+  supabase/migrations/20260801398000_itp_points_foundation.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
   supabase/tests/resume_disclosure_access_test.sql \
@@ -109,6 +114,7 @@ for f in \
   supabase/tests/team_offline_authorization_test.sql \
   supabase/tests/multi_visit_test.sql \
   supabase/tests/visit_schedule_conflict_test.sql \
+  supabase/tests/itp_points_test.sql \
   supabase/rollback/20260801304000_to_316000_rollback.sql \
   supabase/rollback/20260801318000_rollback.sql \
   supabase/rollback/20260801322000_rollback.sql \
@@ -140,10 +146,14 @@ for f in \
   supabase/rollback/20260801380000_rollback.sql \
   supabase/rollback/20260801382000_rollback.sql \
   supabase/rollback/20260801384000_rollback.sql \
-  supabase/rollback/20260801386000_rollback.sql ; do
+  supabase/rollback/20260801386000_rollback.sql \
+  supabase/rollback/20260801398000_rollback.sql \
+  supabase/rollback/20260801388000_rollback.sql \
+  supabase/rollback/20260801390000_rollback.sql \
+  supabase/rollback/rollback_identity_replacement.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "42 migrations, 27 test suites and 32 rollback scripts are present"
+ok "47 migrations, 28 test suites and 36 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)

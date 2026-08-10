@@ -159,6 +159,15 @@ export default function ComplianceCaptureWizard() {
   const [loading, setLoading] = useState(true);
   const [activeIdx, setActiveIdx] = useState(0);
 
+  // ─── Phase 2F — which VISIT is this capture session standing in? ───
+  //   Resolved server-side by nx_job_active_visit_for, so the wizard gains
+  //   job + visit + inspector attribution WITHOUT a new picker or a second
+  //   capture workflow. NULL is not a failure: it is the pre-existing
+  //   job-level meaning, which is what every legacy job and every ambiguous
+  //   multi-visit job correctly falls back to. The RPC refuses to guess.
+  const [visitId, setVisitId] = useState<string | null>(null);
+  const [visitLabel, setVisitLabel] = useState<string | null>(null);
+
   // Camera modal state
   const [camOpen, setCamOpen] = useState(false);
   const [camFacing, setCamFacing] = useState<'back' | 'front'>('back');
@@ -239,6 +248,24 @@ export default function ComplianceCaptureWizard() {
         Alert.alert('Not your job', 'Only the assigned inspector can capture evidence for this job.');
         router.back();
         return;
+      }
+
+      // Resolve the active visit. Read-only RPC (outbox rules cover writes
+      // only). Best-effort: offline or on error we keep visit_id NULL, which
+      // is exactly today's job-level behaviour — never a blocked capture.
+      try {
+        const { data: av } = await supabase.rpc('nx_job_active_visit_for', {
+          p_job_id: jobId,
+        });
+        const vid = (av as { visit_id?: string | null } | null)?.visit_id ?? null;
+        setVisitId(vid);
+        setVisitLabel(
+          vid
+            ? `Visit ${(av as any).visit_number}${(av as any).title ? `, ${(av as any).title}` : ''}`
+            : null,
+        );
+      } catch (ve) {
+        console.warn('[capture-wizard] active visit unresolved, capturing at job level:', ve);
       }
 
       const { data: r, error: rErr } = await supabase
@@ -380,6 +407,12 @@ export default function ComplianceCaptureWizard() {
           inspector_id: user.id,
           kind: active.kind,
           sort_index: activeCount,
+          // Job + visit + inspector, one coherent attribution. NULL keeps the
+          // legacy job-level meaning. Deliberately NOT part of the hashed
+          // metadata above: capture_sha256 and the generate-vca server-side
+          // re-canonicalisation both exclude visit_id, so stamping a visit
+          // cannot alter a hash, the per-job chain, or an issued affidavit.
+          visit_id: visitId,
           storage_path: storagePath,
           mime_type: 'image/jpeg',
           exif_json: preview.exif ?? null,
@@ -494,6 +527,7 @@ export default function ComplianceCaptureWizard() {
           inspector_id: user.id,
           kind: active.kind,
           sort_index: activeCount,
+          visit_id: visitId, // NULL = job-level, the legacy meaning
           gps_lat: loc.coords.latitude,
           gps_lng: loc.coords.longitude,
           gps_accuracy_m: loc.coords.accuracy ?? null,
@@ -561,6 +595,7 @@ export default function ComplianceCaptureWizard() {
           inspector_id: user.id,
           kind: active.kind,
           sort_index: activeCount,
+          visit_id: visitId, // NULL = job-level, the legacy meaning
           captured_at: capturedAt,
           device_platform: Platform.OS,
           capture_sha256: captureSha,
@@ -751,6 +786,7 @@ export default function ComplianceCaptureWizard() {
           <Text style={s.headerTitle} numberOfLines={1}>{job.scope?.name ?? 'Compliance Job'}</Text>
           <Text style={s.headerSub}>
             Req {activeIdx + 1} of {requirements.length}, {captures.length} captures
+            {visitLabel ? `, ${visitLabel}` : ''}
           </Text>
         </View>
         {allDone && (

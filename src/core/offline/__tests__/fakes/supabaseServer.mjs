@@ -300,6 +300,18 @@ function itpRecordResult(args) {
   // (20260801388000/396000), so there is no job-coherence check on the visit
   // and no forwarding past a rescheduled one. The FK is the only visit rule.
   const visitId = args.p_visit_id ?? null;
+  // 20260801404000 tg_guard_itp_result_visit — a result may only name a visit
+  // on its OWN job. The FK proves existence only; without this a foreign
+  // visit_id defeats the (point,job,visit) partial unique index and lets the
+  // report state a different result than the visit register shows. NULL keeps
+  // its legacy job-level meaning and is not checked.
+  if (visitId !== null && server.visits.has(visitId)
+      && server.visits.get(visitId).job_id !== args.p_job_id) {
+    return {
+      data: null,
+      error: errPg('23514', 400, 'visit belongs to another job — an ITP result cannot be filed against it'),
+    };
+  }
   if (visitId !== null && !server.visits.has(visitId)) {
     return {
       data: null,

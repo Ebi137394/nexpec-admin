@@ -283,18 +283,24 @@ describe('Q11-Q12 visit reschedule/cancel does not misattribute ITP work', () =>
     assert.equal(server.itpResults.size, 0, 'no orphan result');
   });
 
-  it('CURRENT GAP: a visit from ANOTHER job is accepted (no coherence guard)', async () => {
-    // inspection_captures gained tg_guard_capture_visit (388000) for exactly
-    // this. itp_point_results did not. This asserts today's real behaviour so
-    // the suite fails loudly the moment a fix lands — it is a FINDING, not an
-    // endorsement. See the Phase 3 security report.
+  it('a visit from ANOTHER job is rejected — coherence guard (404000)', async () => {
+    // Was asserted as a known GAP when this suite was written; 20260801404000
+    // added tg_guard_itp_result_visit, the ITP counterpart of the evidence
+    // guard 388000 gave inspection_captures. The assertion is now inverted.
     const foreignVisit = uuid();
     server.addVisit(foreignVisit, OTHER_JOB, 'scheduled');
-    await offlineApi.enqueueItpRecordResult(itpReq({ visitId: foreignVisit }));
+    const opId = await offlineApi.enqueueItpRecordResult(itpReq({ visitId: foreignVisit }));
     await drain();
 
-    const row = resultFor(JOB, POINT_NORMAL, foreignVisit);
-    assert.ok(row, 'DEFECT: cross-job visit_id is currently accepted on ITP results');
+    assert.equal(server.itpResults.size, 0, 'no result may be filed against another job’s visit');
+    assert.equal((await rowFor(opId)).status, 'abandoned', '23514 is fatal, not retried forever');
+  });
+
+  it('a job-level (NULL visit) result is unaffected by the coherence guard', async () => {
+    // Legacy semantics must survive the fix: NULL means job-level, not invalid.
+    await offlineApi.enqueueItpRecordResult(itpReq({ visitId: null }));
+    await drain();
+    assert.ok(resultFor(JOB, POINT_NORMAL, null), 'NULL visit_id still lands');
   });
 });
 

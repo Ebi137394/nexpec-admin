@@ -26,6 +26,10 @@ import AuditTimeline from '@/src/components/audit/AuditTimeline';
 import JobChatActions from '@/src/components/chat/JobChatActions';
 import { MeetingsPanel } from '@/src/components/meetings/MeetingsPanel';
 import { JobTeamPanel } from '@/src/components/team/JobTeamPanel';
+// ★ Phase 2E — Multi-Visit. Extends THIS existing job-detail screen; there is
+//   deliberately no second mobile job-detail system. Read-only for inspectors:
+//   every visit mutation is Admin-only and lives on the web admin surface.
+import { JobVisitsPanel } from '@/src/components/visits/JobVisitsPanel';
 // ★ Layer 1+4 — passive inspection-domain badge (strict launch-state gated)
 import { InspectionDomainBadge } from '@/src/components/shared/InspectionDomainBadge';
 import { useLaunchedInspectionDomains } from '@/src/hooks/useLaunchedInspectionDomains';
@@ -1168,6 +1172,14 @@ const fetchApplication = async (uid: string) => {
               they organize or participate in, and the panel renders nothing at
               all when that list is empty. */}
           <JobTeamPanel jobId={String(id)} viewerId={userId} />
+
+          {/* Visit schedule for this job. nx_job_visits is the canonical read and
+              carries its own RLS, so an inspector sees visits only on a job they
+              are actually engaged on. Legacy single-visit jobs render the
+              synthetic fallback row derived from jobs.scheduled_date — the panel
+              never materialises it, so merely opening this screen cannot backfill
+              a visit. No mutation controls are exposed here. */}
+          <JobVisitsPanel jobId={String(id)} />
 
           <MeetingsPanel jobId={String(id)} parties={[]} canSchedule={false} />
 

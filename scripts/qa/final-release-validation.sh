@@ -73,6 +73,7 @@ for f in \
   supabase/migrations/20260801364000_admin_report_review_activation.sql \
   supabase/migrations/20260801366000_inspection_item_ncr_link.sql \
   supabase/migrations/20260801368000_dispute_and_integrity_schema_repair.sql \
+  supabase/migrations/20260801370000_invite_inspector_audit_repair.sql \
   supabase/tests/admin_direct_assignment_test.sql \
   supabase/tests/identity_disclosure_test.sql \
   supabase/tests/resume_disclosure_access_test.sql \
@@ -117,7 +118,7 @@ for f in \
   supabase/rollback/20260801368000_rollback.sql ; do
   [[ -f "$f" ]] || die "missing required file: $f"
 done
-ok "33 migrations, 18 test suites and 24 rollback scripts are present"
+ok "34 migrations, 18 test suites and 24 rollback scripts are present"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Database phase (2 → 5, 8, 8b)

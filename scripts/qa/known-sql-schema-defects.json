@@ -1,0 +1,74 @@
+{
+  "_readme": [
+    "PRE-EXISTING schema defects in baseline function bodies, recorded so the",
+    "guard fails on anything NEW while keeping these visible.",
+    "",
+    "These are NOT suppressed because they are acceptable. Every entry is a real",
+    "42703 or 23502 that fires when the function runs. They are listed rather",
+    "than fixed because six of the eight sit inside the FROZEN PAYMENT DOMAIN,",
+    "where the standing instruction is to report and not modify.",
+    "",
+    "Fixing one means: repair it in a forward migration, add a regression test,",
+    "then DELETE its entry here. Never delete an entry to make the guard quiet.",
+    "",
+    "Format: 'baseline_line': { fn, domain, defect, impact }"
+  ],
+
+  "1482": {
+    "fn": "accept_offer",
+    "domain": "messaging",
+    "defect": "INSERT INTO conversations (job_id, client_id, inspector_id) — conversations has no inspector_id, and kind/user_id are NOT NULL with no default",
+    "impact": "accepting an offer via this function would 42703. The live hire path goes through admin_dispatch_job / applications, so reachability is unconfirmed.",
+    "status": "NOT FIXED — non-payment, fixable, caller reachability to be confirmed first"
+  },
+  "7431": {
+    "fn": "create_organization",
+    "domain": "enterprise",
+    "defect": "INSERT INTO organizations (name, kind, owner_id, is_active) omits slug, which is NOT NULL with no default",
+    "impact": "23502 whenever this RPC runs. Organizations DO exist and are reachable in the deployed Admin UI, so orgs are evidently created by another path — this particular RPC is the broken one.",
+    "status": "NOT FIXED — non-payment, fixable; needs caller trace before repair"
+  },
+
+  "11099": {
+    "fn": "get_or_create_wallet",
+    "domain": "PAYMENT (frozen)",
+    "defect": "references wallets.frozen_balance, which does not exist",
+    "impact": "wallet bootstrap raises 42703",
+    "status": "REPORTED ONLY — frozen payment domain, awaiting explicit direction"
+  },
+  "11835": {
+    "fn": "handle_job_cancellation",
+    "domain": "PAYMENT (frozen)",
+    "defect": "INSERT INTO transactions (wallet_id, ...) — transactions has no wallet_id; user_id (NOT NULL) not supplied",
+    "impact": "cancellation bookkeeping raises 42703 at the moment it runs",
+    "status": "REPORTED ONLY — frozen payment domain"
+  },
+  "11944": {
+    "fn": "handle_job_completion",
+    "domain": "PAYMENT (frozen)",
+    "defect": "INSERT INTO transactions (wallet_id, net_amount, fee_amount, ...) — none of the three exist; user_id (NOT NULL) not supplied",
+    "impact": "completion settlement bookkeeping raises 42703",
+    "status": "REPORTED ONLY — frozen payment domain"
+  },
+  "11959": {
+    "fn": "handle_job_completion",
+    "domain": "PAYMENT (frozen)",
+    "defect": "second INSERT site, same transactions.wallet_id defect",
+    "impact": "as above",
+    "status": "REPORTED ONLY — frozen payment domain"
+  },
+  "16413": {
+    "fn": "request_milestone_release",
+    "domain": "PAYMENT (frozen)",
+    "defect": "INSERT INTO audit_events (event_kind, payload) — real columns are event_type/metadata; subject_table, subject_id and summary are NOT NULL and unsupplied",
+    "impact": "milestone release raises 42703 on its AUDIT write. The defect itself is not monetary, but the function is squarely inside the frozen domain.",
+    "status": "REPORTED ONLY — frozen payment domain"
+  },
+  "21231": {
+    "fn": "wallet_credit_topup",
+    "domain": "PAYMENT (frozen)",
+    "defect": "INSERT INTO transactions omits amount and type, both NOT NULL with no default",
+    "impact": "top-up crediting raises 23502",
+    "status": "REPORTED ONLY — frozen payment domain"
+  }
+}

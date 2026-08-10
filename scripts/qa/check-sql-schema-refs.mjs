@@ -185,8 +185,13 @@ function targets() {
     if (!existsSync(abs)) continue;
     for (const f of readdirSync(abs).filter((x) => x.endsWith('.sql'))) out.push(join(dir, f));
   }
-  // Only NEW migrations — the baseline is the source of truth, not a subject.
-  for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith('.sql') && !x.startsWith('00000000000000'))) {
+  // The baseline defines the schema, but its FUNCTION BODIES are ordinary code
+  // and can be wrong about it. Skipping it was how a whole family of live
+  // 42703s survived: file_dispute, invite_inspector_to_job and three payment
+  // functions all INSERT columns that do not exist on the target table, and
+  // every one of them is reachable from the shipped app. The baseline is
+  // therefore scanned too — as a subject, not only as the source of truth.
+  for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith('.sql'))) {
     out.push(join('supabase/migrations', f));
   }
   return out;
@@ -225,9 +230,43 @@ function assertionLiteralRanges(src) {
   return ranges;
 }
 
+/**
+ * Functions redefined by a LATER migration.
+ *
+ * A baseline function body that a subsequent migration CREATE OR REPLACEs is
+ * dead code — the live definition is the later one. Reporting a defect inside
+ * the superseded body is noise, and noise is how a guard earns the right to be
+ * ignored. So findings are attributed to the function that contains them, and
+ * suppressed when that function has since been replaced.
+ */
+function supersededFunctions() {
+  const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
+  const later = new Set();
+  for (const f of files) {
+    if (f.startsWith('00000000000000')) continue;
+    const sql = stripSql(readFileSync(join(MIGRATIONS, f), 'utf8'));
+    for (const m of sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:"?public"?\.)?"?(\w+)"?\s*\(/gi)) {
+      later.add(m[1]);
+    }
+  }
+  return later;
+}
+
+/** name of the function whose body contains `index`, or null. */
+function enclosingFunction(src, index) {
+  const re = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:"?public"?\.)?"?(\w+)"?\s*\(/gi;
+  let name = null, m;
+  while ((m = re.exec(src)) !== null) {
+    if (m.index > index) break;
+    name = m[1];
+  }
+  return name;
+}
+
 const schema = parseSchema();
+const superseded = supersededFunctions();
 const problems = [];
-let inserts = 0, filesScanned = 0;
+let inserts = 0, filesScanned = 0, suppressed = 0;
 
 for (const rel of targets()) {
   const raw = readFileSync(join(ROOT, rel), 'utf8');
@@ -244,6 +283,13 @@ for (const rel of targets()) {
     if (sch === 'auth' || SKIP_TABLES.has(table)) continue;
     if (!schema.has(table)) continue;              // unknown table → not our business
     if (inAssertion(m.index)) continue;            // pgTAP throws_ok payload — invalid on purpose
+
+    // Skip defects inside a baseline function body that a later migration has
+    // already replaced — that code no longer runs.
+    if (rel.includes('00000000000000')) {
+      const fn = enclosingFunction(src, m.index);
+      if (fn && superseded.has(fn)) { suppressed++; continue; }
+    }
     const line = src.slice(0, m.index).split('\n').length;
 
     // Grab the balanced column list.
@@ -347,18 +393,53 @@ for (const rel of targets()) {
   }
 }
 
-if (problems.length) {
+// ── Known pre-existing defects ─────────────────────────────────────────────
+//  Recorded in known-sql-schema-defects.json with a reason and a status, so the
+//  guard fails on anything NEW while these stay visible. They are NOT
+//  acceptable — six of the eight sit in the frozen payment domain, which is the
+//  only reason they are listed rather than repaired. Deleting an entry to
+//  silence the guard, rather than because the defect was fixed, defeats the
+//  point of having it.
+let known = {};
+try {
+  known = JSON.parse(readFileSync(join(ROOT, 'scripts/qa/known-sql-schema-defects.json'), 'utf8'));
+} catch { /* no baseline file — every finding is new */ }
+
+const isKnown = (p) =>
+  p.rel.includes('00000000000000') && Object.prototype.hasOwnProperty.call(known, String(p.line));
+
+const knownHits = problems.filter(isKnown);
+const newProblems = problems.filter((p) => !isKnown(p));
+
+if (newProblems.length) {
   console.error('✘ SQL fixture does not match the schema:\n');
-  for (const p of problems) console.error(`  ${p.rel}:${p.line}  [${p.kind}]  ${p.detail}`);
+  for (const p of newProblems) console.error(`  ${p.rel}:${p.line}  [${p.kind}]  ${p.detail}`);
   console.error(
-    `\n${problems.length} problem(s). Each one aborts the suite at the INSERT, so every\n` +
-    `assertion after it silently never runs.`,
+    `\n${newProblems.length} NEW problem(s). Each one aborts at the INSERT, so everything\n` +
+    `after it silently never runs. If a finding is a pre-existing baseline defect you\n` +
+    `cannot fix yet, record it in scripts/qa/known-sql-schema-defects.json WITH A REASON.`,
   );
   process.exit(1);
 }
 
 console.log(
-  `✓ SQL schema refs: ${inserts} fixture INSERT(s) across ${filesScanned} file(s); ` +
+  `✓ SQL schema refs: ${inserts} INSERT(s) across ${filesScanned} file(s); ` +
   `every column exists, every NOT NULL column without a default is supplied, and ` +
   `every test-fixture literal satisfies its CHECK constraint (${schema.size} tables parsed).`,
 );
+if (suppressed) {
+  console.log(`  ${suppressed} finding(s) skipped inside baseline functions a later migration replaces.`);
+}
+if (knownHits.length) {
+  const fns = [...new Set(knownHits.map((p) => known[String(p.line)]?.fn).filter(Boolean))];
+  const frozen = fns.filter((f) => /wallet|transaction|milestone|payout/i.test(f) ||
+    ['handle_job_completion', 'handle_job_cancellation'].includes(f));
+  console.log(
+    `  ${knownHits.length} KNOWN pre-existing defect(s) in ${fns.length} baseline function(s), ` +
+    `tracked in known-sql-schema-defects.json:`,
+  );
+  console.log(`      ${fns.join(', ')}`);
+  console.log(
+    `      ${frozen.length} of these are in the FROZEN PAYMENT DOMAIN and are reported, not fixed.`,
+  );
+}

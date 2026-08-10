@@ -43,6 +43,47 @@ criterion.
 
 ---
 
+## 0b. AMENDMENT — the governance path (20260801412000)
+
+**This section is final and supersedes any earlier reading of §2.**
+
+When this contract was first frozen it scoped QCP to `projects(id)` without
+checking that anything could reach a project from a job. Nothing could:
+`public.jobs` had no project column and `public.projects` had no inbound FK from
+the operational schema. Three of the five Phase 4 lanes hit this independently.
+That was a Lead defect, and `20260801412000` repairs it.
+
+```
+PROJECT → QCP
+PROJECT → JOB → VISIT / INSPECTION / ITP / REPORT
+
+therefore, canonically:
+
+JOB → PROJECT → EFFECTIVE QCP
+```
+
+- `jobs.project_id` (nullable, additive, never backfilled) is **the** bridge. A
+  job with `project_id IS NULL` is ungoverned and behaves exactly as before.
+- `nx_job_qcp(job_id)` is **the** resolver. It returns a verdict —
+  `ok | no_project | no_qcp | no_effective_revision | ambiguous` — so a caller
+  can never mistake "ungoverned" for "not loaded". Two plans on one project
+  resolve to `ambiguous`, never to a guess.
+- Re-parenting a job is an **authority**, not a field edit: it moves the job
+  between governing quality documents, so the writer must be able to author for
+  the target organization and the buyer principal must be a reader of it.
+
+**`inspection_scope_templates` is NOT project or QCP identity.** A scope template
+is a *reusable inspection definition*. The same template may legitimately appear
+in many plans across many projects, so
+`jobs.scope_template_id = qcp_stage_templates.template_id` is many-to-many and
+**cannot** identify a governing document. That match may be surfaced **only** as
+diagnostic/fallback metadata, always carrying its ambiguity, and must never be
+presented as authoritative. `nx_job_qcp` exposes it as `inferred_candidates` — a
+count, deliberately not an id.
+
+QCP **references** scope templates. It never copies their stages, points,
+acceptance criteria or evidence requirements.
+
 ## 1. What QCP is, and is not
 
 QCP is the **governing quality document** binding a project (and where relevant

@@ -44,7 +44,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(57);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  FIXTURES — every id generated, never literal

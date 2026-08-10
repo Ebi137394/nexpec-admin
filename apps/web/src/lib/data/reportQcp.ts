@@ -21,14 +21,24 @@
 //  for OTHER surfaces, not a licence for this one. Never resolve a handle back
 //  to a profile here.
 //
-//  ── THE LINKAGE IS INFERRED, AND MUST BE RENDERED AS SUCH ──────────────────
-//  public.jobs has no project_id and there is no jobs↔projects bridge, so a
-//  report cannot reach its project-scoped QCP directly. nx_qcp_for_job matches
-//  the plan through the shared scope-template spine
-//  (jobs.scope_template_id = qcp_stage_templates.template_id, constrained to the
-//  plan's organisation). `fromScopeTemplateLink` says so and `ambiguous` says
-//  when more than one plan matched. A surface MUST NOT present an ambiguous
-//  match as the governing plan — use `shouldRenderQcp` below.
+//  ── HOW THE PLAN IS RESOLVED (UPDATED BY 20260801416000) ───────────────────
+//  This file was written before jobs.project_id existed, when matching the
+//  shared scope-template spine was the ONLY way to reach a project-scoped plan
+//  from a report. 20260801412000 added the explicit bridge and 416000 made it
+//  primary, so nx_qcp_for_job now resolves in this order:
+//
+//    1. nx_job_qcp(job) — the canonical JOB → PROJECT → EFFECTIVE QCP path.
+//    2. verdict 'ambiguous' → NOTHING is returned. Two plans on one project is
+//       a contract violation, and naming the wrong quality document is worse
+//       than naming none.
+//    3. only otherwise → the scope-template match, as DIAGNOSTIC candidates,
+//       with the audience suffixed ':inferred'.
+//
+//  That suffix is the authoritative signal and this file must strip it before
+//  matching the audience literal — otherwise 'org:inferred' matches nothing,
+//  audience silently becomes null, and a valid rollup is suppressed.
+//  `fromScopeTemplateLink` is now the EXCEPTION rather than always true, and
+//  `ambiguous` still means do not present a guess — use `shouldRenderQcp`.
 //
 //  ── DEGRADE, DON'T EXPLODE ─────────────────────────────────────────────────
 //  QCP context DECORATES a report; it is not the report. A failure here must not
@@ -171,7 +181,13 @@ export interface ReportQcpRollup {
   /* ── report-scoped keys, present only on nx_report_qcp_rollup ───────────── */
   jobId: string | null;
   reportId: string | null;
-  /** Always true when a plan was found: the linkage is inferred, not stored. */
+  /**
+   * TRUE only when the plan was resolved by the DIAGNOSTIC scope-template
+   * fallback instead of the canonical jobs.project_id bridge. Before
+   * 20260801416000 this was always true, because inference was the only
+   * mechanism; it is now the exception and a surface must not present an
+   * inferred plan as governance.
+   */
   fromScopeTemplateLink: boolean;
   candidateCount: number;
   /** More than one readable plan matched. Do not present a guess as the plan. */
@@ -195,11 +211,20 @@ export function parseQcpRollup(raw: unknown): ReportQcpRollup | null {
   const outs = obj(r.outstanding);
   const supp = obj(r.supplier);
 
+  // 20260801416000 suffixes the audience with ':inferred' when the plan was
+  // resolved by the DIAGNOSTIC scope-template fallback rather than the
+  // canonical jobs.project_id bridge. Strip it before matching — without this,
+  // 'org:inferred' matches none of the four literals and the audience silently
+  // becomes null, suppressing an otherwise valid rollup.
   const audienceRaw = str(r.audience);
+  const inferredSuffix = audienceRaw !== null && audienceRaw.endsWith(':inferred');
+  const audienceBase = inferredSuffix
+    ? audienceRaw.slice(0, -':inferred'.length)
+    : audienceRaw;
   const audience =
-    audienceRaw === 'admin' || audienceRaw === 'org' ||
-    audienceRaw === 'supplier' || audienceRaw === 'inspector'
-      ? (audienceRaw as QcpAudience)
+    audienceBase === 'admin' || audienceBase === 'org' ||
+    audienceBase === 'supplier' || audienceBase === 'inspector'
+      ? (audienceBase as QcpAudience)
       : null;
 
   return {
@@ -286,7 +311,10 @@ export function parseQcpRollup(raw: unknown): ReportQcpRollup | null {
     isSatisfied: Boolean(r.is_satisfied),
     jobId: str(r.job_id),
     reportId: str(r.report_id),
-    fromScopeTemplateLink: Boolean(r.from_scope_template_link),
+    // The ':inferred' suffix is the authoritative signal — it comes from the
+    // resolver that made the decision. The legacy jsonb key is still honoured
+    // for any payload built before 20260801416000.
+    fromScopeTemplateLink: inferredSuffix || Boolean(r.from_scope_template_link),
     candidateCount: num(r.candidate_count),
     ambiguous: Boolean(r.ambiguous),
     identityDisclosed: Boolean(r.identity_disclosed),

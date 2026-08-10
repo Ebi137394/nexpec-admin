@@ -136,6 +136,33 @@ BEGIN
   IF v_n <> 0 THEN RAISE EXCEPTION 'M8 FAILED: the job owner appeared as a candidate'; END IF;
   RAISE NOTICE 'M8 ok — job owner excluded';
 
+  -- ── M9 — LOCATION ORACLE: B cannot score A (would leak A's home_base) ────
+  --  The scalar returns distance_km. Left open, an inspector could score a
+  --  rival against many known-coordinate jobs and trilaterate their home.
+  --  Self-scoring must still work (the job-feed use case).
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_b::text)::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  v_ok := false;
+  BEGIN
+    PERFORM * FROM public.nx_inspector_job_match(v_job, v_a);   -- B probing A
+    v_ok := true;
+  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
+  END;
+  IF NOT v_ok THEN
+    BEGIN
+      PERFORM * FROM public.nx_inspector_job_match(v_job, v_b); -- B scoring B
+    EXCEPTION WHEN OTHERS THEN
+      EXECUTE 'RESET ROLE';
+      RAISE EXCEPTION 'M9 FAILED: self-scoring was broken by the oracle guard (%)', SQLERRM;
+    END;
+  END IF;
+  EXECUTE 'RESET ROLE';
+  IF v_ok THEN RAISE EXCEPTION 'M9 FAILED: B scored A — home_base trilateration is possible'; END IF;
+  IF v_err NOT LIKE '%may only score yourself%' THEN
+    RAISE EXCEPTION 'M9 FAILED: wrong rejection (%)', v_err;
+  END IF;
+  RAISE NOTICE 'M9 ok — cross-inspector scoring refused; self-scoring still works';
+
   RAISE NOTICE '───────────────────────────────────────────';
   RAISE NOTICE 'INSPECTOR MATCHING: ALL ASSERTIONS PASSED';
 END

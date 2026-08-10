@@ -31,6 +31,7 @@
     "qa:assignment-privacy": "node scripts/qa/check-assignment-client-invisibility.mjs",
     "qa:jobs-columns": "node scripts/qa/check-jobs-column-existence.mjs",
     "qa:admin-money": "node scripts/qa/check-admin-money-mapping.mjs",
+    "qa:sql-schema": "node scripts/qa/check-sql-schema-refs.mjs",
     "qa:model-shas": "node scripts/qa/check-model-shas.mjs"
   },
   "dependencies": {

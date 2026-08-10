@@ -84,6 +84,16 @@ BEGIN
     RAISE EXCEPTION 'not_authenticated' USING errcode = '28000';
   END IF;
 
+  -- LOCATION-ORACLE GUARD. This returns distance_km, so an unrestricted caller
+  -- could score a rival against many jobs with known coordinates and
+  -- trilaterate that inspector's home_base. Scoring is therefore limited to
+  -- SELF (an inspector scoring their own fit — the job-feed use case) or an
+  -- ADMIN (candidate discovery). nx_match_inspectors_for_job calls this in a
+  -- LATERAL as the admin, so the ranker is unaffected.
+  IF auth.uid() <> p_inspector_id AND NOT public.nx_is_admin() THEN
+    RAISE EXCEPTION 'may only score yourself' USING errcode = '42501';
+  END IF;
+
   SELECT jb.specialty_slugs, jb.required_certifications, jb.job_country, jb.geog
     INTO j FROM public.jobs jb WHERE jb.id = p_job_id;
   IF NOT FOUND THEN
@@ -244,6 +254,11 @@ BEGIN
   -- the ranker is admin-gated
   IF position('admin only' IN d2) = 0 THEN
     RAISE EXCEPTION 'SELFTEST FAILED: nx_match_inspectors_for_job is not admin-gated';
+  END IF;
+
+  -- the scalar carries the location-oracle guard (self-or-admin)
+  IF position('may only score yourself' IN d1) = 0 THEN
+    RAISE EXCEPTION 'SELFTEST FAILED: nx_inspector_job_match lost its location-oracle guard';
   END IF;
 
   -- PRICE BLINDNESS: no money surface in either definition (comments included)

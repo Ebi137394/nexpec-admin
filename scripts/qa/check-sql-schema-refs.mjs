@@ -17,6 +17,11 @@
 //    2. MISSING NOT-NULL — a fixture omits a NOT NULL column that has no
 //       DEFAULT (e.g. certifications.issuing_organization). The INSERT throws
 //       23502 and every later assertion never executes.
+//    3. CHECK VIOLATION — a fixture uses a literal the column's CHECK does not
+//       permit (moderation_status = 'pending_approval' when only
+//       pending_review|approved|edits_requested|rejected are legal). 23514,
+//       same fatal effect. Checked in supabase/tests only — see the scope note
+//       at the call site.
 //
 //  Both are mechanically detectable without a database. This guard therefore
 //  runs in CI and locally, and is the closest thing to runtime validation that
@@ -46,8 +51,33 @@ function parseSchema() {
   const schema = new Map();
 
   const ensure = (t) => {
-    if (!schema.has(t)) schema.set(t, { cols: new Set(), required: new Set() });
+    if (!schema.has(t)) {
+      schema.set(t, {
+        cols: new Set(), required: new Set(),
+        allowed: new Map(),      // col -> Set(permitted literals)
+        checkByName: new Map(),  // constraint name -> col, so a later DROP can undo it
+      });
+    }
     return schema.get(t);
+  };
+
+  // CONSTRAINT ... CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))  →  col: {a,b}
+  // Also the inline form: CHECK (col IN ('a','b')).
+  const harvestChecks = (t, text, name) => {
+    const put = (col, vals) => {
+      t.allowed.set(col, new Set(vals));
+      if (name) t.checkByName.set(name, col);
+    };
+    for (const m of text.matchAll(
+      /"?(\w+)"?\s*=\s*ANY\s*\(\s*(?:\(\s*)?ARRAY\s*\[([^\]]*)\]/gi,
+    )) {
+      const vals = [...m[2].matchAll(/'((?:[^']|'')*)'/g)].map((v) => v[1].replace(/''/g, "'"));
+      if (vals.length) put(m[1], vals);
+    }
+    for (const m of text.matchAll(/"?(\w+)"?\s+IN\s*\(([^)]*)\)/gi)) {
+      const vals = [...m[2].matchAll(/'((?:[^']|'')*)'/g)].map((v) => v[1].replace(/''/g, "'"));
+      if (vals.length && !t.allowed.has(m[1])) put(m[1], vals);
+    }
   };
 
   for (const f of files) {
@@ -87,7 +117,13 @@ function parseSchema() {
       for (const raw of parts) {
         const line = raw.trim();
         if (!line) continue;
-        if (/^(CONSTRAINT|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|EXCLUDE|LIKE)\b/i.test(line)) continue;
+        if (/^(CONSTRAINT|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|EXCLUDE|LIKE)\b/i.test(line)) {
+          if (/\bCHECK\b/i.test(line)) {
+            harvestChecks(t, line, (line.match(/^CONSTRAINT\s+"?(\w+)"?/i) || [])[1]);
+          }
+          continue;
+        }
+        if (/\bCHECK\b/i.test(line)) harvestChecks(t, line);   // inline column CHECK
         const cm = line.match(/^"?(\w+)"?\s+/);
         if (!cm) continue;
         const col = cm[1];
@@ -116,6 +152,21 @@ function parseSchema() {
       // A later migration may drop the NOT NULL or add a default.
       for (const alt of alter[2].matchAll(/ALTER COLUMN\s+"?(\w+)"?\s+(DROP NOT NULL|SET DEFAULT)/gi)) {
         t.required.delete(alt[1]);
+      }
+
+      // CHECK constraints have a LIFECYCLE. 20260801140000 does
+      //   ALTER TABLE transactions DROP CONSTRAINT transactions_type_check;
+      //   ALTER TABLE transactions ADD  CONSTRAINT transactions_type_check CHECK (...widened...);
+      // Reading only the baseline CREATE TABLE therefore reports perfectly
+      // legal inserts as violations (it produced 3 such false positives).
+      // Statements are visited in file order, so replaying DROP then ADD
+      // reproduces the constraint as it actually stands.
+      for (const d of alter[2].matchAll(/DROP CONSTRAINT\s+(?:IF EXISTS\s+)?"?(\w+)"?/gi)) {
+        const col = t.checkByName.get(d[1]);
+        if (col) { t.allowed.delete(col); t.checkByName.delete(d[1]); }
+      }
+      for (const a of alter[2].matchAll(/ADD CONSTRAINT\s+"?(\w+)"?\s+CHECK\s*([\s\S]*)/gi)) {
+        harvestChecks(t, a[2], a[1]);
       }
       for (const drop of alter[2].matchAll(/DROP COLUMN\s+(?:IF EXISTS\s+)?"?(\w+)"?/gi)) {
         t.cols.delete(drop[1]);
@@ -209,7 +260,77 @@ for (const rel of targets()) {
     if (!named.length || !named.every((c) => /^[a-z_][a-z0-9_]*$/i.test(c))) continue;
     inserts++;
 
-    const { cols, required } = schema.get(table);
+    const { cols, required, allowed } = schema.get(table);
+
+    // ── CHECK-constraint violation in a fixture literal ────────────────────
+    //  Catches `moderation_status => 'pending_approval'` when the constraint
+    //  permits only pending_review|approved|edits_requested|rejected. This
+    //  aborts the INSERT with 23514 and kills the suite, exactly like a phantom
+    //  column, and is just as detectable. Only plain string literals are
+    //  judged; any expression, cast, variable or function call is skipped.
+    //  SCOPE: test fixtures only. Several migrations perform constraint surgery
+    //  (20260801140000 drops and re-adds transactions_type_check; the
+    //  conversations kind constraint is widened somewhere a regex cannot
+    //  follow, e.g. dynamic SQL in a DO block). Judging migrations produced 11
+    //  false positives, and a guard that cries wolf gets ignored. Fixtures are
+    //  authored here, are static, and are where this bug actually bites — a
+    //  violation aborts the suite before a single assertion runs.
+    if (allowed.size && rel.startsWith('supabase/tests/')) {
+      const after = src.slice(end + 1, end + 4000);
+      const vm = after.match(/^\s*VALUES\s*/i);
+      if (vm) {
+        let p = end + 1 + vm[0].length;
+        // Walk each VALUES tuple.
+        while (p < src.length && src[p] === '(') {
+          let d = 0, q = null, tupleStart = p + 1, tupleEnd = -1;
+          for (let k = p; k < src.length; k++) {
+            const ch = src[k];
+            if (q) { if (ch === q) q = null; continue; }
+            if (ch === "'") { q = "'"; continue; }
+            if (ch === '(') d++;
+            else if (ch === ')') { d--; if (d === 0) { tupleEnd = k; break; } }
+          }
+          if (tupleEnd === -1) break;
+          const tuple = src.slice(tupleStart, tupleEnd);
+          // Split on top-level commas, respecting quotes and nesting.
+          // Depth must count BRACKETS as well as parens: ARRAY['a','b'] holds a
+          // top-level-looking comma that otherwise shifts every subsequent
+          // value one column to the left, silently misaligning the whole tuple.
+          const vals = []; let cur = '', dd = 0, qq = null;
+          for (const ch of tuple) {
+            if (qq) { cur += ch; if (ch === qq) qq = null; continue; }
+            if (ch === "'") { qq = "'"; cur += ch; continue; }
+            if (ch === '(' || ch === '[') dd++;
+            if (ch === ')' || ch === ']') dd--;
+            if (ch === ',' && dd === 0) { vals.push(cur); cur = ''; continue; }
+            cur += ch;
+          }
+          vals.push(cur);
+          if (vals.length === named.length) {
+            for (let vi = 0; vi < vals.length; vi++) {
+              const col = named[vi];
+              const set = allowed.get(col);
+              if (!set) continue;
+              const lit = vals[vi].trim().match(/^'((?:[^']|'')*)'$/);
+              if (!lit) continue;                    // expression/cast/variable — skip
+              const v = lit[1].replace(/''/g, "'");
+              if (!set.has(v)) {
+                problems.push({
+                  rel, line: src.slice(0, tupleStart).split('\n').length,
+                  kind: 'CHECK VIOLATION',
+                  detail: `${table}.${col} = '${v}' is not permitted (allowed: ${[...set].join('|')})`,
+                });
+              }
+            }
+          }
+          // advance to the next tuple
+          p = tupleEnd + 1;
+          const nx = src.slice(p).match(/^\s*,\s*/);
+          if (!nx) break;
+          p += nx[0].length;
+        }
+      }
+    }
     for (const c of named) {
       if (!cols.has(c)) {
         problems.push({ rel, line, kind: 'PHANTOM COLUMN', detail: `${table}.${c} does not exist` });
@@ -238,6 +359,6 @@ if (problems.length) {
 
 console.log(
   `✓ SQL schema refs: ${inserts} fixture INSERT(s) across ${filesScanned} file(s); ` +
-  `every column exists and every NOT NULL column without a default is supplied ` +
-  `(${schema.size} tables parsed).`,
+  `every column exists, every NOT NULL column without a default is supplied, and ` +
+  `every test-fixture literal satisfies its CHECK constraint (${schema.size} tables parsed).`,
 );

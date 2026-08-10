@@ -3,13 +3,17 @@
 --
 --  SMART INSPECTOR MATCHING — deterministic, explainable, no AI, no paid deps.
 --
---  Today discovery is status + optional substring + optional radius, and
---  notify_inspectors_on_job_approved pushes EVERY approved job to EVERY
---  inspector. Both sides of the market declare disciplines and certifications
---  and neither is ever compared. This migration adds the missing scoring
---  primitive so the job feed, admin candidate discovery, and (a later slice)
---  notification targeting can all rank inspectors against a job by the SAME
---  rules.
+--  Today discovery is status + optional substring + optional radius. Both sides
+--  of the market declare disciplines and certifications and neither is ever
+--  compared. This migration adds the missing scoring primitive so the job feed,
+--  admin candidate discovery, and notification targeting can all rank
+--  inspectors against a job by the SAME rules.
+--
+--  CORRECTION: an earlier draft of this header claimed
+--  notify_inspectors_on_job_approved "pushes EVERY approved job to EVERY
+--  inspector". That was wrong. The function exists but NO TRIGGER IS ATTACHED —
+--  it is dormant, so inspectors are told nothing when a job opens. See
+--  20260801360000, which activates it with targeting.
 --
 --  ── ADDITIVE ONLY. NOTHING REMOVED. ─────────────────────────────────────────
 --  No existing function, table, policy, view or the notify trigger is touched.

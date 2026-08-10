@@ -22,6 +22,9 @@
 --  I10 identity mode is respected for the client-facing team view
 --  I11 an unrelated inspector cannot read the team
 --  I12 contractor_id is never mutated by team management
+--  I13 PROFESSIONAL identity mode DOES disclose teammate names to the client
+--  I14 FULL identity mode does too
+--  I15 an unrelated inspector cannot enumerate the team via the client view
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -38,6 +41,7 @@ DECLARE
   v_rando  uuid := gen_random_uuid();
   v_solo   uuid;
   v_team   uuid;
+  v_fullj  uuid;
   v_res    jsonb;
   v_n      int;
   v_name   text;
@@ -212,6 +216,56 @@ BEGIN
       v_contractor;
   END IF;
   RAISE NOTICE 'I12 ok — contractor_id unchanged (settlement anchor intact)';
+
+  -- ── I13 — PROFESSIONAL mode DISCLOSES names ─────────────────────────────
+  --  I10 proved names are withheld under 'protected'. That alone does not
+  --  prove the other two modes behave differently — a function that always
+  --  returned NULL would pass I10. These assert the positive case.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
+  PERFORM public.nx_job_add_inspector(v_solo, v_weld, 'welding_ndt', 'ndt', false, NULL);
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text)::text, true);
+  SELECT count(*) INTO v_n FROM public.nx_job_inspector_team_public(v_solo)
+   WHERE display_name IS NOT NULL;
+  IF v_n = 0 THEN
+    RAISE EXCEPTION 'I13 FAILED: PROFESSIONAL mode withheld every teammate name — disclosure is broken, not merely masked';
+  END IF;
+  RAISE NOTICE 'I13 ok — professional mode discloses names (% visible)', v_n;
+
+  -- ── I14 — FULL mode also discloses ──────────────────────────────────────
+  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
+                           status, moderation_status, identity_mode)
+  VALUES (gen_random_uuid(), v_client, v_lead, 'FULL MODE JOB', 'suite',
+          'in_progress', 'approved', 'full')
+  RETURNING id INTO v_fullj;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
+  PERFORM public.nx_job_add_inspector(v_fullj, v_lead, 'lead',        NULL,  true,  NULL);
+  PERFORM public.nx_job_add_inspector(v_fullj, v_coat, 'coating',     NULL,  false, NULL);
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text)::text, true);
+  SELECT count(*) INTO v_n FROM public.nx_job_inspector_team_public(v_fullj)
+   WHERE display_name IS NOT NULL;
+  IF v_n < 2 THEN
+    RAISE EXCEPTION 'I14 FAILED: FULL mode disclosed only % name(s) of a 2-person team', v_n;
+  END IF;
+  RAISE NOTICE 'I14 ok — full mode discloses names (% visible)', v_n;
+
+  -- ── I15 — an outsider cannot enumerate the team via the CLIENT view ─────
+  --  The client-facing function must not become a side door for inspectors.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_rando::text)::text, true);
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  v_ok := false;
+  BEGIN
+    PERFORM * FROM public.nx_job_inspector_team_public(v_fullj);
+    v_ok := true;
+  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
+  END;
+  EXECUTE 'RESET ROLE';
+  IF v_ok THEN
+    RAISE EXCEPTION 'I15 FAILED: an unrelated inspector enumerated the team through the client-facing view';
+  END IF;
+  RAISE NOTICE 'I15 ok — client-facing view refuses an outsider';
 
   RAISE NOTICE '───────────────────────────────────────────';
   RAISE NOTICE 'MULTI-INSPECTOR: ALL ASSERTIONS PASSED';

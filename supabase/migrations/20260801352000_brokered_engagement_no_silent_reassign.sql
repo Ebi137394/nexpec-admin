@@ -145,6 +145,9 @@ DO $behaviour$
 --  non-idempotent. Cleanup below follows relationships so trigger-created
 --  side-effect rows are unwound too (see 350000 for the same discipline).
 DECLARE
+  v_pre       RECORD;
+  v_pre_email text;
+  v_pre_role  text;
   v_buyer uuid := gen_random_uuid();
   v_i1    uuid := gen_random_uuid();
   v_i2    uuid := gen_random_uuid();
@@ -163,7 +166,40 @@ BEGIN
     (v_i1,   '00000000-0000-0000-0000-000000000000','authenticated','authenticated','i1.'||v_tag,now(),now()),
     (v_i2,   '00000000-0000-0000-0000-000000000000','authenticated','authenticated','i2.'||v_tag,now(),now());
   INSERT INTO public.profiles (id, email, role) VALUES
-    (v_buyer,'b.'||v_tag,'client'), (v_i1,'i1.'||v_tag,'inspector'), (v_i2,'i2.'||v_tag,'inspector');
+    (v_buyer,'b.'||v_tag,'client'), (v_i1,'i1.'||v_tag,'inspector'), (v_i2,'i2.'||v_tag,'inspector')
+  -- ── PRODUCTION AUTH PROVISIONING ─────────────────────────────────────────
+  --  Production provisions public.profiles automatically from auth.users (a
+  --  handle_new_user-style trigger absent from a bare local stack). The
+  --  auth.users INSERT above may therefore ALREADY have created these rows with
+  --  a default role, so a bare INSERT hits profiles_pkey. DO UPDATE (never DO
+  --  NOTHING) is correct and safe here for one specific reason: every id is
+  --  gen_random_uuid() minted inside THIS transaction and its auth.users INSERT
+  --  just succeeded, so the only row that can possibly conflict is the one the
+  --  provisioning trigger just derived from our own fixture. DO NOTHING would
+  --  silently leave the provisioned default role in place — which is exactly how
+  --  the first Production attempt produced a false 'admin lost access' failure.
+  ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email,
+        role  = EXCLUDED.role;
+
+  -- ── FIXTURE PRECONDITION: every generated principal, not just admin ───────
+  --  Asserted BEFORE any product assertion, so a provisioning difference can
+  --  never be misread as a product regression.
+  FOR v_pre IN SELECT * FROM (VALUES (v_buyer,'b.'||v_tag,'client'), (v_i1,'i1.'||v_tag,'inspector'), (v_i2,'i2.'||v_tag,'inspector')) AS t(id, email, role)
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id = v_pre.id) THEN
+      RAISE EXCEPTION 'SELFTEST FIXTURE: auth.users row missing for generated % principal % — fixture/provisioning failure, not a product regression', v_pre.role, v_pre.id;
+    END IF;
+    SELECT p.email, p.role INTO v_pre_email, v_pre_role
+      FROM public.profiles p WHERE p.id = v_pre.id;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'SELFTEST FIXTURE: public.profiles row missing for generated % principal % — fixture/provisioning failure, not a product regression', v_pre.role, v_pre.id;
+    END IF;
+    IF v_pre_email IS DISTINCT FROM v_pre.email OR v_pre_role IS DISTINCT FROM v_pre.role THEN
+      RAISE EXCEPTION 'SELFTEST FIXTURE: generated principal % resolved to email=% role=% but the fixture requires email=% role=% — an auth-provisioning trigger overwrote the fixture identity; this is a fixture/provisioning failure, not a product regression', v_pre.id, COALESCE(v_pre_email,'<null>'), COALESCE(v_pre_role,'<null>'), v_pre.email, v_pre.role;
+    END IF;
+  END LOOP;
+
   INSERT INTO public.supplier_rfqs (id, client_id, title, status, requires_source_inspection)
   VALUES (v_rfq, v_buyer, 'reassign selftest 352000', 'awarded', true);
   INSERT INTO public.jobs (id, title, client_id, status, moderation_status, source_rfq_id, contractor_id)
@@ -242,8 +278,11 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.jobs WHERE id = v_job)
      OR EXISTS (SELECT 1 FROM public.supplier_rfqs WHERE id = v_rfq)
      OR EXISTS (SELECT 1 FROM public.profiles WHERE id IN (v_buyer, v_i1, v_i2))
-     OR EXISTS (SELECT 1 FROM auth.users WHERE id IN (v_buyer, v_i1, v_i2)) THEN
-    RAISE EXCEPTION 'SELFTEST: the behavioural proof left fixtures behind';
+     OR EXISTS (SELECT 1 FROM auth.users WHERE id IN (v_buyer, v_i1, v_i2))
+     OR EXISTS (SELECT 1 FROM public.deals WHERE job_id = v_job)
+     OR EXISTS (SELECT 1 FROM public.agreements WHERE counterparty_id IN (v_buyer, v_i1, v_i2))
+     OR EXISTS (SELECT 1 FROM public.inspector_engagement_meta WHERE inspector_id IN (v_i1, v_i2)) THEN
+    RAISE EXCEPTION 'SELFTEST: the behavioural proof left LIVE fixture rows behind';
   END IF;
 
   RAISE NOTICE 'Brokered re-assignment guard verified: pre-execution flexible, post-execution refused atomically, supersession still works.';

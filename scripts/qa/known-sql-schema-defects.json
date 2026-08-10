@@ -14,9 +14,13 @@
     "auto-settlement warning on handle_job_completion / handle_job_cancellation.",
     "",
     "Fixing one means: repair in a forward migration, add a regression test,",
-    "then DELETE its entry here. Never delete an entry to make the guard quiet."
+    "then DELETE its entry here. Never delete an entry to make the guard quiet.",
+    "",
+    "NEW CLASS FOUND 2026-08: writes to GENERATED ALWAYS columns (428C9).",
+    "transactions.net_amount_halalas is GENERATED ALWAYS AS (gross - fee) STORED,",
+    "so naming it in an INSERT column list is an error. Four baseline sites do.",
+    "The schema guard does NOT yet detect this class — see 'generated_column_writes'."
   ],
-
   "1482": {
     "fn": "accept_offer",
     "domain": "messaging",
@@ -35,7 +39,6 @@
     "impact": "23502 whenever this RPC runs",
     "status": "NOT FIXED — safe to fix; needs a canonical slug generator"
   },
-
   "11099": {
     "fn": "get_or_create_wallet",
     "domain": "PAYMENT",
@@ -84,6 +87,16 @@
     "liveness": "LIVE — 3 app callers",
     "defect": "INSERT INTO transactions omits amount and type, both NOT NULL with no default in the baseline DDL",
     "impact": "23502 on every top-up credit, if amount/type are still NOT NULL",
-    "status": "NOT FIXED YET — verify the NOT NULL status against the live schema first; this records a buyer-initiated Stripe deposit, so repairing it automates nothing new"
+    "status": "NOT FIXED YET — verify the NOT NULL status against the live schema first; this records a buyer-initiated Stripe deposit, so repairing it automates nothing new",
+    "fix_known": "amount = p_amount_halalas / 100.0 (numeric(12,2) major units — convention confirmed from admin_fund_advance, which pairs `amount` major-unit with gross_amount_halalas minor-unit), type = 'deposit' (permitted by transactions_type_check)"
+  },
+  "generated_column_writes": {
+    "fn": "admin_fund_advance (baseline:1984) + 3 more sites (2356, 2366, 7570)",
+    "domain": "PAYMENT",
+    "liveness": "LIVE — admin_fund_advance is called from apps/web/src/lib/actions/treasury.ts (the Early-Payout / Treasury admin surface)",
+    "defect": "INSERT INTO transactions (... net_amount_halalas ...) — that column is GENERATED ALWAYS AS (gross_amount_halalas - platform_fee_halalas) STORED. Postgres rejects any explicit value with 428C9.",
+    "impact": "Treasury early-payout funding fails at runtime. This is an ADMIN-INITIATED manual action, so repairing it automates nothing — it restores a manual control that is currently broken.",
+    "fix": "remove net_amount_halalas from the INSERT column list at all four sites; it computes itself",
+    "status": "NOT FIXED — found at the end of this pass; payment domain, needs its own tested slice"
   }
 }

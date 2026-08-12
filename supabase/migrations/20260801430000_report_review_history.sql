@@ -8,7 +8,7 @@
 --  Two report entities exist in this schema and the contract's Lane B paragraph
 --  describes a merge of both. Recorded here because the next reader will hit it:
 --
---    public.reports              baseline:24252. status CHECK is exactly
+--    public.reports              baseline:24252 (CREATE TABLE). status CHECK is exactly
 --                                In_Progress|Submitted|Approved|Rejected|
 --                                Revision_Requested — the vocabulary the
 --                                contract quotes. It has NO technical_approved
@@ -17,7 +17,7 @@
 --                                one writer left in the tree,
 --                                app/submit-report.tsx, INSERT only.
 --
---    public.inspection_reports   baseline:23075. status is free text defaulting
+--    public.inspection_reports   baseline:23076 (CREATE TABLE). status is free text defaulting
 --                                to 'pending'; the live values written are
 --                                'pending' → 'approved' | 'revision_requested'
 --                                (162000:64). THIS is the table that carries
@@ -66,6 +66,84 @@
 --  therefore world-writable the instant it is created unless the grant is
 --  explicitly revoked. It is revoked below, and the self-test fails the deploy
 --  if it ever comes back.
+--
+--  ── REVIEW LOG ─────────────────────────────────────────────────────────────
+--  This file was authored by an agent that stopped mid-task and was never
+--  reviewed end to end. It is NOT known to have been applied to any database
+--  (status UNVERIFIED — no Postgres in the authoring environment), which is the
+--  sole reason it is revised in place instead of superseded. BEFORE APPLYING
+--  ANYWHERE: verify migration history and take a backup.
+--
+--  R0  FIXED BY THE LEAD (95a1cbc follow-up). nx_guard_report_no_self_approval
+--      compared auth.uid() against NEW.inspector_id, which let a writer
+--      disclaim authorship in the same statement. It reads OLD.inspector_id.
+--      See the block comment at that function — do not regress it.
+--
+--  R1  FIXED HERE — CRITICAL, self-inflicted deadlock between two parts of this
+--      same file. actor_id was declared
+--          REFERENCES auth.users(id) ON DELETE SET NULL
+--      while trg_report_review_history_append_only refuses EVERY UPDATE. A hard
+--      delete of an auth.users row makes PostgreSQL issue the SET NULL rewrite
+--      as an UPDATE on this table, the append-only trigger raises 42501, and the
+--      user deletion fails. The app's own path is a soft delete (164000/278000),
+--      so this is not reachable from the product today — but the Supabase
+--      dashboard's Delete User, the auth admin API, and every pgTAP suite that
+--      cleans up its own auth.users fixtures all hard-delete. Worse, on the
+--      paths where it would succeed it BLANKS the attribution on an evidence
+--      row, which is precisely what evidence must not do.
+--      The house pattern is already established: audit_events.actor_id
+--      (baseline:21765) is a bare uuid with NO foreign key, so attribution
+--      survives account deletion and referential integrity can never rewrite
+--      evidence. Adopted verbatim.
+--
+--  R2  FIXED HERE — TRUNCATE erased everything. Row-level triggers do not fire
+--      on TRUNCATE, so append-only enforcement did not cover it. The revoke
+--      below names PUBLIC, anon and authenticated but NOT service_role, and
+--      baseline:40931-40934 shows ALTER DEFAULT PRIVILEGES grants ALL — TRUNCATE
+--      included — to service_role as well as anon/authenticated. One
+--      `TRUNCATE public.report_review_history` from the service key would have
+--      destroyed the entire evidence set with every row trigger silent. Closed
+--      with a BEFORE TRUNCATE STATEMENT trigger, which fires for the table owner
+--      too.
+--
+--  R3  FIXED HERE — the no-self-approval guard was asymmetric. It was installed
+--      on inspection_reports only, while this migration captures history for
+--      public.reports as well, where status='Approved' is the identical
+--      forgery. public.reports currently has no UPDATE policy for authenticated
+--      at all (244000 left only reports_insert_owner + reports_select_party_admin),
+--      so it is unreachable through PostgREST today — but that is exactly the
+--      reasoning R0 rejected: a guard must not depend on the continued absence
+--      of a policy in a different file. The guard now branches on TG_TABLE_NAME
+--      and is installed on both. The boolean-flag half stays inspection_reports-
+--      only by necessity: is_client_approved / is_published / technical_approved
+--      / financial_approved do not exist on public.reports, and an unguarded
+--      NEW.<missing field> reference would raise on every legacy UPDATE.
+--
+--  R4  FIXED HERE — nx_report_review_stats resolved the inspection_reports arc
+--      only. Passing a legacy public.reports id — for which this migration DOES
+--      write history — fell through the authorisation EXISTS and raised
+--      "not authorised", reporting a permission failure for what was really an
+--      unhandled arc. It now resolves the arc first and authorises per arc.
+--
+--  R5  FIXED HERE — nx_report_review_transition normalised in the wrong order:
+--      replace(...,' ','_') ran BEFORE btrim, so a leading or trailing space
+--      became an underscore that btrim could no longer strip and ' approved'
+--      classified as 'other'. btrim now runs first.
+--
+--  REVIEWED AND DELIBERATELY LEFT AS-IS
+--    • SECURITY DEFINER on nx_report_review_history_append_only is load-bearing,
+--      not decoration: the DELETE branch decides by asking whether the parent
+--      report still exists, and as an invoker-rights function an actor whose RLS
+--      hides that report would see "gone" and be allowed to prune live evidence.
+--    • RLS ENABLE without FORCE is correct here — the capture trigger runs as
+--      the table owner against a table that intentionally has no INSERT policy.
+--    • The two partial unique indexes on (report, seq) are the concurrency
+--      guard for the max(seq)+1 read; racing transitions collide loudly instead
+--      of producing an ambiguous timeline. Kept.
+--    • The legacy arc of the read policy is a faithful mirror of
+--      reports_select_party_admin (244000:127), including its finding that
+--      reports.project_id resolves through work_orders and NOT public.projects.
+--      Verified against that file, not assumed.
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -86,7 +164,10 @@ RETURNS text
   IMMUTABLE
   SET search_path = public, pg_temp
 AS $fn$
-  SELECT CASE lower(btrim(replace(coalesce(p_status, ''), ' ', '_')))
+  -- R5: btrim FIRST. Replacing spaces before trimming turns a leading or
+  -- trailing space into an underscore that btrim can no longer remove, so
+  -- ' approved' used to classify as 'other'.
+  SELECT CASE lower(replace(btrim(coalesce(p_status, '')), ' ', '_'))
            WHEN 'in_progress'         THEN 'in_progress'
            WHEN 'draft'               THEN 'in_progress'
            WHEN 'submitted'           THEN 'submitted'
@@ -134,7 +215,18 @@ CREATE TABLE IF NOT EXISTS public.report_review_history (
 
   -- WHO. Never a function parameter anywhere — always auth.uid() observed at
   -- the moment of the transition, so it cannot be forged by a caller.
-  actor_id              uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  --
+  -- R1: DELIBERATELY NOT A FOREIGN KEY. This mirrors audit_events.actor_id
+  -- (baseline:21765), which is also a bare uuid. Two reasons, both hard:
+  --   1. ON DELETE SET NULL is executed as an UPDATE, and the append-only
+  --      trigger below refuses every UPDATE — so the FK would have made a hard
+  --      delete of any auth.users row fail with 42501 the moment that user had
+  --      ever touched a report.
+  --   2. Evidence must outlive the actor. An attribution that blanks itself
+  --      when the actor closes their account is not attribution.
+  -- Resolve the display name through profiles at read time; a uuid with no
+  -- surviving user is the honest record of a departed actor, not corruption.
+  actor_id              uuid,
   actor_role            text,
   actor_is_report_author boolean NOT NULL DEFAULT false,
 
@@ -186,7 +278,7 @@ COMMENT ON COLUMN public.report_review_history.seq IS
   '1-based sequence within one report. The genesis row (seq=1) records the status the report was created with; from_status is NULL there.';
 
 COMMENT ON COLUMN public.report_review_history.actor_id IS
-  'auth.uid() observed at the instant of the transition. NEVER an RPC parameter, so no caller can attribute a decision to somebody else. NULL means the transition was made by a path with no end-user identity (service_role / migration / cron), which is itself the honest answer.';
+  'auth.uid() observed at the instant of the transition. NEVER an RPC parameter, so no caller can attribute a decision to somebody else. NULL means the transition was made by a path with no end-user identity (service_role / migration / cron), which is itself the honest answer. Deliberately carries NO foreign key to auth.users — same as audit_events.actor_id — so that deleting a user can neither fail against the append-only trigger nor blank the attribution on an evidence row.';
 
 COMMENT ON COLUMN public.report_review_history.actor_is_report_author IS
   'True when the actor is the report''s own inspector. Kept so a reader can tell self-authored transitions (submit, revise) from third-party review decisions without re-joining. An approval transition can never carry true here — nx_guard_report_no_self_approval refuses it before it happens.';
@@ -249,6 +341,32 @@ CREATE TRIGGER trg_report_review_history_append_only
 
 COMMENT ON TRIGGER trg_report_review_history_append_only ON public.report_review_history IS
   'Append-only enforcement at the row level, so it binds the table owner and service_role too — not only the roles that RLS constrains. UPDATE always fails; DELETE fails unless the parent report has already been removed in the same command (FK cascade).';
+
+-- ── R2: and TRUNCATE, which no row trigger can see ──────────────────────────
+--  Row-level triggers do not fire for TRUNCATE. baseline:40931-40934 grants ALL
+--  on every future table to anon, authenticated AND service_role, and the
+--  revoke below names only the first two — so a single TRUNCATE from the
+--  service key would have erased the whole evidence set silently. A STATEMENT
+--  trigger does fire, and binds the table owner as well.
+CREATE OR REPLACE FUNCTION public.nx_report_review_history_no_truncate()
+RETURNS trigger
+  LANGUAGE plpgsql
+AS $fn$
+BEGIN
+  RAISE EXCEPTION
+    'report_review_history is append-only: TRUNCATE is refused — review evidence cannot be erased in bulk'
+    USING errcode = '42501';
+END $fn$;
+
+ALTER FUNCTION public.nx_report_review_history_no_truncate() OWNER TO postgres;
+
+DROP TRIGGER IF EXISTS trg_report_review_history_no_truncate ON public.report_review_history;
+CREATE TRIGGER trg_report_review_history_no_truncate
+  BEFORE TRUNCATE ON public.report_review_history
+  FOR EACH STATEMENT EXECUTE FUNCTION public.nx_report_review_history_no_truncate();
+
+COMMENT ON TRIGGER trg_report_review_history_no_truncate ON public.report_review_history IS
+  'Closes the one hole a row-level append-only trigger cannot cover. TRUNCATE fires no row trigger, and service_role holds TRUNCATE by default privilege, so without this the entire review history could be dropped in one statement with every other guard silent.';
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  4) THE WRITER — one trigger function, two tables
@@ -735,6 +853,23 @@ BEGIN
                     AND tgrelid = 'public.report_review_history'::regclass
                     AND NOT tgisinternal) THEN
     RAISE EXCEPTION 'SELFTEST FAILED: append-only enforcement is missing — history rows could be edited or pruned';
+  END IF;
+
+  -- ── I4b. And the TRUNCATE guard, which is the hole I4 structurally cannot
+  --    cover: row-level triggers never fire for TRUNCATE, and service_role holds
+  --    TRUNCATE by default privilege (baseline:40931-40934), so without a
+  --    STATEMENT trigger the entire evidence set can be erased in one command
+  --    with every row-level guard silent. Asserted on tgtype as well as
+  --    existence: a trigger recreated at the wrong timing or level would pass a
+  --    name-only check while enforcing nothing. tgtype bit 0x20 = TRUNCATE;
+  --    bit 0x01 = ROW, so it must be clear for a STATEMENT trigger.
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+                  WHERE tgname = 'trg_report_review_history_no_truncate'
+                    AND tgrelid = 'public.report_review_history'::regclass
+                    AND NOT tgisinternal
+                    AND (tgtype & 32) <> 0
+                    AND (tgtype & 1) = 0) THEN
+    RAISE EXCEPTION 'SELFTEST FAILED: the TRUNCATE guard is missing or is not a statement-level TRUNCATE trigger — review evidence could be erased in bulk with every row-level guard silent';
   END IF;
 
   -- ── I5. Both report entities are captured ────────────────────────────────

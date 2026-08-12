@@ -383,7 +383,18 @@ AS $fn$
 DECLARE
   v_actor uuid := auth.uid();
 BEGIN
-  IF v_actor IS NULL OR v_actor IS DISTINCT FROM NEW.inspector_id THEN
+  -- LEAD REVIEW (95a1cbc follow-up): this compared v_actor against
+  -- NEW.inspector_id. Authorship must be read from OLD — comparing against NEW
+  -- lets a writer disclaim authorship in the SAME statement (set inspector_id
+  -- to someone else AND grant an approval flag) and fall straight through this
+  -- guard. That is not exploitable today: the policy "Inspectors can update
+  -- reports" (baseline:29517) is FOR UPDATE USING (auth.uid() = inspector_id)
+  -- with NO WITH CHECK, so Postgres applies USING to the new row as well and
+  -- the reassignment is refused by RLS first. But this guard's correctness must
+  -- not depend on the absence of a WITH CHECK clause in a different file —
+  -- adding one, or any future admin/service write path, would silently reopen
+  -- it. OLD is the row whose author actually did the work.
+  IF v_actor IS NULL OR v_actor IS DISTINCT FROM OLD.inspector_id THEN
     RETURN NEW;
   END IF;
 

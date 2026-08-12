@@ -43,6 +43,24 @@ jobs:
       - name: offline · outbox-routing guardrail
         run: node scripts/qa/check-outbox-routing.mjs
 
+      # Offline replay proofs — 41 assertions that were NEVER run by any
+      # workflow until now. These are the authorization and evidence-integrity
+      # proofs for the offline drain path: that every ITP write goes through the
+      # canonical RPC rather than a direct table write, and that two visits on
+      # one job keep separate evidence through a single drain. Exactly the class
+      # of invariant that breaks silently and is discovered in the field.
+      #
+      # Requires Node >= 22.15: the harness uses registerHooks from node:module
+      # (src/core/offline/__tests__/harness.mjs). `node-version: 22` above
+      # resolves to the latest 22.x, which satisfies that — but the requirement
+      # is now declared explicitly in package.json engines and .nvmrc so pinning
+      # a lower 22.x cannot silently break it.
+      - name: offline · ITP replay (19 assertions)
+        run: node --test src/core/offline/__tests__/itpReplay.test.mjs
+
+      - name: offline · visit replay (22 assertions)
+        run: node --test src/core/offline/__tests__/visitReplay.test.mjs
+
       - name: shared-core · typecheck
         run: npm run typecheck -w @nexpec/shared-core
 

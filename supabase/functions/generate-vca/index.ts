@@ -417,24 +417,22 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // ── Load: job (with scope text + buyer + supplier names + geocoded WKT)
-    const { data: jobRaw, error: jErr } = await admin
-      .rpc('vca_load_job', { p_job_id: jobId })
+    // 20260801426000: the vca_load_job RPC call was removed. It lived only in
+    // supabase/migrations_archive and was never in canonical migrations, so in
+    // practice this fallback was always the live path. It selects every job
+    // field this function actually consumes — the geocoded point is not read
+    // from here, it is assigned below from vca_claimed_address_text — so the
+    // RPC added nothing but a guaranteed-failing round trip.
+    const { data: j } = await admin
+      .from('jobs')
+      .select(`
+        id, client_id, agency_id, contractor_id, status,
+        inspection_type, scope_template_id, title,
+        claimed_address_text
+      `)
+      .eq('id', jobId)
       .single();
-    let job: any | null = jobRaw ?? null;
-
-    // If the RPC isn't installed yet, fall back to a single-query view-style fetch.
-    if (jErr || !job) {
-      const { data: j } = await admin
-        .from('jobs')
-        .select(`
-          id, client_id, agency_id, contractor_id, status,
-          inspection_type, scope_template_id, title,
-          claimed_address_text
-        `)
-        .eq('id', jobId)
-        .single();
-      job = j;
-    }
+    const job: any | null = j;
     if (!job) return json({ ok: false, error: 'job not found' }, 404);
     if (job.inspection_type !== 'compliance') {
       return json({ ok: false, error: 'not a compliance job' }, 400);

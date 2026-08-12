@@ -1,6 +1,5 @@
 {
   "_comment": "check-db-refs allowlist — names referenced in code but defined outside supabase/migrations (Supabase built-ins, dashboard-managed relations). Shrink freely; grow consciously.",
-  "_comment_vca": "vca_load_job / vca_claimed_address_text are OPTIONAL ACCELERATORS, not missing criticals. They live in supabase/migrations_archive/20260514100500_vca_helper_rpcs.sql, and generate-vca/index.ts handles their absence explicitly — 'If the RPC isn't installed yet, fall back to a single-query view-style fetch' (index.ts:424) — so the function is correct with or without them. Allowlisted with that justification rather than restored, because promoting archived SQL into canonical migrations without a Postgres to run it against is the riskier move. OWNER DECISION PENDING: either restore them from the archive and delete these two entries, or delete the dead .rpc() calls and keep only the fallback.",
   "rpcs": [
     "approve_inspection_report",
     "assign_job_contractor",
@@ -20,9 +19,7 @@
     "notify_inspectors_about_existing_job",
     "request_senior_review",
     "send_message",
-    "submit_review",
-    "vca_claimed_address_text",
-    "vca_load_job"
+    "submit_review"
   ],
   "relations": [
     "admin_direct_messages",

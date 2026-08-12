@@ -24,9 +24,10 @@
 //  ──────────
 //  create-payment-intent (STRIPE-003/004) now mints PaymentIntents with
 //  metadata.job_id and a server-trusted amount. This webhook closes the
-//  loop: payment_intent.succeeded advances the job to completed via the
-//  stripe_complete_job RPC; payment_intent.payment_failed and
-//  charge.dispute.created write audit_events.
+//  loop: payment_intent.succeeded settles the job's FUNDING state via the
+//  nx_stripe_settle_job RPC — it does NOT complete the job, because a
+//  prepaid client funds the work before it happens; payment_intent.payment_failed
+//  and charge.dispute.created write audit_events.
 //
 //  Configure in Stripe Dashboard → Developers → Webhooks (account-level,
 //  NOT Connect — this is the platform's own payments):
@@ -46,9 +47,10 @@
 //    2. Idempotency + retry-safety via the claim_stripe_webhook_event
 //       lifecycle (NX-STRIPE-002). A failed handler RELEASES the row so
 //       Stripe's next retry can re-claim and re-execute.
-//    3. Business-level completion goes through the
-//       `stripe_complete_job` RPC — SECURITY DEFINER, FOR UPDATE lock,
+//    3. Business-level settlement goes through the
+//       `nx_stripe_settle_job` RPC — SECURITY DEFINER, FOR UPDATE lock,
 //       audit-correlated. The webhook is dumb glue; the RPC owns state.
+//       Funding state only: it never writes jobs.status or payout state.
 //    4. Failures/disputes raise critical audit_events. No silent drops.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -398,8 +400,16 @@ Deno.serve(async (req) => {
           return completeAnd200(event.id, 'orphan logged');
         }
 
+        // 20260801420000: was stripe_complete_job, which lived only in a loose
+        // root-level .sql file (never applied by `supabase db push`) and set
+        // jobs.status = 'completed' when a PaymentIntent succeeded. That
+        // conflated "the client's money arrived" with "the inspection is
+        // finished" — on a prepaid job it would complete the job before the
+        // inspector had left home. nx_stripe_settle_job writes FUNDING state
+        // only (jobs.client_settled_at, via the canonical settle_client_payment)
+        // and never touches jobs.status or payout state.
         const { data: rpcResult, error: rpcErr } = await supabase.rpc(
-          'stripe_complete_job',
+          'nx_stripe_settle_job',
           {
             p_job_id:             md.job_id,
             p_payment_intent_id:  pi.id,
@@ -411,12 +421,12 @@ Deno.serve(async (req) => {
 
         if (rpcErr) {
           console.error(
-            '[stripe-payments-webhook] stripe_complete_job RPC error:',
+            '[stripe-payments-webhook] nx_stripe_settle_job RPC error:',
             rpcErr.message,
           );
           await logOrphanAuditEvent(
             event.id, event.type,
-            `stripe_complete_job RPC failed for job ${md.job_id}: ${rpcErr.message}`,
+            `nx_stripe_settle_job RPC failed for job ${md.job_id}: ${rpcErr.message}`,
             {
               payment_intent_id: pi.id,
               job_id: md.job_id,
@@ -426,11 +436,11 @@ Deno.serve(async (req) => {
             },
           );
           // NX-STRIPE-002: release the claim so Stripe's retry re-claims.
-          return releaseAnd500(event.id, `stripe_complete_job RPC failed: ${rpcErr.message}`);
+          return releaseAnd500(event.id, `nx_stripe_settle_job RPC failed: ${rpcErr.message}`);
         }
 
         console.log(
-          `[stripe-payments-webhook] stripe_complete_job ok — pi=${pi.id} job=${md.job_id} result=${JSON.stringify(rpcResult)}`,
+          `[stripe-payments-webhook] nx_stripe_settle_job ok — pi=${pi.id} job=${md.job_id} result=${JSON.stringify(rpcResult)}`,
         );
         return completeAnd200(event.id);
       }

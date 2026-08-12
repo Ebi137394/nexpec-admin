@@ -17,8 +17,8 @@
  *  forcing schema and code to ship together.
  *
  *  WHAT IT CHECKS
- *    • every `.rpc('name')` in app/, src/, apps/web/src  → must have a
- *      `CREATE [OR REPLACE] FUNCTION name(` in supabase/migrations
+ *    • every `.rpc('name')` in app/, src/, apps/web/src, supabase/functions
+ *      → must have a `CREATE [OR REPLACE] FUNCTION name(` in supabase/migrations
  *    • every `.from('name')` (Supabase query builder; NOT .storage.from, NOT
  *      Array/Object/Buffer.from)  → must have a CREATE TABLE / VIEW / MAT VIEW
  *  (Column-level drift is out of scope — too noisy from select strings — but the
@@ -46,7 +46,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..', '..');
 const ALLOWLIST_PATH = join(__dirname, 'db-refs-allowlist.json');
 
-const CODE_DIRS = ['app', 'src', join('apps', 'web', 'src')];
+//  20260801422000 (P0-3): supabase/functions was NOT scanned. Every Edge
+//  Function's `.rpc()` call was therefore unverified, and the guard reported
+//  clean while the live Stripe payments webhook called stripe_complete_job — a
+//  function defined only in a loose root-level .sql file that `supabase db push`
+//  never applies. Edge Functions run against the same database as the frontend
+//  and are strictly MORE dangerous to get wrong: they hold the service-role key
+//  and run unattended, so a missing RPC surfaces as a silently failed webhook
+//  rather than a visible UI error. They are in scope.
+const CODE_DIRS = ['app', 'src', join('apps', 'web', 'src'), join('supabase', 'functions')];
 const MIGRATIONS_DIR = join('supabase', 'migrations');
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs']);
 const SKIP_DIR = new Set(['node_modules', '.next', 'dist', 'build', '.git', '.expo']);

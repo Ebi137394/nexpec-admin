@@ -1,6 +1,10 @@
 # NEXPEC — Current Release State
 
-**Updated at HEAD `43cb911`** · branch `release/identity-replacement` · **7 commits UNPUSHED**
+**Updated at HEAD `a1fcd7e`** · branch `release/identity-replacement` · **PUSHED to origin**
+
+> Push succeeded on retry: `95a9bcd..a1fcd7e`. The 8 commits below are on
+> `origin/release/identity-replacement`. The §1 and §9 push rows below are kept as the
+> historical record of the blockage; origin is current as of this line.
 
 > Physical repository is the source of truth. Verify HEAD, status, migrations and
 > origin divergence before editing. Do not trust this file blindly.

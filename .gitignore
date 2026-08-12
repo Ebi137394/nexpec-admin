@@ -83,3 +83,9 @@ supabase/.branches/
 __pycache__/
 *.pyc
 node_modules/.cache/nexpec-ml-tests/
+
+# graphify — generated knowledge-graph output (41MB: graph.json, graph.html,
+# GRAPH_REPORT.md, cache/, manifest.json, dated backups). Fully regenerable with
+# `graphify update .` (AST-only, no API cost), so it is build output, not source.
+# The durable config (.graphifyignore, CLAUDE.md) is NOT ignored — it is source.
+graphify-out/

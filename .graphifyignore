@@ -1,0 +1,15 @@
+# Vendored third-party bundles — not our architecture, and shipped as six
+# redundant build variants (fesm / es2017 / node, each with a .min twin).
+# Indexing these put ~19.4k nodes (53% of the graph) and every god-node slot
+# into TensorFlow.js internals instead of nexpec code.
+apps/web/public/tf/
+
+# Build output and caches
+.expo/
+.next/
+dist/
+build/
+coverage/
+
+# graphify's own output
+graphify-out/

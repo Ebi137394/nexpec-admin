@@ -159,6 +159,16 @@ export async function fetchJobApplications(
       .maybeSingle();
     if (!ownership) return [];
 
+    // ⚠ COLUMN NAMING — this file is named for the DEPRECATED job_applications
+    //   VIEW, but it reads the canonical `applications` TABLE. Do not "align"
+    //   the projection below to cover_letter: three different fields carry that
+    //   name.
+    //     • applications.cover_note        ← CANONICAL, what every writer and
+    //                                        every admin surface uses. Read it.
+    //     • applications.cover_letter      — real column, no canonical writer,
+    //                                        no admin reader. Not the note.
+    //     • job_applications.cover_letter  — the deprecated view's ALIAS FOR
+    //                                        cover_note (baseline:23469).
     const { data, error } = await supabase
       .from('applications')
       .select(

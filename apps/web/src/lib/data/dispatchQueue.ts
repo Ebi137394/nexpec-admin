@@ -53,6 +53,13 @@ export async function fetchDispatchQueue(): Promise<DispatchQueueResult> {
   // BUGFIX: `applications` has NO `payout_amount_cents` column (it lives on
   // `jobs`). Selecting it here errored the whole query — and with no projection
   // fallback, the entire Dispatch queue silently returned empty.
+  //
+  // ⚠ `cover_note` is the CANONICAL cover-letter column and the one every
+  //   writer targets. applications.cover_letter is a separate, non-canonical
+  //   column with no admin reader; the identically-named
+  //   job_applications.cover_letter is just the deprecated view's alias FOR
+  //   cover_note. Never swap this projection to cover_letter — that is exactly
+  //   the defect that made this dispatcher render an empty note.
   const { data: rawApps, error: appsErr } = await supabase
     .from('applications')
     .select(

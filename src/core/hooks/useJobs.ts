@@ -8,6 +8,10 @@ import { useAuth } from '@/src/contexts/AuthContext';
 // inspector's OWN payout but never client_price_cents, platform_spread_cents
 // or the budget_* family. Never replace these with select('*').
 import { INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
+// Major-units → integer cents. Same helper the sibling writer
+// src/core/services/applications.ts uses, so both mobile submit paths agree
+// on the unit contract for applications.bid_amount_cents.
+import { toCents } from '@/src/core/utils/money';
 
 // ============================================================================
 // TYPES
@@ -23,7 +27,9 @@ interface UseJobsReturn {
   refetch: () => Promise<void>;
   applyToJob: (
     jobId: string,
+    /** MAJOR UNITS (dollars). Converted to applications.bid_amount_cents. */
     proposedPrice: number,
+    /** Free text. Written to the canonical applications.cover_note. */
     coverLetter: string
   ) => Promise<{ success: boolean; message: string; applicationId?: string }>;
   withdrawApplication: (
@@ -251,15 +257,63 @@ export function useJobs(): UseJobsReturn {
         }
 
         // FIXED: Insert into 'applications', mapped 'applicant_id' and added 'user_id'
+        //
+        // ★ CANONICAL COLUMN FIX (Lane 4, cover-letter pipeline).
+        //   This INSERT previously named two columns that do not carry the
+        //   application on any admin surface:
+        //
+        //     cover_letter    — a REAL but non-canonical column on
+        //                       public.applications (baseline:21601) with
+        //                       exactly one writer (this line) and no admin
+        //                       reader. The Admin dispatcher
+        //                       (apps/web/.../dispatch/DispatchTable.tsx,
+        //                       JobModerationPanel.tsx, lib/data/dispatchQueue.ts,
+        //                       lib/data/jobApplications.ts) reads cover_note.
+        //                       Had this path run, the note would have landed in
+        //                       a column no admin surface reads.
+        //     proposed_price  — does NOT EXIST on public.applications at all.
+        //                       The table has bid_amount_cents and
+        //                       proposed_price_cents; there is no
+        //                       proposed_price. PostgREST rejects the whole
+        //                       statement with PGRST204 ("Could not find the
+        //                       'proposed_price' column"), so this insert could
+        //                       never succeed.
+        //
+        //   Both now use the canonical columns, identical to the two other
+        //   writers: apps/web/src/lib/actions/inspectorApply.ts (web) and
+        //   src/core/services/applications.ts (mobile).
+        //
+        //   ⚠ SEVERITY — LATENT, NOT A LIVE OUTAGE. Verified at 3e0d6c7:
+        //   applyToJob() has NO callers. hooks/useJobs.ts is a transparent
+        //   re-export stub, and the only consumer,
+        //   app/(inspector)/jobs/[id]/apply.tsx:64, destructures just
+        //   getJobById and hasAppliedToJob. That screen submits through
+        //   enqueueApplicationSubmit -> src/core/offline/operations.ts:219,
+        //   which already inserted cover_note + bid_amount_cents correctly.
+        //   So no user-facing application was lost or blanked by this defect.
+        //   It is a broken method on a dead code path, fixed here so the third
+        //   writer agrees with the other two before anything starts calling it.
+        //
+        //   ⚠ ALIASING HAZARD — do not "restore" cover_letter. There are three
+        //   distinct fields with that name:
+        //     1. public.applications.cover_letter   — non-canonical, unread
+        //     2. public.job_applications.cover_letter — DEPRECATED VIEW
+        //        (baseline:23469) that aliases cover_note AS cover_letter
+        //     3. public.proposals.cover_letter      — a different table entirely
+        //   Only cover_note is canonical on public.applications.
+        //
+        //   `proposedPrice` is in MAJOR UNITS (dollars), matching
+        //   submitApplication() in src/core/services/applications.ts.
+        //   bid_amount_cents is bigint cents.
         const { data, error } = await supabase
           .from('applications')
           .insert({
             job_id: jobId,
             applicant_id: currentUser.id,
-            user_id: currentUser.id, 
-            status: 'pending', 
-            cover_letter: coverLetter,
-            proposed_price: proposedPrice,
+            user_id: currentUser.id,
+            status: 'pending',
+            cover_note: coverLetter,
+            bid_amount_cents: toCents(proposedPrice),
           })
           .select()
           .single();

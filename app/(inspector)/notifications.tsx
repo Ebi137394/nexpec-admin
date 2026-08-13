@@ -133,6 +133,35 @@ const getNotificationMeta = (
   if (t.includes('message') || t.includes('chat'))
     return { icon: 'chatbubble', color: BRAND.cyan, label: 'Message' };
 
+  // ── Lane F (452000) + Talent (476000) kinds ──────────────────────────────
+  // These previously fell through to the generic "Update" default. That was
+  // not broken — the default exists precisely so a new kind never crashes a
+  // list — but a review assignment and a funding demand deserve to be
+  // distinguishable at a glance in a field inbox.
+  if (t === 'senior_review_assigned')
+    return { icon: 'clipboard', color: BRAND.primary, label: 'Review Assigned' };
+
+  if (t === 'senior_review_superseded')
+    return { icon: 'swap-horizontal', color: BRAND.warning, label: 'Reassigned' };
+
+  if (t === 'senior_review_returned')
+    return { icon: 'arrow-undo', color: BRAND.warning, label: 'Returned' };
+
+  if (t === 'report_resubmitted')
+    return { icon: 'refresh', color: BRAND.cyan, label: 'Resubmitted' };
+
+  if (t === 'report_delivered')
+    return { icon: 'send', color: BRAND.success, label: 'Delivered' };
+
+  if (t.startsWith('funding_required'))
+    return { icon: 'card', color: BRAND.warning, label: 'Funding Required' };
+
+  if (t === 'funding_confirmed')
+    return { icon: 'checkmark-done', color: BRAND.success, label: 'Funding Confirmed' };
+
+  if (t.startsWith('talent_'))
+    return { icon: 'ribbon', color: BRAND.success, label: 'Permanent Roles' };
+
   if (t.includes('report_approved') || t.includes('approved'))
     return { icon: 'checkmark-circle', color: BRAND.success, label: 'Approved' };
 

@@ -16,6 +16,7 @@ import {
   Compass,
   ClipboardCheck,
   ClipboardList,
+  CalendarDays,
   ShieldCheck,
   Wallet,
   Settings,
@@ -56,6 +57,7 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
     titleKey: 'myWork',
     items: [
       { labelKey: 'activeAssignments', href: '/inspector/assignments', icon: ClipboardList },
+      { labelKey: 'calendar', href: '/inspector/calendar', icon: CalendarDays },
       { labelKey: 'negotiations', href: '/inspector/negotiations', icon: ArrowLeftRight },
       // Talent candidate surface. nx_talent_disclose_identity is gated on
       // auth.uid() = the submission's profile_id — the candidate and nobody

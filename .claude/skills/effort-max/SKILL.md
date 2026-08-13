@@ -36,21 +36,30 @@ do not manufacture depth to justify the level.
 4. Name the blast radius and the reversible path before changing anything.
 5. Report unresolved uncertainty explicitly rather than closing it prematurely.
 
-## Above this tier: Ultracode
+## Beyond this tier: Ultracode
 
-Ultracode is **not** a frontmatter effort value and cannot be activated automatically — it is
-a session-scoped Claude Code setting that sends `xhigh` per message *and* orchestrates dynamic
-workflows. Use it for the most demanding codebase-wide reasoning, final security red teams,
-major architecture reconciliation and release-critical investigations.
+Ultracode is **not** a frontmatter effort value and cannot be set from a skill or agent file.
+Verified against the runtime: the valid frontmatter enum is
+`low, medium, high, xhigh, max` (or an integer 1–1000). Writing `effort: ultracode` is
+rejected by the parser, logged as an invalid effort, and **silently dropped** — the turn then
+inherits whatever effort was already in force. Never write it in YAML.
 
-To activate, the owner runs one of:
+**What ultracode actually is.** Selecting it sets two things on the session:
+`effortValue: "xhigh"` and `ultracode: true`. So its per-message reasoning is `xhigh` —
+*lower* than this skill's `max`. What it adds is **dynamic workflow orchestration**: Claude
+writes a script that fans out and coordinates many subagents. Ultracode outranks `max` in
+breadth and coordination, not in depth per message.
 
-```
-/effort ultracode
-```
+Use it for the most demanding codebase-wide reasoning, final security red teams, major
+architecture reconciliation and release-critical investigations — work whose difficulty is
+*scale and coordination* rather than a single hard chain of reasoning.
 
-or relaunches the session with `claude --effort ultracode` (requires Claude Code v2.1.203+;
-this machine's desktop runtime is v2.1.227, so both paths are available).
+**Activation (session-scoped, owner-driven).** Any one of:
+
+- the effort picker in the Claude Desktop UI — the practical path on this machine
+- `/effort ultracode` in an interactive terminal session
+- launching with `claude --effort ultracode`
+- mentioning the keyword `ultracode` in the prompt, or asking for a dynamic workflow directly
 
 When a task warrants ultracode, say so and explain why — then continue at `max` unless the
-owner turns it on.
+owner turns it on. Recommending it is correct; claiming you switched to it is not.

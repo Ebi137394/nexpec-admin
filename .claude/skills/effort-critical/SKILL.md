@@ -61,10 +61,11 @@ is genuinely harder than "this is high-risk":
 - **`effort-max`** — invoke it for extremely complex investigations, critical security
   defects, cross-system migrations, payment *architecture* (as opposed to a payment change),
   and difficult integration failures. It is a skill, so it activates automatically.
-- **Ultracode** — for the most demanding codebase-wide reasoning, final security red teams,
-  major architecture reconciliation and release-critical investigations. It **cannot** be
-  activated from frontmatter; it is session-scoped. Ask the owner to run `/effort ultracode`
-  (or relaunch with `claude --effort ultracode`), and say why the task needs it.
+- **`effort-ultracode`** — the top tier: codebase-wide reasoning, final security red teams,
+  major architecture reconciliation, release-critical investigations. The skill pins `xhigh`
+  (ultracode's real per-message effort) automatically, but ultracode's **dynamic workflow
+  orchestration is session-scoped and cannot be switched on from frontmatter** — the owner
+  turns it on. Invoke the skill, then say why the session switch is warranted.
 
 Do not select these for ordinary critical-path work — `xhigh` already covers migrations,
 RLS, auth and payments in the normal case.

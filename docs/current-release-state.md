@@ -593,6 +593,58 @@ Implementation stays **21/28 = 75%**. Next free migration: **`20260801462000`**.
 
 ---
 
+## 3z. ALL PRODUCT PHASES IMPLEMENTED — validation status differs by phase
+
+| Phase | Migration | Runtime-validated? |
+|---|---|---|
+| Projects & Programs | `468000` | yes |
+| Supplier Scorecards | `470000` | **parse + guards only** |
+| Enterprise SSO + SCIM | `472000` | **parse + guards only** |
+| ERP Integration Core (SAP/Oracle) | `474000` | **parse + guards only** |
+| NEXPEC Talent | `476000` | **yes — 14 behaviours** |
+
+**Talent** reuses `profiles` (a candidate IS a profile that opted in), `organizations`,
+`inspection_domains` by FK, `inspector_credentials` and `nx_notify_lifecycle`. A selftest
+fails the migration if a duplicate identity/org/domain/credential/messaging table appears.
+
+Brokered identity is enforced by projection, not prose:
+`talent_submission_employer_view` NULLs name and email until a live per-submission
+disclosure exists; disclosure is per-opportunity and revocable. Proven on PG 18.4:
+employer sees headline but not name → employer cannot force disclosure → candidate
+discloses → employer sees identity → candidate revokes → **veil returns**.
+
+Placement accrues a fee and pays nobody; `fee_status` advances only through the Admin RPC;
+0 talent functions contain money DML. Cross-org outsider sees 0 rows; anon denied.
+
+### The three agent migrations are NOT behaviourally validated
+
+`470000`/`472000`/`474000` were written by parallel agents that were killed by an
+**account spend limit during verification**. Each file is structurally complete (ends in
+`COMMIT`) and passes every static gate. On a real PG 18.4 cluster each one **parses fully
+and reaches its own dependency/ordering guard, which fires correctly** — `472000` refuses
+to run without `organizations`/`org_members`/`profiles` and the `org_member_role` enum;
+`474000` requires `nx_is_org_member` and `nx_user_is_org_admin`; `470000` requires
+`supplier_rfqs` and `nx_is_admin(uuid)`. All of those exist in the real chain, so the
+guards are correct and the migrations are defensively written.
+
+What could NOT be done is exercise their behaviour, because that needs the real schema —
+which is precisely what `PENDING MAC` blocks. **This is weaker evidence than every
+migration from `444000` to `466000` and to `476000`, all of which were behaviourally
+proven.** Recorded rather than glossed.
+
+### External blockers (hard)
+1. **Account spend limit** — killed all three phase agents mid-verification.
+2. **Docker down** → `supabase start` cannot run → no full chain, no pgTAP.
+3. **Migration chain cannot run standalone** — baseline line 16 needs `pg_cron`;
+   `postgis`/`supabase_vault` are Supabase-managed.
+4. **Deno absent** → no Edge Function typecheck (incl. `scim-v2`).
+5. No SAP/Oracle/IdP tenants — adapters covered by fixtures and contract tests only.
+
+**Next session, in order:** raise the spend limit → Docker → `supabase start` →
+full chain + pgTAP → behaviourally validate `470000`/`472000`/`474000` → final review.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

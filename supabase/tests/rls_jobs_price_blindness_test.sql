@@ -18,13 +18,16 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 select plan(31);
 
+-- JOB is NOT \set here: the assigned job comes from the canonical fixture via
+-- \gset below. MKT/WEBJOB stay plain inserts — they are marketplace-visible OPEN
+-- jobs with no contractor, so they are not dispatches and no gate applies.
 \set CL   'e1111111-1111-1111-1111-111111111111'
 \set INSP 'e2222222-2222-2222-2222-222222222222'
 \set OTHR 'e3333333-3333-3333-3333-333333333333'
 \set ADM  'e4444444-4444-4444-4444-444444444444'
-\set JOB  'e6666666-6666-6666-6666-666666666666'
 
 insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
   (:'CL',  '00000000-0000-0000-0000-000000000000','authenticated','authenticated','cl.gr2@test.nx', now(),now()),
@@ -39,13 +42,18 @@ insert into public.profiles (id, email, role, specialty_slugs) values
 
 -- Client CL owns the job; INSP is the assigned inspector.
 -- client pays 250000; inspector receives 155500 ⇒ margin 94500.
-insert into public.jobs (
-  id, title, client_id, contractor_id, hired_inspector_id, status, moderation_status,
-  client_price_cents, inspector_payout_cents, payout_amount_cents
-) values (
-  :'JOB','gr2 price blindness job', :'CL', :'INSP', :'INSP', 'in_progress','approved',
-  250000, 155500, 155500
-);
+-- Dispatched canonically: created unassigned → INSP applies → funded through the
+-- authorized platform path → admin_dispatch_job as ADM, which is what sets
+-- contractor_id and payout_amount_cents. No funding column is preset here.
+select nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'gr2 price blindness job', 250000, 155500) as "JOB" \gset
+
+-- assigned → in_progress is legal; hired_inspector_id is the marketplace pointer
+-- the seller view keys on. Neither is a funding column and neither re-triggers the
+-- dispatch gate (contractor_id is already non-null).
+update public.jobs
+   set status             = 'in_progress',
+       hired_inspector_id = :'INSP'
+ where id = :'JOB';
 
 -- ── BUYER (the job's own client) ────────────────────────────────────────────
 set local role authenticated;
@@ -53,15 +61,15 @@ set local request.jwt.claims to '{"sub":"e1111111-1111-1111-1111-111111111111","
 
 -- ★ THE BLOCKER: payout must not be readable on the base table.
 select throws_ok(
-  'select inspector_payout_cents from public.jobs where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select inspector_payout_cents from public.jobs where id = ' || quote_literal(:'JOB'),
   '42501', NULL,
   'BUYER cannot select inspector_payout_cents from public.jobs (privilege denied)');
 select throws_ok(
-  'select payout_amount_cents from public.jobs where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select payout_amount_cents from public.jobs where id = ' || quote_literal(:'JOB'),
   '42501', NULL,
   'BUYER cannot select payout_amount_cents from public.jobs');
 select throws_ok(
-  'select platform_spread_cents from public.jobs where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select platform_spread_cents from public.jobs where id = ' || quote_literal(:'JOB'),
   '42501', NULL,
   'BUYER cannot select platform_spread_cents (the margin) from public.jobs');
 
@@ -81,7 +89,7 @@ select is(
   'BUYER still reads their own client_price_cents via jobs_secure_view');
 -- and the seller view must expose nothing to them
 select is_empty(
-  'select 1 from public.jobs_inspector_secure_view where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select 1 from public.jobs_inspector_secure_view where id = ' || quote_literal(:'JOB'),
   'BUYER gets NO ROWS from jobs_inspector_secure_view');
 
 -- ── INSPECTOR (assigned) ────────────────────────────────────────────────────
@@ -97,14 +105,14 @@ select is(
   NULL::bigint,
   'INSPECTOR gets NULL client_price_cents from jobs_inspector_secure_view');
 select throws_ok(
-  'select client_price_cents from public.jobs where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select client_price_cents from public.jobs where id = ' || quote_literal(:'JOB'),
   '42501', NULL,
   'INSPECTOR cannot select client_price_cents from public.jobs (312000 still holds)');
 
 -- ── UNRELATED buyer ─────────────────────────────────────────────────────────
 set local request.jwt.claims to '{"sub":"e3333333-3333-3333-3333-333333333333","role":"authenticated"}';
 select is_empty(
-  'select 1 from public.jobs_secure_view where id = ''e6666666-6666-6666-6666-666666666666''',
+  'select 1 from public.jobs_secure_view where id = ' || quote_literal(:'JOB'),
   'UNRELATED user sees no rows in jobs_secure_view');
 
 -- ── ADMIN — must still see BOTH sides ───────────────────────────────────────

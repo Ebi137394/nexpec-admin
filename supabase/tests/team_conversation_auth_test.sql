@@ -5,8 +5,17 @@
 --  admin-brokered inspector room, and nothing else.
 --
 --  RUN (LOCAL only):
---    psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 \
---      -f supabase/tests/team_conversation_auth_test.sql
+--    node scripts/qa/run-pgtap.mjs team_conversation_auth
+--
+--  ── FIXTURE SHAPE (see supabase/tests/_fixtures/canonical_job.sql) ─────────
+--  The job is dispatched to the LEAD through the canonical sequence
+--  (create unassigned → apply → fund → admin_dispatch_job), then walked
+--  assigned → in_progress, a legal step in guard_jobs_status_transition. The
+--  previous fixture INSERTed the job with contractor_id already populated;
+--  attaching a contractor IS a dispatch to nx_guard_dispatch_requires_funding,
+--  so the suite aborted with FUNDING_REQUIRED before C1. The extra team members
+--  are still attached afterwards through nx_job_add_inspector, exactly as
+--  before — the canonical dispatch replaces only the contractor preset.
 --
 --  C1  the contracted inspector may open the inspector room  (unchanged)
 --  C2  an ACTIVE team member may open their own inspector room
@@ -21,7 +30,11 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 SET LOCAL client_min_messages TO NOTICE;
+
+CREATE TEMP TABLE nx_tap (seq serial primary key, pass boolean, name text) ON COMMIT DROP;
 
 DO $suite$
 DECLARE
@@ -48,11 +61,10 @@ BEGIN
     (v_sub,   'inspector','TC Substitute','tc.sub@test.nx',true),
     (v_rando, 'inspector','TC Outsider','tc.rando@test.nx',true);
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_lead, 'TEAM CHAT TEST', 'suite',
-          'in_progress','approved')
-  RETURNING id INTO v_job;
+  -- Canonical dispatch of the lead, then the legal assigned → in_progress step.
+  v_job := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'TEAM CHAT TEST');
+  UPDATE public.jobs SET description = 'suite' WHERE id = v_job;
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   PERFORM public.nx_job_add_inspector(v_job, v_lead, 'lead',        NULL,  true,  NULL);
@@ -61,21 +73,15 @@ BEGIN
   -- ── C1 — contracted inspector (unchanged behaviour) ─────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   v_conv_lead := public.ensure_job_conversation(v_job, 'job_inspector_admin');
-  IF v_conv_lead IS NULL THEN
-    RAISE EXCEPTION 'C1 FAILED: the contracted inspector could not open the inspector room';
-  END IF;
-  RAISE NOTICE 'C1 ok — contracted inspector room opened';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_conv_lead IS NOT NULL, 'C1 — the contracted inspector opens the inspector room');
 
   -- ── C2 — active team member gets their OWN room ─────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_weld::text)::text, true);
   v_conv_weld := public.ensure_job_conversation(v_job, 'job_inspector_admin');
-  IF v_conv_weld IS NULL THEN
-    RAISE EXCEPTION 'C2 FAILED: an active team member could not open the inspector room';
-  END IF;
-  IF v_conv_weld = v_conv_lead THEN
-    RAISE EXCEPTION 'C2 FAILED: the team member was put into the contractor''s room — rooms must be per-user';
-  END IF;
-  RAISE NOTICE 'C2 ok — team member has their own admin-brokered room';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_conv_weld IS NOT NULL AND v_conv_weld IS DISTINCT FROM v_conv_lead,
+     'C2 — an active team member gets their own admin-brokered room');
 
   -- ── C3 — unrelated inspector denied ─────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_rando::text)::text, true);
@@ -85,8 +91,8 @@ BEGIN
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
-  IF v_ok THEN RAISE EXCEPTION 'C3 FAILED: an unrelated inspector opened a job room'; END IF;
-  RAISE NOTICE 'C3 ok — outsider denied';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT v_ok, 'C3 — an unrelated inspector cannot open a job room');
 
   -- ── C4 — removed member cannot open a NEW room ──────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
@@ -102,10 +108,8 @@ BEGIN
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
-  IF v_ok THEN
-    RAISE EXCEPTION 'C4 FAILED: a REMOVED team member opened a new job room';
-  END IF;
-  RAISE NOTICE 'C4 ok — removed member denied a new room';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT v_ok, 'C4 — a REMOVED team member cannot open a new job room');
 
   -- ── C5 — replacement isolation ──────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
@@ -114,9 +118,6 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sub::text)::text, true);
   v_conv_sub := public.ensure_job_conversation(v_job, 'job_inspector_admin');
-  IF v_conv_sub IS NULL THEN
-    RAISE EXCEPTION 'C5 FAILED: the replacement member could not open a room';
-  END IF;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_weld::text)::text, true);
   DELETE FROM public.conversations WHERE user_id = v_weld AND job_id = v_job;
@@ -126,28 +127,22 @@ BEGIN
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
-  IF v_ok THEN
-    RAISE EXCEPTION 'C5 FAILED: the REPLACED member reopened a job room';
-  END IF;
-  RAISE NOTICE 'C5 ok — replacement isolation holds';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_conv_sub IS NOT NULL AND NOT v_ok,
+     'C5 — replacement isolation: the substitute is admitted, the replaced member is not');
 
   -- ── C6 — guessed UUID / room isolation ──────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sub::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.conversations WHERE id = v_conv_lead;
   EXECUTE 'RESET ROLE';
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'C6 FAILED: a team member read the contractor''s room by id';
-  END IF;
-  RAISE NOTICE 'C6 ok — rooms are isolated per user';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 0, 'C6 — a team member cannot read the contractor''s room by id');
 
   -- ── C7 — no direct client<->inspector room exists or can be made ────────
   SELECT count(*) INTO v_n FROM public.conversations
    WHERE job_id = v_job
      AND kind::text NOT IN ('job_client_admin','job_inspector_admin');
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'C7 FAILED: % non-brokered conversation(s) exist for this job', v_n;
-  END IF;
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sub::text)::text, true);
   v_ok := false;
   BEGIN
@@ -155,10 +150,9 @@ BEGIN
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
-  IF v_ok THEN
-    RAISE EXCEPTION 'C7 FAILED: a team member opened the BUYER-side room';
-  END IF;
-  RAISE NOTICE 'C7 ok — no direct channel; buyer side refused to an inspector';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 0 AND NOT v_ok,
+     'C7 — no non-brokered room exists and the buyer side is refused to an inspector');
 
   -- ── C8 — team member cannot read the buyer room ─────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text)::text, true);
@@ -167,34 +161,29 @@ BEGIN
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.conversations WHERE id = v_conv_client;
   EXECUTE 'RESET ROLE';
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'C8 FAILED: a team member read the buyer-side room';
-  END IF;
-  RAISE NOTICE 'C8 ok — buyer room invisible to the inspector side';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 0, 'C8 — the buyer-side room is invisible to the inspector side');
 
   -- ── C9 — admin sees everything ──────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.conversations WHERE job_id = v_job;
   EXECUTE 'RESET ROLE';
-  IF v_n < 2 THEN
-    RAISE EXCEPTION 'C9 FAILED: admin sees only % room(s) — broker visibility lost', v_n;
-  END IF;
-  RAISE NOTICE 'C9 ok — admin retains full broker visibility (% rooms)', v_n;
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n >= 2, 'C9 — the admin retains full broker visibility (' || v_n || ' rooms)');
 
   -- ── C10 — no commercial leakage through the conversation path ───────────
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-     WHERE table_schema='public' AND table_name='conversations'
-       AND column_name IN ('client_price_cents','inspector_payout_cents','platform_spread_cents')
-  ) THEN
-    RAISE EXCEPTION 'C10 FAILED: conversations carries a pricing column';
-  END IF;
-  RAISE NOTICE 'C10 ok — no commercial column on the conversation path';
-
-  RAISE NOTICE '───────────────────────────────────────────';
-  RAISE NOTICE 'TEAM CONVERSATION AUTHORIZATION: ALL ASSERTIONS PASSED';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='conversations'
+          AND column_name IN ('client_price_cents','inspector_payout_cents','platform_spread_cents')),
+     'C10 — no commercial column on the conversation path');
 END
 $suite$;
+
+SELECT plan(10);
+SELECT ok(t.pass, t.name) FROM nx_tap t ORDER BY t.seq;
+SELECT * FROM finish();
 
 ROLLBACK;

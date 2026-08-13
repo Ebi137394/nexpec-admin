@@ -13,6 +13,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 select plan(9);
 
 -- NB: psql \set captures the REST of the line as the value (it does NOT honour
@@ -21,11 +22,12 @@ select plan(9);
 --   B = assigned inspector (owns the job_inspector_admin thread)
 --   C = outsider · ADM = platform admin
 --   CONVC = job_client_admin (user_id = A) · CONVI = job_inspector_admin (user_id = B)
+-- JOB is NOT \set here: it comes from the canonical fixture via \gset below, so
+-- the job is dispatched through admin_dispatch_job rather than minted assigned.
 \set A     'c1111111-1111-1111-1111-111111111111'
 \set B     'c2222222-2222-2222-2222-222222222222'
 \set C     'c3333333-3333-3333-3333-333333333333'
 \set ADM   'c4444444-4444-4444-4444-444444444444'
-\set JOB   'c6666666-6666-6666-6666-666666666666'
 \set CONVC 'c8888888-8888-8888-8888-888888888888'
 \set CONVI 'c9999999-9999-9999-9999-999999999999'
 
@@ -39,8 +41,10 @@ insert into public.profiles (id, email, role) values
   (:'B','b.msg@test.nx','inspector'),
   (:'C','c.msg@test.nx','client'),
   (:'ADM','adm.msg@test.nx','admin');
-insert into public.jobs (id, title, client_id, contractor_id) values
-  (:'JOB','messages silo rls job', :'A', :'B');
+-- Canonical dispatch: unassigned job → B applies → funded via the platform path
+-- → admin_dispatch_job as ADM. Yields B as contractor_id without presetting it.
+select nx_fx_dispatched_job(:'A', :'B', :'ADM', 'messages silo rls job') as "JOB" \gset
+
 insert into public.conversations (id, job_id, kind, user_id, status) values
   (:'CONVC', :'JOB', 'job_client_admin',    :'A', 'open'),
   (:'CONVI', :'JOB', 'job_inspector_admin', :'B', 'open');
@@ -62,9 +66,11 @@ select throws_ok(
 
 -- The P0 regression guard: the legacy raw insert with NULL conversation_id (what
 -- the dropped insert_chat_msgs allowed) must now be DENIED.
+-- psql does NOT interpolate inside $$…$$, so the fixture's job id is concatenated
+-- in; quote_literal re-quotes it for the inner statement throws_ok will execute.
 select throws_ok(
   $$ insert into public.messages (sender_id, job_id, content)
-     values ('c1111111-1111-1111-1111-111111111111','c6666666-6666-6666-6666-666666666666','legacy null-conv insert') $$,
+     values ('c1111111-1111-1111-1111-111111111111',$$ || quote_literal(:'JOB') || $$,'legacy null-conv insert') $$,
   '42501', NULL, 'raw insert with NULL conversation_id is DENIED (legacy hole closed)');
 
 select throws_ok(

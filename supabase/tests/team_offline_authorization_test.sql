@@ -17,8 +17,17 @@
 --  server-side property holds, so it cannot silently regress.
 --
 --  RUN (LOCAL only):
---    psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 \
---      -f supabase/tests/team_offline_authorization_test.sql
+--    node scripts/qa/run-pgtap.mjs team_offline_authorization
+--
+--  ── FIXTURE SHAPE (see supabase/tests/_fixtures/canonical_job.sql) ─────────
+--  The job is dispatched to the LEAD through the canonical sequence
+--  (create unassigned → apply → fund → admin_dispatch_job), then walked
+--  assigned → in_progress, a legal step in guard_jobs_status_transition. The
+--  previous fixture INSERTed the job with contractor_id already populated,
+--  which nx_guard_dispatch_requires_funding reads as a dispatch, so the suite
+--  aborted with FUNDING_REQUIRED before F1. Inspector A and the substitute are
+--  still attached through nx_job_add_inspector / nx_job_replace_team_member,
+--  the same mechanisms the suite already used.
 --
 --  THE SEQUENCE UNDER TEST
 --   F1  Inspector A is an active team member and captures evidence
@@ -37,7 +46,11 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 SET LOCAL client_min_messages TO NOTICE;
+
+CREATE TEMP TABLE nx_tap (seq serial primary key, pass boolean, name text) ON COMMIT DROP;
 
 DO $suite$
 DECLARE
@@ -53,7 +66,7 @@ DECLARE
   v_cap2   uuid := gen_random_uuid();
   v_n      int;
   v_owner  uuid;
-  v_ok     boolean; v_err text;
+  v_ok     boolean; v_ok2 boolean; v_err text;
   v_txn_before int; v_txn_after int;
 BEGIN
   INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
@@ -77,11 +90,10 @@ BEGIN
   VALUES (v_tmpl, 1, 'photo', 'Weld root photo')
   RETURNING id INTO v_req;
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_lead, 'OFFLINE AUTH TEST', 'suite',
-          'in_progress','approved')
-  RETURNING id INTO v_job;
+  -- Canonical dispatch of the lead, then the legal assigned → in_progress step.
+  v_job := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'OFFLINE AUTH TEST');
+  UPDATE public.jobs SET description = 'suite' WHERE id = v_job;
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
 
   SELECT count(*) INTO v_txn_before FROM public.transactions;
 
@@ -100,46 +112,36 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_ok := false; v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF NOT v_ok THEN
-    RAISE EXCEPTION 'F1 FAILED: an ACTIVE team member could not capture evidence — %', v_err;
-  END IF;
-  RAISE NOTICE 'F1 ok — active team member captured evidence';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_ok, 'F1 — an ACTIVE team member captures evidence ('
+           || left(coalesce(v_err,'ok'), 55) || ')');
 
   -- ── F2 — attribution ────────────────────────────────────────────────────
   SELECT inspector_id INTO v_owner FROM public.inspection_captures WHERE id = v_cap1;
-  IF v_owner IS DISTINCT FROM v_a THEN
-    RAISE EXCEPTION 'F2 FAILED: capture attributed to % (expected inspector A)', v_owner;
-  END IF;
-  RAISE NOTICE 'F2 ok — evidence attributed to inspector A';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_owner IS NOT DISTINCT FROM v_a, 'F2 — the evidence is attributed to inspector A');
 
   -- ── F3 — A is removed ───────────────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   PERFORM public.nx_job_remove_inspector(v_job, v_a, 'left the site');
-  IF public.nx_is_active_job_team_member(v_job, v_a) THEN
-    RAISE EXCEPTION 'F3 FAILED: A is still an active team member after removal';
-  END IF;
-  RAISE NOTICE 'F3 ok — inspector A removed from the team';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT public.nx_is_active_job_team_member(v_job, v_a),
+     'F3 — inspector A is no longer an active team member');
 
   -- ── F4 — HISTORY SURVIVES ───────────────────────────────────────────────
   SELECT count(*) INTO v_n FROM public.inspection_captures WHERE id = v_cap1;
-  IF v_n <> 1 THEN
-    RAISE EXCEPTION 'F4 FAILED: historical evidence was destroyed by removal (rows=%)', v_n;
-  END IF;
   SELECT inspector_id INTO v_owner FROM public.inspection_captures WHERE id = v_cap1;
-  IF v_owner IS DISTINCT FROM v_a THEN
-    RAISE EXCEPTION 'F4 FAILED: historical attribution was rewritten to %', v_owner;
-  END IF;
-  RAISE NOTICE 'F4 ok — historical evidence and attribution preserved';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 1 AND v_owner IS NOT DISTINCT FROM v_a,
+     'F4 — historical evidence and its attribution survive removal');
 
   -- ── F5 — still readable by those authorised ─────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.inspection_captures WHERE id = v_cap1;
   EXECUTE 'RESET ROLE';
-  IF v_n <> 1 THEN
-    RAISE EXCEPTION 'F5 FAILED: the contracted inspector cannot read A''s historical evidence';
-  END IF;
-  RAISE NOTICE 'F5 ok — history readable by the remaining authorised team';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 1, 'F5 — history stays readable by the remaining authorised team');
 
   -- ── F6 — A can no longer read the job's evidence ────────────────────────
   --  A retains the authorship policy (captures_select_own_inspector) over their
@@ -149,10 +151,8 @@ BEGIN
   SELECT count(*) INTO v_n FROM public.inspection_captures
    WHERE job_id = v_job AND inspector_id <> v_a;
   EXECUTE 'RESET ROLE';
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'F6 FAILED: a removed member still reads % teammate capture(s)', v_n;
-  END IF;
-  RAISE NOTICE 'F6 ok — removed member lost team-wide evidence visibility';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 0, 'F6 — a removed member loses team-wide evidence visibility (saw ' || v_n || ')');
 
   -- ── F7 — THE CORE ASSERTION: a replayed NEW write is rejected ───────────
   --  This is exactly what the outbox does on replay: the same authenticated
@@ -168,10 +168,9 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF v_ok THEN
-    RAISE EXCEPTION 'F7 FAILED: a REMOVED inspector''s queued write was accepted on replay — the outbox is an authorization bypass';
-  END IF;
-  RAISE NOTICE 'F7 ok — replayed write from a removed member rejected (%)', left(v_err, 55);
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT v_ok, 'F7 — a replayed write from a REMOVED member is rejected ('
+               || left(coalesce(v_err,''), 45) || ')');
 
   -- ── F8 — re-delivering the ORIGINAL op creates no second row ────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_a::text)::text, true);
@@ -184,15 +183,13 @@ BEGIN
   END;
   EXECUTE 'RESET ROLE';
   SELECT count(*) INTO v_n FROM public.inspection_captures WHERE id = v_cap1;
-  IF v_n <> 1 THEN
-    RAISE EXCEPTION 'F8 FAILED: re-delivery produced % row(s) for one client PK', v_n;
-  END IF;
-  RAISE NOTICE 'F8 ok — idempotent PK prevents duplicates on re-delivery';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 1, 'F8 — re-delivery of the original op yields exactly one row (got ' || v_n || ')');
 
   -- ── F9 — the remaining team is unaffected ───────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
-  v_ok := true;
+  v_ok := true; v_err := NULL;
   BEGIN
     INSERT INTO public.inspection_captures
       (id, job_id, requirement_id, inspector_id, kind, captured_at)
@@ -200,10 +197,9 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_ok := false; v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF NOT v_ok THEN
-    RAISE EXCEPTION 'F9 FAILED: removing A broke the contractor''s own capture path — %', v_err;
-  END IF;
-  RAISE NOTICE 'F9 ok — remaining team unaffected';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_ok, 'F9 — the contractor''s own capture path is unaffected ('
+           || left(coalesce(v_err,'ok'), 55) || ')');
 
   -- ── F10 — replacement: substitute in, replaced member out ───────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
@@ -212,7 +208,7 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_sub::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
-  v_ok := true;
+  v_ok := true; v_err := NULL;
   BEGIN
     INSERT INTO public.inspection_captures
       (id, job_id, requirement_id, inspector_id, kind, captured_at)
@@ -220,37 +216,33 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_ok := false; v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF NOT v_ok THEN
-    RAISE EXCEPTION 'F10 FAILED: the replacement member cannot capture — %', v_err;
-  END IF;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_a::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
-  v_ok := false;
+  v_ok2 := false;
   BEGIN
     INSERT INTO public.inspection_captures
       (id, job_id, requirement_id, inspector_id, kind, captured_at)
     VALUES (gen_random_uuid(), v_job, v_req, v_a, 'photo', now());
-    v_ok := true;
-  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
+    v_ok2 := true;
+  EXCEPTION WHEN OTHERS THEN NULL;
   END;
   EXECUTE 'RESET ROLE';
-  IF v_ok THEN
-    RAISE EXCEPTION 'F10 FAILED: the REPLACED member still captures evidence';
-  END IF;
-  RAISE NOTICE 'F10 ok — replacement isolation holds for evidence writes';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_ok AND NOT v_ok2,
+     'F10 — replacement isolation for evidence writes: substitute in, replaced member out');
 
   -- ── F11 — no money ──────────────────────────────────────────────────────
   SELECT count(*) INTO v_txn_after FROM public.transactions;
-  IF v_txn_after <> v_txn_before THEN
-    RAISE EXCEPTION 'F11 FAILED: offline/team evidence flow created % transaction row(s)',
-      v_txn_after - v_txn_before;
-  END IF;
-  RAISE NOTICE 'F11 ok — no money moved';
-
-  RAISE NOTICE '───────────────────────────────────────────';
-  RAISE NOTICE 'TEAM OFFLINE AUTHORIZATION: ALL ASSERTIONS PASSED';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_txn_after = v_txn_before,
+     'F11 — the offline/team evidence flow moves no money ('
+       || (v_txn_after - v_txn_before) || ' txn rows)');
 END
 $suite$;
+
+SELECT plan(11);
+SELECT ok(t.pass, t.name) FROM nx_tap t ORDER BY t.seq;
+SELECT * FROM finish();
 
 ROLLBACK;

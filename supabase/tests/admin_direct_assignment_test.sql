@@ -40,6 +40,12 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+\i supabase/tests/_fixtures/canonical_job.sql
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole DO block. If any assertion inside
+-- raises, the transaction aborts and this never emits, so the runner sees
+-- plan 1 vs ran 0 and reports FAIL instead of a silently-skipped suite.
+select plan(1);
 
 SET LOCAL client_min_messages TO NOTICE;
 
@@ -87,10 +93,12 @@ BEGIN
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
   VALUES (gen_random_uuid(), v_client, 'TEST direct assignment', 'suite', 'open', 'approved')
   RETURNING id INTO v_job;
+  PERFORM nx_fx_fund_job(v_job);
 
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
   VALUES (gen_random_uuid(), v_client, 'TEST self assignment', 'suite', 'open', 'approved')
   RETURNING id INTO v_job2;
+  PERFORM nx_fx_fund_job(v_job2);
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
 
@@ -154,6 +162,7 @@ BEGIN
     INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
     VALUES (gen_random_uuid(), v_client, 'TEST admin as inspector', 'suite', 'open', 'approved')
     RETURNING id INTO v_job3;
+      PERFORM nx_fx_fund_job(v_job3);
 
     PERFORM public.admin_assign_inspector_directly(
       v_job3, v_admin, 230000, 120000,
@@ -262,5 +271,8 @@ BEGIN
   RAISE NOTICE 'ALL ASSERTIONS PASSED';
 END
 $suite$;
+
+select ok(true, 'admin_direct_assignment: every in-block assertion passed');
+select * from finish();
 
 ROLLBACK;

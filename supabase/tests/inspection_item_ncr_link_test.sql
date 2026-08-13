@@ -4,11 +4,19 @@
 --  Behavioural proof of 20260801366000 — a failed inspection item raises a REAL
 --  NCR through the EXISTING flash-report path, and no parallel system appears.
 --
---  RUN (LOCAL only):
---    psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 \
---      -f supabase/tests/inspection_item_ncr_link_test.sql
+--  RUN:  node scripts/qa/run-pgtap.mjs inspection_item_ncr_link
 --
 --  One transaction, ends in ROLLBACK. auth.users FIRST (profiles.id FK).
+--
+--  ── WHY THIS IS pgTAP AND NOT A DO BLOCK ───────────────────────────────────
+--  It used to be one DO $suite$ block signalling failure with RAISE EXCEPTION,
+--  which emits no TAP plan, so scripts/qa/run-pgtap.mjs could never score it.
+--  Every original check is preserved below as its own TAP assertion.
+--
+--  ── WHY THE JOB IS BUILT BY THE FIXTURE ────────────────────────────────────
+--  It used to INSERT a job with contractor_id set and status 'in_progress'.
+--  The dispatch funding gate refuses that shape (FUNDING_REQUIRED) and
+--  production never creates it. See _fixtures/canonical_job.sql.
 --
 --  N1  a passing item cannot raise an NCR
 --  N2  a failed item raises one, and it is an ordinary flash_report
@@ -20,143 +28,137 @@
 --  N8  no money moved
 -- ════════════════════════════════════════════════════════════════════════════
 
-BEGIN;
-SET LOCAL client_min_messages TO NOTICE;
+begin;
+create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
+select plan(11);
 
-DO $suite$
-DECLARE
-  v_client uuid := gen_random_uuid();
-  v_insp   uuid := gen_random_uuid();
-  v_rando  uuid := gen_random_uuid();
-  v_job    uuid;
-  v_report uuid;
-  v_pass   uuid;
-  v_fail   uuid;
-  v_res    jsonb;
-  v_ncr    uuid;
-  v_ncr2   uuid;
-  v_status text;
-  v_desc   text;
-  v_n      int;
-  v_ok     boolean; v_err text;
-  v_txn_before int; v_txn_after int;
-BEGIN
-  INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
-  VALUES
-    (v_client,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.client@test.nx',now(),now()),
-    (v_insp,  '00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.insp@test.nx',  now(),now()),
-    (v_rando, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.rando@test.nx', now(),now());
+-- Never put a trailing comment on a \set line — psql concatenates the tail.
+\set CL    'd1111111-1111-1111-1111-111111111111'
+\set INSP  'd2222222-2222-2222-2222-222222222222'
+\set RANDO 'd3333333-3333-3333-3333-333333333333'
 
-  INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
-    (v_client,'client','NL Client','nl.client@test.nx',true),
-    (v_insp,  'inspector','NL Inspector','nl.insp@test.nx',true),
-    (v_rando, 'inspector','NL Rando','nl.rando@test.nx',true);
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
+  (:'CL',   '00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.client@test.nx',now(),now()),
+  (:'INSP', '00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.insp@test.nx',  now(),now()),
+  (:'RANDO','00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.rando@test.nx', now(),now());
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_insp, 'NCR LINK TEST', 'suite', 'in_progress', 'approved')
-  RETURNING id INTO v_job;
+insert into public.profiles (id, role, full_name, email, is_verified) values
+  (:'CL',   'client',   'NL Client',   'nl.client@test.nx',true),
+  (:'INSP', 'inspector','NL Inspector','nl.insp@test.nx',  true),
+  (:'RANDO','inspector','NL Rando',    'nl.rando@test.nx', true);
 
-  INSERT INTO public.inspection_reports (job_id, inspector_id, notes, status)
-  VALUES (v_job, v_insp, 'structured inspection', 'pending')
-  RETURNING id INTO v_report;
+-- The inspector is put on the job the only way production does it: apply →
+-- fund via the platform path → admin_dispatch_job. The suite needs an admin
+-- profile for that broker step, so RANDO doubles as nothing here — a dedicated
+-- admin is seeded because admin_dispatch_job authenticates via auth.uid().
+\set ADM 'd4444444-4444-4444-4444-444444444444'
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at) values
+  (:'ADM','00000000-0000-0000-0000-000000000000','authenticated','authenticated','nl.admin@test.nx',now(),now());
+insert into public.profiles (id, role, full_name, email, is_verified) values
+  (:'ADM','admin','NL Admin','nl.admin@test.nx',true);
 
-  INSERT INTO public.inspection_items (report_id, description, status, location, notes)
-  VALUES (v_report, 'Weld cap profile within tolerance', 'pass', 'Spool 4', NULL)
-  RETURNING id INTO v_pass;
+select nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'NCR LINK TEST',
+                            100000, 70000, 'prepay') as "JOB" \gset
+update public.jobs set status = 'in_progress' where id = :'JOB';
 
-  INSERT INTO public.inspection_items (report_id, description, status, location, notes)
-  VALUES (v_report, 'Undercut exceeds acceptance criteria', 'fail', 'Spool 7 / Weld 12',
-          'Depth measured 0.9mm against 0.5mm allowable')
-  RETURNING id INTO v_fail;
+insert into public.inspection_reports (job_id, inspector_id, notes, status)
+values (:'JOB', :'INSP', 'structured inspection', 'pending')
+returning id as "REPORT" \gset
 
-  SELECT count(*) INTO v_txn_before FROM public.transactions WHERE user_id = v_insp;
+insert into public.inspection_items (report_id, description, status, location, notes)
+values (:'REPORT', 'Weld cap profile within tolerance', 'pass', 'Spool 4', null)
+returning id as "PASSITEM" \gset
 
-  -- act as the inspector (a job party)
-  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_insp::text)::text, true);
+insert into public.inspection_items (report_id, description, status, location, notes)
+values (:'REPORT', 'Undercut exceeds acceptance criteria', 'fail', 'Spool 7 / Weld 12',
+        'Depth measured 0.9mm against 0.5mm allowable')
+returning id as "FAILITEM" \gset
 
-  -- ── N1 — a passing item is not a non-conformance ────────────────────────
-  v_ok := false;
-  BEGIN
-    PERFORM public.nx_raise_ncr_from_inspection_item(v_pass);
-    v_ok := true;
-  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
-  END;
-  IF v_ok THEN RAISE EXCEPTION 'N1 FAILED: a passing item raised an NCR'; END IF;
-  IF v_err NOT LIKE '%only a failed inspection item%' THEN
-    RAISE EXCEPTION 'N1 FAILED: wrong rejection (%)', v_err;
-  END IF;
-  RAISE NOTICE 'N1 ok — passing item refused';
+select count(*)::int as txn_before from public.transactions where user_id = :'INSP' \gset
 
-  -- ── N2 — a failed item raises a real flash report ───────────────────────
-  v_res := public.nx_raise_ncr_from_inspection_item(v_fail, 'major', 'defect', 'raised from structured inspection');
-  v_ncr := (v_res->>'flash_report_id')::uuid;
-  IF v_ncr IS NULL THEN RAISE EXCEPTION 'N2 FAILED: no NCR id returned (%)', v_res; END IF;
-  SELECT count(*) INTO v_n FROM public.flash_reports WHERE id = v_ncr;
-  IF v_n <> 1 THEN RAISE EXCEPTION 'N2 FAILED: no flash_reports row was created'; END IF;
-  SELECT status INTO v_status FROM public.flash_reports WHERE id = v_ncr;
-  IF v_status <> 'open' THEN RAISE EXCEPTION 'N2 FAILED: NCR opened in status %', v_status; END IF;
-  RAISE NOTICE 'N2 ok — ordinary flash report created, status open';
+-- act as the inspector (a job party)
+set local request.jwt.claims to '{"sub":"d2222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
-  -- ── N3 — the item is linked ─────────────────────────────────────────────
-  SELECT flash_report_id INTO v_ncr2 FROM public.inspection_items WHERE id = v_fail;
-  IF v_ncr2 IS DISTINCT FROM v_ncr THEN
-    RAISE EXCEPTION 'N3 FAILED: item not linked to its NCR (% vs %)', v_ncr2, v_ncr;
-  END IF;
-  RAISE NOTICE 'N3 ok — item linked to the NCR';
+-- ── N1 — a passing item is not a non-conformance ────────────────────────────
+select throws_like(
+  format($$ select public.nx_raise_ncr_from_inspection_item(%L) $$, :'PASSITEM'),
+  '%only a failed inspection item%',
+  'N1: a passing item cannot raise an NCR');
 
-  -- ── N4 — idempotent ─────────────────────────────────────────────────────
-  v_res := public.nx_raise_ncr_from_inspection_item(v_fail);
-  IF (v_res->>'flash_report_id')::uuid <> v_ncr THEN
-    RAISE EXCEPTION 'N4 FAILED: a second NCR was raised for the same item';
-  END IF;
-  SELECT count(*) INTO v_n FROM public.flash_reports WHERE job_id = v_job;
-  IF v_n <> 1 THEN RAISE EXCEPTION 'N4 FAILED: % flash reports exist for one failed item', v_n; END IF;
-  RAISE NOTICE 'N4 ok — idempotent';
+-- ── N2 — a failed item raises a real flash report ───────────────────────────
+select (public.nx_raise_ncr_from_inspection_item(
+          :'FAILITEM', 'major', 'defect', 'raised from structured inspection')
+        ->>'flash_report_id') as "NCR" \gset
 
-  -- ── N5 — it flows through the EXISTING state machine ────────────────────
-  PERFORM public.flash_report_transition(v_ncr, 'acknowledged', 'seen by admin');
-  SELECT status INTO v_status FROM public.flash_reports WHERE id = v_ncr;
-  IF v_status <> 'acknowledged' THEN
-    RAISE EXCEPTION 'N5 FAILED: the existing transition did not apply (status=%)', v_status;
-  END IF;
-  RAISE NOTICE 'N5 ok — NCR moves through the existing flash-report state machine';
+select isnt(
+  nullif(:'NCR','')::uuid,
+  null,
+  'N2: the RPC returns a flash_report_id');
 
-  -- ── N6 — a stranger cannot raise one ────────────────────────────────────
-  INSERT INTO public.inspection_items (report_id, description, status, location)
-  VALUES (v_report, 'Second failure', 'fail', 'Spool 9')
-  RETURNING id INTO v_pass;                      -- reuse the variable
-  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_rando::text)::text, true);
-  EXECUTE 'SET LOCAL ROLE authenticated';
-  v_ok := false;
-  BEGIN
-    PERFORM public.nx_raise_ncr_from_inspection_item(v_pass);
-    v_ok := true;
-  EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
-  END;
-  EXECUTE 'RESET ROLE';
-  IF v_ok THEN
-    RAISE EXCEPTION 'N6 FAILED: a non-party raised an NCR — the delegated authorization was bypassed';
-  END IF;
-  RAISE NOTICE 'N6 ok — non-party refused by the existing authorization (%)', left(v_err, 60);
+select is(
+  (select count(*)::int from public.flash_reports where id = :'NCR'::uuid),
+  1,
+  'N2: an ordinary flash_reports row was created');
 
-  -- ── N7 — the NCR carries the item context ───────────────────────────────
-  SELECT description INTO v_desc FROM public.flash_reports WHERE id = v_ncr;
-  IF v_desc NOT ILIKE '%Undercut exceeds acceptance criteria%'
-     OR v_desc NOT ILIKE '%Spool 7 / Weld 12%' THEN
-    RAISE EXCEPTION 'N7 FAILED: the NCR lost the item context (%)', left(v_desc, 120);
-  END IF;
-  RAISE NOTICE 'N7 ok — NCR carries item description and location';
+select is(
+  (select status from public.flash_reports where id = :'NCR'::uuid),
+  'open',
+  'N2: the NCR opened in status open');
 
-  -- ── N8 — no money moved ─────────────────────────────────────────────────
-  SELECT count(*) INTO v_txn_after FROM public.transactions WHERE user_id = v_insp;
-  IF v_txn_after <> v_txn_before THEN
-    RAISE EXCEPTION 'N8 FAILED: raising an NCR created % transaction row(s)', v_txn_after - v_txn_before;
-  END IF;
-  RAISE NOTICE 'N8 ok — no money moved';
+-- ── N3 — the item is linked ─────────────────────────────────────────────────
+select is(
+  (select flash_report_id from public.inspection_items where id = :'FAILITEM'),
+  :'NCR'::uuid,
+  'N3: the failed item is linked to its NCR');
 
-  RAISE NOTICE '───────────────────────────────────────────';
-  RAISE NOTICE 'INSPECTION ITEM → NCR LINK: ALL ASSERTIONS PASSED';
-END
-$suite$;
+-- ── N4 — idempotent ─────────────────────────────────────────────────────────
+select is(
+  (select (public.nx_raise_ncr_from_inspection_item(:'FAILITEM')->>'flash_report_id')::uuid),
+  :'NCR'::uuid,
+  'N4: raising the same item again returns the SAME NCR');
 
-ROLLBACK;
+select is(
+  (select count(*)::int from public.flash_reports where job_id = :'JOB'),
+  1,
+  'N4: exactly one flash report exists for the one failed item');
+
+-- ── N5 — it flows through the EXISTING state machine ────────────────────────
+select public.flash_report_transition(:'NCR'::uuid, 'acknowledged', 'seen by admin');
+
+select is(
+  (select status from public.flash_reports where id = :'NCR'::uuid),
+  'acknowledged',
+  'N5: the NCR moves through the existing flash-report state machine');
+
+-- ── N6 — a stranger cannot raise one ────────────────────────────────────────
+insert into public.inspection_items (report_id, description, status, location)
+values (:'REPORT', 'Second failure', 'fail', 'Spool 9')
+returning id as "FAILITEM2" \gset
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"d3333333-3333-3333-3333-333333333333","role":"authenticated"}';
+
+select throws_like(
+  format($$ select public.nx_raise_ncr_from_inspection_item(%L) $$, :'FAILITEM2'),
+  '%',
+  'N6: a non-party is refused by the existing delegated authorization');
+
+reset role;
+set local request.jwt.claims to '{"sub":"d2222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+-- ── N7 — the NCR carries the item context ───────────────────────────────────
+select ok(
+  (select description ilike '%Undercut exceeds acceptance criteria%'
+      and description ilike '%Spool 7 / Weld 12%'
+     from public.flash_reports where id = :'NCR'::uuid),
+  'N7: the NCR carries the item description and location');
+
+-- ── N8 — no money moved ─────────────────────────────────────────────────────
+select is(
+  (select count(*)::int from public.transactions where user_id = :'INSP'),
+  :txn_before,
+  'N8: raising an NCR moved no money');
+
+select * from finish();
+rollback;

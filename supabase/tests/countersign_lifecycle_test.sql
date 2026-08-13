@@ -22,6 +22,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 select plan(25);
 
 -- Never put a trailing comment on a \set line — psql concatenates the tail.
@@ -56,6 +57,14 @@ insert into public.job_contracts (
   :'CON', :'JOB', :'APP', :'CL', :'INSP',
   'pending_inspector_signature', 230000, 200000
 );
+
+-- The job above is already the canonical UNASSIGNED shape (open, no contractor,
+-- no funding columns) — the dispatch here is performed by the RPC under test,
+-- inspector_sign_job_contract, not by a fixture INSERT. What it was missing is
+-- funding: driving a prepay job to 'assigned' trips
+-- nx_guard_dispatch_requires_funding. Establish it through the authorized
+-- platform path (settle_client_payment), never by presetting the column.
+select nx_fx_fund_job(:'JOB');
 
 -- ══════════════════════════════════════════════════════════════════════════
 --  A. Preconditions
@@ -185,12 +194,14 @@ select is(
 -- ══════════════════════════════════════════════════════════════════════════
 \set JOB2 'a7777777-7777-7777-7777-777777777777'
 \set CON2 'a8888888-8888-8888-8888-888888888888'
-\set JOB3 'a9999999-9999-9999-9999-999999999999'
 \set CON3 'aaaa1111-1111-4111-8111-111111111111'
 
 -- Case 1: fully executed contract + OPEN job → must finish at assigned.
+-- Funded the same way as JOB: heal_contract_to_active is what dispatches it, so
+-- the funding gate has to be satisfied before the reconciliation runs.
 insert into public.jobs (id, title, client_id, status, moderation_status)
   values (:'JOB2','heal probe open', :'CL','open','approved');
+select nx_fx_fund_job(:'JOB2');
 insert into public.job_contracts (
   id, job_id, client_id, inspector_id, status, client_price_cents, inspector_payout_cents
 ) values (:'CON2', :'JOB2', :'CL', :'INSP', 'fully_executed', 175000, 150000);
@@ -227,9 +238,11 @@ select is(
   'HEAL: hired_inspector_id is reconciled');
 
 -- Case 2: a job already IN PROGRESS must not be downgraded.
-insert into public.jobs (id, title, client_id, status, moderation_status, contractor_id)
-  values (:'JOB3','heal probe in progress', :'CL','open','approved', :'INSP');
-update public.jobs set status = 'assigned'    where id = :'JOB3';
+-- Built through the canonical broker sequence (apply → fund → admin_dispatch_job)
+-- instead of an INSERT carrying contractor_id, which the dispatch gate refuses
+-- and which production never performs.
+select nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'heal probe in progress',
+                            120000, 100000, 'prepay') as "JOB3" \gset
 update public.jobs set status = 'in_progress' where id = :'JOB3';
 insert into public.job_contracts (
   id, job_id, client_id, inspector_id, status, client_price_cents, inspector_payout_cents

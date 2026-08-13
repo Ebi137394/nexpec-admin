@@ -65,12 +65,21 @@ END $fn$;
 --  Called with no JWT claims, so nx_actor_is_platform() is true — the same
 --  standing the Stripe webhook has. This does NOT write client_settled_at
 --  directly; settle_client_payment does, which is the canonical writer.
+--  NON-DESTRUCTIVE: it saves the caller's JWT claims and puts them back.
+--  Without that, funding a job from inside an admin-context block silently
+--  de-authenticated the rest of the block — the next privileged call failed with
+--  a bare "admin only" that looked like an authorization defect rather than a
+--  fixture side effect. Every suite that funds mid-test hits this, so it is
+--  fixed once here rather than worked around per suite.
 create or replace function nx_fx_fund_job(p_job uuid)
 returns void
 language plpgsql as $fn$
+DECLARE v_prev text;
 BEGIN
+  v_prev := current_setting('request.jwt.claims', true);
   PERFORM set_config('request.jwt.claims', '', true);   -- platform standing
   PERFORM public.settle_client_payment(p_job);
+  PERFORM set_config('request.jwt.claims', COALESCE(v_prev, ''), true);
 END $fn$;
 
 -- ─── the inspector applies (admin_dispatch_job needs an application) ────────

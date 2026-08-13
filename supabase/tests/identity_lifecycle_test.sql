@@ -16,6 +16,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 select plan(27);
 
 -- Never put a trailing comment on a \set line — psql concatenates the tail.
@@ -146,6 +147,11 @@ set local request.jwt.claims to '{"sub":"b1111111-1111-1111-1111-111111111111","
 --   still the one under test.
 reset role;
 update public.jobs set identity_mode = 'professional' where id = :'JOB';
+-- admin_dispatch_job drives the job to 'assigned', which trips
+-- nx_guard_dispatch_requires_funding on a prepay job whose initial tranche is
+-- not in. Establish funding through the authorized platform path first — never
+-- by presetting client_settled_at, which is platform-only by guard.
+select nx_fx_fund_job(:'JOB');
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"b3333333-3333-3333-3333-333333333333","role":"authenticated"}';
 select public.admin_dispatch_job(:'JOB', :'APP', 230000::bigint, 200000::bigint);

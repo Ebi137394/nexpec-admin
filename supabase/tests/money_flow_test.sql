@@ -8,8 +8,10 @@
 --    • Accrual routing      — credit_inspector_earning_on_approval: prepay →
 --                             available_balance, net_terms → pending_amount.
 --    • Accrual idempotency   — exactly one 'earning' credit per job.
---    • Client settlement     — settle_client_payment: pending → available,
---                             stamps client_settled_at, idempotent.
+--    • Client settlement     — settle_client_payment stamps client_settled_at,
+--                             is idempotent, and moves NO money (20260801458000
+--                             removed the pending → available sweep; releasing
+--                             funds is a manual Admin act).
 --    • Manual payout request — request_withdrawal: reserves available →
 --                             pending_payouts; INSUFFICIENT_BALANCE;
 --                             OPEN_REQUEST_EXISTS; client_op_id idempotency.
@@ -27,16 +29,18 @@
 
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 
 select plan(25);
 
--- ── Fixed actor + job ids ───────────────────────────────────────────────────
---  A = admin, I = inspector, C = client; J1 = prepay job, J2 = net-terms job.
+-- ── Fixed actor ids ─────────────────────────────────────────────────────────
+--  A = admin, I = inspector, C = client. The two jobs are NOT literal ids any
+--  more: they are built by the canonical fixture (create unassigned → apply →
+--  fund via the platform path → admin_dispatch_job) and their ids are captured
+--  with \gset below. J1 = prepay, J2 = net-terms.
 \set adm  '11111111-1111-1111-1111-111111111111'
 \set insp '22222222-2222-2222-2222-222222222222'
 \set cli  '33333333-3333-3333-3333-333333333333'
-\set job1 '44444444-4444-4444-4444-444444444444'
-\set job2 '55555555-5555-5555-5555-555555555555'
 \set opx  '66666666-6666-6666-6666-666666666666'
 \set opy  '77777777-7777-7777-7777-777777777777'
 
@@ -47,19 +51,25 @@ values
   (:'insp', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'insp.money@test.nx', now(), now()),
   (:'cli',  '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'cli.money@test.nx',  now(), now());
 
-insert into public.profiles (id, email, role)
+insert into public.profiles (id, email, role, client_credit_limit_cents)
 values
-  (:'adm',  'adm.money@test.nx',  'admin'),
-  (:'insp', 'insp.money@test.nx', 'inspector'),
-  (:'cli',  'cli.money@test.nx',  'client');
+  (:'adm',  'adm.money@test.nx',  'admin',     0),
+  (:'insp', 'insp.money@test.nx', 'inspector', 0),
+  -- The net-terms job dispatches against the buyer's credit line
+  -- (nx_guard_dispatch_requires_funding → nx_job_buyer_principal = client_id),
+  -- so the client principal must hold a positive authorised limit.
+  (:'cli',  'cli.money@test.nx',  'client',    1000000);
 
--- Two confirmed jobs for the same inspector. admin_confirmed_at is set at INSERT
--- (the credit trigger is AFTER UPDATE OF, so it does NOT fire here) — we call the
--- RPC directly for deterministic control.
-insert into public.jobs (id, title, contractor_id, client_id, inspector_payout_cents, payment_mode, admin_confirmed_at, status)
-values
-  (:'job1', 'pgTAP prepay job',    :'insp', :'cli', 36000, 'prepay',    now(), 'completed'),
-  (:'job2', 'pgTAP net-terms job', :'insp', :'cli', 20000, 'net_terms', now(), 'completed');
+-- Two dispatched jobs for the same inspector, built the ONLY way production
+-- builds them (see _fixtures/canonical_job.sql). admin_dispatch_job stamps
+-- admin_confirmed_at itself, which is what credit_inspector_earning_on_approval
+-- requires; there is no AFTER UPDATE credit trigger any more (the automatic
+-- credit-on-confirmation path was removed by 20260801444000), so accrual stays
+-- under this suite's direct control exactly as before.
+select nx_fx_dispatched_job(:'cli', :'insp', :'adm', 'pgTAP prepay job',
+                            100000, 36000, 'prepay')    as job1 \gset
+select nx_fx_dispatched_job(:'cli', :'insp', :'adm', 'pgTAP net-terms job',
+                            100000, 20000, 'net_terms') as job2 \gset
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  1. ACCRUAL — prepay routes to available_balance
@@ -112,10 +122,19 @@ select lives_ok(
   format($$ select public.settle_client_payment(%L) $$, :'job2'),
   'settle_client_payment: net-terms job succeeds'
 );
+-- MANUAL-SETTLEMENT RULE. These two assertions used to expect $560.00, i.e.
+-- settle_client_payment sweeping the whole net-terms payout from pending_amount
+-- into available_balance. Migration 20260801458000 (P0-2b) DELETED that sweep on
+-- purpose: it was automatic inspector payment triggered by a client action — the
+-- third and last automatic-money path, the same defect class as 20260801432000
+-- (auto payout on completion) and 20260801444000 (auto credit on confirmation).
+-- Settlement now stamps the job and moves nothing; releasing the money is an
+-- explicit Admin act. So the assertion is inverted rather than relaxed: it now
+-- PROVES no money moved, which is the guarantee worth locking.
 select is(
   (select available_balance from public.wallets where user_id = :'insp'),
-  560.00::numeric,
-  'settlement clears pending → available_balance = $560.00'
+  360.00::numeric,
+  'settlement moves NO money → available_balance unchanged at $360.00'
 );
 select isnt_empty(
   format($$ select 1 from public.jobs where id = %L and client_settled_at is not null $$, :'job2'),
@@ -127,8 +146,8 @@ select lives_ok(
 );
 select is(
   (select available_balance from public.wallets where user_id = :'insp'),
-  560.00::numeric,
-  'settlement is idempotent → available_balance still $560.00'
+  360.00::numeric,
+  'settlement replay still moves no money → available_balance still $360.00'
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -158,10 +177,11 @@ select lives_ok(
   format($$ select public.request_withdrawal(10000, 'bank_transfer', 'pgTAP', %L) $$, :'opx'),
   'request_withdrawal $100 succeeds'
 );
+-- $360.00 accrued and cleared, less the $100.00 this request reserves.
 select is(
   (select available_balance from public.wallets where user_id = :'insp'),
-  460.00::numeric,
-  'request reserves funds → available_balance = $460.00'
+  260.00::numeric,
+  'request reserves funds → available_balance = $260.00'
 );
 select is(
   (select pending_payouts from public.wallets where user_id = :'insp'),

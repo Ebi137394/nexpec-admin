@@ -5,8 +5,46 @@
 --  contractor's existing access is unchanged, and outsiders still cannot.
 --
 --  RUN (LOCAL only):
---    psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 \
---      -f supabase/tests/team_evidence_contribution_test.sql
+--    node scripts/qa/run-pgtap.mjs team_evidence_contribution
+--
+--  ── FIXTURE SHAPE (see supabase/tests/_fixtures/canonical_job.sql) ─────────
+--  The job is dispatched to the LEAD through the canonical sequence
+--  (create unassigned → apply → fund → admin_dispatch_job), then walked
+--  assigned → in_progress, which is a legal transition in
+--  guard_jobs_status_transition. The previous fixture INSERTed the job with
+--  contractor_id already set, which IS a dispatch as far as
+--  nx_guard_dispatch_requires_funding is concerned, so the suite aborted with
+--  FUNDING_REQUIRED before its first assertion. The extra team member (the
+--  welding specialist) is attached afterwards through nx_job_add_inspector,
+--  the same mechanism the suite already used.
+--
+--  ── KNOWN PRODUCT DEFECT — E1, E4 and E6 FAIL, AND SHOULD ─────────────────
+--  With the fixture canonical, the suite reaches its assertions and reports a
+--  real hole in 20260801378000. Isolated against the live database:
+--
+--      as the welding team member:
+--        nx_is_active_job_team_member(job, uid) = TRUE
+--        the policy's own EXISTS(...)           = FALSE
+--        SELECT on the jobs row                 = 0 rows
+--
+--  inspection_items_team_read / inspection_items_team_write both qualify with
+--      EXISTS (SELECT 1 FROM inspection_reports r JOIN jobs j ON j.id = r.job_id
+--              WHERE r.id = ... AND (auth.uid() = j.contractor_id
+--                                    OR nx_is_active_job_team_member(j.id, auth.uid())))
+--  and RLS applies to tables named INSIDE a policy expression. No policy on
+--  public.jobs and none on public.inspection_reports admits a job_inspectors
+--  team member — jobs_team_select and reports_team_select both key off
+--  nx_can_team_access_job(), which is org_members membership, an unrelated
+--  concept. So the two team policies are unsatisfiable for precisely the actor
+--  they were written for: the non-contractor team member never sees the job
+--  row, the EXISTS collapses, and the write is refused with
+--      new row violates row-level security policy for table "inspection_items"
+--  E6 then fails as a cascade — the welder's item was never written.
+--
+--  This is NOT fixture drift and is not repaired here. The fix belongs in
+--  product: admit active job-team members to jobs/inspection_reports SELECT, or
+--  resolve report → job through a SECURITY DEFINER helper inside the item
+--  policies. Loosening RLS from a test file would delete the finding.
 --
 --  E1  a team member can record a structured item attributed to themselves
 --  E2  the CONTRACTOR can still record items (pre-existing behaviour intact)
@@ -19,7 +57,11 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 SET LOCAL client_min_messages TO NOTICE;
+
+CREATE TEMP TABLE nx_tap (seq serial primary key, pass boolean, name text) ON COMMIT DROP;
 
 DO $suite$
 DECLARE
@@ -47,11 +89,10 @@ BEGIN
     (v_weld,  'inspector','TE Welder','te.weld@test.nx',true),
     (v_rando, 'inspector','TE Outsider','te.rando@test.nx',true);
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_lead, 'TEAM EVIDENCE TEST', 'suite',
-          'in_progress','approved')
-  RETURNING id INTO v_job;
+  -- Canonical dispatch of the lead, then the legal assigned → in_progress step.
+  v_job := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'TEAM EVIDENCE TEST');
+  UPDATE public.jobs SET description = 'suite' WHERE id = v_job;
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
 
   INSERT INTO public.inspection_reports (job_id, inspector_id, notes, status)
   VALUES (v_job, v_lead, 'team report', 'pending')
@@ -74,25 +115,23 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_ok := false; v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF NOT v_ok THEN
-    RAISE EXCEPTION 'E1 FAILED: a team member could not record an item — %', v_err;
-  END IF;
-  RAISE NOTICE 'E1 ok — team member recorded an attributed item';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_ok, 'E1 — a team member records an attributed item ('
+           || left(coalesce(v_err,'ok'), 60) || ')');
 
   -- ── E2 — the contractor still can (no regression) ───────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
-  v_ok := true;
+  v_ok := true; v_err := NULL;
   BEGIN
     INSERT INTO public.inspection_items (report_id, description, status, location, inspector_id)
     VALUES (v_report, 'Coating DFT within spec', 'pass', 'Spool 7', v_lead);
   EXCEPTION WHEN OTHERS THEN v_ok := false; v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF NOT v_ok THEN
-    RAISE EXCEPTION 'E2 FAILED: the contractor lost item-write access — %', v_err;
-  END IF;
-  RAISE NOTICE 'E2 ok — contractor access unchanged';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_ok, 'E2 — the contractor keeps item-write access ('
+           || left(coalesce(v_err,'ok'), 60) || ')');
 
   -- ── E3 — outsider refused ───────────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_rando::text)::text, true);
@@ -105,62 +144,55 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF v_ok THEN RAISE EXCEPTION 'E3 FAILED: an outsider wrote an inspection item'; END IF;
-  RAISE NOTICE 'E3 ok — outsider write refused';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (NOT v_ok, 'E3 — an outsider cannot record an inspection item');
 
   -- ── E4 — teammate can read ──────────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_weld::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.inspection_items WHERE report_id = v_report;
   EXECUTE 'RESET ROLE';
-  IF v_n < 2 THEN
-    RAISE EXCEPTION 'E4 FAILED: a team member sees only % item(s) of the team output', v_n;
-  END IF;
-  RAISE NOTICE 'E4 ok — teammate reads the shared item set';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n >= 2, 'E4 — a team member reads the shared item set (saw ' || v_n || ')');
 
   -- ── E5 — outsider cannot read ───────────────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_rando::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
   SELECT count(*) INTO v_n FROM public.inspection_items WHERE report_id = v_report;
   EXECUTE 'RESET ROLE';
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'E5 FAILED: an outsider read % inspection item(s)', v_n;
-  END IF;
-  RAISE NOTICE 'E5 ok — outsider read blocked by RLS';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n = 0, 'E5 — an outsider reads no inspection items (saw ' || v_n || ')');
 
   -- ── E6 — contributors derived correctly ─────────────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   SELECT count(*) INTO v_n FROM public.nx_report_contributors(v_report);
-  IF v_n < 2 THEN
-    RAISE EXCEPTION 'E6 FAILED: expected at least 2 contributors, got %', v_n;
-  END IF;
   SELECT item_count INTO v_items FROM public.nx_report_contributors(v_report)
    WHERE inspector_id = v_weld;
-  IF COALESCE(v_items,0) <> 1 THEN
-    RAISE EXCEPTION 'E6 FAILED: welder item_count is % (expected 1)', v_items;
-  END IF;
-  RAISE NOTICE 'E6 ok — contributions attributed per inspector';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_n >= 2 AND COALESCE(v_items,0) = 1,
+     'E6 — contributions attributed per inspector (contributors=' || v_n
+       || ', welder items=' || COALESCE(v_items,0) || ')');
 
   -- ── E7 — legacy NULL attribution falls to the report inspector ──────────
   INSERT INTO public.inspection_items (report_id, description, status)
   VALUES (v_report, 'legacy row with no attribution', 'pass');
   SELECT item_count INTO v_items FROM public.nx_report_contributors(v_report)
    WHERE inspector_id = v_lead;
-  IF COALESCE(v_items,0) < 2 THEN
-    RAISE EXCEPTION 'E7 FAILED: legacy NULL item did not count to the report inspector (got %)', v_items;
-  END IF;
-  RAISE NOTICE 'E7 ok — legacy attribution preserved';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (COALESCE(v_items,0) >= 2,
+     'E7 — a legacy NULL-attribution item counts to the report inspector (got '
+       || COALESCE(v_items,0) || ')');
 
   -- ── E8 — money-free ─────────────────────────────────────────────────────
   SELECT count(*) INTO v_txn_after FROM public.transactions;
-  IF v_txn_after <> v_txn_before THEN
-    RAISE EXCEPTION 'E8 FAILED: contribution created % transaction row(s)', v_txn_after - v_txn_before;
-  END IF;
-  RAISE NOTICE 'E8 ok — no money moved';
-
-  RAISE NOTICE '───────────────────────────────────────────';
-  RAISE NOTICE 'TEAM EVIDENCE + CONTRIBUTION: ALL ASSERTIONS PASSED';
+  INSERT INTO nx_tap(pass, name) VALUES
+    (v_txn_after = v_txn_before,
+     'E8 — contribution moves no money (' || (v_txn_after - v_txn_before) || ' txn rows)');
 END
 $suite$;
+
+SELECT plan(8);
+SELECT ok(t.pass, t.name) FROM nx_tap t ORDER BY t.seq;
+SELECT * FROM finish();
 
 ROLLBACK;

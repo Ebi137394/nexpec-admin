@@ -18,16 +18,20 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 select plan(31);
 
 --   CL client · I1 active→former inspector · I2 replacement · I3 second replacement
 --   ADM admin · JOB inspection job · JOBR supplier-RFQ job
+-- JOB is NOT \set: it comes from the canonical fixture via \gset below, so the
+-- inspection job is dispatched through admin_dispatch_job instead of being minted
+-- already-assigned. JOBR stays a plain unassigned insert — it is the brokered job
+-- the exclusion guard must reject, and it is never dispatched.
 \set CL   'd1111111-1111-1111-1111-111111111111'
 \set I1   'd2222222-2222-2222-2222-222222222222'
 \set I2   'd3333333-3333-3333-3333-333333333333'
 \set I3   'd4444444-4444-4444-4444-444444444444'
 \set ADM  'd5555555-5555-5555-5555-555555555555'
-\set JOB  'd6666666-6666-6666-6666-666666666666'
 \set JOBR 'd7777777-7777-7777-7777-777777777777'
 \set CON1 'd8888888-8888-8888-8888-888888888888'
 \set APP2 'd9999999-9999-9999-9999-999999999999'
@@ -58,10 +62,20 @@ insert into public.profiles (id, email, role, full_name, headline, bio, resume_u
 insert into public.supplier_rfqs (id, client_id, title) values
   (:'RFQ', :'CL', 'RFQ for the inspection-vs-brokered exclusion guard');
 
--- Inspection job: in_progress, protected, client_reapproval, price 100000. I1 active.
--- Ordinary inspection job → source_rfq_id is omitted (defaults to NULL).
-insert into public.jobs (id, title, client_id, contractor_id, status, client_price_cents, identity_mode, replacement_mode) values
-  (:'JOB','identity+replacement job', :'CL', :'I1', 'in_progress', 100000, 'protected', 'client_reapproval');
+-- Inspection job: dispatched the canonical way — created unassigned, I1 applies,
+-- funded through the authorized platform path, then brokered out by ADM via
+-- admin_dispatch_job. That yields status='assigned' with contractor_id = I1 and
+-- NO preset funding column. Ordinary inspection job → source_rfq_id stays NULL.
+select nx_fx_dispatched_job(:'CL', :'I1', :'ADM', 'identity+replacement job', 100000, 60000) as "JOB" \gset
+
+-- assigned → in_progress is a legal transition; identity/replacement policy is the
+-- project policy this suite exercises. Neither touches a funding column, and this
+-- UPDATE is not a dispatch (contractor is already set), so the gate stays armed.
+update public.jobs
+   set status           = 'in_progress',
+       identity_mode    = 'protected',
+       replacement_mode = 'client_reapproval'
+ where id = :'JOB';
 -- Supplier-RFQ-spawned (brokered) job → source_rfq_id references the REAL RFQ
 -- above. admin_replace_inspector must reject this (Inspection-Marketplace only).
 insert into public.jobs (id, title, client_id, status, source_rfq_id) values
@@ -99,8 +113,10 @@ select is((select inspector_email from public.client_job_contracts_view where id
   NULL, 'PROTECTED: email hidden');
 
 set local request.jwt.claims to '{"sub":"d5555555-5555-5555-5555-555555555555","role":"authenticated"}';
+-- psql does not interpolate inside $$…$$, so the fixture job id is concatenated in
+-- and re-quoted with quote_literal for the statement the assertion will execute.
 select lives_ok(
-  $$ select public.admin_set_project_policy('d6666666-6666-6666-6666-666666666666','professional','client_reapproval') $$,
+  $$ select public.admin_set_project_policy($$ || quote_literal(:'JOB') || $$,'professional','client_reapproval') $$,
   'admin sets identity_mode=professional');
 
 set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
@@ -113,7 +129,7 @@ select ok((select inspector_qualifications from public.client_job_contracts_view
 
 set local request.jwt.claims to '{"sub":"d5555555-5555-5555-5555-555555555555","role":"authenticated"}';
 select lives_ok(
-  $$ select public.admin_set_project_policy('d6666666-6666-6666-6666-666666666666','full','client_reapproval') $$,
+  $$ select public.admin_set_project_policy($$ || quote_literal(:'JOB') || $$,'full','client_reapproval') $$,
   'admin sets identity_mode=full');
 set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select is((select inspector_email from public.client_job_contracts_view where id=:'CON1'),
@@ -125,7 +141,7 @@ select is((select inspector_phone from public.client_job_contracts_view where id
 set local request.jwt.claims to '{"sub":"d5555555-5555-5555-5555-555555555555","role":"authenticated"}';
 
 select lives_ok(
-  $$ select public.admin_replace_inspector('d6666666-6666-6666-6666-666666666666','d9999999-9999-9999-9999-999999999999',100000,55000,'poor comms') $$,
+  $$ select public.admin_replace_inspector($$ || quote_literal(:'JOB') || $$,'d9999999-9999-9999-9999-999999999999',100000,55000,'poor comms') $$,
   'admin_replace_inspector (client_reapproval) succeeds');
 select is((select count(*)::int from public.job_contracts where job_id=:'JOB' and status<>'voided'),
   1, 'exactly ONE active contract remains after replacement');
@@ -170,14 +186,14 @@ select throws_ok(
 
 -- Switch job to admin_authorized and replace again (I2 → I3).
 select lives_ok(
-  $$ select public.admin_set_project_policy('d6666666-6666-6666-6666-666666666666','full','admin_authorized') $$,
+  $$ select public.admin_set_project_policy($$ || quote_literal(:'JOB') || $$,'full','admin_authorized') $$,
   'admin sets replacement_mode=admin_authorized');
 select lives_ok(
-  $$ select public.admin_replace_inspector('d6666666-6666-6666-6666-666666666666','daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',100000,50000,'authorized swap') $$,
+  $$ select public.admin_replace_inspector($$ || quote_literal(:'JOB') || $$,'daaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',100000,50000,'authorized swap') $$,
   'admin_authorized replacement succeeds');
 select row_eq(
   $$ select status, client_approval_type, (admin_authorized_by is not null), (client_signed_at is null)
-       from public.job_contracts where job_id='d6666666-6666-6666-6666-666666666666' and status<>'voided' $$,
+       from public.job_contracts where job_id=$$ || quote_literal(:'JOB') || $$ and status<>'voided' $$,
   row('pending_inspector_signature'::text, 'admin_authorized'::text, true, true),
   'admin_authorized: awaits inspector sig, provenance set, client_signed_* NULL');
 

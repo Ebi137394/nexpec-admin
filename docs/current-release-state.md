@@ -767,6 +767,100 @@ raised to 22 (`db94962`).
 
 ---
 
+## 3i. SQL RUNTIME IS LIVE — `PENDING MAC` IS RESOLVED (HEAD `d984912`)
+
+Node 22.15.0, Docker, local Supabase and Deno 2.9.5 are all installed and working.
+**`supabase db reset` applies 175/175 migrations at exit 0.** It previously died at
+migration 117.
+
+**Ten defects that only real execution could find** — every static guard passed all
+of them, because none executes a `DO` block or asks Postgres to parse anything:
+
+| Migration | Defect |
+|---|---|
+| `356000` | `!~` whose needle held an unbalanced `(` — invalid regex, SQLSTATE 2201B |
+| `386000` | CTE named `both` — a reserved word (`trim(both …)`) |
+| `402000` | patch anchor written on one line; `398000` writes it across two — never matched |
+| `412000` | ordering probe used `nx_qcp_can_read(uuid)`; it takes **two** args |
+| `476000` | `domain_slug text` vs `inspection_domains.slug` enum — FK unimplementable (42804) |
+| **`404000`** | **`authenticated` held table-level UPDATE/DELETE/TRUNCATE on `itp_point_results`** |
+| **`424000`** | **consent audit history rewritable and erasable by any signed-in session** |
+| **`436000`** | **credential history DELETE-able by `authenticated`** |
+| **`446000`** | **`request_account_deletion` + 4 fail-open `auth.uid()` fns anon-reachable** |
+| `442000` | `supabase_admin` default ACLs + PostGIS `spatial_ref_sys` are not ours to alter |
+
+The four bolded share one root cause: baseline `ALTER DEFAULT PRIVILEGES … GRANT ALL
+ON TABLES TO authenticated` (baseline:40921-40934). `442000` turned that off for
+**anon only**, so every table created since is still born fully privileged for
+`authenticated`. **Any new table needs an explicit `REVOKE … FROM authenticated`
+before its grant — the pattern `REVOKE … FROM PUBLIC, anon` is not enough.**
+
+### pgTAP — first execution in project history, and the systemic blocker
+
+`supabase test db` now runs: **57 files, 524 tests**. Result FAIL, ~14 suites failing.
+
+**One cause explains the bulk of it.** Suites failing *every* subtest (105/105,
+57/57, 31/31, 25/25, 9/9) abort at fixture setup with:
+
+```
+ERROR: FUNDING_REQUIRED: job … has no resolvable buyer principal
+HINT:  Client funds the initial tranche first. Legacy jobs with
+       jobs.client_settled_at set already satisfy this.
+```
+
+That is Lane 5's staged-funding dispatch gate working **correctly**. The fixtures
+predate it: they assign an inspector to a job that was never funded. This is fixture
+drift from a correct product change, not a product defect.
+
+**The fix, verified against the live function.** `nx_funding_initial_satisfied` is:
+if a `job_funding_stages` schedule exists → require the `initial` stage funded;
+otherwise → `jobs.client_settled_at IS NOT NULL`. So a fixture with no schedule is
+satisfied by setting `client_settled_at` on its jobs before the first
+assignment/dispatch. Confirmed missing in: `supplier_chat_access`,
+`rls_jobs_price_blindness`, `qcp_revision_lifecycle`, `rls_messages_silo`,
+`rls_identity_replacement`, `countersign_lifecycle`, `identity_lifecycle`,
+`credential_verification_authority`. Note `money_flow` and `senior_review_behaviour`
+already reference `client_settled_at` but still fail — those two need per-job
+inspection, not the blanket fix.
+
+Not attempted here: patching 14 fixtures blind with low context would have left them
+half-done. The diagnosis is complete; the edit is mechanical per file.
+
+**Suites already passing include** `credit_inspector_detach`, `staged_funding`,
+`senior_inspector_review`, `rls_money_matrix`, `rls_financial_pii`,
+`rls_team_internal`, `rls_team_workspace`, `god_mode_admin`, `identity_disclosure`,
+`direct_chat_access`, `direct_chat_role_parity`, `tax_gate`, `tax_vault`,
+`reconciliation`, `resume_disclosure_access`, `provable_ai_binding`,
+`rls_audit_events`.
+
+### Edge Functions — Deno 2.9.5
+
+`deno check`: **27/37 pass** (was 0/37). Added `supabase/functions/deno.json` — without
+it Deno walks up to the repo-root Expo tsconfig and rejects
+`"jsx": "react-native"`, failing all 37 for a reason unrelated to their code.
+
+Two real defects fixed: `create-payment-intent` read `body.stage` (the staged-funding
+stage) with a body type that never declared it; `notify-job-event`'s `event_type`
+union omitted `'fraud_alert'`, which the DB emits and `job_events_event_type_check`
+permits — a live handler typed as unreachable.
+
+**The remaining 10 are not code defects.** They split into: TypeScript 6.0's generic
+`Uint8Array` (Deno 2.9 ships TS 6.0.3, newer than the deploy runtime), and a Stripe
+`apiVersion` pinned older than the installed SDK's type. **Do not bump the Stripe API
+version to satisfy a compiler** — that is a live payment behaviour change.
+
+### Replay + ML, now that Node 22 exists
+
+`npm run test:replay` → exit 0: itpReplay **19/19**, visitReplay **22/22**,
+reviewReplay **13/13**. `qa:ml-tests` → **43/43** across 5 suites.
+
+Two defects fixed there: CI invoked the replay files directly, which dies on Node
+22.15 (`.nvmrc`'s own pin) with `ERR_UNKNOWN_FILE_EXTENSION` — now encapsulated in
+npm scripts carrying `--experimental-strip-types`. And **`reviewReplay` was never run
+by any workflow** — 13 assertions enforced nowhere. Added as a CI step.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

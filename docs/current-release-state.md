@@ -64,14 +64,65 @@ Deno was unavailable — **no** Edge Function typecheck has been performed.
 
 ---
 
+## 3a. Lane 5 — staged funding 20/80 ✅ SPINE LANDED (`20260801448000`)
+
+**The deadlock is resolved and proven.** PHASE-INVENTORY:745 flagged it as suspected and
+static; it is now confirmed in source and broken in practice:
+
+- `create-payment-intent/index.ts:192` refused a PaymentIntent unless `admin_confirmed_at`
+  was set; `20260801422000:99-106` refused dispatch unless `client_settled_at` was set.
+  For a prepay card job **neither could go first** — there was no valid first action.
+- The binary gate asked the wrong question. The contract only requires the FIRST tranche
+  before assignment, not full settlement. The gate now requires the **initial tranche**, and
+  the Edge Function allows the **initial** stage pre-dispatch while every later tranche still
+  requires dispatch. Net protection went **up**, not down: final delivery gained a funding
+  gate that did not previously exist.
+
+**Reconciliation, not duplication.** The spine generalises the proven
+`deal_payment_schedule` vocabulary (`tranche_no`/`code`/`pct_bps`/`trigger_basis`/`status`)
+from deals onto jobs, so the platform converges on one funding language. `deals`,
+`deal_payment_schedule` and `deals.deposit_funded_at`/`balance_funded_at` are untouched.
+
+**Configurable.** `funding_term_defaults` seeded 2000/8000 bps; Admin may retune platform
+defaults or set contract-specific terms per job via `nx_admin_set_funding_terms`, which
+rejects any split not totalling 10000 bps and refuses to rewrite a schedule the client has
+already paid against.
+
+**Legacy, no backfill.** `jobs.client_settled_at` is not dropped, rewritten or backfilled.
+Jobs predating the spine have no stage rows and the gate accepts their binary flag, so every
+historical row stays interpretable and every existing job keeps dispatching.
+
+**Zero automatic money movement.** Funding a tranche records that the *client* paid. It never
+credits the Inspector; settlement and payout remain manual (444000/446000). Asserted twice —
+no `nx_funding_*` function contains money DML, and no trigger on the spine reaches it.
+
+**Runtime status.** Applied on real PostgreSQL 18.4 against a stub reproducing the pre-Lane-5
+deadlock. Full lifecycle executed: schedule materialised 20000/80000 from a 100000 price →
+dispatch blocked → initial tranche funded → **dispatch succeeded** → delivery gated → final
+funded → delivery allowed → webhook replay idempotent. Also verified: legacy job dispatched
+with no schedule; Admin 30/70 override; bad split, post-payment rewrite, non-admin caller and
+client-role settlement all rejected; client saw only its own rows, another user saw none,
+anon denied; no spread/payout column on the spine; fresh apply and re-apply both clean.
+
+Two defects were caught and fixed during verification: the migration was **not** idempotent
+(missing `DROP TRIGGER IF EXISTS` on the touch trigger), and the Stripe idempotency key was
+per-job (`nexpec_pi_${job.id}`), which under staged funding would have collided across
+tranches and returned the 20% PaymentIntent for an 80% request. It is now per-stage.
+
+**Not in this slice.** Client-facing surfaces — Web/Admin/Mobile funding UI, reporting and
+offline projections — are the follow-on Lane 5 slice. The shared contract (schema, RPCs,
+gates, RLS) is frozen here first, which is the ordering the plan calls for.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
-**HEAD `b9e03fb`** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
-deliberate. Security wave complete; Lane 5 is the next lane and has not been started.
+**HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
+deliberate. Security wave complete. Lane 5 SPINE is landed (448000); its client surfaces and the Senior Inspector lane are next.
 
 **Migration allocation (authoritative).** `446000` was reassigned from Lane 5 to security.
 Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent RLS ·
-**`448000` = Lane 5 staged funding (free, reserved)** · `450000` free. Do not reuse `446000`.
+`448000` Lane 5 staged-funding spine · **`450000` free = next**. Do not reuse `446000`.
 
 **Start with, in this order:**
 

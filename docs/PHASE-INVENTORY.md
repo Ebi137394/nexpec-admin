@@ -354,7 +354,7 @@ actually exists in `supabase/migrations/`:
 | `440000` | Lane B | **Senior Review state machine** | ❌ absent | **NOT STARTED** |
 | `442000` | Lane 3 | **anon-grant lockdown** | ❌ absent | **NOT STARTED** (partial via `436000`) |
 | `444000` | Lane 4 | cover-letter pipeline (only if DB change needed) | ❌ absent | returned unused — correct, `162fd53` is app-layer only |
-| `446000` | Lane 5 | **staged funding 20/80** | ❌ absent | **NOT STARTED** |
+| `448000` | Lane 5 | **staged funding 20/80** | ✅ present | **SPINE LANDED** (446000 reassigned to security; client surfaces pending) |
 
 ---
 
@@ -522,7 +522,14 @@ runtime implicated.
 
 ---
 
-##### Lane 5 — Staged Funding 20/80 ⬜ NOT STARTED
+##### Lane 5 — Staged Funding 20/80 🟡 SPINE LANDED (`20260801448000`)
+
+> Updated: the spine (schema, configurable terms, RPCs, dispatch/delivery gates, RLS) is
+> implemented and the create-payment-intent ↔ dispatch deadlock is resolved and proven on
+> real PostgreSQL. Client-facing Web/Admin/Mobile surfaces remain outstanding.
+> `446000` was reassigned to security, so Lane 5 is `448000`.
+
+<details><summary>Original NOT STARTED assessment</summary>
 
 `addendum:18` allocates `446000`; **absent**.
 
@@ -541,6 +548,8 @@ Nothing in the tree implements a configurable staged-funding spine. The related
 
 **Classification:** ⬜ not started · this is the largest single piece of unbuilt
 Core work in the current phase.
+
+</details>
 
 ---
 

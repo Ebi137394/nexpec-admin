@@ -186,35 +186,104 @@ serve(async (req) => {
       );
     }
 
-    // ── Step 5: Job state guards ────────────────────────────────────
-    // Admin must have dispatched the job (admin_confirmed_at set).
-    // Job must be in a payable state.
-    if (job.admin_confirmed_at == null) {
+    // ── Step 5: Job state guards — STAGE AWARE ──────────────────────
+    // Lane 5 (20260801448000). The old guard required admin_confirmed_at for
+    // EVERY payment, which deadlocked prepay card jobs: paying required
+    // dispatch (here), while dispatch required payment
+    // (nx_guard_dispatch_requires_funding). Under staged funding the INITIAL
+    // tranche is contractually due BEFORE assignment, so it must be payable
+    // pre-dispatch — that is the valid first action the deadlock lacked.
+    // Every LATER tranche still requires dispatch, so nothing is loosened for
+    // the money that used to be gated here.
+    const stageCode = typeof body.stage === 'string' ? body.stage : 'initial';
+    if (!['initial', 'final', 'retention'].includes(stageCode)) {
       return jsonResponse(
-        {
-          error: 'Job has not been dispatched by admin yet',
-          code: 'NOT_DISPATCHED',
-        },
+        { error: 'Unknown funding stage', code: 'INVALID_STAGE' },
+        400,
+      );
+    }
+    const isInitialStage = stageCode === 'initial';
+
+    if (!isInitialStage) {
+      if (job.admin_confirmed_at == null) {
+        return jsonResponse(
+          {
+            error: 'Job has not been dispatched by admin yet',
+            code: 'NOT_DISPATCHED',
+          },
+          409,
+        );
+      }
+      const payableStatuses = ['assigned', 'in_progress', 'completed'];
+      if (!payableStatuses.includes(job.status)) {
+        return jsonResponse(
+          {
+            error: `Job is not in a payable state (current: ${job.status})`,
+            code: 'INVALID_STATE',
+          },
+          409,
+        );
+      }
+    } else {
+      // The initial tranche funds work authorisation, so it is payable before
+      // dispatch — but not on a job that is dead or already finished.
+      const initialPayableStatuses = [
+        'pending_approval',
+        'approved',
+        'open',
+        'assigned',
+        'in_progress',
+      ];
+      if (!initialPayableStatuses.includes(job.status)) {
+        return jsonResponse(
+          {
+            error:
+              `Job is not in a state where initial funding applies (current: ${job.status})`,
+            code: 'INVALID_STATE',
+          },
+          409,
+        );
+      }
+    }
+
+    // ── Step 6: Amount — strictly server-trusted, from the schedule ─
+    // Still never from the request body. The schedule row is itself derived
+    // server-side from jobs.client_price_cents by nx_funding_ensure_schedule,
+    // so the original "amount comes from the job, not the caller" rule holds.
+    await supabaseAdmin.rpc('nx_funding_ensure_schedule', { p_job_id: job.id });
+
+    const { data: stageRow, error: stageErr } = await supabaseAdmin
+      .from('job_funding_stages')
+      .select('id, code, amount_cents, status')
+      .eq('job_id', job.id)
+      .eq('code', stageCode)
+      .maybeSingle();
+
+    if (stageErr) {
+      console.error('[create-payment-intent] funding stage lookup failed:', stageErr);
+      return jsonResponse(
+        { error: 'Could not resolve the funding schedule', code: 'FUNDING_LOOKUP_FAILED' },
+        500,
+      );
+    }
+    if (!stageRow) {
+      return jsonResponse(
+        { error: `Job has no ${stageCode} funding tranche`, code: 'FUNDING_STAGE_NOT_FOUND' },
         409,
       );
     }
-    const payableStatuses = ['assigned', 'in_progress', 'completed'];
-    if (!payableStatuses.includes(job.status)) {
+    if (stageRow.status === 'funded' || stageRow.status === 'waived') {
       return jsonResponse(
-        {
-          error: `Job is not in a payable state (current: ${job.status})`,
-          code: 'INVALID_STATE',
-        },
+        { error: `The ${stageCode} tranche is already settled`, code: 'ALREADY_FUNDED' },
         409,
       );
     }
 
-    // ── Step 6: Amount — strictly server-trusted ────────────────────
-    const amountCents = Number(job.client_price_cents);
+    const amountCents = Number(stageRow.amount_cents);
     if (!Number.isFinite(amountCents) || amountCents <= 0) {
       console.error(
-        `[create-payment-intent] job ${job.id} has invalid client_price_cents:`,
-        job.client_price_cents,
+        `[create-payment-intent] job ${job.id} stage ${stageCode} has invalid amount_cents:`,
+        stageRow.amount_cents,
       );
       return jsonResponse(
         {
@@ -246,7 +315,13 @@ serve(async (req) => {
     // will use this + job_id to reconcile the Stripe event back to
     // platform state.
     const transactionRefId = crypto.randomUUID();
-    const idempotencyKey = `nexpec_pi_${job.id}`;
+    // Lane 5: the key MUST include the stage. It was `nexpec_pi_${job.id}`,
+    // which was correct while a job had exactly one payment — under staged
+    // funding the second tranche would collide with the first and Stripe
+    // would hand back the ORIGINAL PaymentIntent, i.e. charge the 20% amount
+    // for the 80% request. Scoping the key per stage keeps each tranche
+    // independently idempotent.
+    const idempotencyKey = `nexpec_pi_${job.id}_${stageCode}`;
 
     let paymentIntent: Stripe.PaymentIntent;
     try {
@@ -262,6 +337,9 @@ serve(async (req) => {
             contractor_id: job.contractor_id ?? '',
             user_id: user.id,
             transaction_ref_id: transactionRefId,
+            // the webhook settles THIS tranche, not "the job"
+            funding_stage: stageCode,
+            funding_stage_id: stageRow.id,
             platform: 'NEXPEC',
           },
         },

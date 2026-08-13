@@ -88,10 +88,13 @@ BEGIN
   -- attach the inspector. Production never inserts contractor_id, and the
   -- dispatch gate refuses an unfunded job.
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, client_price_cents, inspector_payout_cents, payout_amount_cents)
-  VALUES (gen_random_uuid(), v_client, 'PRICE BLINDNESS TEST', 'suite', 'assigned', 'approved', 230000, 120000, 120000)
+  VALUES (gen_random_uuid(), v_client, 'PRICE BLINDNESS TEST', 'suite', 'open', 'approved', 230000, 120000, 120000)
   RETURNING id INTO v_job;
   PERFORM nx_fx_fund_job(v_job);
-  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_job;
+  -- Created 'open', not 'assigned': status='assigned' at INSERT is itself a
+  -- dispatch, so the gate fired before funding could run. open -> assigned is a
+  -- legal transition, so fund first, then dispatch in one UPDATE.
+  UPDATE public.jobs SET contractor_id = v_insp, status = 'assigned' WHERE id = v_job;
 
   -- ── P1 — no column privilege for authenticated ─────────────────────────
   FOREACH v_col IN ARRAY v_sens LOOP

@@ -43,6 +43,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
+\i supabase/tests/_fixtures/canonical_job.sql
 create extension if not exists pgtap;
 select plan(57);
 
@@ -133,10 +134,14 @@ values
 
 -- The governed job: runs template A, buyer principal is the Org A lead, and the
 -- engaged inspector is its contractor.
-insert into public.jobs (id, client_id, contractor_id, title, description,
+-- Canonical: UNASSIGNED insert, fund via the platform path, then attach the
+-- inspector. contractor_id is never preset; the dispatch gate refuses unfunded.
+insert into public.jobs (id, client_id, title, description,
                          status, moderation_status, inspection_type, scope_template_id)
-values (:'j_a'::uuid, :'u_lead'::uuid, :'u_insp'::uuid, 'QCP GOVERNED JOB', 'suite',
+values (:'j_a'::uuid, :'u_lead'::uuid, 'QCP GOVERNED JOB', 'suite',
         'in_progress', 'approved', 'compliance', :'t_a'::uuid);
+select nx_fx_fund_job(:'j_a'::uuid);
+update public.jobs set contractor_id = :'u_insp'::uuid where id = :'j_a'::uuid;
 
 insert into public.assets (id, organization_id, tag_number, name, type) values
   (:'as_a'::uuid, :'o_a'::uuid, 'TAG-A-' || left(:'as_a', 6), 'Vessel A', 'vessel'),

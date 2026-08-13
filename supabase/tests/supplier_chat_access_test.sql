@@ -19,6 +19,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
+\i supabase/tests/_fixtures/canonical_job.sql
 -- Repo convention (see countersign_lifecycle_test / rls_messages_silo_test):
 -- install pgtap inside the rolled-back transaction so every suite is runnable
 -- independently on a fresh `supabase db reset` and test ORDER NEVER MATTERS.
@@ -100,12 +101,17 @@ on conflict (id) do nothing;
 --   the earlier fixture that wrote one was constructing a state the product
 --   cannot produce. JOB2 stays MARKETPLACE so both engagement models are
 --   exercised in one suite.
+-- Canonical: create UNASSIGNED, fund through the platform path, then attach the
+-- inspector. Production never inserts contractor_id, and the dispatch gate
+-- refuses an unfunded job. JOB2 has no inspector, so it needs neither step.
 insert into public.jobs
   (id, title, client_id, status, moderation_status, identity_mode, replacement_mode,
-   source_rfq_id, contractor_id)
+   source_rfq_id)
 values
-  (:'JOB1','source inspection at Acme', :'BUYER', 'in_progress','approved','protected','client_reapproval', :'RFQ1', :'INSP1'),
-  (:'JOB2','unrelated job',             :'BUYER2','in_progress','approved','full',     'client_reapproval', NULL,     NULL);
+  (:'JOB1','source inspection at Acme', :'BUYER', 'in_progress','approved','protected','client_reapproval', :'RFQ1'),
+  (:'JOB2','unrelated job',             :'BUYER2','in_progress','approved','full',     'client_reapproval', NULL);
+select nx_fx_fund_job(:'JOB1');
+update public.jobs set contractor_id = :'INSP1' where id = :'JOB1';
 
 -- Marketplace contract for the MARKETPLACE job only.
 insert into public.job_contracts (job_id, client_id, inspector_id, status,

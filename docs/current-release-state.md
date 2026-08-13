@@ -64,22 +64,54 @@ Deno was unavailable — **no** Edge Function typecheck has been performed.
 
 ---
 
-## 4. OPEN P0 — payment contract violation, verified, NOT yet fixed
+## 4. CLOSED P0 — payment contract violation — fixed by `20260801444000`
 
-**`trg_credit_inspector_on_confirm`** — `baseline:27638`, attached to `public.jobs`,
+**`trg_credit_inspector_on_confirm`** — `baseline:27638`, was attached to `public.jobs`,
 `AFTER UPDATE OF admin_confirmed_at`, executing `tg_credit_inspector_on_confirm()`
 (`baseline:18896`, `SECURITY DEFINER`), which calls
-`credit_inspector_earning_on_approval(NEW.id)`.
+`credit_inspector_earning_on_approval(NEW.id)`. **Detached by
+`20260801444000_detach_credit_inspector_on_confirm.sql`.**
 
-- **No forward migration detaches it** — all 156 greped; only two passing comments.
-- It **swallows every exception** (`EXCEPTION WHEN OTHERS … RETURN NEW`), so a failed
-  money operation is silent.
-- This is an **automatic inspector credit on admin confirmation** — the exact class the
-  contract forbids, and the same class `ea19169` had to detach.
-- **Unverified:** the body of `credit_inspector_earning_on_approval` (blocked mid-read).
-  Confirm its precise ledger effect before designing the fix.
+**The previously unverified body is now resolved.** `20260801140000:38` issues
+`CREATE OR REPLACE` on `credit_inspector_earning_on_approval(uuid)`, superseding
+`baseline:7519`. That is the **final** definition in the repository — no later migration
+redefines it (`20260801374000` only names it in a comment) — and there is exactly one
+signature, `(p_job_id uuid)`. No overloads. Effective ledger effect: credits
+`wallets.available_balance` (prepay) or `wallets.pending_amount` (net terms), plus
+`total_earned`, and inserts a `transactions` row of `type='earning'`. Idempotent per
+(job, inspector). `SECURITY DEFINER`, `OWNER postgres`, `search_path` already pinned.
 
-**This must be closed before Lane 5 builds staged funding on top of it.**
+**A second, independent defect was found while verifying it.** `baseline:33358`
+`GRANT ALL ON FUNCTION credit_inspector_earning_on_approval(uuid) TO anon` was still
+live — the Lane 3 sweep (`20260801442000`) revoked anon **default privileges** on
+FUNCTIONS, which does not touch grants already materialised on existing objects. The
+in-function guard is fail-**open** for exactly that role:
+`IF auth.uid() IS NOT NULL AND NOT nx_is_admin()` — anon has `auth.uid() IS NULL`, so
+the guard is skipped entirely. The function was therefore reachable unauthenticated via
+`POST /rest/v1/rpc/credit_inspector_earning_on_approval`. Constrained (needs a leaked job
+UUID, `admin_confirmed_at` set, payout > 0, no prior earning row) but a genuine
+unauthenticated money-movement path.
+
+What `20260801444000` does: detaches the trigger; revokes anon + PUBLIC on both functions
+while retaining `authenticated` and `service_role`; re-pins `search_path`; replaces the
+wrapper so it no longer swallows exceptions and raises if ever re-attached (preserved, not
+dropped); adds a fail-closed anon-role rejection inside the money function; and installs a
+**behavioural** regression guard that walks each attached trigger's call closure for money
+DML rather than matching a literal name list. The name-based guards in `20260801372000`
+and `20260801432000` could not have caught this — the name was on neither list — and a
+body-only scan could not either, because the attached wrapper contains no money DML of its
+own, only a call to the function that does.
+
+**Runtime status.** The migration was executed end-to-end on a real PostgreSQL 18.4 during
+authoring, against a stub schema reproducing the pre-fix state exactly (baseline body, live
+anon grant, attached trigger): applied with `ON_ERROR_STOP=1`, exit 0, in-migration selftest
+block passing, idempotent on re-apply, and all 11 assertion predicates from
+`supabase/tests/credit_inspector_detach_test.sql` evaluating true afterwards. The guard was
+separately shown to flag the real defect shape and clear once detached, with no false
+positive on an inert trigger. **This is not full-chain validation** — the 157-migration
+chain and pgTAP still require a real Supabase; SQL runtime remains **PENDING MAC**.
+
+Lane 5 staged funding may now build on a surface with no automatic Inspector credit.
 
 ### Also open, from Lane 3's reported-not-fixed section
 - `consent_receipt_status` returns **every** user's consent records to every caller

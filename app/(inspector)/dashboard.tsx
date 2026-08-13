@@ -128,6 +128,26 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
         </View>
       </View>
 
+      {/* Senior Review inbox — role-gated. The inbox and its [reportId] detail
+          route shipped with NO inbound navigation on either platform, so the
+          whole Senior Review capability was reachable only by typing a URL. */}
+      {user.role === 'senior' && (
+        <TouchableOpacity
+          style={[styles.certCard, { borderColor: 'rgba(124,58,237,0.32)', marginTop: 0 }]}
+          activeOpacity={0.85}
+          onPress={() => router.push('/(inspector)/reviews' as any)}
+          accessibilityRole="button"
+          accessibilityLabel={t('Senior Review inbox')}
+        >
+          <Ionicons name="checkmark-done-outline" size={20} color="#7C3AED" />
+          <View style={{ marginLeft: 12, flex: 1 }}>
+            <Text style={styles.certLabel}>{t('Senior Review inbox')}</Text>
+            <Text style={styles.certValue}>{t('Reports assigned to you for review')}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+        </TouchableOpacity>
+      )}
+
       {/* Negotiations Inbox — entry point to cross-job counter-offer center */}
       <TouchableOpacity
         style={[styles.certCard, { borderColor: 'rgba(245,158,11,0.28)', marginTop: 0 }]}

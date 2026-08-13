@@ -39,7 +39,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(22);
+select plan(31);
 
 -- ── actors ──────────────────────────────────────────────────────────────────
 \set adm    '10000000-0000-0000-0000-000000000001'
@@ -76,8 +76,22 @@ values (:'job'::uuid, 'Behavioural suite job', :'cli'::uuid, :'insp'::uuid,
 on conflict (id) do nothing;
 
 insert into public.inspection_reports (id, job_id, inspector_id, status)
-values (:'rep'::uuid, :'job'::uuid, :'insp'::uuid, 'submitted')
+values (:'rep'::uuid, :'job'::uuid, :'insp'::uuid, 'submitted'),
+       -- a second report that never gets delivered, for the document-access probes
+       ('30000000-0000-0000-0000-000000000002', :'job'::uuid, :'insp'::uuid, 'submitted')
 on conflict (id) do nothing;
+
+-- A REALISTIC pre-existing inspector balance, so "unchanged" is real evidence.
+-- 125.50 available from earlier work, plus one historical settlement row.
+insert into public.wallets (user_id, available_balance, pending_amount, total_earned)
+values (:'insp'::uuid, 125.50, 40.00, 165.50)
+on conflict (user_id) do update
+  set available_balance = 125.50, pending_amount = 40.00, total_earned = 165.50;
+
+insert into public.transactions (user_id, inspector_id, job_id, type, amount,
+                                 gross_amount_halalas, platform_fee_halalas, status, description)
+values (:'insp'::uuid, :'insp'::uuid, null, 'earning', 165.50, 16550, 0, 'paid',
+        'Historical earning seeded by the behavioural suite');
 
 -- staged funding schedule, as the platform
 set local request.jwt.claims to '{"role":"service_role"}';
@@ -247,11 +261,23 @@ select is(
   'a 20% tranche is NOT recorded as full client settlement'
 );
 
+--  A wallet that starts at 0 and ends at 0 proves nothing — it is equally
+--  consistent with "nothing paid" and "no wallet exists". The inspector is
+--  seeded with a REALISTIC pre-existing balance above, so an unchanged figure
+--  is positive evidence that this specific flow moved no money.
 select is(
-  coalesce((select available_balance from public.wallets
-             where user_id = '10000000-0000-0000-0000-000000000002'), 0)::text,
-  '0',
-  'ZERO automatic inspector payout — no client action releases money'
+  (select available_balance::text from public.wallets
+    where user_id = '10000000-0000-0000-0000-000000000002'),
+  '125.50',
+  'the initial 20% tranche did not change the inspector balance (seeded 125.50)'
+);
+
+select is(
+  (select count(*)::int from public.transactions
+    where inspector_id = '10000000-0000-0000-0000-000000000002'
+      and type in ('earning','payout','settlement')),
+  1,
+  'no new payout/earning/settlement row — only the seeded historical one'
 );
 
 -- ── F. THE COMPLETE GOLDEN PATH ─────────────────────────────────────────────
@@ -266,6 +292,73 @@ set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000001","
 select lives_ok(
   $$ select public.nx_admin_deliver_report('30000000-0000-0000-0000-000000000001') $$,
   'GOLDEN PATH: with approval AND full funding, an Admin delivers'
+);
+
+-- ── G. DOCUMENT ACCESS — the P0 the delivery-status gate did not cover ──────
+--  Gating status is not gating the FILE. nx_can_access_doc granted the client
+--  the report on job membership alone, so the deliverable was downloadable
+--  before review, before the remaining tranche and before delivery.
+select ok(
+  not public.nx_client_may_read_report_doc(
+    '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000007'),
+  'the CLIENT cannot read an undelivered report document'
+);
+
+select ok(
+  public.nx_client_may_read_report_doc(
+    '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
+  'the report AUTHOR can always read their own draft'
+);
+
+select ok(
+  not public.nx_client_may_read_report_doc(
+    '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004'),
+  'an UNRELATED user (a Senior Inspector on another report) cannot read it'
+);
+
+-- ── H. P0-3: the client cannot stamp their own settlement ───────────────────
+set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000007","role":"authenticated"}';
+select throws_ok(
+  $$ update public.jobs set client_settled_at = now()
+      where id = '20000000-0000-0000-0000-000000000001' $$,
+  '42501',
+  null,
+  'the CLIENT cannot write jobs.client_settled_at (P0-3, UPDATE side)'
+);
+
+select throws_ok(
+  $$ insert into public.jobs (id, title, client_id, client_price_cents, payment_mode,
+                              status, client_settled_at)
+     values ('20000000-0000-0000-0000-0000000000ff', 'forged', 
+             '10000000-0000-0000-0000-000000000007', 50000, 'prepay',
+             'pending_approval', now()) $$,
+  '42501',
+  null,
+  'the CLIENT cannot create a job already settled (P0-3, INSERT side)'
+);
+
+select throws_ok(
+  $$ insert into public.inspection_reports (id, job_id, inspector_id, status)
+     values ('30000000-0000-0000-0000-0000000000ff',
+             '20000000-0000-0000-0000-000000000001',
+             '10000000-0000-0000-0000-000000000007', 'delivered') $$,
+  '42501',
+  null,
+  'nobody can create a report already DELIVERED (P0-1, INSERT side)'
+);
+
+-- after legitimate delivery the client CAN read it
+select ok(
+  public.nx_client_may_read_report_doc(
+    '30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000007'),
+  'after Admin delivery the CLIENT can read the report document'
+);
+
+select is(
+  (select available_balance::text from public.wallets
+    where user_id = '10000000-0000-0000-0000-000000000002'),
+  '125.50',
+  'after full funding, approval AND delivery the inspector balance is STILL unchanged'
 );
 
 select * from finish();

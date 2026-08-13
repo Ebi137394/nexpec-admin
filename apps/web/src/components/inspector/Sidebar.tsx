@@ -7,12 +7,14 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   LayoutDashboard,
   Compass,
+  ClipboardCheck,
   ClipboardList,
   ShieldCheck,
   Wallet,
@@ -26,6 +28,7 @@ import {
   ScanEye,
   type LucideIcon,
 } from 'lucide-react';
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/cn';
 
@@ -54,6 +57,9 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
     items: [
       { labelKey: 'activeAssignments', href: '/inspector/assignments', icon: ClipboardList },
       { labelKey: 'negotiations', href: '/inspector/negotiations', icon: ArrowLeftRight },
+      // Senior Inspectors only — injected at render, see SENIOR_REVIEW_ITEM.
+      // The inbox shipped with NO inbound navigation on either platform, so the
+      // whole Senior Review capability was unreachable except by typing the URL.
     ],
   },
   {
@@ -92,9 +98,55 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
   },
 ];
 
+/**
+ * Senior Review is the one Inspector-portal destination that is not for every
+ * inspector. The route itself is safe for anyone — the inbox reads only rounds
+ * assigned to the caller, so an ordinary Inspector sees an empty list — but
+ * advertising it to people who can never use it is noise, so the link is shown
+ * only to profiles.role = 'senior', the same fact the Admin roster and
+ * nx_is_eligible_senior_reviewer use.
+ */
+const SENIOR_REVIEW_ITEM: NavItem = {
+  labelKey: 'seniorReviews',
+  href: '/inspector/reviews',
+  icon: ClipboardCheck,
+};
+
+function useIsSeniorInspector(): boolean {
+  const [isSenior, setIsSenior] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: auth } = await supabase.auth.getUser();
+        const uid = auth?.user?.id;
+        if (!uid) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', uid)
+          .maybeSingle();
+        if (!cancelled) setIsSenior((data as { role?: string } | null)?.role === 'senior');
+      } catch {
+        // A nav link is not worth surfacing an error for. Failing closed here
+        // hides the entry; the route stays reachable by URL for anyone who is
+        // genuinely assigned, and RLS remains the authority either way.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return isSenior;
+}
+
 export function Sidebar() {
   const pathname = usePathname() ?? '/';
   const t = useTranslations('nav');
+  const isSenior = useIsSeniorInspector();
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-white/[0.06] bg-ink-900/60 backdrop-blur-xl lg:block">
@@ -109,7 +161,12 @@ export function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Inspector navigation">
-          {NAV.map((section) => (
+          {NAV.map((rawSection) => {
+            const section =
+              isSenior && rawSection.titleKey === 'myWork'
+                ? { ...rawSection, items: [...rawSection.items, SENIOR_REVIEW_ITEM] }
+                : rawSection;
+            return (
             <div key={section.titleKey} className="mb-5">
               <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
                 {t(section.titleKey)}
@@ -149,7 +206,8 @@ export function Sidebar() {
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Footer microcopy */}

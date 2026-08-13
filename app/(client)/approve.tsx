@@ -154,24 +154,35 @@ export default function ApproveScreen() {
     );
   };
 
-  const handleRequestReview = async () => {
+  // The Client does NOT request or assign a Senior Inspector. The canonical
+  // workflow is: Inspector submits -> Admin assigns a Senior Inspector ->
+  // Senior Inspector approves or returns -> Admin delivers to the Client.
+  //
+  // This button used to call request_senior_review, which set
+  // jobs.status = 'senior_review' — a value jobs_status_check has never
+  // admitted, so it raised on every call and no job ever moved through it.
+  // 20260801450000 superseded that function and 20260801442000 revoked it from
+  // `authenticated`, so the button was a guaranteed failure on a shipped
+  // screen.
+  //
+  // The Client's real, authorised lever when a report is unsatisfactory is to
+  // raise a dispute, which freezes the job and notifies NEXPEC — exactly the
+  // canonical write app/(client)/disputes.tsx already uses. Admin then decides
+  // whether a Senior Inspector review is warranted.
+  const handleRaiseConcern = () => {
     if (!job) return;
-    setProcessing(true);
-    try {
-       const { error } = await supabase.rpc('request_senior_review', {
-         p_job_id: job.id
-       });
-
-       if (error) throw error;
-
-       Alert.alert('Success', 'Senior review requested.', [
-         { text: 'OK', onPress: () => fetchData() } // Refresh screen
-       ]);
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setProcessing(false);
-    }
+    Alert.alert(
+      'Raise a concern',
+      'If this report is not acceptable, you can raise a concern. The job is frozen while NEXPEC reviews it, and an Admin decides whether a Senior Inspector review is needed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => router.push('/(client)/disputes' as never),
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -294,10 +305,12 @@ export default function ApproveScreen() {
 
               <TouchableOpacity
                 style={styles.reviewButton}
-                onPress={handleRequestReview}
+                onPress={handleRaiseConcern}
                 disabled={processing}
+                accessibilityRole="button"
+                accessibilityLabel="Raise a concern about this report"
               >
-                <Text style={styles.reviewButtonText}>Request Senior Review</Text>
+                <Text style={styles.reviewButtonText}>Raise a Concern</Text>
               </TouchableOpacity>
             </>
           ) : job?.status === 'completed' ? (

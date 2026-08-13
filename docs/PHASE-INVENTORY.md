@@ -653,26 +653,64 @@ after the clean Core checkpoint.**
 decomposing into **29 evidence-identifiable delivery units** (5 Mobile-Parity
 sub-phases + 2 foundation + 8 roadmap capabilities + 12 P1 lanes + 2 post-Core).
 
-### Top-level phases (14)
+### Top-level phases (14) — recounted at HEAD `810f199`
+
+The previous 62% figure is stale and is not carried forward. Delivery units
+changed: Lane 5, Lane B-Senior and Lane F all moved from not-started to
+complete, and Lane E from partial to complete.
 
 | Status | Count | Phases |
 |---|---|---|
-| ✅ Implementation complete | **7** | A1 Mobile Parity Epic · A2 P0 Security · A3 Capability Reconciliation · Phase 1 Multi-Inspector · Phase 2 Multi-Visit · Phase 3 ITP · Phase 4 QCP |
+| ✅ Implementation complete | **7** | A1 Mobile Parity · A2 P0 Security · A3 Capability Reconciliation · Phase 1 Multi-Inspector · Phase 2 Multi-Visit · Phase 3 ITP · Phase 4 QCP |
 | 🟡 Partial / current | **1** | Launch Hardening P1 (Track C) |
-| ⬜ Not started | **5** | Phase 5 Supplier Scorecards · Phase 6 Programs · Phase 7 Enterprise SSO · Phase 8 ERP Connectors (deferred) · D2 NEXPEC Talent |
-| 🔴 Blocked | **1** | D1 Frozen Payment Domain |
-| ⏳ SQL/runtime validation pending | **14 of 14** | every phase with a migration; see §0 |
+| ⬜ Not started | **5** | Phase 5 Supplier Scorecards · Phase 6 Programs · Phase 7 Enterprise SSO · Phase 8 ERP Connectors · D2 NEXPEC Talent |
+| 🔴 Blocked | **0** | D1 Frozen Payment Domain **UNBLOCKED** — both of its defects are closed: `stripe_complete_job` by `420000`, and the inverted prepay ordering by `448000`, which resolved the create-payment-intent ↔ dispatch deadlock. Folded into P1. |
+| ⏳ SQL/runtime validation pending | **14 of 14** | every phase with a migration |
 | ✅ Production ready | **0** | see §5 |
 
 ### Delivery units (29)
 
-| Status | Count |
+| Status | Count | Note |
+|---|---|---|
+| ✅ Complete | **21** | +5 this wave: Lane 5 funding spine, Lane B-Senior review, Lane F notifications, Lane E admin funding, D1 unblocked |
+| 🟡 Partial | **2** | Lane 7 (this document) · Lane F offline/replay half |
+| ⬜ Not started | **5** | Scorecards · Programs · SSO · ERP · Talent |
+| 🔴 Blocked | **0** | — |
+| ❓ Unrecoverable | **1** | Lane 8 — read-only, leaves no artifact |
+
+**Implementation: 21 of 28 attributable delivery units = 75%.**
+(29 total less the 1 unrecoverable. Up from 62%; the delta is the five units above.)
+
+### Readiness is NOT implementation — these are tracked separately
+
+| Dimension | Status |
 |---|---|
-| ✅ Complete | **16** |
-| 🟡 Partial | **3** (Lane E, Lane 3, Lane 7-in-progress) |
-| ⬜ Not started | **8** (Scorecards, Programs, SSO, ERP, Lane B-Senior, Lane F, Lane 5, Talent) |
-| 🔴 Blocked | **1** (Frozen payment domain) |
-| ❓ Unrecoverable | **1** (Lane 8 — read-only, leaves no artifact) |
+| Implementation complete | **75%** (21/28) |
+| UI complete | **~90% of shipped lanes.** All five surface lanes are integrated and reachable. Missing: no client-side offline/outbox registration for review actions (Lane F's second half). |
+| Statically tested | **Yes.** root tsc 0 · apps/web tsc 0 · shared-core vitest 165/165 · db-refs 0 · sql-schema-refs 0 · rls-admin 0 |
+| Isolated PostgreSQL tested | **Yes, per migration.** 444000, 446000, 447000, 448000, 450000, 452000 each applied and behaviourally exercised on real PG 18.4 against purpose-built stubs. **This is not the real schema.** |
+| Full-chain runtime validated | **NO — `PENDING MAC`.** The 157+ migration chain has never been executed in order, and pgTAP is not installed. |
+| Production ready | **NO.** Requires owner authorization, DB backup, verified migration history, full SQL runtime, Golden Paths, rollback review. |
+
+### Launch Hardening P1 — NOT closed, and why
+
+Wave 2's ten authority/privacy guarantees were verified at HEAD `810f199` with
+concrete evidence (delivery callable only from the Admin panel; `decide()` takes
+no actor parameter and reads `auth.uid()`; zero payout/spread references in any
+client surface; zero client-price references in any inspector surface; zero money
+DML in any review path; stale inspectors re-derived server-side via
+`is_active_contract_inspector`).
+
+P1 is **not** declared closed, on two grounds:
+
+1. **Those checks are the Lead's, not an independent pass.** Lane G was specified
+   as an independent read-only reviewer and has never run. Self-review is exactly
+   the evidence standard this project has been burned by.
+2. **Lane F's offline half is unbuilt.** No client-side outbox registration,
+   cached review state or replay path exists for the review actions.
+
+Closing P1 on self-review plus a half-finished lane would repeat the
+completion-claim failure the phase inventory was created to prevent.
 
 ---
 

@@ -435,6 +435,14 @@ function seniorReviewDecide(args) {
       'P0002',
     );
   }
+  // ROUND BINDING (20260801460000): a decision pinned to a round the reviewer
+  // read must not land on a different live round.
+  if (args.p_expected_round != null && args.p_expected_round !== live.round) {
+    return pgErr(
+      `REVIEW_ROUND_CHANGED: this decision was made against round ${args.p_expected_round}, but round ${live.round} is live now.`,
+      '22000',
+    );
+  }
   // THE REPLACEMENT RULE. auth.uid() is read from the session, never a param.
   if (live.reviewer_id !== uid) {
     return pgErr(

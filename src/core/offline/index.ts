@@ -405,6 +405,14 @@ export interface SeniorReviewDecideInput {
   reportId: string;
   decision: 'approved' | 'returned';
   comments?: string | null;
+  /**
+   * The round the reviewer actually read, pinned into the queued op.
+   * REQUIRED offline (20260801460000). Without it a decision composed against
+   * round 1 could land on round 3 after a supersede/return/resubmit/reassign
+   * cycle, deciding a version of the report the reviewer never saw. The server
+   * refuses with REVIEW_ROUND_CHANGED (22000 -> fatal -> surfaced).
+   */
+  expectedRound: number;
 }
 
 /**

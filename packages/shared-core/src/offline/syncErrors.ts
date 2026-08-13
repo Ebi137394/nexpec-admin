@@ -209,6 +209,28 @@ const FATAL_CODES = new Set([
   'P0002', // no_data_found — the row is absent or RLS-invisible to this caller
 ]);
 
+/**
+ * REFUSALS WHOSE PRECONDITION CAN LATER BECOME TRUE.
+ *
+ * 20260801456000 added SQLSTATE 22000 and P0002 to FATAL_CODES, which is right
+ * for the overwhelming majority of NEXPEC's hand-raised refusals: authority
+ * (NOT_AUTHORIZED, NOT_ACTIVE_INSPECTOR, REVIEWER_NOT_ELIGIBLE), stale state
+ * (REPORT_CHANGED, REVIEW_ROUND_CHANGED, NO_OPEN_REVIEW) and malformed input
+ * (INVALID_DECISION, RETURN_REQUIRES_COMMENT). None of those can succeed by
+ * replaying the same operation.
+ *
+ * FUNDING_REQUIRED is the exception, and a blanket rule would get it wrong.
+ * "the remaining tranche must be in" is a statement about the WORLD, not about
+ * this operation: the client can pay afterwards and the identical op becomes
+ * valid. Marking it fatal would abandon work that was only ever early.
+ *
+ * These are classified 'conflict' rather than 'transient': terminal-pending,
+ * awaiting an explicit user decision (retryConflict | discardOperation), so the
+ * device neither hammers a gate that is closed nor silently discards the op.
+ */
+const RETRYABLE_REFUSAL_RE =
+  /\bFUNDING_REQUIRED\b|\bFUNDING_STAGE_NOT_FOUND\b|\bAWAITING_\w+\b|\bPRECONDITION\b/i;
+
 const NETWORK_RE =
   /network request failed|failed to fetch|networkerror|load failed|fetch failed|aborterror|the operation was aborted|timeout|timed[- ]?out|econn|enotfound|eai_again|socket hang up|connection (?:reset|refused|closed|timed out)|stream closed|offline|getaddrinfo|dns/i;
 
@@ -245,6 +267,16 @@ export function classifySyncError(err: unknown): SyncErrorClass {
   if (p.status === 0) return 'transient'; // RN/GoTrue "no response" sentinel
   if (p.status === undefined && NETWORK_RE.test(p.message)) return 'transient';
   if (p.code === 'PGRST000' || p.code === 'PGRST001') return 'transient'; // could not connect
+
+  // ── semantically retryable refusals, checked BEFORE the fatal codes ─────
+  // A 22000/P0002 whose precondition the world can still satisfy is not
+  // deterministic. See RETRYABLE_REFUSAL_RE.
+  if (
+    (p.code === '22000' || p.code === 'P0002') &&
+    RETRYABLE_REFUSAL_RE.test(p.message)
+  ) {
+    return 'conflict';
+  }
 
   // ── fatal (deterministic) ───────────────────────────────────────────────
   if (p.status !== undefined && FATAL_STATUS.has(p.status)) return 'fatal';

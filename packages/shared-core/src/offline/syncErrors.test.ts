@@ -199,3 +199,43 @@ describe('describeSyncError', () => {
     expect(describeSyncError({ message: 'wrap', originalError: { status: 401 } }).klass).toBe('auth');
   });
 });
+
+// ── P1-6: 22000/P0002 are fatal by default, but not when the world can change
+describe('22000 / P0002 semantic classification', () => {
+  const err = (code: string, message: string) => ({ code, message });
+
+  it('treats deterministic refusals as fatal', () => {
+    for (const m of [
+      'NOT_AUTHORIZED',
+      'NOT_ACTIVE_INSPECTOR: you are no longer the assigned inspector',
+      'REVIEWER_NOT_ELIGIBLE: the assignee must be an active Senior Inspector',
+      'REPORT_CHANGED: this report changed while you were editing',
+      'REVIEW_ROUND_CHANGED: this decision was made against round 1',
+      'RETURN_REQUIRES_COMMENT: say what must change',
+    ]) {
+      expect(classifySyncError(err('22000', m))).toBe('fatal');
+    }
+    expect(classifySyncError(err('P0002', 'REPORT_NOT_FOUND'))).toBe('fatal');
+    expect(classifySyncError(err('P0002', 'NO_OPEN_REVIEW: no live assignment'))).toBe(
+      'fatal',
+    );
+  });
+
+  it('does NOT abandon a refusal the world can still satisfy', () => {
+    // the client may pay the tranche after this op was queued
+    expect(
+      classifySyncError(
+        err('22000', 'FUNDING_REQUIRED: the remaining funding tranche must be in'),
+      ),
+    ).toBe('conflict');
+    expect(
+      classifySyncError(err('P0002', 'FUNDING_STAGE_NOT_FOUND: job has no final tranche')),
+    ).toBe('conflict');
+  });
+
+  it('still classifies network and auth ahead of both', () => {
+    expect(classifySyncError({ code: '22000', message: 'network request failed' })).toBe(
+      'transient',
+    );
+  });
+});

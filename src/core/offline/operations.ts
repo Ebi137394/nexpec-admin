@@ -650,15 +650,23 @@ export function takeItpResultId(clientOpId: string): string | null | undefined {
 // correct outcome — the decision already landed; the duplicate must not silently
 // re-apply, and must not retry forever either.
 async function handleSeniorReviewDecide(row: OutboxRow): Promise<void> {
-  const { reportId, decision, comments } = JSON.parse(row.payload_json) as {
+  const { reportId, decision, comments, expectedRound } = JSON.parse(
+    row.payload_json,
+  ) as {
     reportId: string;
     decision: 'approved' | 'returned';
     comments?: string | null;
+    expectedRound?: number;
   };
   const { error } = await supabase.rpc('nx_senior_review_decide', {
     p_report_id: reportId,
     p_decision: decision,
     p_comments: comments ?? null,
+    // Round binding (20260801460000). `?? null` is NOT a silent opt-out: an op
+    // queued before this field existed has no round to pin, and the server
+    // treats NULL as "unbound" exactly as the online path does. New ops always
+    // carry it — the input type makes it required.
+    p_expected_round: expectedRound ?? null,
   });
   if (error) {
     if (isDuplicateKey(error)) return;

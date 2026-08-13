@@ -68,6 +68,7 @@ beforeEach(async () => {
   server.activeContract.set(`${JOB}|${INSPECTOR}`, true);
   server.reviewRounds.push({
     report_id: REPORT,
+    round: 1,
     reviewer_id: REVIEWER,
     decision: null,
     superseded: false,
@@ -82,6 +83,7 @@ describe('Senior Review decision through the outbox', () => {
     const opId = await offlineApi.enqueueSeniorReviewDecide({
       reportId: REPORT,
       decision: 'approved',
+      expectedRound: 1,
     });
     await sync.flushQueue();
 
@@ -97,6 +99,7 @@ describe('Senior Review decision through the outbox', () => {
       reportId: REPORT,
       decision: 'returned',
       comments: 'Re-shoot weld 4.',
+      expectedRound: 1,
     });
     await sync.flushQueue();
     assert.ok(await rowFor(opId), 'still queued while offline');
@@ -115,12 +118,14 @@ describe('Senior Review decision through the outbox', () => {
     const opId = await offlineApi.enqueueSeniorReviewDecide({
       reportId: REPORT,
       decision: 'approved',
+      expectedRound: 1,
     });
 
     // ...meanwhile an Admin reassigns the report to someone else.
     server.reviewRounds[0].superseded = true;
     server.reviewRounds.push({
       report_id: REPORT,
+      round: 2,
       reviewer_id: OTHER_REVIEWER,
       decision: null,
       superseded: false,
@@ -131,9 +136,17 @@ describe('Senior Review decision through the outbox', () => {
 
     const row = await rowFor(opId);
     assert.ok(row, 'the op is retained, not silently dropped');
-    assert.equal(row.status, 'abandoned', '42501 must be terminal, never retried');
+    assert.equal(row.status, 'abandoned', 'the refusal must be terminal, never retried');
     assert.equal(row.failure_class, 'fatal');
-    assert.match(String(row.last_error), /NOT_THE_ASSIGNED_REVIEWER/);
+    // Reassignment always opens a NEW round, so the round pin (20260801460000)
+    // now catches this before the reviewer check does. Either refusal is
+    // correct and both are fatal; the round guard is simply the earlier one.
+    // NOT_THE_ASSIGNED_REVIEWER is covered on its own below, where the round
+    // matches but the reviewer does not.
+    assert.match(
+      String(row.last_error),
+      /REVIEW_ROUND_CHANGED|NOT_THE_ASSIGNED_REVIEWER/,
+    );
     assert.equal(
       server.reports.get(REPORT).status,
       'returned_to_inspector',
@@ -147,6 +160,7 @@ describe('Senior Review decision through the outbox', () => {
     const opId = await offlineApi.enqueueSeniorReviewDecide({
       reportId: REPORT,
       decision: 'approved',
+      expectedRound: 1,
     });
 
     // the same reviewer decided from another device first
@@ -163,6 +177,67 @@ describe('Senior Review decision through the outbox', () => {
     assert.equal(server.reviewRounds[0].decision, 'returned', 'first decision stands');
   });
 
+  // P1-3. The subtle one: the SAME reviewer is reassigned, so the
+  // NOT_THE_ASSIGNED_REVIEWER check would pass. Only the round pin catches it.
+  it('REFUSES a queued approval whose round was superseded and reassigned to the SAME reviewer', async () => {
+    server.uid = REVIEWER;
+    setOnline(false);
+    const opId = await offlineApi.enqueueSeniorReviewDecide({
+      reportId: REPORT,
+      decision: 'approved',
+      expectedRound: 1,
+    });
+
+    // supersede round 1 and open round 2 for the SAME person, after the
+    // inspector resubmitted a corrected report.
+    server.reviewRounds[0].superseded = true;
+    server.reviewRounds.push({
+      report_id: REPORT,
+      round: 2,
+      reviewer_id: REVIEWER,
+      decision: null,
+      superseded: false,
+    });
+
+    setOnline(true);
+    await sync.flushQueue();
+
+    const row = await rowFor(opId);
+    assert.equal(row.status, 'abandoned');
+    assert.equal(row.failure_class, 'fatal');
+    assert.match(String(row.last_error), /REVIEW_ROUND_CHANGED/);
+    assert.equal(
+      server.reviewRounds[1].decision,
+      null,
+      'round 2 — a report version this reviewer never read — was not decided',
+    );
+  });
+
+  // Isolates the reviewer check from the round check: same live round, wrong
+  // person. Without this, the round pin could mask a regression in the
+  // assigned-reviewer rule.
+  it('REFUSES a decision from the wrong reviewer on the SAME round', async () => {
+    server.uid = REVIEWER;
+    setOnline(false);
+    const opId = await offlineApi.enqueueSeniorReviewDecide({
+      reportId: REPORT,
+      decision: 'approved',
+      expectedRound: 1,
+    });
+
+    // round 1 stays live, but it now belongs to somebody else
+    server.reviewRounds[0].reviewer_id = OTHER_REVIEWER;
+
+    setOnline(true);
+    await sync.flushQueue();
+
+    const row = await rowFor(opId);
+    assert.equal(row.status, 'abandoned');
+    assert.equal(row.failure_class, 'fatal');
+    assert.match(String(row.last_error), /NOT_THE_ASSIGNED_REVIEWER/);
+    assert.equal(server.reviewRounds[0].decision, null);
+  });
+
   it('is idempotent on client_op_id — a double enqueue queues once', async () => {
     server.uid = REVIEWER;
     setOnline(false);
@@ -170,12 +245,12 @@ describe('Senior Review decision through the outbox', () => {
     await outbox.enqueue({
       client_op_id: opId,
       kind: 'senior_review_decide',
-      payload: { reportId: REPORT, decision: 'approved' },
+      payload: { reportId: REPORT, decision: 'approved', expectedRound: 1 },
     });
     await outbox.enqueue({
       client_op_id: opId,
       kind: 'senior_review_decide',
-      payload: { reportId: REPORT, decision: 'approved' },
+      payload: { reportId: REPORT, decision: 'approved', expectedRound: 1 },
     });
 
     setOnline(true);

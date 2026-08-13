@@ -481,6 +481,67 @@ unit. Nothing here is production-ready and full-chain SQL runtime is still `PEND
 
 ---
 
+## 3j. Lane G P0s CLOSED (`20260801458000`, `e4f5764`) — P1s remain
+
+All three remaining P0s are fixed **structurally**, with BEFORE UPDATE triggers on the
+tables, so a direct PostgREST PATCH is bound by the same rule as the RPC.
+
+| P0 | Fix |
+|---|---|
+| Second delivery path | `trg_inspection_reports_delivery_guard` — refuses any transition INTO `'delivered'` unless Admin/service **and** latest un-superseded round approved **and** remaining tranche in. Legacy `public.reports` needs none: its CHECK cannot express `'delivered'` (asserted). |
+| 20% recorded as full settlement | `settle_client_payment` refuses to stamp `client_settled_at` until every non-retention tranche is funded; **the automatic net_terms payout release is removed entirely.** |
+| Direct `client_settled_at` write | `trg_jobs_funding_columns_guard` — platform-only column. |
+
+The payout removal deserves naming: `settle_client_payment` moved the **entire** inspector
+payout to `available_balance` on a client action. "The client finished paying" is not an
+Admin decision. This was the same defect class as `432000` and `444000` — **the third and
+last automatic-money path**.
+
+### Connected verification (real PG 18.4, not an isolated migration)
+
+The defect was reproduced first — a 20% payment released the full 700.00 and stamped full
+settlement — then re-run after the fix:
+
+```
+initial 20% funded            -> settled=false, payout=0, client_settled_at=NULL
+client forges client_settled_at -> FUNDING_COLUMN_IS_PLATFORM_ONLY
+client self-delivers            -> DELIVERY_IS_ADMIN_ONLY
+inspector self-delivers         -> DELIVERY_IS_ADMIN_ONLY
+admin delivers, no approval     -> SENIOR_APPROVAL_REQUIRED
+senior inspector delivers       -> DELIVERY_IS_ADMIN_ONLY
+admin delivers, no final tranche-> FUNDING_REQUIRED
+GOLDEN PATH  final funded -> settled=true -> payout STILL 0 -> admin delivers -> delivered
+webhook replay after delivery   -> idempotent, 2 funded stages not 3
+```
+
+### STILL OPEN — six P1s, none started
+
+1. **Reviewer assignment has no authority check.** `nx_admin_assign_senior_reviewer` accepts
+   any uuid; only the UI roster filters on `role='senior'`. An admin can assign the client.
+2. **Self-review misses derived co-authors.** The trigger compares only
+   `inspection_reports.inspector_id`; `nx_report_contributors(uuid)` (`378000:130`) exists and
+   a team co-author can be assigned as reviewer of their own team's report.
+3. **Offline decision carries no round id**, so a stale queued approval can land on a newer
+   round. Needs a `p_expected_round` parameter on `nx_senior_review_decide` and in the payload.
+4. **Mobile `/(inspector)/reviews/[reportId]` does not exist** — `index.tsx:259` navigates to a
+   dead route. The offline enqueue helpers also have no production callers.
+5. **`452000`/`454000`/`456000`/`458000` have no pgTAP suite**, and
+   `senior_inspector_review_test.sql` is entirely static `prosrc` regex — it "proves"
+   admin-only delivery by matching an error string and would not have caught any P0.
+6. **`22000`/`P0002` are now globally fatal.** Correct for deliberate refusals, but it should
+   be confirmed no operation legitimately retries after a state change; narrow per-operation
+   if so.
+
+### Launch Hardening P1: STILL NOT CLOSED
+The closure rule requires all P0 **and** P1 findings fixed plus a fresh independent review
+finding nothing. Six P1s are open and no re-review has run. Implementation stays at
+**21/28 = 75%** — the funding units now *work* end to end, but they are not re-counted until
+an independent pass confirms it. Full-chain SQL runtime remains `PENDING MAC`.
+
+Next free migration: **`20260801460000`**.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

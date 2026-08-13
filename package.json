@@ -35,7 +35,11 @@
     "qa:admin-routes": "node scripts/qa/check-admin-route-reachability.mjs",
     "qa:reconcile": "node scripts/qa/capability-reconciliation.mjs",
     "qa:model-shas": "node scripts/qa/check-model-shas.mjs",
-    "qa:ml-tests": "node scripts/qa/run-ml-tests.mjs"
+    "qa:ml-tests": "node scripts/qa/run-ml-tests.mjs",
+    "test:replay:itp": "node --experimental-strip-types --test src/core/offline/__tests__/itpReplay.test.mjs",
+    "test:replay:visit": "node --experimental-strip-types --test src/core/offline/__tests__/visitReplay.test.mjs",
+    "test:replay:review": "node --experimental-strip-types --test src/core/offline/__tests__/reviewReplay.test.mjs",
+    "test:replay": "npm run test:replay:itp && npm run test:replay:visit && npm run test:replay:review"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

@@ -56,10 +56,15 @@ jobs:
       # is now declared explicitly in package.json engines and .nvmrc so pinning
       # a lower 22.x cannot silently break it.
       - name: offline · ITP replay (19 assertions)
-        run: node --test src/core/offline/__tests__/itpReplay.test.mjs
+        run: npm run test:replay:itp
 
       - name: offline · visit replay (22 assertions)
-        run: node --test src/core/offline/__tests__/visitReplay.test.mjs
+        run: npm run test:replay:visit
+
+      # reviewReplay existed on disk but no workflow ran it — 13 assertions for
+      # the Senior Inspector review drain path that were never enforced.
+      - name: offline · review replay (13 assertions)
+        run: npm run test:replay:review
 
       - name: shared-core · typecheck
         run: npm run typecheck -w @nexpec/shared-core

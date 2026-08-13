@@ -36,6 +36,10 @@ import {
   Stethoscope,
   type LucideIcon,
   CircleDollarSign,
+  FolderKanban,
+  BarChart3,
+  Plug,
+  KeyRound,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/cn';
@@ -72,6 +76,8 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     title: 'Operations',
     items: [
       { label: 'Jobs', href: '/admin/jobs', icon: Briefcase },
+      { label: 'Programs', href: '/admin/programs', icon: FolderKanban },
+      { label: 'Supplier Scorecards', href: '/admin/scorecards', icon: BarChart3 },
       { label: 'RFQs & Procurement', href: '/admin/rfqs', icon: FileText },
       { label: 'Find Suppliers', href: '/directory', icon: Store },
       { label: 'Spread Editor', href: '/admin/dispatch', icon: Send },
@@ -108,6 +114,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
     items: [
       { label: 'Users', href: '/admin/users', icon: Users },
       { label: 'Organizations', href: '/admin/orgs', icon: Building2 },
+      { label: 'SSO & SCIM', href: '/admin/sso', icon: KeyRound },
       { label: 'Compliance', href: '/admin/compliance', icon: ShieldCheck },
       { label: 'Documents', href: '/admin/documents', icon: FolderOpen },
       { label: 'Document Vault', href: '/admin/vault', icon: Archive },
@@ -125,6 +132,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       // Layer 4 — platform-wide inspection domains config (industrial_ndt,
       // civil, electrical, mechanical). Hidden until typed manually before
       // this row landed.
+      { label: 'ERP Integrations', href: '/admin/integrations', icon: Plug },
       { label: 'Domains', href: '/admin/domains', icon: Globe2 },
       { label: 'Diagnostics', href: '/admin/diagnostics', icon: Stethoscope },
       { label: 'Settings', href: '/admin/settings', icon: Settings },

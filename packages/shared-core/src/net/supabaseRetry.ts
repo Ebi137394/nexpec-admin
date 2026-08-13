@@ -22,7 +22,12 @@ export interface RetryOptions {
   label?: string;
 }
 
-interface SupabaseLikeResult<T> {
+/**
+ * The `{ data, error }` shape every Supabase call returns. Exported because
+ * it is part of the public return type of supabaseRetry/rpcWithRetry — without
+ * it, consumers re-exporting those results fail declaration emit (TS4058).
+ */
+export interface SupabaseLikeResult<T> {
   data: T | null;
   error: unknown;
 }

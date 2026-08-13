@@ -113,7 +113,60 @@ chain and pgTAP still require a real Supabase; SQL runtime remains **PENDING MAC
 
 Lane 5 staged funding may now build on a surface with no automatic Inspector credit.
 
-### NEXT LANE — the anon-grant gap is systemic, not two functions
+### RESOLVED — systemic RPC authority audit, closed by `20260801446000`
+
+The lane below was executed. **The "~53" figure did not survive examination** — it was a
+regex upper bound, and each candidate was read individually. Final evidence:
+
+- **647** function signatures replayed to their final effective definition + grant state.
+- **32** hold anon/PUBLIC EXECUTE *and* mutate. Of those, **6 are trigger functions**
+  (`RETURNS trigger`), which PostgreSQL refuses to invoke as ordinary RPCs — hygiene, not
+  findings. **26** are genuinely callable.
+- **Verified NOT vulnerable**, contrary to earlier reports: `process_withdrawal`,
+  `request_withdrawal` and `apply_onboarding_role` all open with
+  `IF <uid> IS NULL THEN RAISE`, which is fail-**closed**. And
+  `get_or_create_wallet(uuid)` / `debit_wallet_for_payout(uuid,bigint)` were **already**
+  revoked from PUBLIC/anon/authenticated by `20260801308000`. **The standing claim that
+  `get_or_create_wallet` carries anon EXECUTE is stale and is corrected here.**
+
+**Two genuine defects, both confirmed:**
+
+1. **`approve_job_and_pay` — CRITICAL, and the worst finding in the repository so far.**
+   Its guard is `IF v_job.client_id != auth.uid() THEN RETURN 'Unauthorized'`. Under SQL
+   three-valued logic `<uuid> != NULL` is **NULL, not TRUE**, so for an unauthenticated
+   caller the `IF` is simply not taken and execution falls through to
+   `UPDATE profiles SET balance = balance + (p_amount * 0.90) WHERE id = p_inspector_id`.
+   Both the recipient and the amount are caller-supplied. **Proven on PostgreSQL 18.4**: an
+   unauthenticated call returned `{"success": true}` and moved a zero balance to
+   **900,000**. Unauthenticated, unbounded, arbitrary-recipient. It has **zero application
+   callers** and writes the superseded `profiles.balance` model, so it was made unreachable
+   by every client role rather than repaired.
+
+2. **`settle_client_payment` — P0, same fail-open class as `20260801444000`.** Live (4 app
+   references), so fixed in place, not disabled: it moves `pending_amount → available_balance`,
+   writes a `settlement` ledger row, and stamps `client_settled_at` — i.e. it lets an
+   unauthenticated caller **forge settlement state**, which Lane 5 would then build on.
+
+`20260801446000` revokes anon+PUBLIC across the evidence set while leaving `authenticated`
+and `service_role` untouched (which is what makes it safe — Admin authenticates, Edge
+Functions use service_role), makes `approve_job_and_pay` unreachable, rewrites
+`settle_client_payment`'s guard to fail closed, pins `search_path` on retained definers, and
+adds a regression guard covering the whole class including both fail-open idioms.
+
+**MIGRATION NUMBER REASSIGNMENT.** `20260801446000` was reserved for Lane 5. Security must
+precede Lane 5, so **446000 is now security and Lane 5 moves to `20260801448000`**
+(`448000` and `450000` verified free). This is the authoritative allocation.
+
+**Runtime status.** Applied end-to-end on real PostgreSQL 18.4 against a stub reproducing
+the pre-fix state (live anon grants, both fail-open guards): exit 0, all four in-migration
+selftests passed, idempotent on re-apply, attack replay blocked (`NOT_AUTHORIZED`),
+service_role path still returning `{"ok": true}`, and all 14 assertion predicates from
+`supabase/tests/anon_rpc_authority_test.sql` true afterwards. **Full-chain and pgTAP remain
+PENDING MAC.**
+
+<details><summary>Original scoping note (superseded by the audit above)</summary>
+
+#### The anon-grant gap is systemic, not two functions
 
 Payment P0 exposed the general shape, and it should drive the next lane. Two facts
 compose into a repository-wide exposure:
@@ -152,6 +205,8 @@ migration per coherent group, each with the behavioural-guard style of `20260801
 
 This subsumes and supersedes the "31 anon-reachable definer functions" line below —
 that count was scoped to definer-without-pinned-search_path and is a subset.
+
+</details>
 
 ### Also open, from Lane 3's reported-not-fixed section
 - `consent_receipt_status` returns **every** user's consent records to every caller

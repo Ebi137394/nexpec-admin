@@ -57,6 +57,11 @@ const NAV: ReadonlyArray<{ titleKey: string; items: NavItem[] }> = [
     items: [
       { labelKey: 'activeAssignments', href: '/inspector/assignments', icon: ClipboardList },
       { labelKey: 'negotiations', href: '/inspector/negotiations', icon: ArrowLeftRight },
+      // Talent candidate surface. nx_talent_disclose_identity is gated on
+      // auth.uid() = the submission's profile_id — the candidate and nobody
+      // else — and had NO caller, so consent could neither be given nor
+      // withdrawn by the only person allowed to do it.
+      { labelKey: 'permanentRoles', href: '/inspector/talent', icon: Briefcase },
       // Senior Inspectors only — injected at render, see SENIOR_REVIEW_ITEM.
       // The inbox shipped with NO inbound navigation on either platform, so the
       // whole Senior Review capability was unreachable except by typing the URL.

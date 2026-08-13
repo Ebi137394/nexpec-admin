@@ -96,6 +96,13 @@ DECLARE
     'settle_client_payment', 'approve_job_and_pay', 'admin_fund_advance',
     'admin_mark_withdrawal_paid', 'admin_reject_withdrawal', 'process_withdrawal',
     'request_withdrawal', 'reassign_invoice_department',
+    -- Account lifecycle. request_account_deletion() anonymizes a profile and
+    -- touches wallet state. It IS defended in-body (`auth.uid() IS NULL` raises
+    -- not_authenticated), so anon EXECUTE was not exploitable — but this lane's
+    -- own self-test flagged it, and correctly: an in-body check is one edit away
+    -- from being moved or removed, and nothing else would then stop an
+    -- unauthenticated call. Defense in depth is the whole point of this list.
+    'request_account_deletion',
     -- role / credential / organization authority
     'admin_remove_org_member', 'admin_suspend_user', 'admin_unsuspend_user',
     'admin_update_org_member_role', 'admin_verify_user', 'admin_review_credential',
@@ -113,7 +120,18 @@ DECLARE
     -- trigger functions: hygiene only, not directly invocable as RPCs
     'handle_new_user', 'handle_new_user_wallet', 'increment_notification_badge',
     'tg_auto_issue_invoice_on_contract_executed', 'update_average_rating',
-    'update_average_rating_on_delete'
+    'update_average_rating_on_delete',
+    -- Flagged by this lane's own 5c check: anon-reachable AND carrying a
+    -- NULL-fragile auth.uid() comparison (`IS NOT NULL AND`, `!=`, `<>`). For an
+    -- anonymous caller auth.uid() is NULL, so those comparisons go NULL rather
+    -- than false and the surrounding predicate can fall open. None of the four is
+    -- an anonymous operation in the first place — a compliance read helper, a
+    -- review-permission check, supplier contract signing and an ops snapshot job
+    -- — so the fix is to take anon off them rather than rewrite four predicates.
+    -- `authenticated` and `service_role` keep EXECUTE; the loop below revokes
+    -- from anon and PUBLIC only.
+    '_compliance_actor_can_read', 'can_review_job',
+    'supplier_sign_contract', 'ai_ops_create_monthly_snapshot'
   ];
 BEGIN
   FOR r IN

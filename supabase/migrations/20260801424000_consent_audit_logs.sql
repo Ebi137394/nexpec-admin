@@ -63,7 +63,17 @@ CREATE INDEX IF NOT EXISTS consent_audit_logs_action_created_idx
 
 ALTER TABLE public.consent_audit_logs ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON TABLE public.consent_audit_logs FROM PUBLIC, anon;
+-- `authenticated` must be in this REVOKE, not only PUBLIC and anon. The baseline
+-- ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO authenticated
+-- (baseline:40921-40934) means this table is BORN with INSERT, UPDATE, DELETE and
+-- TRUNCATE for authenticated, so revoking PUBLIC/anon and then granting SELECT
+-- added nothing and left consent history rewritable and erasable by any signed-in
+-- session. This migration's own self-test caught it on the first clean-database
+-- run. Revoke everything first, then re-grant exactly the read.
+--
+-- Consent history is append-only evidence: only service_role writes it, and it
+-- does so through the INSERT granted below.
+REVOKE ALL ON TABLE public.consent_audit_logs FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.consent_audit_logs TO authenticated;
 GRANT SELECT, INSERT ON TABLE public.consent_audit_logs TO service_role;
 

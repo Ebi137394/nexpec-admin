@@ -188,6 +188,32 @@ CREATE POLICY itp_results_link_ncr ON public.itp_point_results
                 WHERE j.id = itp_point_results.job_id AND j.contractor_id = auth.uid())
     OR public.nx_is_active_job_team_member(itp_point_results.job_id, auth.uid())
   );
+-- ── Narrow the grant before widening it ─────────────────────────────────────
+--  The COMMENT below asserts "authenticated holds UPDATE on flash_report_id
+--  alone". That was FALSE, and this migration's own self-test proved it on the
+--  first clean-database run: authenticated held
+--  DELETE, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on this table.
+--
+--  398000:206 granted only SELECT, INSERT. The rest arrived from the baseline
+--  ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO authenticated
+--  (baseline:40921-40934) — every table created in public since is born with
+--  the full set. 20260801442000 turned that default off for `anon` only, and
+--  deliberately left `authenticated` intact so concurrent lanes' new objects
+--  kept working; that is why this survived.
+--
+--  A table-level UPDATE makes the column grant below meaningless: result,
+--  inspector_id, released_at/by and signed_off_by were all writable, which is
+--  exactly the Hold bypass 20260801402000 closed. TRUNCATE is worse — RLS does
+--  not mediate it at all, so any authenticated session could erase the ITP
+--  evidence set outright, the same class of hole 20260801430000 had to install
+--  a statement trigger to survive.
+--
+--  Revoke the whole set, then re-grant precisely what this migration needs.
+--  SELECT is preserved: without it the ITP register goes blank (asserted in
+--  20260801402000's self-test).
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.itp_point_results FROM authenticated;
+
 GRANT UPDATE (flash_report_id) ON TABLE public.itp_point_results TO authenticated;
 
 COMMENT ON POLICY itp_results_link_ncr ON public.itp_point_results IS

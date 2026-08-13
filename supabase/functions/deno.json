@@ -1,0 +1,26 @@
+{
+  "//": [
+    "Deno config for the Edge Functions.",
+    "",
+    "WHY THIS FILE EXISTS: without it, `deno check` walks up the tree and picks up",
+    "the repo root tsconfig.json, which is the Expo/React Native config. That sets",
+    "\"jsx\": \"react-native\", a value Deno rejects outright:",
+    "  error: Unsupported 'jsx' compiler option value 'react-native'.",
+    "The result was that all 37 functions failed to typecheck for a reason that had",
+    "nothing to do with their code. A config here stops the upward search.",
+    "",
+    "Keep this minimal. The functions run on Supabase Edge Runtime and import their",
+    "dependencies by URL or npm: specifier at the call site; this file deliberately",
+    "declares no import map so no function silently depends on a rewrite that only",
+    "exists locally."
+  ],
+  "compilerOptions": {
+    "lib": ["deno.window", "deno.ns", "esnext"],
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}

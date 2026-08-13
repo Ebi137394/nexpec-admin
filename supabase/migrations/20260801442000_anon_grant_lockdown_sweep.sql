@@ -213,6 +213,20 @@ BEGIN
       JOIN pg_namespace n ON n.oid = d.defaclnamespace
      WHERE n.nspname = 'public'
        AND EXISTS (SELECT 1 FROM aclexplode(d.defaclacl) a WHERE a.grantee = 'anon'::regrole)
+       -- ALTER DEFAULT PRIVILEGES FOR ROLE X requires membership in X (or
+       -- superuser). On Supabase the migration role is `postgres`, which is NOT
+       -- a superuser and is NOT a member of `supabase_admin` — and supabase_admin
+       -- owns default ACLs of its own. Without this filter the loop hit
+       -- "permission denied to change default privileges" (SQLSTATE 42501) and
+       -- aborted the whole migration on any real Supabase database.
+       --
+       -- Skipping them is correct, not a compromise: a default ACL only governs
+       -- objects created BY that grantor. Every table this project ships is
+       -- created by `postgres` in a migration, so the postgres defaults are the
+       -- ones that decide whether OUR tables are born anon-reachable. The
+       -- supabase_admin defaults govern Supabase's own internal objects, which
+       -- this migration has no business reshaping and no privilege to.
+       AND pg_has_role(current_user, d.defaclrole, 'MEMBER')
   LOOP
     v_kind := CASE r.objtype
                 WHEN 'r' THEN 'TABLES'
@@ -267,6 +281,17 @@ BEGIN
             has_table_privilege('anon', c.oid, 'TRUNCATE')
          OR has_table_privilege('anon', c.oid, 'REFERENCES')
          OR has_table_privilege('anon', c.oid, 'TRIGGER')
+       )
+       -- Extension-owned relations are excluded. spatial_ref_sys belongs to
+       -- PostGIS, not to this project: the migration role cannot REVOKE on it
+       -- (the extension owns it), and it holds public coordinate-system
+       -- reference data, not tenant data. Asserting on it failed the deploy for
+       -- a condition no migration here is able to fix.
+       AND NOT EXISTS (
+         SELECT 1 FROM pg_depend dep
+          WHERE dep.classid = 'pg_class'::regclass
+            AND dep.objid   = c.oid
+            AND dep.deptype = 'e'
        )
      ORDER BY 1
   LOOP
@@ -628,6 +653,12 @@ BEGIN
          SELECT 1 FROM aclexplode(d.defaclacl) a
           WHERE a.grantee = 'anon'::regrole
        )
+       -- Scoped to grantors this role can actually alter, matching the sweep
+       -- above. A supabase_admin-owned default is not something this migration
+       -- can change (not superuser, not a member), and it governs Supabase's own
+       -- objects rather than any table this project creates. Asserting on it
+       -- would fail the deploy for a condition no migration is able to fix.
+       AND pg_has_role(current_user, d.defaclrole, 'MEMBER')
   ) THEN
     RAISE EXCEPTION 'SELFTEST: ALTER DEFAULT PRIVILEGES still grants to anon in schema public — every future object is born unauthenticated-reachable again';
   END IF;
@@ -659,6 +690,17 @@ BEGIN
             has_table_privilege('anon', c.oid, 'TRUNCATE')
          OR has_table_privilege('anon', c.oid, 'REFERENCES')
          OR has_table_privilege('anon', c.oid, 'TRIGGER')
+       )
+       -- Extension-owned relations are excluded. spatial_ref_sys belongs to
+       -- PostGIS, not to this project: the migration role cannot REVOKE on it
+       -- (the extension owns it), and it holds public coordinate-system
+       -- reference data, not tenant data. Asserting on it failed the deploy for
+       -- a condition no migration here is able to fix.
+       AND NOT EXISTS (
+         SELECT 1 FROM pg_depend dep
+          WHERE dep.classid = 'pg_class'::regclass
+            AND dep.objid   = c.oid
+            AND dep.deptype = 'e'
        )
   LOOP
     v_leak := v_leak || v_name;

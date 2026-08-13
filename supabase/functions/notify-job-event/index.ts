@@ -75,7 +75,14 @@ interface JobEvent {
     | 'soft_deleted'
     | 'restored'
     | 'application_created'
-    | 'application_status_change';
+    | 'application_status_change'
+    // The database emits this (baseline:7966-7974 and 20260801404000:126) and
+    // job_events_event_type_check (baseline:23495) explicitly permits it. The
+    // handler for it exists below ("Task 5 — Fraud alert fan-out"), but the
+    // union omitted it, so `case 'fraud_alert'` was a type error and the branch
+    // read as unreachable. JS matched it at runtime regardless; the type was
+    // simply wrong about what the database can produce.
+    | 'fraud_alert';
   old_status: string | null;
   new_status: string | null;
   old_value: string | null;

@@ -79,14 +79,19 @@ CREATE OR REPLACE FUNCTION public.nx_schedule_conflicts_core(
        AND v.status NOT IN ('cancelled', 'rescheduled')
        AND (p_exclude_visit_id IS NULL OR v.id <> p_exclude_visit_id)
        AND (p_exclude_job_id  IS NULL OR v.job_id <> p_exclude_job_id)
-  ), both AS (
+  -- `both` is a RESERVED WORD in Postgres (trim(both ...)), so an unquoted
+  -- CTE of that name is a syntax error: `syntax error at or near "both"`
+  -- (SQLSTATE 42601). It aborted this migration and every one after it on a
+  -- clean database. Renamed rather than quoted — a quoted "both" would work
+  -- but leaves the same trap for the next reader.
+  ), all_days AS (
     SELECT d FROM job_level
     UNION ALL
     SELECT d FROM visit_level
   )
   SELECT count(*)::int,
          COALESCE(array_agg(DISTINCT d), '{}'::date[])
-    FROM both;
+    FROM all_days;
 $fn$;
 
 ALTER FUNCTION public.nx_schedule_conflicts_core(date, uuid, uuid, uuid) OWNER TO postgres;

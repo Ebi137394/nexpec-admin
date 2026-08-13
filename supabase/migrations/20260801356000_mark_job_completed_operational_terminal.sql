@@ -138,8 +138,18 @@ BEGIN
   END IF;
 
   -- (e) the transition is legal under the live guard (regression tie-in)
-  IF pg_get_functiondef('public.guard_jobs_status_transition()'::regprocedure)
-       !~ $q$WHEN 'in_progress' THEN NEW.status IN ('completed'$q$ THEN
+  --
+  -- strpos(), not `!~`. The needle is a LITERAL fragment of the guard's source
+  -- and contains an unbalanced `(` — `IN ('completed'`. As a regex that is not
+  -- merely wrong, it is invalid: Postgres rejects the whole statement with
+  -- `invalid regular expression: parentheses () not balanced` (SQLSTATE 2201B),
+  -- which aborted this migration and every one after it on a clean database.
+  -- Static SQL guards never caught it because they do not execute the DO block.
+  -- strpos does a plain substring search with no metacharacters at all.
+  IF strpos(
+       pg_get_functiondef('public.guard_jobs_status_transition()'::regprocedure),
+       $q$WHEN 'in_progress' THEN NEW.status IN ('completed'$q$
+     ) = 0 THEN
     RAISE EXCEPTION 'SELFTEST FAILED: guard no longer permits in_progress → completed';
   END IF;
 

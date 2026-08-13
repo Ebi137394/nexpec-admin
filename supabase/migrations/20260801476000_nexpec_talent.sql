@@ -81,7 +81,13 @@ COMMENT ON TABLE public.talent_candidate_profiles IS
 -- domains reuse the canonical taxonomy; no talent-specific domain list
 CREATE TABLE IF NOT EXISTS public.talent_candidate_domains (
   profile_id  uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  domain_slug text NOT NULL REFERENCES public.inspection_domains(slug) ON DELETE CASCADE,
+  -- public.inspection_domains.slug is the ENUM `public.inspection_domain`,
+  -- not text. Declaring this column `text` made the FK unimplementable
+  -- (SQLSTATE 42804, datatype_mismatch) and aborted the final migration.
+  -- Reusing the existing enum is also the correct call for the lane: the
+  -- Talent brief says reuse inspection_domains rather than introduce a
+  -- parallel Talent taxonomy, and an enum column cannot drift from it.
+  domain_slug public.inspection_domain NOT NULL REFERENCES public.inspection_domains(slug) ON DELETE CASCADE,
   PRIMARY KEY (profile_id, domain_slug)
 );
 
@@ -113,7 +119,13 @@ CREATE TABLE IF NOT EXISTS public.talent_opportunities (
 
 CREATE TABLE IF NOT EXISTS public.talent_opportunity_domains (
   opportunity_id uuid NOT NULL REFERENCES public.talent_opportunities(id) ON DELETE CASCADE,
-  domain_slug    text NOT NULL REFERENCES public.inspection_domains(slug) ON DELETE CASCADE,
+  -- public.inspection_domains.slug is the ENUM `public.inspection_domain`,
+  -- not text. Declaring this column `text` made the FK unimplementable
+  -- (SQLSTATE 42804, datatype_mismatch) and aborted the final migration.
+  -- Reusing the existing enum is also the correct call for the lane: the
+  -- Talent brief says reuse inspection_domains rather than introduce a
+  -- parallel Talent taxonomy, and an enum column cannot drift from it.
+  domain_slug    public.inspection_domain NOT NULL REFERENCES public.inspection_domains(slug) ON DELETE CASCADE,
   PRIMARY KEY (opportunity_id, domain_slug)
 );
 

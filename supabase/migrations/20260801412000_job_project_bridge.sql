@@ -251,7 +251,11 @@ BEGIN
   END IF;
 
   -- Ordering + nothing disturbed.
-  IF to_regprocedure('public.nx_qcp_can_read(uuid)') IS NULL
+  -- Arity corrected: 20260801406000:555 defines nx_qcp_can_read(p_qcp_id uuid,
+  -- p_uid uuid) — TWO arguments. The old one-argument probe resolved to NULL
+  -- even with 406000 correctly applied, so this ordering check failed on every
+  -- clean database and reported a missing dependency that was actually present.
+  IF to_regprocedure('public.nx_qcp_can_read(uuid,uuid)') IS NULL
      OR to_regprocedure('public.nx_qcp_org_author(uuid,uuid)') IS NULL THEN
     RAISE EXCEPTION 'ORDERING: 20260801406000 must apply before 412000';
   END IF;

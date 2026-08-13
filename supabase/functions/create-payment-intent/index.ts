@@ -118,7 +118,10 @@ serve(async (req) => {
     }
 
     // ── Step 2: Parse + validate body ───────────────────────────────
-    let body: { job_id?: unknown };
+    // `stage` was read below (staged 20/80 funding) but never declared here, so
+    // `deno check` rejected body.stage. Both stay `unknown` deliberately — this
+    // is an untrusted request body and each is narrowed at its use site.
+    let body: { job_id?: unknown; stage?: unknown };
     try {
       body = await req.json();
     } catch {

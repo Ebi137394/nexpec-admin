@@ -68,7 +68,16 @@
 BEGIN;
 
 -- ── 1. Close the anonymous door ─────────────────────────────────────────────
-REVOKE ALL ON TABLE public.inspector_certifications FROM PUBLIC, anon;
+-- `authenticated` belongs in this REVOKE too. baseline:40396 grants it ALL on
+-- this table, so revoking only PUBLIC and anon left DELETE and TRUNCATE in place
+-- — credential history was erasable by any signed-in session, which this
+-- migration's own self-test caught on the first clean-database run ("authenticated
+-- can DELETE credential rows — history is evidence").
+--
+-- Safe to revoke wholesale here because the very next statement re-grants exactly
+-- what the product needs: SELECT, INSERT, UPDATE. DELETE and TRUNCATE are not
+-- re-granted, which is the point — a credential is superseded, never erased.
+REVOKE ALL ON TABLE public.inspector_certifications FROM PUBLIC, anon, authenticated;
 
 -- Authenticated keeps row access, but now under RLS rather than instead of it.
 -- No DELETE grant: credential history is evidence, and the previous DELETE

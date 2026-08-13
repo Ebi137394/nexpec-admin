@@ -124,7 +124,16 @@ DO $patch$
 DECLARE
   v_src text;
   v_new text;
-  v_anchor text := 'IF NOT (public.nx_is_admin()';
+  -- The anchor must be the LITERAL text pg_get_functiondef returns. 398000
+  -- writes this authorization block across two lines:
+  --     IF NOT (
+  --       public.nx_is_admin()
+  -- so the old single-line anchor 'IF NOT (public.nx_is_admin()' never matched,
+  -- and this migration aborted on every clean database with
+  -- "no longer matches the 398000 shape". Verified against the live catalogue:
+  -- this multi-line form occurs exactly ONCE inside nx_itp_record_result, so the
+  -- replace() below is unambiguous and cannot patch a second call site.
+  v_anchor text := E'IF NOT (\n    public.nx_is_admin()';
 BEGIN
   SELECT pg_get_functiondef(p.oid) INTO v_src
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace

@@ -143,6 +143,34 @@ The 25 matching suites include all four written in this and the previous wave
 (`credit_inspector_detach` 11, `anon_rpc_authority` 14, `staged_funding` 14,
 `anon_grant_lockdown_sweep` 38).
 
+**Counter-method warning, reconfirmed.** A later session re-ran a naive line-initial
+regex and again got ~17 "mismatches" — the same artifact described above. Do **not**
+edit any `plan(N)` on the strength of a regex count. The three above stay open until
+real pgTAP runs.
+
+### Lane 3's 38 assertions — LINE-REVIEWED ✅ (semantics, not count)
+
+Reviewed one by one; **verdict PASS, no defects, no over-revocation.** Coverage is
+bidirectional, which is what makes it trustworthy:
+
+- **Closed** (1–17): anon default privilege gone (1); TRUNCATE/REFERENCES/TRIGGER swept (3);
+  all 13 definer views closed across SELECT/INSERT/UPDATE/DELETE (4); **the escalation
+  primitive itself** — anon cannot UPDATE `secure_chat_profiles`, i.e. cannot set
+  `profiles.role` that `nx_is_admin()` trusts (10); both halves of the spread (7, 8);
+  `admin_confirmed_at` not forgeable through `jobs_client_view` (9); `auth.users` email
+  enumeration closed (12); write paths stripped from the ten read-preserved views (13–17).
+- **Still working** (18–31): `inspectors_directory`, `public_supply_feed`,
+  `public_demand_feed` KEEP anon SELECT (18–20); six assertions that `authenticated` kept
+  its reads/writes on `inspection_reports` and `applications` (21–26); `request_senior_review`
+  revoked from anon but KEPT for authenticated (27–28); `protect_certification_verification`
+  revoked from anon **only** (30–31).
+- **Cross-lane guards** (32–38): `436000` and `222000` held; RLS still enabled where this
+  lane only changed grants; and (38) `job_applications` still carries
+  `WITH (security_invoker = true)` — the one reloption preventing it from becoming a
+  fourteenth definer bypass.
+
+Runtime status unchanged: **UNEXECUTED**, `PENDING MAC`. A static line-review is not a run.
+
 ---
 
 ## 3d. Senior Inspector review ✅ LANDED (`20260801450000`)

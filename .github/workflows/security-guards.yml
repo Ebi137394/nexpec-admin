@@ -17,7 +17,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Must match the repo's declared floor (package.json engines
+          # ">=22.15.0" and .nvmrc 22.15.0). This job was the only workflow
+          # pinned below it — ci.yml and staging-money-e2e.yml already use 22.
+          # The two guards it runs happen to work on 20 today, but the ML runner
+          # already needs --experimental-strip-types (Node 22.6+), so the moment
+          # any guard script adopts a modern flag this job would break silently
+          # while CI stayed green.
+          node-version: 22
 
       - name: No DEV SSO bypass / hardcoded dev password
         run: |

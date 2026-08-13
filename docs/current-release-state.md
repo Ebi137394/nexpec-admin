@@ -145,6 +145,46 @@ The 25 matching suites include all four written in this and the previous wave
 
 ---
 
+## 3d. Senior Inspector review ✅ LANDED (`20260801450000`)
+
+Flow implemented end to end: Inspector submits → **Admin** assigns an authorised Senior
+Inspector → Senior Inspector approves or returns with comments → Inspector resubmits →
+**Admin** performs final Client delivery. A Senior Inspector never delivers to the Client.
+
+**The legacy path was dead, not merely broken.** `request_senior_review` (baseline:16605)
+wrote `jobs.status = 'senior_review'`, and the authoritative `jobs_status_check` admits only
+`pending_approval | open | assigned | in_progress | completed | cancelled | disputed | paid`
+(`20260801328000:42`). Every call violated the constraint and raised — no job ever
+transitioned through it. It was also **client-driven** (`client_id = auth.uid()`), which
+contradicts Admin-assigns. It is superseded and made inert, preserved for history, and
+unreachable by client roles. Notably the fix was *not* to add `senior_review` to the job
+status vocabulary: that would push an internal QA state into the commercial lifecycle where
+every consumer of `jobs.status` would have to learn it. Review state is report-level.
+
+**Reuse, not duplication.** Lane B's `report_review_history` (`20260801430000`) already
+provides append-only, TRUNCATE-guarded history auto-captured from `inspection_reports.status`
+with a non-forgeable `auth.uid()` actor. This lane drives report status through its RPCs so
+every transition lands there automatically — no second history table, no second actor model.
+
+**Guards are structural**, enforced by triggers rather than only inside the RPCs, so they
+bind PostgREST and any future writer: no self-review (reviewer ≠ report author), a decided
+round is immutable, rounds are undeletable, and a partial unique index makes more than one
+live round per report unrepresentable. Sign-off cannot be forged — only the reviewer named
+on the live round may decide it, and `auth.uid()` is read from the session, never a parameter.
+
+**Runtime status.** Applied on real PostgreSQL 18.4; 8 in-migration selftests passed and 20
+behavioural checks ran. Verified: self-review refused; forged sign-off refused; comment-less
+return refused; decided round immutable and undeletable; reassignment superseded round 2 into
+round 3 with round 2 left intact (replacement isolation); exactly one live round throughout;
+**delivery blocked on the remaining funding tranche**; non-Admin refused delivery even when
+funded; Admin delivered once funded; legacy function raised SUPERSEDED; RLS gave the author 3
+rows, the reviewer 1, a stranger 0, anon permission-denied; re-apply clean.
+**Full-chain and pgTAP remain PENDING MAC.**
+
+**Not in this slice.** Web/Admin/Mobile review UI, notifications and cross-surface parity.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
@@ -152,7 +192,7 @@ deliberate. Security wave complete. Lane 5 SPINE is landed (448000); its client 
 
 **Migration allocation (authoritative).** `446000` was reassigned from Lane 5 to security.
 Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent RLS ·
-`448000` Lane 5 staged-funding spine · **`450000` free = next**. Do not reuse `446000`.
+`448000` Lane 5 spine · `450000` Senior Inspector review · **`452000` free = next**. Do not reuse `446000`.
 
 **Start with, in this order:**
 
@@ -160,8 +200,8 @@ Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent 
    resolved (§3a). Outstanding: Web/Admin/Mobile funding UI, reporting and offline
    projections against `job_funding_stages`, plus wiring `nx_funding_delivery_satisfied`
    into the final-delivery step (that step is owned by the Senior Inspector lane).
-2. **Senior Inspector review** — not started; large. Must gate final delivery on
-   `nx_funding_delivery_satisfied` and supersede the legacy `request_senior_review` path.
+2. ~~Senior Inspector review~~ — **LANDED** (`20260801450000`, §3d). Outstanding: its
+   Web/Admin/Mobile UI, notifications and parity.
 2. **Test completion** — line-review the 38 Lane 3 pgTAP assertions, add Lane B's
    report-review suite, and settle the 3 plan-count mismatches in §3c. All require a real
    Postgres with pgTAP; neither is available in the authoring sandbox.

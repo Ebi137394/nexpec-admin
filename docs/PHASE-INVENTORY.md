@@ -663,7 +663,8 @@ complete, and Lane E from partial to complete.
 |---|---|---|
 | ✅ Implementation complete | **7** | A1 Mobile Parity · A2 P0 Security · A3 Capability Reconciliation · Phase 1 Multi-Inspector · Phase 2 Multi-Visit · Phase 3 ITP · Phase 4 QCP |
 | 🟡 Partial / current | **1** | Launch Hardening P1 (Track C) |
-| ⬜ Not started | **5** | Phase 5 Supplier Scorecards · Phase 6 Programs · Phase 7 Enterprise SSO · Phase 8 ERP Connectors · D2 NEXPEC Talent |
+| ⬜ Not started | **4** | Phase 5 Supplier Scorecards · Phase 7 Enterprise SSO/SCIM · Phase 8 ERP Connectors (SAP/Oracle) · D2 NEXPEC Talent |
+| ✅ Phase 6 Programs | **1** | `20260801468000` — grouping tier above projects, derived rollup, cross-org guard, org RLS |
 | 🔴 Blocked | **0** | D1 Frozen Payment Domain **UNBLOCKED** — both of its defects are closed: `stripe_complete_job` by `420000`, and the inverted prepay ordering by `448000`, which resolved the create-payment-intent ↔ dispatch deadlock. Folded into P1. |
 | ⏳ SQL/runtime validation pending | **14 of 14** | every phase with a migration |
 | ✅ Production ready | **0** | see §5 |
@@ -674,11 +675,11 @@ complete, and Lane E from partial to complete.
 |---|---|---|
 | ✅ Complete | **21** | +5 this wave: Lane 5 funding spine, Lane B-Senior review, Lane F notifications, Lane E admin funding, D1 unblocked |
 | 🟡 Partial | **2** | Lane 7 (this document) · Lane F offline/replay half |
-| ⬜ Not started | **5** | Scorecards · Programs · SSO · ERP · Talent |
+| ⬜ Not started | **4** | Scorecards · SSO/SCIM · ERP · Talent |
 | 🔴 Blocked | **0** | — |
 | ❓ Unrecoverable | **1** | Lane 8 — read-only, leaves no artifact |
 
-**Implementation: 21 of 28 attributable delivery units = 75%.**
+**Implementation: 22 of 28 attributable delivery units = 79%.** (+Programs.)
 (29 total less the 1 unrecoverable. Up from 62%; the delta is the five units above.)
 
 ### Readiness is NOT implementation — these are tracked separately

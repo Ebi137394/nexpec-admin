@@ -35,6 +35,7 @@ import {
   Archive,
   Stethoscope,
   type LucideIcon,
+  CircleDollarSign,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/cn';
@@ -82,6 +83,7 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
       { label: 'Reviews', href: '/admin/reviews', icon: Star },
       { label: 'Marketplace Curation', href: '/admin/marketplace', icon: Sparkles },
+      { label: 'Staged Funding', href: '/admin/funding', icon: CircleDollarSign },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },
       { label: 'Supplier Releases', href: '/admin/supplier-payouts', icon: Banknote },
       { label: 'Treasury', href: '/admin/treasury', icon: Landmark },

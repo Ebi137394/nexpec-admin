@@ -1,12 +1,37 @@
 // ════════════════════════════════════════════════════════════════════════════
-//  app/inspector/jobs/[id]/submit-report/page.tsx — Submit the inspection
+//  app/inspector/jobs/[id]/submit-report/page.tsx — Submit the inspection,
+//  and afterwards, follow its Senior Inspector review
 //
 //  GOLDEN_RULE_6 — Inspector → Admin → Client.
-//  The page renders the form only when:
+//
+//  ── TWO MODES, ONE ROUTE ───────────────────────────────────────────────────
+//  NO REPORT YET → the first-submission form. Renders only when:
 //    • Inspector has an application with status='hired' or 'accepted'.
 //    • Job.status is 'assigned' or 'in_progress'.
-//    • No existing inspection_reports row for (job, inspector) — if one
-//      exists, redirect to the job detail page with a soft notice.
+//
+//  REPORT EXISTS → the review surface. This route used to bounce straight to
+//  the job page with `already_reported=1`, which left the inspector with no
+//  way to see that a Senior Inspector had returned their work, let alone act
+//  on it. It now shows the review state, the returned comments, the full
+//  round history, and — when the report is genuinely back with its author —
+//  the correction + resubmission form.
+//
+//  The review-mode branch deliberately does NOT re-apply the active-job gate.
+//  A report can be under review after the job has moved on, and an inspector
+//  must always be able to read the verdict on work they authored.
+//
+//  ── REPLACEMENT SAFETY ─────────────────────────────────────────────────────
+//  Writing and reading part company here. A replaced inspector KEEPS read
+//  access to the review history of the report they wrote — that record is
+//  theirs — but the resubmission form is not rendered for them at all, and
+//  the server action re-derives the same fact before any write lands
+//  (is_active_contract_inspector, 20260801284000). The UI never becomes the
+//  authority; it just refuses to offer an action the database would reject.
+//
+//  ── PRIVACY ────────────────────────────────────────────────────────────────
+//  Nothing on this page reads client price, budget or platform spread, and no
+//  funding figure is fetched. Inspector payout is the only money shown, and
+//  only on the first-submission summary where it already lived.
 //
 //  Form structure:
 //    • Result (Pass / Fail / Partial)
@@ -35,8 +60,13 @@ import {
   PenLine,
 } from 'lucide-react';
 import { fetchInspectorJob } from '@/lib/data/inspectorJobDetail';
-import { fetchInspectorReport } from '@/lib/data/inspectorReport';
+import {
+  fetchInspectorReport,
+  type InspectorReport,
+} from '@/lib/data/inspectorReport';
 import { submitInspectionReport } from '@/lib/actions/submitReport';
+import { resubmitInspectionReport } from './actions';
+import { ReviewRoundsPanel } from './ReviewRoundsPanel';
 
 export const metadata: Metadata = {
   title: 'Submit inspection report',
@@ -67,17 +97,40 @@ export default async function SubmitReportPage({
       `/inspector/jobs/${jobId}?error=${encodeURIComponent('Only hired inspectors can submit a report.')}`,
     );
   }
+  // REVIEW MODE. A report already exists, so this route becomes the place the
+  // inspector follows its Senior Inspector review. Resolved BEFORE the
+  // active-job gate on purpose: a report can still be under review after the
+  // job has moved on, and an inspector must always be able to read the verdict
+  // on work they authored. The old behaviour bounced to the job page with
+  // `already_reported=1`, which left them no way to see a returned report,
+  // let alone act on it.
+  const existing = await fetchInspectorReport(jobId);
+  if (existing) {
+    // Write access and read access part company here. A replaced inspector
+    // keeps READ access to the history of the report they wrote — that record
+    // is theirs — but the resubmission form is not rendered for them, and
+    // resubmitInspectionReport re-derives the same fact server-side before any
+    // write lands. The UI never becomes the authority; it only declines to
+    // offer an action the database would reject.
+    const isActiveInspector =
+      job.status === 'assigned' || job.status === 'in_progress';
+
+    return (
+      <ReportReviewMode
+        jobId={jobId}
+        jobTitle={job.title}
+        report={existing}
+        isActiveInspector={isActiveInspector}
+      />
+    );
+  }
+
+  // FIRST-SUBMISSION MODE. The active-job gate applies only here — you cannot
+  // author a new report against a job that is no longer running.
   if (job.status !== 'assigned' && job.status !== 'in_progress') {
     redirect(
       `/inspector/jobs/${jobId}?error=${encodeURIComponent('Reports can only be submitted on active jobs.')}`,
     );
-  }
-
-  // Already submitted? Redirect with notice — Sprint 6 doesn't support
-  // revision yet (Sprint 6.5).
-  const existing = await fetchInspectorReport(jobId);
-  if (existing) {
-    redirect(`/inspector/jobs/${jobId}?already_reported=1`);
   }
 
   return (
@@ -443,4 +496,140 @@ function formatPayout(cents: number | null): string {
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(dollars);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  REVIEW MODE
+//
+//  Rendered instead of the first-submission form once a report exists. Shows
+//  the Senior Inspector verdict, the full round history, and — only when the
+//  report is genuinely back with its author — the correction form.
+//
+//  PRIVACY: nothing below reads client price, budget or platform spread, and
+//  no funding figure is fetched. This surface is about the report, not money.
+// ════════════════════════════════════════════════════════════════════════════
+
+function ReportReviewMode({
+  jobId,
+  jobTitle,
+  report,
+  isActiveInspector,
+}: {
+  jobId: string;
+  jobTitle: string;
+  report: InspectorReport;
+  isActiveInspector: boolean;
+}) {
+  // `returned_to_inspector` is the one state in which the author may write
+  // again. Every other state is read-only for them: an approved or delivered
+  // report is final, and a report still with the reviewer is not theirs to
+  // edit. The server enforces this too.
+  const isReturned = report.status === 'returned_to_inspector';
+  const canResubmit = isReturned && isActiveInspector;
+
+  return (
+    <div className="space-y-8">
+      <header>
+        <Link
+          href={`/inspector/jobs/${jobId}`}
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 transition-colors hover:text-white"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+          Back to job
+        </Link>
+        <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          {jobTitle}
+        </h1>
+        <p className="mt-1.5 text-sm text-zinc-400">
+          Your report is in Senior Inspector review. You will be able to correct
+          and resubmit it if the reviewer returns it to you.
+        </p>
+      </header>
+
+      <ReviewRoundsPanel
+        reportId={report.id}
+        isActiveInspector={isActiveInspector}
+      />
+
+      {canResubmit ? (
+        <section
+          aria-labelledby="resubmit-heading"
+          className="rounded-3xl border border-white/[0.08] bg-white/[0.01] p-6 sm:p-8"
+        >
+          <h2
+            id="resubmit-heading"
+            className="font-display text-lg font-semibold tracking-tight text-white"
+          >
+            Correct and resubmit
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-500">
+            Address the reviewer&apos;s comments above. Your response is
+            recorded with the corrected report and is visible to the reviewer
+            and Admin.
+          </p>
+
+          {/* Plain form post — works with JavaScript disabled, matching the
+              first-submission form beside it. */}
+          <form action={resubmitInspectionReport} className="mt-6 space-y-5">
+            <input type="hidden" name="jobId" value={jobId} />
+            <input type="hidden" name="reportId" value={report.id} />
+            {/* Optimistic-concurrency token: the action rejects the write if
+                the report changed since this page was rendered, so a stale tab
+                cannot overwrite a newer round. */}
+            <input
+              type="hidden"
+              name="expectedUpdatedAt"
+              value={report.updatedAt}
+            />
+
+            <div>
+              <label
+                htmlFor="resubmit-summary"
+                className="block text-sm font-medium text-white"
+              >
+                Corrected summary
+              </label>
+              <textarea
+                id="resubmit-summary"
+                name="summary"
+                required
+                rows={6}
+                defaultValue={report.notes ?? ''}
+                className="mt-2 w-full rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-cyan-glow/40 focus:outline-none focus:ring-1 focus:ring-cyan-glow/30"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="resubmit-response"
+                className="block text-sm font-medium text-white"
+              >
+                Response to the reviewer
+              </label>
+              <textarea
+                id="resubmit-response"
+                name="responseToReviewer"
+                rows={4}
+                placeholder="What you changed, and where."
+                className="mt-2 w-full rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-cyan-glow/40 focus:outline-none focus:ring-1 focus:ring-cyan-glow/30"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center rounded-full bg-cyan-glow px-6 py-2.5 text-sm font-semibold text-ink-900 transition-opacity hover:opacity-90"
+            >
+              Resubmit for review
+            </button>
+          </form>
+        </section>
+      ) : (
+        <p className="rounded-2xl border border-white/[0.06] bg-white/[0.01] px-4 py-4 text-sm text-zinc-400">
+          {isReturned
+            ? 'This report was returned to you, but you are no longer the active inspector on this job. The history above remains yours to read; resubmission is not available.'
+            : 'No action is needed from you right now. If the reviewer returns the report, the correction form will appear here.'}
+        </p>
+      )}
+    </div>
+  );
 }

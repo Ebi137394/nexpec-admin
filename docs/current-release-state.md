@@ -64,6 +64,40 @@ Deno was unavailable — **no** Edge Function typecheck has been performed.
 
 ---
 
+## 3b. NEXT SESSION STARTS HERE
+
+**HEAD `b9e03fb`** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
+deliberate. Security wave complete; Lane 5 is the next lane and has not been started.
+
+**Migration allocation (authoritative).** `446000` was reassigned from Lane 5 to security.
+Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent RLS ·
+**`448000` = Lane 5 staged funding (free, reserved)** · `450000` free. Do not reuse `446000`.
+
+**Start with, in this order:**
+
+1. **Lane 5 — configurable 20/80 funding** at `20260801448000`. Before writing anything,
+   resolve the suspected circular prerequisite: PaymentIntent creation may require
+   `admin_confirmed_at`, while dispatch may require `client_settled_at`. Establish that a
+   valid *first* action exists. Note `settle_client_payment` is now fail-closed and
+   Admin/service-only (`447000`/`446000`), which is the surface Lane 5 must build on.
+2. **Test completion** — line-review the 38 Lane 3 pgTAP assertions, add Lane B's
+   report-review suite. Requires a real Postgres with pgTAP; neither is available in the
+   authoring sandbox.
+3. **Senior Inspector review**, then **Wave 2**.
+
+**Do not re-audit** the anon RPC surface, the payment trigger paths, or
+`consent_receipt_status` — all three are closed and covered by regression guards. Two
+inherited claims were found stale and corrected: `get_or_create_wallet` anon EXECUTE (already
+revoked by `308000`), and the "~53 vulnerable functions" figure (26 callable, 2 genuinely
+exploitable).
+
+**Testing truth carried forward.** Every migration in this wave was applied to a real
+PostgreSQL 18.4 against a purpose-built stub reproducing its specific pre-fix state. That
+proves each migration in isolation. It is **not** validation of the 157-migration chain, and
+pgTAP has never executed. **SQL runtime remains `PENDING MAC`.**
+
+---
+
 ## 4. CLOSED P0 — payment contract violation — fixed by `20260801444000`
 
 **`trg_credit_inspector_on_confirm`** — `baseline:27638`, was attached to `public.jobs`,

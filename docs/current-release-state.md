@@ -208,11 +208,40 @@ that count was scoped to definer-without-pinned-search_path and is a subset.
 
 </details>
 
+### RESOLVED — `consent_receipt_status` cross-user visibility, closed by `20260801447000`
+
+Two compounding defects, both confirmed and both fixed:
+
+1. **The view bypassed RLS.** `baseline:22244` has no `WHERE`, `OWNER postgres`, and no
+   `security_invoker`, so it read with the owner's rights. Worse, `20260801442000` placed it
+   on the *keep-SELECT* list (`442000:378`) — the list reserved for views with a legitimate
+   public read — so **anon retained SELECT**. It exposed `user_id`, `document_id`, consent
+   status, signature timestamps and `receipt_email_id` for every user. Unauthenticated PII
+   disclosure, not a public directory.
+2. **The base table's RLS was already defeated.** `legal_consents` carries the correct
+   self-scoped policies *and* two blanket ones: `"Enable read for users based on user_id"
+   FOR SELECT USING (true)` — a name describing a restriction it does not implement — and
+   `"Enable insert for all users" WITH CHECK (true)`, which permitted consent forgery.
+   Permissive policies OR together, so the blanket pair subsumed the correct pair. Fixing
+   the view alone would not have closed this.
+
+Fix: `security_invoker = true` on the view (in-repo precedent: `audit_events_public`,
+`job_applications`), anon/PUBLIC SELECT revoked, both blanket policies dropped, and an
+explicit `nx_is_admin()` admin SELECT policy added so Admin no longer silently depends on
+service_role for a user-facing surface.
+
+**Runtime status.** Applied on real PostgreSQL 18.4 against a reproduction of the pre-fix
+state, then verified *functionally*, not just by catalogue: with 2 consent rows present,
+user A saw 1 and user B saw 1 (cross-user isolation holds); anon got `permission denied for
+view`; a cross-user INSERT raised `new row violates row-level security policy`; an own-user
+INSERT still succeeded; idempotent on re-apply. Exactly 3 correctly-scoped policies remain.
+`qa:rls-admin` exit 0 (180 RLS tables · 175 with policies · 153 admin-covered).
+**Full-chain and pgTAP remain PENDING MAC.**
+
 ### Also open, from Lane 3's reported-not-fixed section
-- `consent_receipt_status` returns **every** user's consent records to every caller
-  (needs a view redefinition, not a grant change)
-- `get_or_create_wallet(uuid)` — definer, no pinned `search_path`, anon EXECUTE, takes
-  a user id as an **unchecked parameter**
+- ~~`consent_receipt_status` cross-user visibility~~ — **CLOSED by `20260801447000`** (see above)
+- ~~`get_or_create_wallet(uuid)` anon EXECUTE~~ — **STALE REPORT**: already revoked from
+  PUBLIC/anon/authenticated by `20260801308000`; re-asserted by `20260801446000`'s suite
 - 31 anon-reachable definer functions without pinned `search_path`, **7 mutating**,
   including `approve_job_and_pay` and `process_withdrawal`
 - Possible **prepay deadlock**: `create-payment-intent/index.ts:192` refuses a

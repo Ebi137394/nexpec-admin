@@ -82,6 +82,10 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'Report Review', href: '/admin/reports', icon: ClipboardCheck },
       { label: 'Disputes', href: '/admin/disputes', icon: AlertTriangle },
       { label: 'Reviews', href: '/admin/reviews', icon: Star },
+      // Talent shipped as DATABASE ONLY in 20260801476000 — nx_talent_* had
+      // zero callers and no route reached it. A migration is not a completed
+      // phase until its workflow is reachable.
+      { label: 'Talent', href: '/admin/talent', icon: Users },
       { label: 'Marketplace Curation', href: '/admin/marketplace', icon: Sparkles },
       { label: 'Staged Funding', href: '/admin/funding', icon: CircleDollarSign },
       { label: 'Payouts', href: '/admin/payouts', icon: Receipt },

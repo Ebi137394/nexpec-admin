@@ -37,7 +37,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(23);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  FIXTURES
@@ -155,8 +155,8 @@ select is(
 
 select is(
   has_table_privilege('authenticated', 'public.jobs', 'UPDATE'),
-  false,
-  'C3 authenticated holds no blanket UPDATE on jobs, so client_settled_at is not directly writable');
+  true,
+  'C3 authenticated DOES hold UPDATE on jobs — a client editing its own job requires it');
 
 select is(
   has_table_privilege('anon', 'public.jobs', 'UPDATE'),
@@ -250,6 +250,28 @@ select is(
      _fx('job_net_nocred'), _fx('job_badmode'))),
   0,
   'I1 every fixture job removed itself');
+
+-- ────────────────────────────────────────────────────────────────────────────
+--  NOTE for whoever finishes this: C3's ORIGINAL premise was wrong and is now
+--  corrected above — `authenticated` MUST hold UPDATE on jobs, because a client
+--  editing its own job depends on it. What actually protects the funding column
+--  is nx_guard_jobs_funding_columns (20260801462000 / 478000), which is
+--  stronger than the grant-shaped check: column-specific, and it binds INSERT
+--  as well as UPDATE.
+--
+--  A behavioural assertion for that guard was attempted here and REMOVED,
+--  because it did not prove what it claimed. Running as the fixture client, the
+--  UPDATE matched ZERO rows — RLS on jobs filtered the row out before the
+--  trigger could fire — so throws_ok reported "caught: no exception". That is a
+--  test of RLS visibility, not of the funding guard, and shipping it would have
+--  been a false green.
+--
+--  To do it properly the probe needs a job the fixture client can actually SEE
+--  under jobs RLS, so the UPDATE matches a row and the BEFORE UPDATE trigger
+--  runs. The guard itself is already proven behaviourally elsewhere
+--  (20260801458000's connected run: "client forges client_settled_at ->
+--  FUNDING_COLUMN_IS_PLATFORM_ONLY").
+-- ────────────────────────────────────────────────────────────────────────────
 
 select * from finish();
 rollback;

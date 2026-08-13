@@ -41,7 +41,7 @@ begin;
 -- install pgtap inside the rolled-back transaction so the suite is runnable
 -- independently on a fresh `supabase db reset` and test ORDER NEVER MATTERS.
 create extension if not exists pgtap;
-select plan(58);
+select plan(65);
 
 \set SUP1   'e1111111-1111-4111-8111-111111111111'
 \set SUP2   'e2222222-2222-4222-8222-222222222222'

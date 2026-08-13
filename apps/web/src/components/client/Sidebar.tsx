@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Briefcase,
   PlusCircle,
+  UserSearch,
   FileCheck2,
   Settings,
   Wallet,
@@ -58,6 +59,10 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
       { label: 'My jobs', href: '/client/jobs', icon: Briefcase },
       { label: 'Team Missions', href: '/client/team-missions', icon: ClipboardList },
       { label: 'Post a job', href: '/client/jobs/new', icon: PlusCircle },
+      // Employer permanent-hire pipeline. Reads talent_submission_employer_view,
+      // never talent_submissions — the view is what keeps candidates anonymous
+      // until they personally consent, per role.
+      { label: 'Talent', href: '/client/talent', icon: UserSearch },
       { label: 'Documents', href: '/client/documents', icon: FolderOpen },
     ],
   },

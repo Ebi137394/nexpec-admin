@@ -178,17 +178,32 @@ export default function TalentCandidateScreen() {
 
   const toggleConsent = (scope: 'discoverable' | 'submission') => {
     const on = consents.has(scope);
+    // Consent is the one write on this screen that must NOT be queued.
+    //
+    // A withdrawal sitting in the outbox is the dangerous case: the candidate
+    // sees "consent withdrawn", the row still has revoked_at IS NULL, and their
+    // identity remains disclosable to employers until the device next syncs.
+    // The grant direction is no better — a queued grant can replay and disclose
+    // an identity after the candidate has changed their mind, with no fresh
+    // confirmation. Consent must reflect server truth at the moment it is given
+    // or taken away, so both directions write directly and FAIL LOUDLY offline;
+    // mutate()'s catch surfaces the error and the toggle stays where it was.
+    //
+    // Nothing here is financial, so the no-offline-financial-mutation rule is
+    // not what is doing the work — this is consent integrity.
     return mutate(
       () =>
         on
           ? (supabase
               .from('talent_consents')
+              // outbox-exempt: a queued withdrawal would leave identity disclosable while the UI claims it is revoked — must fail loudly
               .update({ revoked_at: new Date().toISOString() })
               .eq('profile_id', user!.id)
               .eq('scope', scope)
               .is('revoked_at', null) as unknown as Promise<{ error: unknown }>)
           : (supabase
               .from('talent_consents')
+              // outbox-exempt: a queued grant could replay and disclose an identity after the candidate changed their mind — must fail loudly
               .insert({ profile_id: user!.id, scope }) as unknown as Promise<{
               error: unknown;
             }>),

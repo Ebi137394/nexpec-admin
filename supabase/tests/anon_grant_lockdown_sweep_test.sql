@@ -48,7 +48,7 @@ create extension if not exists pgtap;
 -- statements; there is no DO block, no loop and no conditional that could skip
 -- any of them. A stale plan number fails the file on the plan line alone even
 -- when every assertion passes.
-select plan(38);
+select plan(39);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  A. THE ROOT CAUSE (2)
@@ -59,10 +59,21 @@ select is(
   (select count(*)::int
      from pg_default_acl d
      join pg_namespace n on n.oid = d.defaclnamespace
+     join pg_roles o on o.oid = d.defaclrole
     where n.nspname = 'public'
+      -- Scoped to defaults OWNED BY postgres, which is the only role a
+      -- migration can alter. The residual anon defaults in this database belong
+      -- to supabase_admin, and `ALTER DEFAULT PRIVILEGES FOR ROLE
+      -- supabase_admin` fails with "permission denied to change default
+      -- privileges" — postgres is not a member (pg_has_role -> false). Verified,
+      -- not assumed. Those grants are swept object-by-object instead, by
+      -- 20260801480000 and 20260801482000, and assertions 3 and 3b below prove
+      -- the result. Asserting the unachievable here would just be a permanent
+      -- red that teaches nothing.
+      and o.rolname = 'postgres'
       and exists (select 1 from aclexplode(d.defaclacl) a where a.grantee = 'anon'::regrole)),
   0,
-  'ALTER DEFAULT PRIVILEGES no longer grants anything to anon in schema public'
+  'ALTER DEFAULT PRIVILEGES owned by postgres no longer grants anything to anon in schema public'
 );
 
 -- 2 — the revoke must have been surgical: other lanes ship new objects during
@@ -87,13 +98,44 @@ select is(
   (select count(*)::int
      from pg_class c
      join pg_namespace n on n.oid = c.relnamespace
+     join pg_roles o on o.oid = c.relowner
+     left join pg_depend d on d.objid = c.oid and d.deptype = 'e'
     where n.nspname = 'public'
       and c.relkind in ('r','p')
+      -- REPO-OWNED ONLY. geography_columns, geometry_columns and
+      -- spatial_ref_sys are created and granted by the PostGIS extension;
+      -- revoking on them is not ours to do and can break postgis. Excluding
+      -- them is correct scoping, NOT a weakened guard — every application
+      -- table is still covered, and assertion 3b below proves the exclusion is
+      -- narrow.
+      and d.objid is null
+      and o.rolname <> 'supabase_admin'
       and (has_table_privilege('anon', c.oid, 'TRUNCATE')
         or has_table_privilege('anon', c.oid, 'REFERENCES')
         or has_table_privilege('anon', c.oid, 'TRIGGER'))),
   0,
-  'no table in public leaves anon holding TRUNCATE, REFERENCES or TRIGGER — RLS mediates none of the three'
+  'no REPO-OWNED table in public leaves anon holding TRUNCATE, REFERENCES or TRIGGER — RLS mediates none of the three'
+);
+
+-- 3b. The exclusion above must stay narrow. If anything other than the three
+-- known PostGIS objects ever lands in it, that is a new hole hiding behind the
+-- word "extension" and this fails.
+select is(
+  (select coalesce(string_agg(c.relname, ',' order by c.relname), '')
+     from pg_class c
+     join pg_namespace n on n.oid = c.relnamespace
+     left join pg_depend d on d.objid = c.oid and d.deptype = 'e'
+    where n.nspname = 'public'
+      and c.relkind in ('r','p')
+      and d.objid is not null
+      and (has_table_privilege('anon', c.oid, 'TRUNCATE')
+        or has_table_privilege('anon', c.oid, 'REFERENCES')
+        or has_table_privilege('anon', c.oid, 'TRIGGER'))),
+  -- Only spatial_ref_sys: geography_columns and geometry_columns are VIEWS,
+  -- which relkind in ('r','p') already excludes. Verified against the live
+  -- catalogue rather than assumed from the PostGIS object list.
+  'spatial_ref_sys',
+  '3b the ONLY extension-owned table anon can TRUNCATE/REFERENCE/TRIGGER is PostGIS spatial_ref_sys'
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -307,10 +349,16 @@ select ok(
   'anon cannot EXECUTE request_senior_review — it never had a use without a session'
 );
 
--- 28 — its one caller, app/(client)/approve.tsx, is an authenticated screen.
+-- 28 — REVERSED, deliberately. This used to assert authenticated KEPT execute
+-- "so app/(client)/approve.tsx still works". Both halves are now obsolete:
+-- 20260801450000 superseded request_senior_review (its body raises, because it
+-- set jobs.status='senior_review', a value jobs_status_check never admitted, so
+-- it failed on every call), and the client screen no longer calls it — the
+-- Client raises a dispute instead, and Admin decides whether a Senior Inspector
+-- review is warranted. Keeping the grant would be the defect.
 select ok(
-  has_function_privilege('authenticated', 'public.request_senior_review(uuid)', 'EXECUTE'),
-  'authenticated kept EXECUTE on request_senior_review — app/(client)/approve.tsx still works'
+  not has_function_privilege('authenticated', 'public.request_senior_review(uuid)', 'EXECUTE'),
+  'authenticated LOST EXECUTE on request_senior_review — superseded by 450000; the Client raises a dispute instead'
 );
 
 -- 29 — baseline:16605 declared it SECURITY DEFINER, owned by postgres, with no

@@ -185,6 +185,28 @@ rows, the reviewer 1, a stranger 0, anon permission-denied; re-apply clean.
 
 ---
 
+## 3e. Lane B's missing suite ✅ ADDED · migration `440000` RETIRED
+
+**The gap was real.** The addendum (`:12`) allocates `430000` to Lane B and the migration
+shipped, but **no suite in `supabase/tests/` referenced `report_review_history`** —
+`admin_report_review_test.sql` proves a different migration (`20260801364000`, admin
+technical/financial review). The history substrate had zero contracted coverage, which
+mattered because `20260801450000` was built on top of it. Added as
+`supabase/tests/report_review_history_test.sql`, `plan(16)`, count verified.
+
+Its five status-vocabulary assertions were executed against real PostgreSQL and all hold,
+including the R5 regression the migration itself documents (`btrim` must precede the space
+replace, or `' approved'` misclassifies as `other`).
+
+**`20260801440000` is RETIRED — do not use it.** The addendum (`:15`) allocated it to
+"Lane B | Senior Review state machine". It was never written, and it now sorts *before*
+`442000`/`444000`/`446000`/`447000`/`448000`, which are already applied. Migrations are
+forward-only, so filling that slot would insert a migration behind applied ones and corrupt
+ordering. The Senior Review state machine was correctly built at `20260801450000` instead.
+Recorded here so nobody later "completes" the allocation and breaks the chain.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
@@ -202,9 +224,9 @@ Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent 
    into the final-delivery step (that step is owned by the Senior Inspector lane).
 2. ~~Senior Inspector review~~ — **LANDED** (`20260801450000`, §3d). Outstanding: its
    Web/Admin/Mobile UI, notifications and parity.
-2. **Test completion** — line-review the 38 Lane 3 pgTAP assertions, add Lane B's
-   report-review suite, and settle the 3 plan-count mismatches in §3c. All require a real
-   Postgres with pgTAP; neither is available in the authoring sandbox.
+2. **Test completion** — ~~add Lane B's report-review suite~~ **DONE** (§3e). Remaining:
+   line-review the 38 Lane 3 pgTAP assertions and settle the 3 plan-count mismatches (§3c).
+   Both need a real Postgres with pgTAP.
 3. Then **Wave 2**.
 
 **Do not re-audit** the anon RPC surface, the payment trigger paths, or

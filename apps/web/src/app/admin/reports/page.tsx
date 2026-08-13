@@ -26,6 +26,27 @@
 //  one per report — and a job with no explicit visits shows nothing, because a
 //  single scheduled date is not a programme.
 //
+//  ── SENIOR INSPECTOR REVIEW + CLIENT DELIVERY (20260801450000) ─────────────
+//  The technical/financial gates above are the Admin's own sign-off. They are
+//  NOT the Senior Inspector review, which is a separate, report-level workflow
+//  with its own rounds, its own reviewer, and its own delivery authority:
+//
+//    Inspector submits → ADMIN ASSIGNS a Senior Inspector → Senior approves or
+//    returns with comments → Inspector resubmits → ADMIN DELIVERS to the Client
+//
+//  That half lives in <SeniorReviewPanel/>, one per row. It consumes the frozen
+//  contract in @nexpec/shared-core (net/fundingReview + domain/seniorReview) and
+//  derives nothing locally. Four rules it must not contradict, all of them also
+//  enforced server-side:
+//    • Admin is the ONLY final-delivery authority.
+//    • A review action moves no money — there is no payment control on this
+//      page at all, and delivery does not settle or pay anyone.
+//    • Final delivery requires the remaining funding tranche. That is surfaced
+//      as a blocker with no override affordance, because there is no override.
+//    • Inspector payout is never shown beside client price. Neither figure
+//      reaches this route: the funding gate arrives as a bare boolean from
+//      nx_funding_delivery_satisfied, and the queue RPC has no money column.
+//
 //  Admin gating is enforced by app/admin/layout.tsx and re-checked here via
 //  nx_is_admin (fail closed on any future routing slip); the RPCs check again
 //  server-side.
@@ -47,10 +68,16 @@ import {
   Repeat,
   AlertCircle,
 } from 'lucide-react';
+import { REPORT_REVIEW_STATUS } from '@nexpec/shared-core/domain';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchReportReviewQueue, type ReportReviewRow } from '@/lib/data/reportReview';
 import { reviewInspectionReport } from '@/lib/actions/reportReview';
 import { isRealProgramme, type ReportVisitRollup } from '@/lib/data/reportVisits';
+import { SeniorReviewPanel } from './SeniorReviewPanel';
+import {
+  fetchDeliveryFundingByJob,
+  fetchSeniorReviewerRoster,
+} from './seniorReviewData';
 
 export const metadata: Metadata = { title: 'Admin, Report review' };
 export const dynamic = 'force-dynamic';
@@ -175,6 +202,30 @@ export default async function AdminReportReviewPage() {
   const rows = await fetchReportReviewQueue(100, false);
   const awaiting = rows.filter((r) => !r.technicalApproved || !r.financialApproved);
 
+  // Senior-review inputs. Both are per-page, not per-row: one roster query and
+  // one deduplicated pass over the funding gate, rather than a round trip per
+  // card. Neither carries an amount.
+  const [reviewers, deliveryFunding] = await Promise.all([
+    fetchSeniorReviewerRoster(),
+    fetchDeliveryFundingByJob(rows.map((r) => r.jobId)),
+  ]);
+
+  const undelivered = rows.filter(
+    (r) => r.status !== REPORT_REVIEW_STATUS.DELIVERED,
+  ).length;
+
+  // Each open panel loads its own round history from the browser, so "open by
+  // default" is a request budget, not just a visual default. Delivered reports
+  // are reference material and stay collapsed; of the rest, only the freshest
+  // few open on their own, and every other panel is one keystroke away.
+  const AUTO_OPEN_LIMIT = 10;
+  const autoOpen = new Set(
+    rows
+      .filter((r) => r.status !== REPORT_REVIEW_STATUS.DELIVERED)
+      .slice(0, AUTO_OPEN_LIMIT)
+      .map((r) => r.reportId),
+  );
+
   return (
     <div className="space-y-8">
       <header>
@@ -185,8 +236,9 @@ export default async function AdminReportReviewPage() {
           Inspection report review
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-zinc-400">
-          Technical and financial sign-off on submitted inspection reports.{' '}
-          {awaiting.length} of {rows.length} awaiting a decision.
+          Technical and financial sign-off, Senior Inspector review, and final
+          delivery to the client. {awaiting.length} of {rows.length} awaiting an
+          admin decision · {undelivered} not yet delivered.
         </p>
         <p className="mt-3 max-w-3xl rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs leading-relaxed text-zinc-500">
           Review is a quality gate, not a commercial one. Passing financial review
@@ -195,6 +247,16 @@ export default async function AdminReportReviewPage() {
           stays manual. Publishing a report to the client remains the{' '}
           <span className="text-zinc-300">client&rsquo;s</span> decision; publish
           state below is read-only.
+        </p>
+        <p className="mt-2 max-w-3xl rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs leading-relaxed text-zinc-500">
+          Senior Inspector review is separate from the two gates above and runs in
+          rounds: you assign a reviewer, they approve or return with comments, and
+          a returned report goes back to its inspector to rework. Decided rounds
+          are <span className="text-zinc-300">immutable</span> — a reassignment
+          supersedes a round rather than rewriting it. Final delivery to the
+          client is <span className="text-zinc-300">Admin-only</span>, needs a
+          live senior approval and the remaining funding tranche, and{' '}
+          <span className="text-zinc-300">moves no money</span>.
         </p>
       </header>
 
@@ -242,6 +304,17 @@ export default async function AdminReportReviewPage() {
               </div>
 
               <VisitContext rollup={r.visitRollup} />
+
+              <SeniorReviewPanel
+                reportId={r.reportId}
+                reportAuthorId={r.inspectorId}
+                reportAuthorName={r.inspectorName}
+                reportStatus={r.status}
+                reviewers={reviewers}
+                deliveryFundingSatisfied={deliveryFunding[r.jobId] ?? null}
+                actorIsAdmin={Boolean(isAdminData)}
+                defaultOpen={autoOpen.has(r.reportId)}
+              />
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.05] pt-4">
                 <ReviewButtons row={r} />

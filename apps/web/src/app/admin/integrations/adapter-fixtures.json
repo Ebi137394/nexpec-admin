@@ -1,0 +1,400 @@
+{
+  "_comment": "SAP + Oracle ADAPTER CONTRACT FIXTURES. Single source of truth shared by the /admin/integrations console (contract.ts) and the runnable contract test (_contract-tests/adapters.contract.test.mjs). NOTHING HERE IS A LIVE TENANT. Migration 20260801474000 constrains integration_connectors.adapter_kind to ARRAY['mock'] — SAP and Oracle are NOT registrable adapter kinds at this HEAD, so these are fixture definitions that prove the seam, never connected systems.",
+
+  "schemaBinding": {
+    "migration": "20260801474000_integration_core.sql",
+    "registrableAdapterKinds": ["mock"],
+    "moneyFreeConstraint": "integration_canonical_fields_money_free",
+    "idempotencyConstraint": "integration_inbound_messages_idem_uq",
+    "oneActiveMappingIndex": "integration_mapping_versions_one_active_uq",
+    "bindAllowlistConstraint": "integration_record_links_table_allowlist",
+    "transforms": ["none", "trim", "upper", "lower"],
+    "terminalStatuses": ["dead_letter", "rejected"]
+  },
+
+  "guards": {
+    "_comment": "moneyFieldPattern is asserted byte-identical to the CHECK literal in the migration by the contract test, so the two can never drift.",
+    "moneyFieldPattern": "(amount|price|cost|currency|invoice|payment|payout|fee|cents|billing|charge|wallet|ledger|settle|budget|salary|wage|total)",
+    "erpMoneyKeys": [
+      "NETWR", "WAERS", "WRBTR", "DMBTR", "KBETR", "BRTWR", "MWSKZ", "ZTERM",
+      "Amount", "CurrencyCode", "UnitPrice", "LineAmount", "TotalAmount",
+      "OrderedAmount", "ExtendedAmount", "SupplierRate", "BillingRate"
+    ],
+    "directionDenyKeys": {
+      "enterprise": [
+        "inspector_payout_cents",
+        "platform_spread_cents",
+        "platform_margin_cents",
+        "supplier_rate_cents",
+        "supplier_cost_cents"
+      ],
+      "agency": [
+        "client_price_cents",
+        "buyer_budget_cents",
+        "client_quoted_cents",
+        "platform_spread_cents",
+        "platform_margin_cents"
+      ]
+    }
+  },
+
+  "adapters": [
+    {
+      "id": "sap",
+      "label": "SAP S/4HANA",
+      "vendorVocabulary": "SAP MM / QM table field names (LFA1, EKKO, QMEL, AUFK).",
+      "registrable": false,
+      "registrableReason": "integration_connectors_adapter_check admits only 'mock'. Registering adapter_kind='sap' would be refused by the database.",
+      "mappings": [
+        {
+          "entity_type": "supplier",
+          "version": 1,
+          "fields": [
+            { "external_field": "LIFNR", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "NAME1", "canonical_field": "legal_name", "transform": "trim" },
+            { "external_field": "NAME2", "canonical_field": "display_name", "transform": "trim" },
+            { "external_field": "LAND1", "canonical_field": "country_code", "transform": "upper" },
+            { "external_field": "SMTP_ADDR", "canonical_field": "contact_email", "transform": "lower" },
+            { "external_field": "ZZ_CONTACT", "canonical_field": "contact_name", "transform": "trim" },
+            { "external_field": "SPERM", "canonical_field": "status", "transform": "lower" },
+            { "external_field": "ZZ_ACTIVE", "canonical_field": "is_active", "transform": "lower" }
+          ]
+        },
+        {
+          "entity_type": "inspection_request",
+          "version": 1,
+          "fields": [
+            { "external_field": "QMNUM", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "QMTXT", "canonical_field": "title", "transform": "trim" },
+            { "external_field": "EBELN", "canonical_field": "purchase_order_ref", "transform": "trim" },
+            { "external_field": "PSPID", "canonical_field": "project_ref", "transform": "trim" },
+            { "external_field": "LIFNR", "canonical_field": "supplier_ref", "transform": "trim" },
+            { "external_field": "LTXT", "canonical_field": "description", "transform": "none" },
+            { "external_field": "QMART", "canonical_field": "inspection_scope", "transform": "upper" },
+            { "external_field": "STRMN", "canonical_field": "requested_date", "transform": "trim" },
+            { "external_field": "ZZ_SITE", "canonical_field": "site_location", "transform": "trim" },
+            { "external_field": "ZZ_SITE_LAND", "canonical_field": "site_country", "transform": "upper" },
+            { "external_field": "PRIOK", "canonical_field": "priority", "transform": "lower" },
+            { "external_field": "QMNAM", "canonical_field": "requester_name", "transform": "trim" },
+            { "external_field": "ZZ_REQ_MAIL", "canonical_field": "requester_email", "transform": "lower" }
+          ]
+        },
+        {
+          "entity_type": "completion",
+          "version": 1,
+          "fields": [
+            { "external_field": "AUFNR", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "IDAT2", "canonical_field": "completed_at", "transform": "trim" },
+            { "external_field": "ZZ_JOB", "canonical_field": "job_ref", "transform": "trim" },
+            { "external_field": "PSPID", "canonical_field": "project_ref", "transform": "trim" },
+            { "external_field": "ZZ_RESULT", "canonical_field": "outcome", "transform": "lower" },
+            { "external_field": "LTXT", "canonical_field": "note", "transform": "none" }
+          ]
+        }
+      ],
+      "fixtures": [
+        {
+          "name": "sap-supplier-create",
+          "entity_type": "supplier",
+          "external_id": "SAP-LFA1-0000100234-001",
+          "expect": "completed",
+          "covers": ["mapping", "canonical-validation", "record-link-create"],
+          "payload": {
+            "LIFNR": " 0000100234 ",
+            "NAME1": "Hanseatic Stahlwerke GmbH",
+            "NAME2": "Hanseatic Steel",
+            "LAND1": "de",
+            "SMTP_ADDR": "QS@HANSEATIC-STAHL.DE",
+            "ZZ_CONTACT": "Ingrid Vogel",
+            "SPERM": "NONE",
+            "ZZ_ACTIVE": "TRUE",
+            "MANDT": "100",
+            "ERDAT": "20260714"
+          }
+        },
+        {
+          "name": "sap-supplier-replay-divergent-body",
+          "entity_type": "supplier",
+          "external_id": "SAP-LFA1-0000100234-001",
+          "expect": "already_completed",
+          "replayOf": "sap-supplier-create",
+          "covers": ["idempotency", "payload-conflict-count", "no-double-apply"],
+          "payload": {
+            "LIFNR": " 0000100234 ",
+            "NAME1": "Hanseatic Stahlwerke GmbH (RENAMED)",
+            "NAME2": "Hanseatic Steel",
+            "LAND1": "de",
+            "SMTP_ADDR": "QS@HANSEATIC-STAHL.DE",
+            "ZZ_CONTACT": "Ingrid Vogel",
+            "SPERM": "NONE",
+            "ZZ_ACTIVE": "TRUE",
+            "MANDT": "100",
+            "ERDAT": "20260714"
+          }
+        },
+        {
+          "name": "sap-inspection-request-create",
+          "entity_type": "inspection_request",
+          "external_id": "SAP-QMEL-000300451122",
+          "expect": "completed",
+          "covers": ["mapping", "canonical-validation", "timestamp-coercion"],
+          "payload": {
+            "QMNUM": "000300451122",
+            "QMTXT": "Third-party witness inspection — DN400 flange lot",
+            "EBELN": "4500091233",
+            "PSPID": "P-2026-NORDSEE",
+            "LIFNR": "0000100234",
+            "LTXT": "Witness hydrotest and dimensional check per ITP rev C.",
+            "QMART": "q3",
+            "STRMN": "2026-09-02T08:00:00Z",
+            "ZZ_SITE": "Werk Bremerhaven, Halle 4",
+            "ZZ_SITE_LAND": "de",
+            "PRIOK": "HIGH",
+            "QMNAM": "M. Brandt",
+            "ZZ_REQ_MAIL": "M.BRANDT@HANSEATIC-STAHL.DE"
+          }
+        },
+        {
+          "name": "sap-inspection-request-missing-title",
+          "entity_type": "inspection_request",
+          "external_id": "SAP-QMEL-000300451199",
+          "expect": "rejected",
+          "covers": ["required-field-validation", "terminal-rejection", "dead-letter-queue"],
+          "expectedErrors": ["missing required field: title"],
+          "payload": {
+            "QMNUM": "000300451199",
+            "QMTXT": "   ",
+            "EBELN": "4500091240",
+            "LIFNR": "0000100234",
+            "PRIOK": "LOW"
+          }
+        },
+        {
+          "name": "sap-completion-carrying-money",
+          "entity_type": "completion",
+          "external_id": "SAP-AUFK-000012009911",
+          "expect": "completed",
+          "covers": ["money-blindness-P1", "unmapped-key-drop", "payload-redaction"],
+          "moneyKeysInPayload": ["NETWR", "WAERS", "WRBTR"],
+          "payload": {
+            "AUFNR": "000012009911",
+            "IDAT2": "2026-09-14T16:20:00Z",
+            "ZZ_JOB": "SAP-QMEL-000300451122",
+            "PSPID": "P-2026-NORDSEE",
+            "ZZ_RESULT": "ACCEPTED",
+            "LTXT": "Technically complete. Punch list closed.",
+            "NETWR": "48250.00",
+            "WAERS": "EUR",
+            "WRBTR": "48250.00"
+          }
+        }
+      ]
+    },
+
+    {
+      "id": "oracle",
+      "label": "Oracle Fusion Cloud (SCM / Procurement)",
+      "vendorVocabulary": "Oracle Fusion REST resource attribute names (Suppliers, PurchaseOrders, Projects).",
+      "registrable": false,
+      "registrableReason": "integration_connectors_adapter_check admits only 'mock'. Registering adapter_kind='oracle' would be refused by the database.",
+      "mappings": [
+        {
+          "entity_type": "supplier",
+          "version": 1,
+          "fields": [
+            { "external_field": "SupplierNumber", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "SupplierName", "canonical_field": "legal_name", "transform": "trim" },
+            { "external_field": "AlternateName", "canonical_field": "display_name", "transform": "trim" },
+            { "external_field": "Country", "canonical_field": "country_code", "transform": "upper" },
+            { "external_field": "SupplierEmail", "canonical_field": "contact_email", "transform": "lower" },
+            { "external_field": "PrimaryContactName", "canonical_field": "contact_name", "transform": "trim" },
+            { "external_field": "SupplierStatus", "canonical_field": "status", "transform": "lower" },
+            { "external_field": "ActiveFlag", "canonical_field": "is_active", "transform": "lower" }
+          ]
+        },
+        {
+          "entity_type": "purchase_order",
+          "version": 1,
+          "fields": [
+            { "external_field": "OrderNumber", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "ProjectNumber", "canonical_field": "project_ref", "transform": "trim" },
+            { "external_field": "SupplierNumber", "canonical_field": "supplier_ref", "transform": "trim" },
+            { "external_field": "Description", "canonical_field": "description", "transform": "none" },
+            { "external_field": "CreationDate", "canonical_field": "issued_date", "transform": "trim" },
+            { "external_field": "DocumentStatus", "canonical_field": "status", "transform": "lower" }
+          ]
+        },
+        {
+          "entity_type": "inspection_request",
+          "version": 1,
+          "fields": [
+            { "external_field": "InspectionRequestNumber", "canonical_field": "external_ref", "transform": "trim" },
+            { "external_field": "RequestTitle", "canonical_field": "title", "transform": "trim" },
+            { "external_field": "OrderNumber", "canonical_field": "purchase_order_ref", "transform": "trim" },
+            { "external_field": "ProjectNumber", "canonical_field": "project_ref", "transform": "trim" },
+            { "external_field": "SupplierNumber", "canonical_field": "supplier_ref", "transform": "trim" },
+            { "external_field": "RequestDescription", "canonical_field": "description", "transform": "none" },
+            { "external_field": "InspectionType", "canonical_field": "inspection_scope", "transform": "upper" },
+            { "external_field": "RequestedDate", "canonical_field": "requested_date", "transform": "trim" },
+            { "external_field": "SiteName", "canonical_field": "site_location", "transform": "trim" },
+            { "external_field": "SiteCountry", "canonical_field": "site_country", "transform": "upper" },
+            { "external_field": "Priority", "canonical_field": "priority", "transform": "lower" },
+            { "external_field": "RequesterName", "canonical_field": "requester_name", "transform": "trim" },
+            { "external_field": "RequesterEmail", "canonical_field": "requester_email", "transform": "lower" }
+          ]
+        }
+      ],
+      "fixtures": [
+        {
+          "name": "oracle-supplier-create",
+          "entity_type": "supplier",
+          "external_id": "ORA-SUP-3001884",
+          "expect": "completed",
+          "covers": ["mapping", "canonical-validation", "boolean-coercion"],
+          "payload": {
+            "SupplierNumber": "3001884",
+            "SupplierName": "Gulf Precision Fabricators LLC",
+            "AlternateName": "GPF",
+            "Country": "ae",
+            "SupplierEmail": "QA@GPF-FAB.AE",
+            "PrimaryContactName": "Rashid Al-Mansoori",
+            "SupplierStatus": "ACTIVE",
+            "ActiveFlag": "TRUE",
+            "SupplierId": 300000012884001,
+            "CreationDate": "2026-03-11T09:14:00Z"
+          }
+        },
+        {
+          "name": "oracle-purchase-order-carrying-money",
+          "entity_type": "purchase_order",
+          "external_id": "ORA-PO-4400211903",
+          "expect": "completed",
+          "covers": ["money-blindness-P1", "unmapped-key-drop", "payload-redaction"],
+          "moneyKeysInPayload": ["Amount", "CurrencyCode", "TotalAmount"],
+          "payload": {
+            "OrderNumber": "4400211903",
+            "ProjectNumber": "P-2026-NORDSEE",
+            "SupplierNumber": "3001884",
+            "Description": "Fabrication and third-party inspection of skid modules.",
+            "CreationDate": "2026-06-01T00:00:00Z",
+            "DocumentStatus": "OPEN",
+            "Amount": "1250000.00",
+            "CurrencyCode": "USD",
+            "TotalAmount": "1250000.00"
+          }
+        },
+        {
+          "name": "oracle-inspection-request-bad-timestamp",
+          "entity_type": "inspection_request",
+          "external_id": "ORA-IR-77120",
+          "expect": "rejected",
+          "covers": ["type-coherence-validation", "terminal-rejection", "dead-letter-queue"],
+          "expectedErrors": ["requested_date: not a timestamp"],
+          "payload": {
+            "InspectionRequestNumber": "77120",
+            "RequestTitle": "Pre-shipment inspection — skid module SK-04",
+            "OrderNumber": "4400211903",
+            "SupplierNumber": "3001884",
+            "RequestedDate": "next tuesday",
+            "Priority": "MEDIUM"
+          }
+        },
+        {
+          "name": "oracle-inspection-request-create",
+          "entity_type": "inspection_request",
+          "external_id": "ORA-IR-77121",
+          "expect": "completed",
+          "covers": ["mapping", "canonical-validation", "record-link-create"],
+          "payload": {
+            "InspectionRequestNumber": "77121",
+            "RequestTitle": "Pre-shipment inspection — skid module SK-05",
+            "OrderNumber": "4400211903",
+            "ProjectNumber": "P-2026-NORDSEE",
+            "SupplierNumber": "3001884",
+            "RequestDescription": "Visual, dimensional and documentation review before release.",
+            "InspectionType": "pre-shipment",
+            "RequestedDate": "2026-10-05T06:00:00Z",
+            "SiteName": "Jebel Ali Yard 3",
+            "SiteCountry": "ae",
+            "Priority": "HIGH",
+            "RequesterName": "L. Okafor",
+            "RequesterEmail": "L.OKAFOR@GPF-FAB.AE"
+          }
+        }
+      ]
+    }
+  ],
+
+  "redactionCases": [
+    {
+      "name": "buyer-bound-payload-must-not-carry-supplier-economics",
+      "orgKind": "enterprise",
+      "mustNotRender": ["inspector_payout_cents", "platform_spread_cents", "supplier_rate_cents"],
+      "payload": {
+        "LIFNR": "0000100234",
+        "NAME1": "Hanseatic Stahlwerke GmbH",
+        "inspector_payout_cents": 42000,
+        "platform_spread_cents": 18000,
+        "supplier_rate_cents": 42000,
+        "NETWR": "48250.00",
+        "WAERS": "EUR"
+      }
+    },
+    {
+      "name": "supplier-bound-payload-must-not-carry-client-price",
+      "orgKind": "agency",
+      "mustNotRender": ["client_price_cents", "buyer_budget_cents", "platform_spread_cents"],
+      "payload": {
+        "SupplierNumber": "3001884",
+        "SupplierName": "Gulf Precision Fabricators LLC",
+        "client_price_cents": 60000,
+        "buyer_budget_cents": 75000,
+        "platform_spread_cents": 18000,
+        "Amount": "1250000.00"
+      }
+    }
+  ],
+
+  "idempotencyScenarios": [
+    {
+      "name": "replay-of-completed-message-changes-nothing",
+      "adapter": "sap",
+      "steps": ["claim:sap-supplier-create", "complete", "claim:sap-supplier-replay-divergent-body"],
+      "expect": {
+        "rows": 1,
+        "secondClaim": { "claimed": false, "reason": "already_completed" },
+        "storedPayloadUnchanged": true,
+        "payload_conflict_count": 1
+      }
+    },
+    {
+      "name": "exhausting-max-attempts-dead-letters-with-evidence",
+      "adapter": "oracle",
+      "maxAttempts": 2,
+      "steps": ["claim:oracle-supplier-create", "fail:transient", "reclaim", "fail:transient"],
+      "expect": {
+        "status": "dead_letter",
+        "payloadPreserved": true,
+        "lastErrorPreserved": true,
+        "visibleInDeadLetterQueue": true
+      }
+    },
+    {
+      "name": "validation-defect-is-terminal-immediately",
+      "adapter": "oracle",
+      "steps": ["claim:oracle-inspection-request-bad-timestamp", "process"],
+      "expect": {
+        "status": "rejected",
+        "attemptsBurned": 1,
+        "validationErrorsStored": true,
+        "visibleInDeadLetterQueue": true
+      }
+    },
+    {
+      "name": "replay-of-completed-message-is-refused",
+      "adapter": "sap",
+      "steps": ["claim:sap-supplier-create", "complete", "operator-replay"],
+      "expect": { "raises": "ALREADY_COMPLETED" }
+    }
+  ]
+}

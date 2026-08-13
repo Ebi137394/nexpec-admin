@@ -410,6 +410,77 @@ stale lock token, replaced inspector, wrong author, wrong state.
 
 ---
 
+## 3i. Lane G — INDEPENDENT review found 12 P0/P1. P1 IS NOT CLOSED.
+
+Lane G ran as a genuinely independent read-only reviewer and was instructed to try to
+falsify six specific claims the Lead had made about its own work. **It falsified one and
+found 12 P0/P1 defects.** This is the vindication of not closing P1 on self-review.
+
+### Fixed here (`20260801456000`, `1020ee8`) — all three were the Lead's own
+
+**P0 · The staged-funding spine was never armed, and the lane made things WORSE.**
+`nx_funding_mark_stage_funded` had **zero production callers**. The webhook settles via
+`nx_stripe_settle_job`; `PaymentIntentMetadata` never even declared `funding_stage`, which
+`create-payment-intent` had been writing all along. Because `create-payment-intent` calls
+`nx_funding_ensure_schedule`, the stage rows *do* get created — which switches
+`nx_funding_initial_satisfied` off the legacy `client_settled_at` fallback onto the schedule
+branch, where they sit at `'scheduled'` forever. Client pays → money captured at Stripe →
+**dispatch and delivery refused permanently**. The old deadlock was replaced with a worse
+one, and the lane was reported as "resolved and proven" on a stub test that never exercised
+the webhook. Now armed, non-fatally, with an orphan-audit record on failure.
+
+**P1 · `nx_funding_ensure_schedule` had no authorization at all** and is granted to
+`authenticated` — a cross-tenant DoS (materialise a schedule on a victim's job and it can
+never dispatch) plus notification spam at the victim's client. Now buyer/admin/service only.
+
+**P1 · The amount guard did not work, and the Lead claimed it did.** `\m` asserts a boundary
+whose next character is a *word* character; `$` is not one, so the `\$` branch was
+unreachable, and the numeric branch needed ≥2 integer digits. `$9.00`, `9.00`, `1,500`,
+`1500 SAR`, `Total: 500` all passed. Rewritten; the selftest replays all five and aborts the
+migration if any still passes — it *did* abort once on `Total: 500`, which is how the
+amount-word pattern got written.
+
+**P1 · `funding_term_defaults` had RLS off** while granted to `authenticated`. Enabled.
+
+### NOT fixed — open P0s, frozen payment domain
+
+1. **Second delivery path.** `nx_report_review_transition` (430000:170-182) has no
+   `'delivered'` case → returns `'other'` → `nx_guard_report_no_self_approval` never fires.
+   With baseline `GRANT ALL … TO authenticated` and permissive UPDATE policies, the report's
+   **own inspector or the job's client** can `PATCH inspection_reports {"status":"delivered"}`
+   and skip `nx_admin_deliver_report` and both gates. The client has the incentive:
+   self-delivering removes it from the admin queue so the 80% is never chased.
+2. **A 20% payment is recorded as full settlement.** `settle_client_payment` sets
+   `client_settled_at = now()` on any amount and, on `net_terms`, moves the **entire**
+   inspector payout to `available_balance`. `create-payment-intent` performs no
+   `payment_mode` check. Its idempotent early-return then means the later 80% records nothing.
+3. **A client can write `jobs.client_settled_at` directly** — no restrictive UPDATE policy,
+   no column pinning, no trigger — satisfying both gates for a job with no stage rows.
+
+### Other open findings
+P1 assign-reviewer accepts any uuid (no Senior-Inspector authority check; only the UI
+filters) · P1 self-review trigger checks only `inspector_id`, missing derived co-authors via
+`nx_report_contributors` · P1 queued offline decision carries no round number, so a stale
+approval can land on a later round · P1 mobile `/(inspector)/reviews/[reportId]` route does
+not exist (dead navigation) and the offline enqueue helpers have no production callers · P1
+`452000`/`454000` have no pgTAP suite, and `senior_inspector_review_test.sql` is entirely
+static `prosrc` regex — it "proves" admin-only delivery by matching an error-message string,
+so it would not have caught any of the P0s above.
+
+### Claims audit
+CONFIRMED: Senior Inspector cannot deliver · no price leakage either direction · review
+moves no money · the `createCore` singleton argument. **FALSIFIED:** the amount guard.
+**CONFIRMED BUT VACUOUS:** "a replayed PaymentIntent never re-notifies" — true, but the
+webhook never reached that code at all.
+
+### Launch Hardening P1: NOT CLOSED
+Three P0s remain open in the payment domain, and the golden path is broken until #1 and #2
+are resolved. Implementation stays at **21/28 = 75%**; the funding units are *not*
+re-counted as complete, because an unarmed spine that blocks dispatch is not a delivered
+unit. Nothing here is production-ready and full-chain SQL runtime is still `PENDING MAC`.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

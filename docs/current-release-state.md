@@ -706,6 +706,67 @@ column the typecheck fails, which is the point.
 
 ---
 
+## 3h. Surface wiring + full debugging pass ✅ (HEAD `6caca81`, pushed)
+
+The SsoConsole gap from §3g is **closed**, and a whole-project validation pass ran.
+
+**Wiring.** `/admin/sso` now renders the console. The fetch went 5 datasets → 10 plus
+two scalars, and every pre-existing select was widened to the full column set
+`types.ts` declares. Reachable now: token lifecycle (issue → one-time reveal → rotate
+→ revoke), SCIM group mappings, provisioning identities with deactivation state, the
+deprovision archive, connection/domain verification, and the audit trail. The inline
+tables were removed rather than left to drift beside the console.
+
+**Defects found and fixed** (all locally reproducible, all fixed — none merely listed):
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | 4 of 5 new admin consoles had **no navigation entry** — reachable only by typing the URL | linked Programs, Scorecards, ERP Integrations, SSO into the admin sidebar by domain |
+| 2 | `/inspector/calendar` orphaned — a shipped feature with no link anywhere | added under My work, with a `nav.calendar` key in all four locales |
+| 3 | fr/es missing 3 `nav` keys, ar missing 4 — live sidebar entries rendering **raw key names** for non-English users | backfilled; all four locales now carry an identical 160-key set |
+| 4 | `qa:outbox` failing — two direct writes bypassing the offline outbox | declared outbox-exempt **with reasons** (see below) |
+| 5 | `next build` failing on an eslint directive naming an **undefined rule** | removed the directive; made the cast express its own type |
+
+**Consent is deliberately outbox-exempt.** Queuing it would be the defect: a withdrawal
+sitting in the outbox means the candidate sees "consent withdrawn" while `revoked_at IS
+NULL` and their identity stays disclosable until the device syncs. The grant direction
+can replay and disclose after they changed their mind. Both write directly and fail
+loudly offline. Consent integrity, not the money rule.
+
+**Two things verified as NOT defects** — both worth knowing before someone "fixes" them:
+
+- **`withFundingCore`'s module-global bind is sound.** `createCore()` holds a
+  process-wide singleton, but the file enforces the discipline that makes it safe: bind,
+  then enter shared-core synchronously with no `await` between. All four call sites use a
+  concise arrow body, so the `await` is on `withFundingCore` itself. Left unchanged.
+- **The ITP `'X' is not exported from '@nexpec/shared-core'` build errors were a STALE
+  `.next` CACHE.** Every name exists in `domain/itp.ts`, the root barrel re-exports it,
+  and tsc always resolved them. `rm -rf apps/web/.next` cleared them and the build went
+  green with zero import warnings. **Do not modify shared-core for that symptom.**
+
+**Validation at `6caca81`** — root tsc 0 · apps/web tsc 0 · shared-core tsc 0 ·
+`npm test` 168/168 · `build:shared` 0 · `build:web` **0, compiled in 88s** · and all 12
+QA guards at exit 0: sql-schema, db-refs, rls-admin, admin-routes, admin-money,
+assignment-privacy, gr2, gr2-inspector, jobs-columns, outbox, reconcile, model-shas.
+
+### ⚠ Environment blocker — Node 22 is not installed
+
+`package.json engines` requires `>=22.15.0` and `.nvmrc` pins `22.15.0`, but this
+machine has only **v18.20.8 and v20.20.0**. That blocks three suites *locally only*:
+
+- `qa:ml-tests` — 5 suites, needs `--experimental-strip-types` (Node 22.6+)
+- `itpReplay` (19 assertions) and `visitReplay` (22) — the harness uses `registerHooks`
+  from `node:module`, which needs Node ≥22.15 (documented at `ci.yml:54`)
+
+All three run in CI, which uses `node-version: 22`. `nvm install 22.15.0` would clear it;
+not done here because installing a runtime is the owner's call. **These are unrun, not
+failing** — do not report them as passing.
+
+`security-guards.yml` was the only workflow pinned below the floor (node 20) and is now
+raised to 22 (`db94962`).
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

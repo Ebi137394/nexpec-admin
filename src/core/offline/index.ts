@@ -401,6 +401,70 @@ export interface FlashReportTransitionInput {
  * lands. Idempotent (the handler no-ops if the report is already in the target
  * state). Returns the op id.
  */
+export interface SeniorReviewDecideInput {
+  reportId: string;
+  decision: 'approved' | 'returned';
+  comments?: string | null;
+}
+
+/**
+ * #LaneF — queue a Senior Inspector's approve/return so a decision taken on a
+ * site with no signal is not lost.
+ *
+ * Enqueueing is NOT authorisation. The server re-derives standing when the op
+ * replays: nx_senior_review_decide reads auth.uid() and looks up the LIVE round,
+ * so if an Admin reassigned the report while this device was offline the RPC
+ * raises NOT_THE_ASSIGNED_REVIEWER (42501) → fatal → surfaced. Do not pre-check
+ * and skip the queue on the strength of a cached round; the cache can be stale
+ * in either direction and the server is the authority.
+ */
+export async function enqueueSeniorReviewDecide(
+  input: SeniorReviewDecideInput,
+): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'senior_review_decide',
+    payload: input,
+  });
+  return opId;
+}
+
+export interface ReportResubmitInput {
+  jobId: string;
+  reportId: string;
+  /**
+   * The report's updated_at at the moment the correction was composed. The
+   * server refuses the write if the row moved on while this was queued, which
+   * is exactly the offline case: a new review round, or another device's
+   * correction, must not be silently clobbered.
+   */
+  expectedUpdatedAt: string;
+  summary: string;
+  responseToReviewer?: string | null;
+}
+
+/**
+ * #LaneF — queue an Inspector's correction after a Senior Inspector returned
+ * the report. Lands through nx_report_resubmit (20260801454000), the same RPC
+ * the web surface uses, so the replacement and optimistic-lock rules cannot
+ * drift between platforms.
+ *
+ * Photos are NOT carried here — binary goes through the existing photo_upload
+ * kind, which already handles deferred Storage upload.
+ */
+export async function enqueueReportResubmit(
+  input: ReportResubmitInput,
+): Promise<string> {
+  const opId = makeUuid();
+  await enqueue({
+    client_op_id: opId,
+    kind: 'report_resubmit',
+    payload: input,
+  });
+  return opId;
+}
+
 export async function enqueueFlashReportTransition(
   input: FlashReportTransitionInput,
 ): Promise<string> {

@@ -631,6 +631,77 @@ export function takeItpResultId(clientOpId: string): string | null | undefined {
 
 // ── Registry ──────────────────────────────────────────────────────
 
+
+// ── senior_review_decide ───────────────────────────────────────────
+//
+// #LaneF — a Senior Inspector's approve/return, queued so a decision taken on
+// site does not depend on signal. Payload is the frozen nx_senior_review_decide
+// shape: { reportId, decision, comments? }.
+//
+// AUTHORISATION IS THE SERVER'S, AT REPLAY. The RPC reads auth.uid() and looks
+// up the LIVE round; it takes no actor parameter, so a queued op cannot claim to
+// be someone else. If an Admin reassigned the report while this device was
+// offline, the round is superseded and the RPC raises NOT_THE_ASSIGNED_REVIEWER
+// (42501) → classified fatal → surfaced to the reviewer, not retried. A stale
+// reviewer therefore cannot land a decision, and finds out why.
+//
+// Idempotency: re-delivering a decision for a round that is already decided
+// finds no live round and raises NO_OPEN_REVIEW (P0002 → fatal). That is the
+// correct outcome — the decision already landed; the duplicate must not silently
+// re-apply, and must not retry forever either.
+async function handleSeniorReviewDecide(row: OutboxRow): Promise<void> {
+  const { reportId, decision, comments } = JSON.parse(row.payload_json) as {
+    reportId: string;
+    decision: 'approved' | 'returned';
+    comments?: string | null;
+  };
+  const { error } = await supabase.rpc('nx_senior_review_decide', {
+    p_report_id: reportId,
+    p_decision: decision,
+    p_comments: comments ?? null,
+  });
+  if (error) {
+    if (isDuplicateKey(error)) return;
+    throw error;
+  }
+}
+
+// ── report_resubmit ────────────────────────────────────────────────
+//
+// #LaneF — the Inspector's correction after a Senior Inspector returned the
+// report. Payload: { jobId, reportId, expectedUpdatedAt, summary,
+// responseToReviewer? }.
+//
+// `expectedUpdatedAt` is an optimistic-concurrency token carried from the moment
+// the correction was composed. If anything moved the report while the device was
+// offline — a new review round, another correction from another device — the
+// server refuses rather than clobbering it. Offline edits are the exact case
+// that token exists for.
+//
+// Standing is re-derived server-side via is_active_contract_inspector, so an
+// inspector replaced during the offline window cannot land a write. 42501 →
+// fatal → surfaced.
+async function handleReportResubmit(row: OutboxRow): Promise<void> {
+  const p = JSON.parse(row.payload_json) as {
+    jobId: string;
+    reportId: string;
+    expectedUpdatedAt: string;
+    summary: string;
+    responseToReviewer?: string | null;
+  };
+  const { error } = await supabase.rpc('nx_report_resubmit', {
+    p_job_id: p.jobId,
+    p_report_id: p.reportId,
+    p_expected_updated_at: p.expectedUpdatedAt,
+    p_summary: p.summary,
+    p_response_to_reviewer: p.responseToReviewer ?? null,
+  });
+  if (error) {
+    if (isDuplicateKey(error)) return;
+    throw error;
+  }
+}
+
 export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> = {
   report_save: handleReportSave,
   report_update: handleReportUpdate,
@@ -647,6 +718,8 @@ export const handlers: Record<OperationKind, (row: OutboxRow) => Promise<void>> 
   expense_add: handleExpenseAdd,
   contract_sign: handleContractSign,
   itp_record_result: handleItpRecordResult,
+  senior_review_decide: handleSeniorReviewDecide,
+  report_resubmit: handleReportResubmit,
 };
 
 // ── tiny base64 → bytes (no native deps) ──────────────────────────

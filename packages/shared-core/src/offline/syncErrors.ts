@@ -188,6 +188,25 @@ const FATAL_CODES = new Set([
   'PGRST204', // column not found in schema cache
   'P0001', // raise_exception (a trigger said no)
   '23505', // unique_violation that a handler did NOT translate to success
+  // ── added by Lane F offline ────────────────────────────────────────────────
+  // These two were MISSING, and they are the codes NEXPEC's own RPCs use for
+  // deliberate business refusals: 111 `USING ERRCODE = '22000'` and 81
+  // `ERRCODE = 'P0002'` across supabase/migrations. Without them a refusal like
+  // FUNDING_REQUIRED, REPORT_CHANGED, NOT_AWAITING_CORRECTION or NO_OPEN_REVIEW
+  // classified as transient and the outbox retried it until attempts exhausted
+  // — a retry storm against a server that can never say yes, ending in
+  // 'exhausted' rather than the truthful 'fatal'.
+  //
+  // operations.ts:434 already DOCUMENTED the intended behaviour — "the RPC
+  // raises (22000/42501) → classified fatal → surfaced, not retried into
+  // oblivion" — so half of that comment was false until now.
+  //
+  // Both are deterministic: 22000 here is always a hand-raised refusal, and
+  // P0002 means the target row is not visible to this caller. Neither self-heals
+  // on retry. Ops that must not race their dependency are already composite
+  // (e.g. flash_report_raise), so P0002 is not load-bearing for ordering.
+  '22000', // data_exception — NEXPEC business refusal (RAISE … ERRCODE '22000')
+  'P0002', // no_data_found — the row is absent or RLS-invisible to this caller
 ]);
 
 const NETWORK_RE =

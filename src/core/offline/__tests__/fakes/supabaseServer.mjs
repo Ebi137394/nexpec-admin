@@ -41,6 +41,12 @@ export const server = {
   itpPoints: new Map(),
   /** itp_point_results (EXECUTION), keyed by id — 20260801398000:103 */
   itpResults: new Map(),
+  /** #LaneF inspection_reports, keyed by id: { job_id, inspector_id, status, updated_at, notes } */
+  reports: new Map(),
+  /** #LaneF report_senior_reviews rounds, in order: { report_id, reviewer_id, decision, superseded } */
+  reviewRounds: [],
+  /** #LaneF is_active_contract_inspector(job, insp) -> boolean. `${jobId}|${uid}` -> bool */
+  activeContract: new Map(),
   /** every rpc() call, in order: { name, args, uid } */
   rpcCalls: [],
   /** every storage object write, in order */
@@ -56,6 +62,9 @@ export const server = {
     this.captures.clear();
     this.itpPoints.clear();
     this.itpResults.clear();
+    this.reports.clear();
+    this.reviewRounds.length = 0;
+    this.activeContract.clear();
     this.rpcCalls.length = 0;
     this.storageWrites.length = 0;
     this.sessionRefreshable = true;
@@ -390,6 +399,99 @@ function makeBuilder(run) {
   return b;
 }
 
+
+// ── #LaneF fakes ────────────────────────────────────────────────────────────
+//  Transcribed line by line from the shipped SQL, because a fake can only
+//  certify what it models. Sources:
+//    nx_senior_review_decide — 20260801452000 §2
+//    nx_report_resubmit      — 20260801454000
+//  Every guard below exists in the real function; if you add one there, add it
+//  here or this suite starts certifying the opposite of production.
+
+function pgErr(message, code) {
+  return { data: null, error: { message, code, details: null, hint: null } };
+}
+
+/** nx_senior_review_decide(p_report_id, p_decision, p_comments) */
+function seniorReviewDecide(args) {
+  const uid = server.uid;
+  if (!uid) return errNoSession();                                   // 28000
+
+  const decision = args.p_decision;
+  if (decision !== 'approved' && decision !== 'returned') {
+    return pgErr(`INVALID_DECISION: expected approved or returned, got ${decision}`, '22000');
+  }
+  if (decision === 'returned' && !String(args.p_comments ?? '').trim()) {
+    return pgErr('RETURN_REQUIRES_COMMENT: say what must change', '22000');
+  }
+
+  // the LIVE round: not decided, not superseded
+  const live = server.reviewRounds.find(
+    (r) => r.report_id === args.p_report_id && !r.decision && !r.superseded,
+  );
+  if (!live) {
+    return pgErr(
+      'NO_OPEN_REVIEW: this report has no live Senior Inspector assignment',
+      'P0002',
+    );
+  }
+  // THE REPLACEMENT RULE. auth.uid() is read from the session, never a param.
+  if (live.reviewer_id !== uid) {
+    return pgErr(
+      'NOT_THE_ASSIGNED_REVIEWER: round is assigned to another Senior Inspector',
+      '42501',
+    );
+  }
+
+  live.decision = decision;
+  const rep = server.reports.get(args.p_report_id);
+  if (rep) rep.status = decision === 'approved' ? 'senior_approved' : 'returned_to_inspector';
+  return { data: { ok: true, decision }, error: null };
+}
+
+/** nx_report_resubmit(p_job_id, p_report_id, p_expected_updated_at, p_summary, …) */
+function reportResubmit(args) {
+  const uid = server.uid;
+  if (!uid) return errNoSession();                                   // 28000
+
+  if (!String(args.p_summary ?? '').trim()) {
+    return pgErr('SUMMARY_REQUIRED: a correction must say what changed', '22000');
+  }
+
+  const rep = server.reports.get(args.p_report_id);
+  if (!rep || rep.job_id !== args.p_job_id) {
+    return pgErr('REPORT_NOT_FOUND', 'P0002');
+  }
+  if (rep.inspector_id !== uid) {
+    return pgErr('NOT_THE_REPORT_AUTHOR: this report belongs to another inspector', '42501');
+  }
+  // LIVE CONTRACT — fails closed, exactly as the SQL does
+  if (server.activeContract.get(`${args.p_job_id}|${uid}`) !== true) {
+    return pgErr(
+      'NOT_ACTIVE_INSPECTOR: you are no longer the assigned inspector on this job',
+      '42501',
+    );
+  }
+  if (rep.status !== 'returned_to_inspector') {
+    return pgErr(
+      `NOT_AWAITING_CORRECTION: this report is not awaiting corrections right now (status ${rep.status})`,
+      '22000',
+    );
+  }
+  // optimistic lock
+  if (rep.updated_at !== args.p_expected_updated_at) {
+    return pgErr(
+      'REPORT_CHANGED: this report changed while you were editing. Nothing was overwritten.',
+      '22000',
+    );
+  }
+
+  rep.status = 'submitted';
+  rep.notes = args.p_summary;
+  rep.updated_at = new Date(Date.parse(rep.updated_at) + 1000).toISOString();
+  return { data: { ok: true, report_id: args.p_report_id }, error: null };
+}
+
 export const supabase = {
   from(table) {
     return {
@@ -410,6 +512,9 @@ export const supabase = {
   rpc(name, args) {
     server.rpcCalls.push({ name, args, uid: server.uid });
     if (name === 'nx_itp_record_result') return Promise.resolve(itpRecordResult(args ?? {}));
+    if (name === 'nx_senior_review_decide')
+      return Promise.resolve(seniorReviewDecide(args ?? {}));
+    if (name === 'nx_report_resubmit') return Promise.resolve(reportResubmit(args ?? {}));
     return Promise.resolve({ data: null, error: server.uid ? null : errNoSession() });
   },
 

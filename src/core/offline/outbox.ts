@@ -37,7 +37,25 @@ export type OperationKind =
   // the partial unique indexes (point_id, job_id, visit_id) /
   // (point_id, job_id) WHERE visit_id IS NULL — see
   // supabase/migrations/20260801398000_itp_points_foundation.sql:147-150,353-370.
-  | 'itp_record_result';
+  | 'itp_record_result'
+  // #LaneF — Senior Inspector review decision (nx_senior_review_decide) and the
+  // Inspector's correction resubmission, routed through the outbox so a site
+  // action on flaky signal queues instead of failing.
+  //
+  // AUTHORISATION IS RE-EVALUATED BY THE SERVER AT REPLAY, NOT AT ENQUEUE. Both
+  // RPCs read auth.uid() from the session and re-derive standing at execution
+  // time: nx_senior_review_decide raises NOT_THE_ASSIGNED_REVIEWER (42501) if
+  // the round was superseded while the device was offline, and the resubmission
+  // action re-checks is_active_contract_inspector. 42501 is already a FATAL_CODE
+  // (shared-core/offline/syncErrors.ts:184), so a replaced actor's queued op is
+  // permanently rejected and surfaced rather than retried into oblivion. That is
+  // exactly the stale/replacement denial this lane requires, and it needs no new
+  // client-side rule — the existing classifier already does it.
+  //
+  // NOTE what is deliberately ABSENT: there is no funding operation kind. No
+  // payment confirmation, settlement or payout may ever be queued offline.
+  | 'senior_review_decide'
+  | 'report_resubmit';
 
 // 'conflict' (#56) is terminal-pending: the server state diverged (row gone /
 // sealed / RLS-filtered / optimistic-lock miss). It is NOT auto-retried — it

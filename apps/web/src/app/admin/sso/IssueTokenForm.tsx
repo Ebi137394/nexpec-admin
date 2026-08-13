@@ -8,12 +8,15 @@
 //
 //  The token is shown once. There is no "show again": only sha256(raw) is
 //  stored, so nothing on the server can reproduce it. Losing it means rotating.
+//  The reveal itself lives in OneTimeSecret, shared with rotation so exactly
+//  one component in this route is able to render a raw credential.
 // ════════════════════════════════════════════════════════════════════════════
 
 'use client';
 
 import { useActionState, useState } from 'react';
 import { issueScimToken, type IssueTokenState } from './actions';
+import { OneTimeSecret } from './OneTimeSecret';
 
 interface OrgOption {
   id: string;
@@ -37,7 +40,6 @@ export function IssueTokenForm({
 }) {
   const [state, formAction, pending] = useActionState(issueScimToken, INITIAL);
   const [orgId, setOrgId] = useState<string>(orgs[0]?.id ?? '');
-  const [copied, setCopied] = useState(false);
 
   const scopedConnections = connections.filter((c) => c.org_id === orgId);
 
@@ -137,41 +139,16 @@ export function IssueTokenForm({
       </form>
 
       {state.error ? (
-        <p className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+        <p
+          role="alert"
+          className="mt-4 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300"
+        >
           {state.error}
         </p>
       ) : null}
 
       {state.rawToken ? (
-        <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-semibold text-amber-200">
-            Copy this now — it is shown once and cannot be recovered.
-          </p>
-          <p className="mt-1 text-xs text-amber-200/70">
-            Only its SHA-256 digest is stored. If it is lost, rotate the token;
-            nothing on the server can read it back.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-ink-950 px-3 py-2 font-mono text-xs text-emerald-300">
-              {state.rawToken}
-            </code>
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard.writeText(state.rawToken ?? '');
-                setCopied(true);
-              }}
-              className="rounded-lg border border-white/15 px-3 py-2 text-xs text-zinc-200 hover:bg-white/5"
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-          {state.expiresAt ? (
-            <p className="mt-2 text-xs text-amber-200/70">
-              Expires {new Date(state.expiresAt).toLocaleString()}.
-            </p>
-          ) : null}
-        </div>
+        <OneTimeSecret secret={state.rawToken} expiresAt={state.expiresAt} />
       ) : null}
     </section>
   );

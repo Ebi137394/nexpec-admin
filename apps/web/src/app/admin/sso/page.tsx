@@ -14,7 +14,7 @@
 import type { Metadata } from 'next';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { IssueTokenForm } from './IssueTokenForm';
-import { revokeScimToken } from './actions';
+import { revokeScimTokenForm } from './actions';
 
 export const metadata: Metadata = { title: 'SSO & SCIM' };
 export const dynamic = 'force-dynamic';
@@ -289,7 +289,7 @@ export default async function SsoPage() {
                       </td>
                       <td className="py-2.5">
                         {t.revoked_at ? null : (
-                          <form action={revokeScimToken}>
+                          <form action={revokeScimTokenForm}>
                             <input type="hidden" name="tokenId" value={t.id} />
                             <button
                               type="submit"

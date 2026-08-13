@@ -353,6 +353,63 @@ recovered, repaired and integrated every one. ~5,500 lines survived; nothing was
 
 ---
 
+## 3h. Lane F COMPLETE — notifications (`452000`) + offline (`454000`)
+
+Both halves are integrated and pushed. Lane F is done.
+
+**Offline half.** Two outbox kinds — `senior_review_decide`, `report_resubmit` — so a
+verdict or correction taken on a site with no signal queues instead of being lost.
+
+`nx_report_resubmit` (`454000`) exists because of a **proven gap**, not preference: the
+correction lived only in a Next.js server action, which the mobile outbox cannot reach
+through PostgREST. Rather than write a second, drifting copy of the rules mobile-side, it
+lifts the same five rules — authorship, live contract, awaiting-correction, optimistic lock
+on `updated_at`, summary required — into one RPC both surfaces call.
+
+**Authorisation is re-evaluated at replay, not at enqueue.** That is the whole point:
+minutes or hours pass between composing an action offline and it landing, and an Admin may
+reassign the reviewer or replace the inspector in between. Both RPCs read `auth.uid()` and
+take no actor parameter, so a queued op cannot claim to be someone else.
+
+**No offline financial mutation.** There is deliberately no funding operation kind; a test
+asserts no handler name matches `/funding|settle|payment/`, and another asserts a queued
+correction payload carries no price/payout/amount field.
+
+### A pre-existing P1 found and fixed in the shared classifier
+
+`FATAL_CODES` (shared-core/offline/syncErrors.ts) listed `P0001` but **not `22000` or
+`P0002`** — the exact codes NEXPEC's own RPCs use for deliberate business refusals: **111**
+occurrences of `USING ERRCODE = '22000'` and **81** of `P0002` across the migrations.
+
+So `FUNDING_REQUIRED`, `REPORT_CHANGED`, `NOT_AWAITING_CORRECTION`, `NO_OPEN_REVIEW` and
+their kin all classified as **transient**: the outbox retried each until attempts exhausted,
+hammering a server that could never say yes, then recorded `exhausted` instead of the
+truthful `fatal`. This affected **every** operation, not only the new ones.
+
+`operations.ts:434` already documented the intended behaviour — *"the RPC raises
+(22000/42501) → classified fatal → surfaced, not retried into oblivion"* — so half that
+comment had been false since it was written. It is true now.
+
+### Test runner note, worth keeping
+
+The replay harness needs `node:module` `registerHooks`, so it requires the repo's declared
+`>=22.15.0` floor. The `node` on PATH is **v20.20.0** and fails with a bare `SyntaxError`
+that looks like a code regression but is not. Use `/opt/homebrew/bin/node` (v26.5.0).
+
+| Suite | Result |
+|---|---|
+| `reviewReplay` (new) | **11/11** |
+| `itpReplay` | 19/19 (unregressed) |
+| `visitReplay` | 22/22 (unregressed) |
+| shared-core vitest | 165/165 |
+| root / shared-core / apps-web tsc | 0 errors each |
+| db-refs · sql-schema-refs | 0 (245 RPCs / 174 relations) |
+
+`454000` was applied on real PostgreSQL 18.4 with all five rules exercised: happy path,
+stale lock token, replaced inspector, wrong author, wrong state.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

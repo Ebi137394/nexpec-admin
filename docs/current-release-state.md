@@ -542,6 +542,57 @@ Next free migration: **`20260801460000`**.
 
 ---
 
+## 3k. Lane G P1s — FIVE OF SIX CLOSED (`da5f9c7`, `c543677`)
+
+| P1 | State | Where |
+|---|---|---|
+| 1 Reviewer eligibility | ✅ | `20260801460000` — `nx_is_eligible_senior_reviewer` |
+| 2 Derived-contributor self-review | ✅ | same, via `nx_report_contributors()` |
+| 3 Offline round binding | ✅ | `p_expected_round` + outbox payload |
+| 4 Mobile `[reportId]` route | ✅ | `app/(inspector)/reviews/[reportId].tsx` |
+| 5 Behavioural pgTAP | ❌ **OPEN** | the only remaining Lane G finding |
+| 6 Fatal classification audit | ✅ | `RETRYABLE_REFUSAL_RE` in `syncErrors.ts` |
+
+**P1-1/2** now check the *existing* canonical architecture — `profiles.role='senior'`
+(the same fact the Admin roster reads), `profiles.status='active'`, and
+`nx_report_contributors()` for the derived set. No new reviewer taxonomy. Verified on real
+PG: ordinary Inspector, report author, Client, deactivated senior and derived co-author all
+rejected; an unrelated active Senior Inspector accepted.
+
+**P1-3** matters more than it first looks. The attack is *not* caught by the
+assigned-reviewer check, because in the dangerous sequence the reviewer really is assigned
+again: R queues an approval for round 1 → superseded → S returns → inspector resubmits →
+admin reassigns round 3 **to R** → R's device drains → a stale approval decides a report
+version R never read. Only the round pin catches it. The 3-arg overload was dropped so two
+signatures cannot drift.
+
+**P1-6 found the widening was too broad in exactly one place.** `22000`/`P0002` are right to
+be fatal for authority, stale state and malformed input — but `FUNDING_REQUIRED` is a
+statement about *the world*, not the operation: the client can pay afterwards and the same
+op becomes valid. Those now classify `conflict` (terminal-pending, awaiting an explicit user
+decision), so the device neither hammers a closed gate nor discards the work. Tested both
+directions.
+
+**P1-4 closed two findings at once** — the mobile inbox had been navigating to a route that
+did not exist since it shipped, which also meant `enqueueSeniorReviewDecide` had no
+production caller anywhere: the offline decide path was built, tested, and unreachable.
+
+### STILL OPEN
+- **P1-5 behavioural pgTAP.** `senior_inspector_review_test.sql` is entirely static `prosrc`
+  regex — it "proves" admin-only delivery by matching an error-message string, and would not
+  have caught any of the three P0s. Needs `set local role` + `throws_ok` behavioural suites
+  for: admin-only delivery, reviewer eligibility, contributor denial, forged reviewer,
+  immutable decided rounds, replacement isolation, round-bound offline decisions, the funding
+  gate, and zero payment side effects. `452000`/`454000`/`456000`/`458000`/`460000` still have
+  no suite. pgTAP is not installed here, so these can be written but not executed.
+- **The fresh independent Lane G has NOT run.** Closure requires it.
+
+### Launch Hardening P1: still NOT closed
+Closure needs all six P1s **and** a clean independent review. One P1 open, no re-review.
+Implementation stays **21/28 = 75%**. Next free migration: **`20260801462000`**.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

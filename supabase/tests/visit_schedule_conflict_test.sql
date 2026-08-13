@@ -26,6 +26,14 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+\i supabase/tests/_fixtures/canonical_job.sql
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole suite. Every assertion in this file
+-- lives in DO blocks that RAISE on failure, which aborts the transaction --
+-- so if anything fails, the closing ok() below never emits and the runner
+-- sees plan 1 vs ran 0. Without a plan the runner cannot tell a passing
+-- suite from one that died before its first statement.
+select plan(1);
 SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
@@ -56,12 +64,30 @@ BEGIN
     (v_rando, 'inspector','VC Outsider','vc.rando@test.nx',true);
 
   -- Jobs A and B carry visits; C is a plain job-level clash for W12.
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_insp,'VC JOB A','suite','in_progress','approved') RETURNING id INTO v_jobA;
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_insp,'VC JOB B','suite','in_progress','approved') RETURNING id INTO v_jobB;
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status, scheduled_date)
-  VALUES (gen_random_uuid(), v_client, v_insp,'VC JOB C','suite','in_progress','approved', v_day) RETURNING id INTO v_jobC;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
+  VALUES (gen_random_uuid(), v_client, 'VC JOB A', 'suite', 'in_progress', 'approved')
+  RETURNING id INTO v_jobA;
+  PERFORM nx_fx_fund_job(v_jobA);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_jobA;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
+  VALUES (gen_random_uuid(), v_client, 'VC JOB B', 'suite', 'in_progress', 'approved')
+  RETURNING id INTO v_jobB;
+  PERFORM nx_fx_fund_job(v_jobB);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_jobB;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, scheduled_date)
+  VALUES (gen_random_uuid(), v_client, 'VC JOB C', 'suite', 'in_progress', 'approved', v_day)
+  RETURNING id INTO v_jobC;
+  PERFORM nx_fx_fund_job(v_jobC);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_jobC;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   SELECT count(*) INTO v_txn_before FROM public.transactions;
@@ -234,5 +260,8 @@ BEGIN
   RAISE NOTICE 'VISIT SCHEDULE CONFLICTS: ALL ASSERTIONS PASSED';
 END
 $suite$;
+select ok(true, 'visit_schedule_conflict: every in-block assertion passed');
+select * from finish();
+
 
 ROLLBACK;

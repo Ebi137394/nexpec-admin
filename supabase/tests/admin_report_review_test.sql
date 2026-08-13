@@ -22,6 +22,14 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+\i supabase/tests/_fixtures/canonical_job.sql
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole suite. Every assertion in this file
+-- lives in DO blocks that RAISE on failure, which aborts the transaction --
+-- so if anything fails, the closing ok() below never emits and the runner
+-- sees plan 1 vs ran 0. Without a plan the runner cannot tell a passing
+-- suite from one that died before its first statement.
+select plan(1);
 SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
@@ -50,9 +58,14 @@ BEGIN
     (v_insp,  'inspector','RR Inspector','rr.insp@test.nx',true),
     (v_admin, 'admin','RR Admin','rr.admin@test.nx',true);
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_insp, 'REPORT REVIEW TEST', 'suite', 'in_progress', 'approved')
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
+  VALUES (gen_random_uuid(), v_client, 'REPORT REVIEW TEST', 'suite', 'in_progress', 'approved')
   RETURNING id INTO v_job;
+  PERFORM nx_fx_fund_job(v_job);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_job;
 
   INSERT INTO public.inspection_reports (job_id, inspector_id, notes, status)
   VALUES (v_job, v_insp, 'submitted for review', 'pending')
@@ -182,5 +195,8 @@ BEGIN
   RAISE NOTICE 'ADMIN REPORT REVIEW: ALL ASSERTIONS PASSED';
 END
 $suite$;
+select ok(true, 'admin_report_review: every in-block assertion passed');
+select * from finish();
+
 
 ROLLBACK;

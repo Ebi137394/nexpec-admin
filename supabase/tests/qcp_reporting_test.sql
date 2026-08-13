@@ -34,6 +34,14 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+\i supabase/tests/_fixtures/canonical_job.sql
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole suite. Every assertion in this file
+-- lives in DO blocks that RAISE on failure, which aborts the transaction --
+-- so if anything fails, the closing ok() below never emits and the runner
+-- sees plan 1 vs ran 0. Without a plan the runner cannot tell a passing
+-- suite from one that died before its first statement.
+select plan(1);
 SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
@@ -145,23 +153,30 @@ BEGIN
 
   -- Job A: governed. Job B: a plain job with no template at all. Job C: a job
   -- on the UNGOVERNED template, to prove the bridge does not over-match.
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status, inspection_type,
-                           scope_template_id, identity_mode)
-  VALUES (gen_random_uuid(), v_buyer, v_insp,'QCP JOB A','suite','in_progress',
-          'approved','compliance', v_tplA, 'protected')
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, inspection_type, scope_template_id, identity_mode)
+  VALUES (gen_random_uuid(), v_buyer, 'QCP JOB A', 'suite', 'in_progress', 'approved', 'compliance', v_tplA, 'protected')
   RETURNING id INTO v_jobA;
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status, identity_mode)
-  VALUES (gen_random_uuid(), v_buyer, v_insp,'QCP JOB B','suite','in_progress',
-          'approved','protected')
+  PERFORM nx_fx_fund_job(v_jobA);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_jobA;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, identity_mode)
+  VALUES (gen_random_uuid(), v_buyer, 'QCP JOB B', 'suite', 'in_progress', 'approved', 'protected')
   RETURNING id INTO v_jobB;
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status, inspection_type,
-                           scope_template_id, identity_mode)
-  VALUES (gen_random_uuid(), v_buyer, v_other,'QCP JOB C','suite','in_progress',
-          'approved','compliance', v_tplB, 'protected')
+  PERFORM nx_fx_fund_job(v_jobB);
+  UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_jobB;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, inspection_type, scope_template_id, identity_mode)
+  VALUES (gen_random_uuid(), v_buyer, 'QCP JOB C', 'suite', 'in_progress', 'approved', 'compliance', v_tplB, 'protected')
   RETURNING id INTO v_jobC;
+  PERFORM nx_fx_fund_job(v_jobC);
+  UPDATE public.jobs SET contractor_id = v_other WHERE id = v_jobC;
 
   INSERT INTO public.inspection_reports (job_id, inspector_id, notes, status)
   VALUES (v_jobA, v_insp, 'Consolidated report A', 'submitted') RETURNING id INTO v_repA;
@@ -614,6 +629,9 @@ BEGIN
   RAISE NOTICE '════ QCP REPORTING SUITE PASSED ════';
 END
 $suite$;
+select ok(true, 'qcp_reporting: every in-block assertion passed');
+select * from finish();
+
 
 ROLLBACK;
 

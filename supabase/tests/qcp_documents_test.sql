@@ -40,6 +40,13 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole suite. Every assertion in this file
+-- lives in DO blocks that RAISE on failure, which aborts the transaction --
+-- so if anything fails, the closing ok() below never emits and the runner
+-- sees plan 1 vs ran 0. Without a plan the runner cannot tell a passing
+-- suite from one that died before its first statement.
+select plan(1);
 SET LOCAL client_min_messages TO NOTICE;
 
 DO $preflight$
@@ -507,5 +514,8 @@ BEGIN
   RAISE NOTICE 'QCP DOCUMENTS / APPROVALS: ALL 23 ASSERTIONS PASSED';
 END
 $suite$;
+select ok(true, 'qcp_documents: every in-block assertion passed');
+select * from finish();
+
 
 ROLLBACK;

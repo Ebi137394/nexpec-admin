@@ -25,6 +25,14 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 BEGIN;
+\i supabase/tests/_fixtures/canonical_job.sql
+create extension if not exists pgtap;
+-- One TAP assertion guarding the whole suite. Every assertion in this file
+-- lives in DO blocks that RAISE on failure, which aborts the transaction --
+-- so if anything fails, the closing ok() below never emits and the runner
+-- sees plan 1 vs ran 0. Without a plan the runner cannot tell a passing
+-- suite from one that died before its first statement.
+select plan(1);
 SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
@@ -60,15 +68,22 @@ BEGIN
   VALUES (v_tmpl, 1, 'photo', 'Weld root photo') RETURNING id INTO v_req;
 
   -- compliance job carries the template; the plain job carries none
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status, inspection_type, scope_template_id)
-  VALUES (gen_random_uuid(), v_client, v_lead,'ITP JOB','suite','in_progress','approved',
-          'compliance', v_tmpl)
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, inspection_type, scope_template_id)
+  VALUES (gen_random_uuid(), v_client, 'ITP JOB', 'suite', 'in_progress', 'approved', 'compliance', v_tmpl)
   RETURNING id INTO v_job;
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description,
-                           status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_lead,'PLAIN JOB','suite','in_progress','approved')
+  PERFORM nx_fx_fund_job(v_job);
+  UPDATE public.jobs SET contractor_id = v_lead WHERE id = v_job;
+  -- Canonical: create UNASSIGNED, fund through the platform path, then
+  -- attach the inspector. Production never inserts contractor_id, and the
+  -- dispatch gate refuses an unfunded job.
+  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
+  VALUES (gen_random_uuid(), v_client, 'PLAIN JOB', 'suite', 'in_progress', 'approved')
   RETURNING id INTO v_plainjob;
+  PERFORM nx_fx_fund_job(v_plainjob);
+  UPDATE public.jobs SET contractor_id = v_lead WHERE id = v_plainjob;
 
   -- the plan: one normal, one HOLD, one WITNESS — reusing the evidence requirement
   INSERT INTO public.itp_points
@@ -264,5 +279,8 @@ BEGIN
   RAISE NOTICE 'ITP POINTS: ALL ASSERTIONS PASSED';
 END
 $suite$;
+select ok(true, 'itp_points: every in-block assertion passed');
+select * from finish();
+
 
 ROLLBACK;

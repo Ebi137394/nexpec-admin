@@ -102,10 +102,21 @@ export function DecisionPanel({
 
     setBusy(true);
     try {
+      // The round pin (20260801460000) is REQUIRED. Omitting it here is what
+      // left the browser path unprotected: a tab left open on round 1 could
+      // land its decision on round 3. `live` is non-null whenever these
+      // controls render — mayDecide is derived from the live round.
+      const live = liveRound(rounds);
+      if (!live) {
+        setFailure('This review round is no longer live. Reload to see its current state.');
+        setBusy(false);
+        return;
+      }
       const { error } = await decideSeniorReview(
         reportId,
         decision,
         decision === REVIEW_DECISION.RETURNED ? comments.trim() : null,
+        live.round,
       );
       if (error) {
         setFailure(

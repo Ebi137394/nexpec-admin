@@ -59,19 +59,20 @@ select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticate
                (:'deact'::uuid), (:'coauth'::uuid), (:'cli'::uuid)) v(u)
 on conflict (id) do nothing;
 
-insert into public.profiles (id, role, status)
-values (:'adm'::uuid, 'admin', 'active'),
-       (:'insp'::uuid, 'inspector', 'active'),
-       (:'senior'::uuid, 'senior', 'active'),
-       (:'senr2'::uuid, 'senior', 'active'),
-       (:'deact'::uuid, 'senior', 'suspended'),
-       (:'coauth'::uuid, 'senior', 'active'),
-       (:'cli'::uuid, 'client', 'active')
+insert into public.profiles (id, email, role, status)
+values (:'adm'::uuid,    'adm@test.local',    'admin',     'active'),
+       (:'insp'::uuid,   'insp@test.local',   'inspector', 'active'),
+       (:'senior'::uuid, 'senior@test.local', 'senior',    'active'),
+       (:'senr2'::uuid,  'senr2@test.local',  'senior',    'active'),
+       (:'deact'::uuid,  'deact@test.local',  'senior',    'suspended'),
+       (:'coauth'::uuid, 'coauth@test.local', 'senior',    'active'),
+       (:'cli'::uuid,    'cli@test.local',    'client',    'active')
 on conflict (id) do update set role = excluded.role, status = excluded.status;
 
-insert into public.jobs (id, client_id, contractor_id, status, payment_mode,
+insert into public.jobs (id, title, client_id, contractor_id, status, payment_mode,
                          client_price_cents, inspector_payout_cents)
-values (:'job'::uuid, :'cli'::uuid, :'insp'::uuid, 'in_progress', 'net_terms', 100000, 70000)
+values (:'job'::uuid, 'Behavioural suite job', :'cli'::uuid, :'insp'::uuid,
+        'in_progress', 'net_terms', 100000, 70000)
 on conflict (id) do nothing;
 
 insert into public.inspection_reports (id, job_id, inspector_id, status)

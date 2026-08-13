@@ -415,42 +415,15 @@ Deno.serve(async (req) => {
         // inspector had left home. nx_stripe_settle_job writes FUNDING state
         // only (jobs.client_settled_at, via the canonical settle_client_payment)
         // and never touches jobs.status or payout state.
-        const { data: rpcResult, error: rpcErr } = await supabase.rpc(
-          'nx_stripe_settle_job',
-          {
-            p_job_id:             md.job_id,
-            p_payment_intent_id:  pi.id,
-            p_amount_cents:       amountCents,
-            p_transaction_ref_id: md.transaction_ref_id,
-            p_correlation_id:     null,
-          },
-        );
-
-        if (rpcErr) {
-          console.error(
-            '[stripe-payments-webhook] nx_stripe_settle_job RPC error:',
-            rpcErr.message,
-          );
-          await logOrphanAuditEvent(
-            event.id, event.type,
-            `nx_stripe_settle_job RPC failed for job ${md.job_id}: ${rpcErr.message}`,
-            {
-              payment_intent_id: pi.id,
-              job_id: md.job_id,
-              amount_cents: amountCents,
-              rpc_error: rpcErr.message,
-              rpc_code: (rpcErr as any).code ?? null,
-            },
-          );
-          // NX-STRIPE-002: release the claim so Stripe's retry re-claims.
-          return releaseAnd500(event.id, `nx_stripe_settle_job RPC failed: ${rpcErr.message}`);
-        }
-
-        console.log(
-          `[stripe-payments-webhook] nx_stripe_settle_job ok — pi=${pi.id} job=${md.job_id} result=${JSON.stringify(rpcResult)}`,
-        );
-
-        // ── Lane 5 staged funding — record WHICH tranche this paid ──────────
+        // ── Lane 5 staged funding — MUST run BEFORE settlement ──────────────
+        // Ordering is load-bearing. settle_client_payment refuses to stamp
+        // client_settled_at while any non-retention tranche is outstanding
+        // (20260801458000). If the stage is marked funded AFTER settlement,
+        // settlement sees it still outstanding, returns settled:false, and
+        // nothing ever re-settles — client_settled_at is never stamped for any
+        // staged-funding job, funded payout_advances are never recovered, and
+        // nx_reconciliation_snapshot reports the full price as unsettled escrow
+        // forever. Mark the tranche first, then settle.
         // Without this the spine is never armed: nx_funding_ensure_schedule
         // (called by create-payment-intent) materialises the stage rows, which
         // switches nx_funding_initial_satisfied off the legacy
@@ -492,6 +465,42 @@ Deno.serve(async (req) => {
             },
           );
         }
+
+
+        const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+          'nx_stripe_settle_job',
+          {
+            p_job_id:             md.job_id,
+            p_payment_intent_id:  pi.id,
+            p_amount_cents:       amountCents,
+            p_transaction_ref_id: md.transaction_ref_id,
+            p_correlation_id:     null,
+          },
+        );
+
+        if (rpcErr) {
+          console.error(
+            '[stripe-payments-webhook] nx_stripe_settle_job RPC error:',
+            rpcErr.message,
+          );
+          await logOrphanAuditEvent(
+            event.id, event.type,
+            `nx_stripe_settle_job RPC failed for job ${md.job_id}: ${rpcErr.message}`,
+            {
+              payment_intent_id: pi.id,
+              job_id: md.job_id,
+              amount_cents: amountCents,
+              rpc_error: rpcErr.message,
+              rpc_code: (rpcErr as any).code ?? null,
+            },
+          );
+          // NX-STRIPE-002: release the claim so Stripe's retry re-claims.
+          return releaseAnd500(event.id, `nx_stripe_settle_job RPC failed: ${rpcErr.message}`);
+        }
+
+        console.log(
+          `[stripe-payments-webhook] nx_stripe_settle_job ok — pi=${pi.id} job=${md.job_id} result=${JSON.stringify(rpcResult)}`,
+        );
 
         return completeAnd200(event.id);
       }

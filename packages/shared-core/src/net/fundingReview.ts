@@ -267,7 +267,17 @@ export function assignSeniorReviewer(
 export function decideSeniorReview(
   inspectionReportId: string,
   decision: ReviewDecision,
-  comments?: string | null,
+  comments: string | null | undefined,
+  /**
+   * The round the reviewer actually read. REQUIRED (20260801460000).
+   *
+   * It was optional here, and the web DecisionPanel simply never passed it —
+   * so the round pin protected the mobile path and not the browser one. A
+   * stale tab left open on round 1 could land its decision on round 3, which
+   * is the exact scenario the pin exists to close. Making it a required
+   * positional argument means a caller cannot silently omit it again.
+   */
+  expectedRound: number,
   options?: RetryOptions,
 ) {
   return rpcWithRetry(
@@ -276,6 +286,7 @@ export function decideSeniorReview(
       p_report_id: inspectionReportId,
       p_decision: decision,
       p_comments: comments ?? null,
+      p_expected_round: expectedRound,
     },
     options,
   );

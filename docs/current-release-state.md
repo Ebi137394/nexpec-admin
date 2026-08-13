@@ -645,6 +645,67 @@ full chain + pgTAP → behaviourally validate `470000`/`472000`/`474000` → fin
 
 ---
 
+## 3g. Admin console recovery ✅ (HEAD `0af48fa`, pushed)
+
+Four admin consoles left uncommitted when three lanes hit an account limit were
+recovered, completed and pushed as four separate commits. Working tree is clean.
+
+| Commit | Console | State on arrival |
+|---|---|---|
+| `aadfc66` | `admin/programs` (10 files) | complete, no gaps found |
+| `f2e7e55` | `admin/scorecards` (4 files) | 1 real defect — fixed |
+| `307e0d7` | `admin/integrations` (5 files) | **`IntegrationsConsole.tsx` never written** — wrote it |
+| `0af48fa` | `admin/sso` (8 files) | **types missing + form action mis-shaped** — fixed |
+
+Whole-tree typecheck went **14 errors → 0**.
+
+**Defects found and fixed at integration** (none were caught by the lanes themselves):
+1. `admin/integrations/page.tsx` imported and rendered `<IntegrationsConsole/>` that did
+   not exist — TS2307, route could not compile. Written against the existing call site,
+   all 11 props unchanged.
+2. `admin/sso`: `SsoConsole`/`TokenRoster` imported ten row types from `./page`; only five
+   were declared and **none exported**. Added `admin/sso/types.ts` with all ten, fields and
+   nullability taken from `20260801472000` rather than inferred. `DomainRow`/`EventRow`
+   carry `org_id` because `inScope<T extends { org_id: string }>` requires it.
+3. `admin/sso/page.tsx` passed the typed `revokeScimToken(tokenId, reason?)` to
+   `<form action={…}>` — TS2322. Added `revokeScimTokenForm(FormData)` adapter that
+   **throws** on failure rather than swallowing: the form cannot render an `ActionResult`,
+   and a credential the operator believes is revoked but is not is the worse outcome.
+4. `admin/scorecards`: `bandStyle()` was not total — under this project's
+   `noUncheckedIndexedAccess`, `BAND_STYLE.none` is itself `| undefined`, so the `??`
+   fallback did not compile. Typed as `Record<string, BandStyle> & { none: BandStyle }`.
+
+### ⚠ THE ONE OPEN GAP — SsoConsole is orphaned
+
+`SsoConsole.tsx` (955 lines), `TokenRoster.tsx` (428) and `OneTimeSecret.tsx` (110) —
+**1,493 lines of working, type-correct UI that no user can reach.** `page.tsx` renders only
+`<IssueTokenForm/>` and keeps its own inline tables. It compiles and is committed; it is
+simply not wired in.
+
+**To wire it (a coherent change of its own, ~1 session):**
+
+`page.tsx:76-98` fetches 5 datasets. `SsoConsole` needs 10 plus two scalars:
+
+| Needed | Status |
+|---|---|
+| `orgs`, `connections`, `domains`, `tokens`, `events` | fetched, but **selects must widen** to match `types.ts` |
+| `mappings` (`org_scim_group_mappings`) | **not fetched** |
+| `identities` (`org_scim_identities`) | **not fetched** |
+| `archive` (`org_scim_membership_archive`) | **not fetched** |
+| `people` (`profiles` → id, email, full_name) | **not fetched** |
+| `departments` (`org_departments` → id, name) | **not fetched** |
+| `nowIso`, `isPlatformAdmin` | **not computed** |
+
+Widen the existing selects to every column in `types.ts` (connections need
+`created_at/updated_at/default_profile_role/idp_*/oidc_*`; domains need `id, org_id`;
+tokens need `scopes, revoked_reason`; events need `org_id, resource_type, request_id,
+detail, target_user_id`), add the five missing fetches to the same `Promise.all`, then
+replace the inline tables with `<SsoConsole …/>`. Keep the header, the `schemaMissing`
+degradation panel and the stat cards. `types.ts` is the contract — if a select drops a
+column the typecheck fails, which is the point.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

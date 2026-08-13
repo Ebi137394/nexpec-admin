@@ -115,6 +115,36 @@ gates, RLS) is frozen here first, which is the ordering the plan calls for.
 
 ---
 
+## 3c. pgTAP plan-count audit (static, 28 suites)
+
+Requested as "verify all test-plan counts". Result: **25 of 28 suites match**; 3 show a
+probable mismatch. A pgTAP suite whose `plan(N)` disagrees with its real assertion count
+**fails at runtime** ("Looks like you planned N but ran M"), so these are worth resolving —
+but they are *not* resolved here, deliberately.
+
+| Suite | `plan()` | counted | delta |
+|---|---|---|---|
+| `credential_verification_authority_test.sql` | 36 | 34–35 | −1 to −2 |
+| `funding_gate_test.sql` | 21 | 23 | +2 |
+| `qcp_revision_lifecycle_test.sql` | 57 | 61 | +4 |
+
+**Why they were not auto-corrected.** The count comes from a regex over line-initial
+`select <pgtap_fn>(` calls, and it is demonstrably sensitive to the function list used — a
+first pass with a badly-ordered alternation (`is` matching before `is_empty`/`isnt_empty`)
+reported **18** mismatches, all but 3 of which were artifacts of my own counter, not defects.
+The counted value for `credential_verification_authority_test.sql` still moves between 34 and
+35 depending on which pgTAP functions the matcher knows. pgTAP itself is the only authority
+here and it is not installed in the authoring sandbox, so editing a `plan(N)` on the strength
+of this count risks breaking a suite that is currently correct. **Resolve these three by
+running the suites once a real Postgres with pgTAP is available** — that is a few seconds of
+work there and pure guesswork here.
+
+The 25 matching suites include all four written in this and the previous wave
+(`credit_inspector_detach` 11, `anon_rpc_authority` 14, `staged_funding` 14,
+`anon_grant_lockdown_sweep` 38).
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
@@ -126,15 +156,16 @@ Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent 
 
 **Start with, in this order:**
 
-1. **Lane 5 — configurable 20/80 funding** at `20260801448000`. Before writing anything,
-   resolve the suspected circular prerequisite: PaymentIntent creation may require
-   `admin_confirmed_at`, while dispatch may require `client_settled_at`. Establish that a
-   valid *first* action exists. Note `settle_client_payment` is now fail-closed and
-   Admin/service-only (`447000`/`446000`), which is the surface Lane 5 must build on.
+1. **Lane 5 client surfaces** — the spine landed at `20260801448000` and the deadlock is
+   resolved (§3a). Outstanding: Web/Admin/Mobile funding UI, reporting and offline
+   projections against `job_funding_stages`, plus wiring `nx_funding_delivery_satisfied`
+   into the final-delivery step (that step is owned by the Senior Inspector lane).
+2. **Senior Inspector review** — not started; large. Must gate final delivery on
+   `nx_funding_delivery_satisfied` and supersede the legacy `request_senior_review` path.
 2. **Test completion** — line-review the 38 Lane 3 pgTAP assertions, add Lane B's
-   report-review suite. Requires a real Postgres with pgTAP; neither is available in the
-   authoring sandbox.
-3. **Senior Inspector review**, then **Wave 2**.
+   report-review suite, and settle the 3 plan-count mismatches in §3c. All require a real
+   Postgres with pgTAP; neither is available in the authoring sandbox.
+3. Then **Wave 2**.
 
 **Do not re-audit** the anon RPC surface, the payment trigger paths, or
 `consent_receipt_status` — all three are closed and covered by regression guards. Two

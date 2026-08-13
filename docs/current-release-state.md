@@ -207,6 +207,64 @@ Recorded here so nobody later "completes" the allocation and breaks the chain.
 
 ---
 
+## 3f. Surface wave — CONTRACT FROZEN, surfaces NOT started
+
+This session delivered the two prerequisites the surface wave depends on, and
+deliberately stopped before the UI lanes. Nothing user-visible shipped.
+
+**1. Frozen vocabulary** — `packages/shared-core/src/domain/funding.ts` and
+`seniorReview.ts`, exported from `domain/index.ts`. Mirrors the two shipped
+migrations exactly: stage codes/statuses/bases, the 2000/8000 default, tranche
+arithmetic, both funding gates *including the legacy tolerance*, review decisions,
+live-vs-superseded rounds, self-review and assigned-reviewer rules, and the two-part
+delivery precondition with an actionable `deliveryBlockReason`.
+
+**Privacy is enforced in the types, not by convention.** `InspectorFundingProjection`
+has no `clientPriceCents` and no spread field, and `inspectorProjection()` has no
+parameter that could carry one — there is no code path by which a client price reaches
+an inspector surface. `ClientFundingProjection` has no payout. Only the Admin
+projection holds both, deriving spread in one place.
+
+**Drift detection** — `fundingReview.test.ts` (27 tests) reads the migration files and
+asserts the TS and SQL still agree: enum members against the CHECK constraints, the
+seeded 20/80, that the dispatch gate consults `nx_funding_initial_satisfied` and no
+longer reads `client_settled_at`, that delivery consults
+`nx_funding_delivery_satisfied`, and that no `senior_review` job status is ever
+reintroduced. A surface refactor that widens an enum now fails in CI, not in production.
+
+**2. Access layer** — `packages/shared-core/src/net/fundingReview.ts`. One path for all
+surfaces. Readers return the audience-scoped projections rather than raw rows, so a
+`select('*')` cannot put a payout in an inspector bundle. `nx_funding_mark_stage_funded`
+is deliberately absent: settling a tranche is service-role webhook work, so no surface
+can reach for it.
+
+### The eight surface lanes — all NOT STARTED, each now unblocked
+
+Every lane consumes the frozen contract; none needs a migration (`452000` stays free
+unless a lane proves a real schema gap).
+
+| # | Lane | Entry point |
+|---|---|---|
+| 1 | Admin: assign reviewer, monitor, deliver | `assignSeniorReviewer`, `fetchReviewRounds`, `deliverReportToClient`, `deliveryBlockReason` |
+| 2 | Senior Inspector inbox: approve/return | `fetchReviewRounds`, `decideSeniorReview`, `canDecide`, `isDecisionSubmittable` |
+| 3 | Inspector resubmission + review visibility | `fetchReviewRounds` (author RLS policy already permits), `fetchInspectorFunding` |
+| 4 | Client 20/80 funding + delivery state | `fetchClientFunding`, `ensureFundingSchedule`, stage `initial` payable pre-dispatch |
+| 5 | Admin funding schedule / override | `fetchAdminFunding`, `setFundingTerms`, `isValidFundingSplit` |
+| 6 | Notifications + authorized projections | must reuse the projections; never notify an amount across the party boundary |
+| 7 | Offline/replay compatibility | funding/review writes are RPCs — extend the existing replay suites |
+| 8 | Integration + accessibility review | read-only |
+
+**Hard rules for those lanes** (all already enforced server-side; the UI must not
+contradict them): a Senior Inspector surface must never render a delivery control;
+the Client never sees inspector payout; the Inspector never sees client price or
+spread; review actions move no money; funding confirmation never pays the Inspector;
+final delivery requires the configured remaining tranche.
+
+**Wave 2 read-only reviewers have NOT run.** They were scheduled after surfaces land,
+and surfaces have not landed.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is
@@ -214,7 +272,7 @@ deliberate. Security wave complete. Lane 5 SPINE is landed (448000); its client 
 
 **Migration allocation (authoritative).** `446000` was reassigned from Lane 5 to security.
 Current: `444000` payment P0 · `446000` anon RPC authority · `447000` consent RLS ·
-`448000` Lane 5 spine · `450000` Senior Inspector review · **`452000` free = next**. Do not reuse `446000`.
+`448000` Lane 5 spine · `450000` Senior Inspector review · **`452000` free = next** (the surface wave needs no migration). Do not reuse `446000`; `440000` is retired (§3e).
 
 **Start with, in this order:**
 

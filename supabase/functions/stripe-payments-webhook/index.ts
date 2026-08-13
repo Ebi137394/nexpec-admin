@@ -91,6 +91,13 @@ interface PaymentIntentMetadata {
   contractor_id?: string;
   user_id?: string;
   transaction_ref_id?: string;
+  /**
+   * Which staged-funding tranche this PaymentIntent settles (20260801448000).
+   * create-payment-intent writes it (index.ts, Stripe metadata). It was NOT
+   * declared here, which is how the webhook came to ignore it entirely.
+   */
+  funding_stage?: string;
+  funding_stage_id?: string;
   platform?: string;
 }
 
@@ -442,6 +449,50 @@ Deno.serve(async (req) => {
         console.log(
           `[stripe-payments-webhook] nx_stripe_settle_job ok — pi=${pi.id} job=${md.job_id} result=${JSON.stringify(rpcResult)}`,
         );
+
+        // ── Lane 5 staged funding — record WHICH tranche this paid ──────────
+        // Without this the spine is never armed: nx_funding_ensure_schedule
+        // (called by create-payment-intent) materialises the stage rows, which
+        // switches nx_funding_initial_satisfied off the legacy
+        // client_settled_at fallback onto the schedule branch — and the
+        // schedule then stays 'scheduled' forever, so dispatch and delivery are
+        // BOTH refused permanently even though the client has paid. Arming it
+        // here is what makes the staged-funding gates true rather than fatal.
+        //
+        // Idempotent twice over: nx_funding_mark_stage_funded returns early on
+        // a replayed PaymentIntent, and the whole handler is claim-gated.
+        const fundingStage = md.funding_stage ?? 'initial';
+        const { error: stageErr } = await supabase.rpc(
+          'nx_funding_mark_stage_funded',
+          {
+            p_job_id: md.job_id,
+            p_code: fundingStage,
+            p_payment_intent: pi.id,
+          },
+        );
+
+        if (stageErr) {
+          // Do NOT 500 here. The money is captured and settlement already
+          // landed; failing the webhook would make Stripe retry a settlement
+          // that has succeeded. Record it loudly instead — an unarmed tranche
+          // blocks dispatch, so this must be visible, not swallowed.
+          console.error(
+            '[stripe-payments-webhook] nx_funding_mark_stage_funded failed:',
+            stageErr.message,
+          );
+          await logOrphanAuditEvent(
+            event.id, event.type,
+            `nx_funding_mark_stage_funded failed for job ${md.job_id} stage ${fundingStage}: ${stageErr.message}`,
+            {
+              payment_intent_id: pi.id,
+              job_id: md.job_id,
+              funding_stage: fundingStage,
+              rpc_error: stageErr.message,
+              rpc_code: (stageErr as any).code ?? null,
+            },
+          );
+        }
+
         return completeAnd200(event.id);
       }
 

@@ -445,10 +445,15 @@ Deno.serve(async (req) => {
         );
 
         if (stageErr) {
-          // Do NOT 500 here. The money is captured and settlement already
-          // landed; failing the webhook would make Stripe retry a settlement
-          // that has succeeded. Record it loudly instead — an unarmed tranche
-          // blocks dispatch, so this must be visible, not swallowed.
+          // 500 SO STRIPE RETRIES. This comment used to say the opposite —
+          // that settlement had "already landed", so failing would re-run a
+          // succeeded settlement. That was true before the calls were
+          // reordered; settlement now runs AFTER this. Falling through to 200
+          // on a transient failure leaves the tranche 'scheduled' forever,
+          // which makes nx_funding_initial_satisfied and
+          // nx_funding_delivery_satisfied refuse dispatch AND delivery
+          // permanently on a fully paid job. nx_funding_mark_stage_funded is
+          // idempotent on the PaymentIntent, so a retry is safe.
           console.error(
             '[stripe-payments-webhook] nx_funding_mark_stage_funded failed:',
             stageErr.message,

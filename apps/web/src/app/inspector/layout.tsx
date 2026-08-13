@@ -15,7 +15,12 @@ import { NotificationToasterGate } from '@/components/notifications/Notification
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_ROLES = new Set(['inspector', 'admin', 'super_admin']);
+// 'senior' is a Senior Inspector: an inspector who also reviews, not a separate
+// portal. Omitting it bounced them out of EVERY /inspector route — including
+// /inspector/reviews, the inbox built for them — so the Sidebar entry gated on
+// role === 'senior' could never render. The mobile sibling
+// (app/(inspector)/_layout.tsx) was fixed; this one was missed.
+const ALLOWED_ROLES = new Set(['inspector', 'senior', 'admin', 'super_admin']);
 
 const OWNER_EMAILS = (process.env.OWNER_EMAILS ?? '')
   .split(',')

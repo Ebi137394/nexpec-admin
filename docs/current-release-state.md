@@ -293,6 +293,66 @@ and surfaces have not landed.
 
 ---
 
+## 3g. Surface wave — Lanes A–E RECOVERED AND INTEGRATED
+
+The previous session launched five surface agents and hit its usage limit mid-flight.
+**All five had written real work to disk and none had been integrated.** This session
+recovered, repaired and integrated every one. ~5,500 lines survived; nothing was discarded.
+
+| Lane | State on disk when recovered | Action taken |
+|---|---|---|
+| A Admin Senior Review | complete + wired | reviewed, integrated |
+| B Senior Inspector (web+mobile) | complete except one missing module | **recovered `roundState.ts`**, integrated |
+| C Inspector resubmission | components + action complete; page.tsx had only a header comment describing a route that did not exist | **implemented the two-mode route** |
+| D Client funding | route complete; `fundingRailData.ts` orphaned | **built the funding rail**, wired it |
+| E Admin funding | `_lib`/`_components`/`_actions` complete; **no route at all** | **built both routes + sidebar entry** |
+
+### Defects found and fixed during integration
+
+1. **Mobile Lane B was killed mid-write.** `app/(inspector)/reviews/index.tsx` imported
+   `./roundState`, which never got written — root typecheck failed on TS2307.
+   Reconstructed as a faithful mirror of the web sibling so both platforms classify a
+   round identically. Imported by deep path: the mobile TS config does not honour package
+   `exports` subpaths, though `apps/web` resolves them fine.
+2. **Two TS2352s in `fundingAdmin.ts`.** `jobs_secure_view` is absent from the generated
+   Supabase types, so `data` widens to `GenericStringError[]` and a direct cast has no
+   overlap. Cast through `unknown` per the compiler's own suggestion.
+3. **Lane E was entirely unreachable** — a complete data + component layer with no route.
+4. **`/client/jobs/[id]/funding` had no inbound link anywhere in the app.** It could only
+   be reached by typing the URL. The finance funding rail is now that link.
+5. **Lane C's correction loop was unreachable from the product.** The route redirected away
+   the moment a report existed, so a returned report could not be seen or acted on.
+
+### Verified at integration — not taken on the agents' word
+
+- **Senior Inspector cannot deliver.** `deliverReportToClient` appears nowhere under
+  `inspector/` except in comments documenting its deliberate absence. The only real import
+  and call site is the Admin panel.
+- **No price leakage either direction.** No payout/spread reference in any client-facing
+  file; no client_price/spread reference in any inspector-facing file.
+- **No raw `select('*')`** in any lane file.
+- **No payment RPC in any review surface** — review moves no money; resubmission writes
+  `inspection_reports` and nothing else.
+- **No automatic settlement added.** Nothing under `admin/funding` calls a settlement or
+  payout RPC; both pages link to `/admin/payouts` rather than duplicating it.
+- **`createCore` singleton discipline holds.** Every binding is browser-scoped (per tab)
+  except `admin/funding/_lib/core.ts`, which binds a request-scoped server client — that one
+  awaits the client first, then enters the reader synchronously. Confirmed `_requireCore()`
+  really is the first statement of both `readStages` and `rpcWithRetry`, so no interleave is
+  possible. Fragile but correct and documented.
+
+### Still outstanding in this wave
+
+- **Lane F (notifications + offline) never started.** No notification is emitted for review
+  assignment, return, resubmission, approval, funding required/confirmed, or delivery.
+- **Lane G (integration reviewer) never started.** The checks above are the Lead's, not an
+  independent read-only pass.
+- **Wave 2 red teams have not run.** They were scheduled after surfaces land.
+- No accessibility audit beyond per-component review (labels, `aria-live`, `role=alert`,
+  and explicit empty/error states are present in the new code).
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

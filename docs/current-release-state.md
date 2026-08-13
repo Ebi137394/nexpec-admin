@@ -113,6 +113,46 @@ chain and pgTAP still require a real Supabase; SQL runtime remains **PENDING MAC
 
 Lane 5 staged funding may now build on a surface with no automatic Inspector credit.
 
+### NEXT LANE — the anon-grant gap is systemic, not two functions
+
+Payment P0 exposed the general shape, and it should drive the next lane. Two facts
+compose into a repository-wide exposure:
+
+1. `20260801442000` revoked anon **DEFAULT PRIVILEGES** on FUNCTIONS. That governs
+   objects created *afterwards*. It does **not** revoke grants already materialised on
+   existing objects, so every per-function `GRANT ... TO anon` in the baseline survives
+   unless a migration names that function explicitly.
+2. The prevailing in-function guard idiom,
+   `IF auth.uid() IS NOT NULL AND NOT nx_is_admin() THEN RAISE`, is fail-**open** for
+   anon, because anon's `auth.uid()` is NULL and the conjunct short-circuits. A function
+   carrying this guard is **not** protected against an unauthenticated caller.
+
+A static replay of every `GRANT ... ON FUNCTION ... TO anon` against every later
+`REVOKE`, in migration order, leaves **~1088 function-level anon grants standing**, of
+which **~53 are money- or authority-shaped**. Spot-check of that set includes:
+
+`approve_job_and_pay`, `debit_wallet_for_payout`, `get_or_create_wallet`,
+`admin_mark_payout_processed`, `admin_set_job_pricing`, `admin_set_fee_schedule`,
+`admin_dispatch_job`, `admin_resolve_dispute`, `admin_suspend_user`,
+`admin_verify_user`, `admin_review_credential`, `approve_inspection_report`,
+`_actor_is_super_admin`.
+
+Caveats on that number, stated honestly: the replay is a **regex pass over migration
+text**, not a catalogue query. It does not evaluate `DO`-block dynamic REVOKEs (of which
+`20260801442000` has several), so the true standing count is **lower** than 1088 — the
+figure is an upper bound for scoping, not a finding. One entry was a false positive from
+a commented-out GRANT. Each candidate must be confirmed against `pg_proc` /
+`has_function_privilege` on a live database before any revoke is written.
+
+**Do not blanket-revoke.** Several of these are the Admin console's real RPCs; stripping
+anon without confirming the calling role would break Admin. The lane needs: a catalogue
+query on a live DB to get the true set, then per-function triage into
+(revoke anon | revoke anon + fix fail-open guard | already safe), then one additive
+migration per coherent group, each with the behavioural-guard style of `20260801444000`.
+
+This subsumes and supersedes the "31 anon-reachable definer functions" line below —
+that count was scoped to definer-without-pinned-search_path and is a subset.
+
 ### Also open, from Lane 3's reported-not-fixed section
 - `consent_receipt_status` returns **every** user's consent records to every caller
   (needs a view redefinition, not a grant change)

@@ -49,9 +49,17 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
  */
 export async function withFundingCore<T>(invoke: () => T): Promise<T> {
   const supabase = await createSupabaseServerClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- @supabase/ssr
-  // returns the same runtime client as @supabase/supabase-js; the two packages
-  // resolve their own copies of the generic SupabaseClient type.
-  createCore({ supabase: supabase as any });
+  // NOTE: no eslint-disable here on purpose. This file's flat config
+  // (eslint.config.mjs) takes the TypeScript *parser* from Next's
+  // core-web-vitals base but does NOT load the @typescript-eslint *rules*, so
+  // `@typescript-eslint/no-explicit-any` is not a defined rule — and a
+  // disable directive naming an undefined rule is itself an ESLint *error*,
+  // which failed `next build`. The cast is not flagged by any active rule.
+  //
+  // The cast is still needed: @supabase/ssr returns the same runtime client as
+  // @supabase/supabase-js, but the two packages resolve their own copies of the
+  // generic SupabaseClient type, so they are structurally incompatible at the
+  // type level only.
+  createCore({ supabase: supabase as unknown as Parameters<typeof createCore>[0]['supabase'] });
   return invoke();
 }

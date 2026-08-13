@@ -148,6 +148,24 @@ const ProfileTab = React.memo(({ data }: TabProps) => {
         </TouchableOpacity>
       )}
 
+      {/* Talent — candidate consent and identity disclosure. These are the two
+          acts ONLY the candidate can perform, so they must be reachable from
+          the phone rather than requiring a laptop. */}
+      <TouchableOpacity
+        style={[styles.certCard, { borderColor: 'rgba(16,185,129,0.28)', marginTop: 0 }]}
+        activeOpacity={0.85}
+        onPress={() => router.push('/(inspector)/talent' as any)}
+        accessibilityRole="button"
+        accessibilityLabel={t('Permanent roles')}
+      >
+        <Ionicons name="ribbon-outline" size={20} color="#10B981" />
+        <View style={{ marginLeft: 12, flex: 1 }}>
+          <Text style={styles.certLabel}>{t('Permanent roles')}</Text>
+          <Text style={styles.certValue}>{t('Consent, matches and what you share')}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#10B981" />
+      </TouchableOpacity>
+
       {/* Negotiations Inbox — entry point to cross-job counter-offer center */}
       <TouchableOpacity
         style={[styles.certCard, { borderColor: 'rgba(245,158,11,0.28)', marginTop: 0 }]}

@@ -33,6 +33,10 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
+-- pgTAP lives per-database, not per-session. Without this the whole suite
+-- aborts on `function plan(integer) does not exist` and emits no TAP output at
+-- all — which the old runner scored as a PASS. Every sibling suite carries it.
+create extension if not exists pgtap;
 
 select plan(14);
 

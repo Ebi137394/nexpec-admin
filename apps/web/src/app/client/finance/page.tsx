@@ -30,6 +30,8 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { fetchClientFinance } from '@/lib/data/clientFinance';
+import { fetchFundingRailJobs } from './fundingRailData';
+import { FundingRail } from './FundingRail';
 import type {
   ClientCreditProfile,
   FinanceActivityKind,
@@ -44,7 +46,10 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function ClientFinancePage() {
-  const { metrics, credit, recentActivity } = await fetchClientFinance();
+  const [{ metrics, credit, recentActivity }, fundingRailJobs] = await Promise.all([
+    fetchClientFinance(),
+    fetchFundingRailJobs(),
+  ]);
 
   return (
     <div className="space-y-10">
@@ -61,6 +66,28 @@ export default async function ClientFinancePage() {
           ledger and releases them to the inspector only on your approval.
         </p>
       </header>
+
+      {/* Staged funding — what is waiting on money from this buyer.
+          The only inbound link to /client/jobs/[id]/funding. */}
+      <section aria-labelledby="funding-rail-heading">
+        <header className="mb-4 flex items-end justify-between gap-3">
+          <div>
+            <h2
+              id="funding-rail-heading"
+              className="font-display text-lg font-semibold tracking-tight text-white"
+            >
+              Awaiting your funding
+            </h2>
+            <p className="mt-0.5 text-sm text-zinc-500">
+              Jobs with an outstanding tranche. Funding the initial tranche
+              authorises the work; the remainder is due before the final signed
+              report is delivered.
+            </p>
+          </div>
+        </header>
+
+        <FundingRail jobs={fundingRailJobs} />
+      </section>
 
       {/* Primary metrics */}
       <section

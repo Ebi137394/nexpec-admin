@@ -1,8 +1,8 @@
 import { ContractData } from "./types.ts";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY!;
-const FROM_EMAIL = process.env.FROM_EMAIL || "contracts@nexpec.com";
-const NEXPEC_URL = process.env.NEXPEC_URL || "https://nexpec.com";
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!;
+const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || "contracts@nexpec.com";
+const NEXPEC_URL = Deno.env.get('NEXPEC_URL') || "https://nexpec.com";
 
 interface EmailRecipient {
   email: string;

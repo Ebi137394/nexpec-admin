@@ -5,9 +5,15 @@ import { generateContractPDF } from "./pdf-generator.ts";
 import { sendContractEmails } from "./email-service.ts";
 import { WebhookPayload, Job, Profile, ContractData, ContractRecord } from "./types.ts";
 
-// Environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL!;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Environment variables.
+//
+// Deno.env.get, NOT process.env. `process` is a Node global and is not defined
+// in the Supabase Edge Runtime (edge-runtime v1.74.2 / Deno 2.1.4), so these two
+// module-scope lines threw ReferenceError at import time and this function could
+// never start — `deno check` reported it as TS2580 "Cannot find name 'process'".
+// Every other function in this directory already uses Deno.env.get.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const STORAGE_BUCKET = "contracts";
 
 // CORS headers
@@ -308,7 +314,7 @@ serve(async (req: Request) => {
     // the unauthenticated contract-generation + recipient-email-harvest hole.
     if (body.job_id) {
       const authHeader = req.headers.get("Authorization") ?? "";
-      const callerClient = createClient(SUPABASE_URL, process.env.SUPABASE_ANON_KEY!, {
+      const callerClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!, {
         global: { headers: { Authorization: authHeader } },
         auth: { autoRefreshToken: false, persistSession: false },
       });

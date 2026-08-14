@@ -133,7 +133,6 @@ export class PDFContractGenerator {
       width: 120,
       height: 50,
       color: COLORS.primary,
-      borderRadius: 4,
     });
 
     // Company name in logo
@@ -315,7 +314,6 @@ export class PDFContractGenerator {
       width: 24,
       height: 20,
       color: COLORS.secondary,
-      borderRadius: 3,
     });
 
     page.drawText(number, {

@@ -1,8 +1,8 @@
 // test-contract-generation.ts
 // Run with: deno run --allow-net test-contract-generation.ts
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 async function testContractGeneration() {
   console.log("🧪 Testing contract generation...\n");

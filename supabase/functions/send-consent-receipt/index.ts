@@ -230,7 +230,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Log to audit trail
-    await supabase.from('consent_audit_logs').insert({
+    const auditInsert = await supabase.from('consent_audit_logs').insert({
       consent_id: consentId,
       action: 'RECEIPT_GENERATED',
       details: {
@@ -241,9 +241,18 @@ serve(async (req: Request): Promise<Response> => {
         recipient_email: profile.email,
       },
       created_at: new Date().toISOString(),
-    }).catch(err => {
-      console.error('Failed to log audit entry:', err);
     });
+
+    // PostgrestFilterBuilder is a THENABLE, not a Promise: it implements then()
+    // but has no catch(). The previous `.catch(err => …)` was a TypeError at
+    // runtime ("catch is not a function") thrown AFTER the receipt had already
+    // been emailed — so a delivered receipt could still fail the request.
+    // `deno check` reported it as TS2551. Awaited and inspected instead; the
+    // audit entry is best-effort by design, so a failure is logged and
+    // swallowed here deliberately, exactly as the original intent.
+    if (auditInsert.error) {
+      console.error('Failed to log audit entry:', auditInsert.error);
+    }
 
     const response: FunctionResponse = {
       success: true,

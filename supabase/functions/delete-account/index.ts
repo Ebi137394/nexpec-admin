@@ -24,7 +24,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,8 +45,13 @@ function jsonResponse(body: unknown, status: number): Response {
 // they are retained business records.
 const PERSONAL_BUCKETS = ['avatars', 'resumes'] as const;
 
+// `ReturnType<typeof createClient>` resolves the generic DEFAULTS
+// (SupabaseClient<unknown, never, GenericSchema>), not the type the call site
+// actually produces — createClient(url, key) infers
+// SupabaseClient<any, "public", any>, so 'string' is not assignable to 'never'
+// and deno check rejected the call (TS2345). Annotate what is really passed.
 async function purgePersonalStorage(
-  admin: ReturnType<typeof createClient>,
+  admin: SupabaseClient<any, 'public', any>,
   uid: string,
 ): Promise<void> {
   for (const bucket of PERSONAL_BUCKETS) {

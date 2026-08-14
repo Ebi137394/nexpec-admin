@@ -87,7 +87,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error sending job assignment email:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to send email", details: error.message }),
+      JSON.stringify({ error: "Failed to send email", details: (error instanceof Error ? error.message : String(error)) }),
       { 
         status: 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 

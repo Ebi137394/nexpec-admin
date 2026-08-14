@@ -107,7 +107,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── 4. Initialize Stripe ────────────────────────────
     const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia',
+// apiVersion cast. This function pins npm:stripe@17.7.0, whose TS type narrows
+// apiVersion to its own default '2025-02-24.acacia', while the account is
+// pinned to '2024-12-18.acacia'. Stripe accepts any valid version string at
+// runtime; only the type is narrow. Casting preserves the pinned API
+// behaviour — BUMPING the version here would silently change response shapes
+// on a live payments path, which is not a typecheck fix. The other seven
+// Stripe functions pin stripe@14.21.0 with '2024-06-20' and are unaffected.
+      apiVersion: '2024-12-18.acacia' as Stripe.LatestApiVersion,
       httpClient: Stripe.createFetchHttpClient(),
       typescript: true,
     });

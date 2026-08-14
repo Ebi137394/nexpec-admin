@@ -379,7 +379,7 @@ async function sendEmail(payload: EmailPayload): Promise<{ success: boolean; err
     return { success: true };
   } catch (error) {
     console.error("Error sending email:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error instanceof Error ? error.message : String(error)) };
   }
 }
 
@@ -617,7 +617,7 @@ serve(async (req: Request): Promise<Response> => {
           emailPromises.push(sendEmail({
             from: fromEmail,
             to: [admin.email],
-            subject: `⚠️ [${disputeData.priority.toUpperCase()}] New Dispute - ${project.title}`,
+            subject: `⚠️ [${(disputeData.priority ?? 'normal').toUpperCase()}] New Dispute - ${project.title}`,
             html: adminEmailHtml,
           }));
         }

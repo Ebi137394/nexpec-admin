@@ -1,6 +1,6 @@
 // supabase/functions/send-consent-receipt/pdf-generator.ts
 
-import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from 'https://esm.sh/pdf-lib@1.17.1';
+import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage, degrees } from 'https://esm.sh/pdf-lib@1.17.1';
 import { encode as base64Encode } from 'https://deno.land/std@0.208.0/encoding/base64.ts';
 import { 
   ConsentWithProfile, 
@@ -13,17 +13,21 @@ import {
   PDF_STYLES 
 } from './constants.ts';
 
+// NOTE: the private fields below carry a definite-assignment `!`. They are
+// populated by the async init path, which a constructor cannot await, so
+// strictPropertyInitialization (on under Deno 2.1.4) flags them as TS2564.
+// The assertion documents that init() must run before any other method.
 export class PDFGenerator {
-  private doc: PDFDocument;
-  private page: PDFPage;
-  private fonts: {
+  private doc!: PDFDocument;
+  private page!: PDFPage;
+  private fonts!: {
     regular: PDFFont;
     bold: PDFFont;
   };
-  private currentY: number;
-  private pageWidth: number;
-  private pageHeight: number;
-  private margin: number;
+  private currentY!: number;
+  private pageWidth!: number;
+  private pageHeight!: number;
+  private margin!: number;
 
   constructor() {
     this.margin = PDF_STYLES.margins.page;
@@ -570,7 +574,10 @@ export class PDFGenerator {
         font: this.fonts.bold,
         color: rgb(0.5, 0.5, 0.5),
         opacity: 0.05,
-        rotate: { type: 'degrees', angle: -45 },
+        // pdf-lib's own helper. The literal { type: 'degrees', … } happened to work
+        // at runtime because RotationTypes.Degrees === 'degrees', but the string
+        // does not narrow to the enum, so deno check rejected it (TS2322).
+        rotate: degrees(-45),
       });
     }
   }

@@ -861,6 +861,75 @@ by any workflow** — 13 assertions enforced nowhere. Added as a CI step.
 
 ---
 
+## 3j. pgTAP closeout IN PROGRESS — 39/56 PASS (HEAD `ac5e0a1`)
+
+Authoritative runner: `node scripts/qa/run-pgtap.mjs`. Clean chain: **181 migrations,
+exit 0**. Progress this session: **31 PASS → 39 PASS**.
+
+### The two rules that make a fixture repair correct
+
+1. **Never preset `contractor_id`, `client_settled_at`, or any platform-owned funding
+   column.** `nx_guard_jobs_funding_columns` exists to keep those out of client hands.
+   A previous attempt bulk-added `client_settled_at` and was wrong.
+2. **Use the frozen helper** `supabase/tests/_fixtures/canonical_job.sql`:
+   `nx_fx_unfunded_job` · `nx_fx_fund_job` · `nx_fx_application` · `nx_fx_dispatched_job`.
+
+**The canonical conversion**, proven across 15 suites:
+
+```sql
+-- create UNASSIGNED (never contractor_id, never status='assigned')
+INSERT INTO public.jobs (…) VALUES (…) RETURNING id INTO v_job;
+PERFORM nx_fx_fund_job(v_job);          -- settle_client_payment, the canonical writer
+UPDATE public.jobs SET contractor_id = v_insp WHERE id = v_job;
+```
+
+Two traps found the hard way:
+- **`status='assigned'` in the INSERT is itself a dispatch**, so the gate fires before
+  funding can run. Insert `'open'`, then move to `'assigned'` in the same UPDATE that
+  attaches the inspector (legal per `guard_jobs_status_transition`).
+- **`nx_fx_fund_job` used to clear `request.jwt.claims` and never restore them**, so
+  funding inside an admin block silently de-authenticated the rest of it and the next
+  call failed with a bare `admin only`. Fixed in the helper; it now saves/restores.
+
+**Suites with no TAP plan cannot pass.** 14 DO-block suites asserted only via
+`RAISE NOTICE`; each now carries `plan(1)` + a closing `ok()`, so an abort reports
+`ran 0 vs planned 1` instead of passing silently.
+
+### Product defects fixed this session (migration `20260801488000`)
+
+| Defect | Impact |
+|---|---|
+| `nx_job_reschedule_visit` called `public.is_admin(v_admin)` | no such overload — **rescheduling was broken for everyone, admins included** |
+| `nx_job_cancel_visit` — same call | **cancelling a visit was broken for everyone** |
+| `protect_certification_verification` referenced `OLD.is_verified` + `NEW.updated_at` | neither column exists on `contractor_certifications`; **every non-service_role UPDATE raised**, and the "admins only" rule it advertised had never once been enforced |
+
+`is_admin()` takes no args and reads `user_roles`; `nx_is_admin(uuid)` reads
+`profiles.role`. Fixed by pointing callers at `nx_is_admin` — **deliberately not by
+adding an `is_admin(uuid)` overload**, which would create a second source of admin
+truth. 488000's self-test now runs a **catalogue sweep** over `pg_proc` so no future
+function can reintroduce the broken call.
+
+### The remaining 17, each with its diagnosed cause
+
+| Suite | First error |
+|---|---|
+| `certification_expiry` | `FORBIDDEN: Only administrators can verify certifications` — the guard now *works*; fixture must set admin standing before changing `status` |
+| `multi_visit`, `visit_evidence` | `new row violates RLS policy for "inspection_items"` |
+| `itp_points`, `inspection_item_ncr_link` | `flash_report_create(…)` signature mismatch — check the live arg list |
+| `qcp_documents` | `a revision with no stage has nothing to review` — fixture needs a stage |
+| `qcp_reporting` | `QCP_REVISION_IMMUTABLE: INSERT on qcp_stages refused` |
+| `qcp_revision_lifecycle` | `plan 57 vs ran 58` — **plan is now stale, bump to 58** + 1 failed assertion |
+| `dispute_integrity_repair` | `too many parameters specified for RAISE` — a bug in the test's own RAISE |
+| `inspector_matching` | `admin only` |
+| `credential_verification_authority` | `permission denied for table _cvfx` — its temp fixture table |
+| `senior_review_behaviour` | `net_terms but has no resolvable buyer principal` — needs a buyer with `client_credit_limit_cents > 0`, not `nx_fx_fund_job` |
+| `anon_rpc_authority`, `report_review_history`, `safe_live_repairs`, `staged_funding`, `team_evidence_contribution` | genuine assertion failures — diagnose individually |
+
+**Not yet run this session** (blocked behind pgTAP): Golden Paths, Deno 37/37,
+Web/Mobile builds, staging previews. ML 43/43 and replay 19/22/13 were green earlier.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

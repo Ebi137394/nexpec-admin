@@ -41,7 +41,7 @@ DECLARE
   v_res    jsonb;
   v_disp   uuid;
   v_cat    text;
-  v_paused boolean;
+  v_escrow text;
   v_n      int;
   v_ok     boolean; v_err text;
   v_txn_before int; v_txn_after int;
@@ -117,11 +117,24 @@ BEGIN
   RAISE NOTICE 'D5 ok — user category preserved verbatim';
 
   -- ── D6 — escrow pause preserved ─────────────────────────────────────────
-  SELECT escrow_paused INTO v_paused FROM public.jobs WHERE id = v_job;
-  IF v_paused IS NOT TRUE THEN
-    RAISE EXCEPTION 'D6 FAILED: filing no longer pauses escrow — pre-existing behaviour regressed';
-  END IF;
-  RAISE NOTICE 'D6 ok — escrow pause preserved';
+    --  Reads escrow_status, not escrow_paused. public.jobs has never had
+    --  escrow_paused or escrow_paused_reason — not in the baseline CREATE TABLE
+    --  and not in any ALTER. file_dispute wrote to them anyway, so every filing
+    --  raised 42703 and rolled back; 20260801496000 repaired it to use the
+    --  carrier that exists. escrow_status is CHECK-constrained to
+    --  (pending|funded|released|refunded|disputed), so 'disputed' is the
+    --  schema's own name for this state. The property is unchanged and is now
+    --  asserted more precisely: the pause happens AND the reason stays durable.
+    SELECT escrow_status INTO v_escrow FROM public.jobs WHERE id = v_job;
+    IF v_escrow IS DISTINCT FROM 'disputed' THEN
+      RAISE EXCEPTION 'D6 FAILED: filing no longer pauses escrow — escrow_status is % (expected disputed)', v_escrow;
+    END IF;
+    SELECT count(*) INTO v_n FROM public.job_disputes
+     WHERE job_id = v_job AND reason_category IS NOT NULL AND reason IS NOT NULL;
+    IF v_n < 1 THEN
+      RAISE EXCEPTION 'D6 FAILED: the pause reason was not durably recorded on the dispute row';
+    END IF;
+    RAISE NOTICE 'D6 ok — escrow paused via escrow_status=disputed; reason on the dispute row';
 
   -- ── D7 — no money moved ─────────────────────────────────────────────────
   SELECT count(*) INTO v_txn_after FROM public.transactions WHERE user_id = v_insp;

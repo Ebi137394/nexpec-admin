@@ -1064,6 +1064,49 @@ Now inverted and strengthened: settlement must leave the inspector untouched.
 
 ---
 
+## 3k. FINAL PRE-MANUAL-QA GATE RUN ✅ (all green)
+
+Graphify refreshed at HEAD: **17,856 nodes · 28,068 edges · 1,561 communities**.
+
+| Gate | Result |
+|---|---|
+| `supabase db reset` | **186/186 migrations** |
+| `node scripts/qa/run-pgtap.mjs` | **56 suites · 56 PASS · 0 FAIL** |
+| Golden Path `qa:e2e:money` | **32 passed · 0 failed** |
+| `deno check` @ **deno 2.1.4** (deployment runtime) | **37 passed · 0 failed** |
+| vitest | **168 passed** |
+| ML | **43 assertions** |
+| replay | **19 + 22 + 13 = 54** |
+| root `tsc --noEmit` | **exit 0** |
+| SQL/RLS/security/privacy guards | **12 passed · 0 failed** |
+
+**Zero known locally reproducible P0/P1 defects.**
+
+Two notes so neither is misread later:
+- `supabase db reset` can exit 1 while applying **all 186** migrations — the cause is a
+  `supabase_storage` container startup race, not a SQL failure. Check the log for an actual
+  `ERROR:` before treating it as one.
+- The root `tsc` can exit **124** under concurrent load. That is a timeout, not a failure;
+  run it alone and it exits 0.
+
+Deliverables added: `docs/FINAL-FEATURE-INVENTORY.md`,
+`docs/NEXPEC-DEMO-AND-SALES-CAPABILITIES.md`.
+
+### ⛔ Still blocked — both need owner dashboard access
+
+1. **No `NEXPEC-Staging` Supabase project exists.** Re-verified: the org contains only
+   `NEXPEC` (ACTIVE_HEALTHY, linked, **Production**) and `DoseSync` (INACTIVE, unrelated
+   product). Nothing was applied, seeded or written to either.
+2. **Vercel CLI is `Not authorized`.** Project `nexpec-main-platform` is discovered from
+   `.vercel/project.json`; the stored token is rejected server-side even when passed as
+   `--token`, so no Preview could be deployed.
+
+Production migration status, read-only: **116 of 186 applied**, last `20260801354000`,
+**70 pending**. All 12 migrations edited in place during closeout are inside those 70 —
+none has ever been deployed.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

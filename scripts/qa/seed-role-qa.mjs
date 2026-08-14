@@ -27,6 +27,7 @@
  *   node scripts/qa/seed-role-qa.mjs
  */
 import { createClient } from '@supabase/supabase-js';
+import { assertNotProduction } from './staging-guard.mjs';
 
 const URL = process.env.SUPABASE_URL;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -34,10 +35,12 @@ if (!URL || !SERVICE) {
   console.error('FATAL: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
   process.exit(1);
 }
-const isLocal = /127\.0\.0\.1|localhost|^http:\/\/10\./.test(URL);
-if (!isLocal && process.env.ALLOW_REMOTE_SEED !== '1') {
-  console.error(`REFUSING: ${URL} is not local. Set ALLOW_REMOTE_SEED=1 to override.`);
-  console.error('Never seed synthetic QA data into a real project by accident.');
+// Hard guard: local and vetted Staging only. Production throws with no override,
+// and an unrecognised ref throws too — "not obviously Production" is not "safe".
+try {
+  assertNotProduction(URL, 'QA role seeding');
+} catch (e) {
+  console.error(e.message);
   process.exit(1);
 }
 

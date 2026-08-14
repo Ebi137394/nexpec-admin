@@ -103,6 +103,15 @@ DECLARE
     -- from being moved or removed, and nothing else would then stop an
     -- unauthenticated call. Defense in depth is the whole point of this list.
     'request_account_deletion',
+    -- wallet_credit_topup credits a wallet balance. It is defined in the baseline
+    -- and CREATE OR REPLACE'd by 20260801374000. On a LOCAL database that replace
+    -- inherits the baseline's existing grants, so it reads as safe — but on a
+    -- FRESH cloud project PostgreSQL's default of granting EXECUTE to PUBLIC on a
+    -- newly created function applies, and the function lands anon-reachable. This
+    -- lane's own 5b self-test caught it on the first real Staging push, having
+    -- never fired locally. A money-mutating function must not depend on which
+    -- environment created it first.
+    'wallet_credit_topup',
     -- role / credential / organization authority
     'admin_remove_org_member', 'admin_suspend_user', 'admin_unsuspend_user',
     'admin_update_org_member_role', 'admin_verify_user', 'admin_review_credential',

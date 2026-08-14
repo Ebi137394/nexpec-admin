@@ -930,6 +930,89 @@ Web/Mobile builds, staging previews. ML 43/43 and replay 19/22/13 were green ear
 
 ---
 
+## 3k. ALL AUTOMATED GATES GREEN (HEAD `1d1ae26`)
+
+**pgTAP 56/56 · Edge Functions 37/37 on the deployment runtime · migration chain
+186/186 · every typecheck, build, guard and suite passing.**
+
+### Gate results — all executed, none inferred
+
+| Gate | Result |
+|---|---|
+| `supabase db reset` | **exit 0 — 186 migrations** |
+| `node scripts/qa/run-pgtap.mjs` | **56 suites · 56 PASS · 0 FAIL** |
+| `deno check` @ **deno 2.1.4** (deployment) | **37 passed, 0 failed** |
+| root / shared-core / `apps/web` tsc | **exit 0** |
+| `npm test` (vitest) | **168 passed** |
+| `qa:ml-tests` | **43 assertions** |
+| `npm run test:replay` | **exit 0** — itp 19, visit 22, review 13 |
+| `npm run build:web` | **exit 0** — compiled in 63s |
+| 12 QA/RLS/security/db-ref guards | **all exit 0** |
+
+### The Edge Function check command (established by evidence)
+
+The deployment runtime is **edge-runtime v1.74.2**, which reports `deno 2.1.4`.
+Local Deno is 2.9.5 and is the *wrong* bar in both directions — its TypeScript
+6.0.3 invented failures that do not exist on the target (the generic `Uint8Array`
+change) and hid two real ones. The authoritative command is:
+
+```
+docker run --rm -v "$PWD/supabase/functions:/w" -w /w \
+  denoland/deno:2.1.4 deno check <fn>/index.ts
+```
+
+A locally-generated `deno.lock` is lockfile v5, which 2.1.4 **refuses outright** —
+it stays gitignored. Delete it before checking.
+
+### P0/P1 defects fixed this wave — all found only by real execution
+
+1. **`file_dispute()` could not file a dispute (P0).** It wrote
+   `jobs.escrow_paused` / `escrow_paused_reason`; neither column exists in the
+   baseline or any ALTER. Every call raised 42703 and rolled back, taking the
+   `job_disputes` INSERT with it. `368000` had "repaired" this function and added
+   a guard that asserts on the function's *source text* — which passed precisely
+   **because** the broken string was still there. Now writes
+   `escrow_status = 'disputed'` (already a value of the CHECK).
+   **Do NOT create `jobs.escrow_paused`** — no repo evidence it ever existed.
+2. **The job inspection team had no read surface (P1).** Two predicates both
+   named "team": `nx_is_active_job_team_member` (job_inspectors) gates the WRITE
+   policy, while `nx_can_team_access_job` (org co-membership) gated every READ.
+   Since an RLS expression evaluates with the caller's privileges,
+   `inspection_items_team_write`'s `EXISTS` over `inspection_reports JOIN jobs`
+   returned nothing for exactly the people it authorizes —
+   **multi-inspector teams could not record inspection items at all.**
+   Fixed by `20260801494000` with two SELECT-only policies.
+   Price blindness is unaffected: it is a **COLUMN** grant, which no policy can
+   override, and the migration's self-test fails the deploy if that changes.
+3. **Duplicate migration timestamp aborted every clean chain.** Two files shared
+   `20260801488000`; filename order ran the *assertion* before its own *repair*.
+   Renumbered the assertion to `489000`. Invisible until a full reset, because
+   the working DB had been built incrementally.
+4. **`generate-contract` could never start.** It read `process.env` at module
+   scope; `process` is a Node global absent from the Edge Runtime →
+   ReferenceError at import.
+5. **`send-consent-receipt` threw after emailing.** `.catch()` on a
+   PostgrestFilterBuilder — a *thenable*, not a Promise, so no `catch` method.
+   A delivered receipt could still fail the request.
+
+### Two inverted test assertions corrected (not weakened)
+
+`visit_evidence` VE6/VE7 encoded the pre-`20260801396000` expectation. That
+migration deliberately made a **cancelled** visit retain evidence (no successor
+to forward to; destroying proof of performed work is worse) and a **rescheduled**
+visit forward it to the live successor (raising returned 23514, which the offline
+layer treats as FATAL and *discards*). Both assertions now check the documented
+behaviour and are strictly stronger than what they replaced.
+
+### Standing rule this wave keeps re-proving
+
+A guard that asserts on **source text** or on a **name** proves nothing. Three
+separate defects survived precisely such guards. Assert on the catalogue — does
+the column exist, does the CHECK admit the value, is the trigger at the right
+level.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

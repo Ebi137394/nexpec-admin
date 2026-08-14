@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * scripts/qa/seed-role-qa.mjs — synthetic Manual QA users for AGENCY and SUPPLIER.
+ * scripts/qa/seed-role-qa.mjs — synthetic Manual QA users for EVERY role.
  *
  * WHY THIS EXISTS
  *   `supabase db reset` leaves an empty database, and qa:e2e:money creates then
@@ -120,11 +120,51 @@ async function main() {
   }).select('id').single();
   if (rErr) fail('supplier_rfqs', rErr); else ok(`open RFQ created (${rfq.id.slice(0, 8)}…)`);
 
+  // ── Remaining roles ───────────────────────────────────────────────────────
+  //  Created with the SAME upsertUser path, so re-running is idempotent. None of
+  //  them gets a dispatched job or a funding column — the canonical sequence
+  //  (create unassigned -> fund via the platform path -> admin_dispatch_job) is
+  //  what Manual QA is there to exercise by hand.
+  console.log('\n[remaining roles]');
+  const roles = [
+    ['qa.superadmin@nexpec.test', 'super_admin', 'QA Super Admin'],
+    ['qa.admin@nexpec.test',      'admin',       'QA Admin'],
+    ['qa.client@nexpec.test',     'client',      'QA Client'],
+    ['qa.inspector@nexpec.test',  'inspector',   'QA Inspector'],
+    ['qa.senior@nexpec.test',     'senior',      'QA Senior Inspector'],
+    ['qa.enterprise@nexpec.test', 'enterprise',  'QA Enterprise Employer'],
+    ['qa.talent@nexpec.test',     'inspector',   'QA Talent Candidate'],
+  ];
+  const ids = {};
+  for (const [email, role, name] of roles) {
+    try {
+      ids[role] = await upsertUser(email, role, name);
+      ok(`${role.padEnd(12)} ${email}`);
+    } catch (e) { fail(email, e); }
+  }
+
+  // A client-owned job for the Client/Inspector/Senior walkthrough. UNASSIGNED
+  // and unfunded, exactly like the agency one — QA funds and dispatches it.
+  if (ids.client) {
+    const { error: cjErr } = await admin.from('jobs').insert({
+      title: 'QA — Client single-visit inspection',
+      description: 'Synthetic Manual QA job owned by the QA client.',
+      client_id: ids.client,
+      status: 'pending_approval', moderation_status: 'approved',
+      client_price_cents: 150000, inspector_payout_cents: 100000,
+    });
+    if (cjErr) fail('client job', cjErr); else ok('client job created UNASSIGNED');
+  }
+
   console.log('\n──────────────────────────────────────────────');
-  console.log('  Agency    qa.agency@nexpec.test');
-  console.log('  Supplier  qa.supplier@nexpec.test');
-  console.log('  RFQ buyer qa.rfqbuyer@nexpec.test');
-  console.log(`  Password  ${PASSWORD}   (all three)`);
+  for (const [email, role] of [
+    ['qa.superadmin@nexpec.test','super_admin'], ['qa.admin@nexpec.test','admin'],
+    ['qa.client@nexpec.test','client'], ['qa.inspector@nexpec.test','inspector'],
+    ['qa.senior@nexpec.test','senior'], ['qa.enterprise@nexpec.test','enterprise'],
+    ['qa.talent@nexpec.test','talent candidate'], ['qa.agency@nexpec.test','agency'],
+    ['qa.supplier@nexpec.test','supplier'], ['qa.rfqbuyer@nexpec.test','rfq buyer'],
+  ]) console.log(`  ${role.padEnd(16)} ${email}`);
+  console.log(`  ${'password'.padEnd(16)} ${PASSWORD}   (all accounts)`);
   console.log('──────────────────────────────────────────────');
   console.log('  No money moved. No job dispatched. Re-runnable.\n');
 }

@@ -124,6 +124,41 @@ BEGIN
 END;
 $fn$;
 
+-- ── 1b. Same defect, same class: nx_job_cancel_visit ────────────────────────
+--  Found by the same runtime sweep. Identical broken call, identical fix.
+--  Cancelling a visit was impossible for anyone, administrators included.
+CREATE OR REPLACE FUNCTION public.nx_job_cancel_visit(p_visit_id uuid, p_reason text DEFAULT NULL)
+RETURNS jsonb
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO 'public', 'pg_temp'
+AS $fn$
+DECLARE
+  v_admin uuid := auth.uid();
+  v_n     int;
+BEGIN
+  IF NOT public.nx_is_admin(v_admin) THEN
+    RAISE EXCEPTION 'only an administrator may cancel a visit'
+      USING errcode = '42501';
+  END IF;
+
+  -- 394000 added 'rescheduled'. Without it, cancelling a superseded row set
+  -- status='cancelled', which put it back inside nx_job_visits' filter
+  -- (status <> 'rescheduled') alongside the replacement that superseded it:
+  -- two live rows on one visit_number and a severed supersession chain.
+  UPDATE public.job_visits
+     SET status = 'cancelled', cancelled_at = now(), cancelled_by = v_admin,
+         cancel_reason = NULLIF(btrim(coalesce(p_reason,'')), '')
+   WHERE id = p_visit_id
+     AND status NOT IN ('completed','cancelled','rescheduled');
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  IF v_n = 0 THEN
+    RETURN jsonb_build_object('ok', true, 'idempotent', true);
+  END IF;
+  RETURN jsonb_build_object('ok', true, 'cancelled_visit_id', p_visit_id);
+END;
+$fn$;
+
 -- ── 2. Certification verification guard, against real columns ───────────────
 CREATE OR REPLACE FUNCTION public.protect_certification_verification()
 RETURNS trigger
@@ -207,7 +242,19 @@ BEGIN
     RAISE EXCEPTION 'SELFTEST: a function repaired here names a money surface';
   END IF;
 
-  RAISE NOTICE 'reschedule authorization and certification guard now resolve against objects that exist.';
+  -- 6. CATALOGUE SWEEP: no function anywhere may call the non-existent
+  --    is_admin(<arg>) overload again. Driven from pg_proc rather than a name
+  --    list, so a future function cannot reintroduce it silently. Comments are
+  --    stripped first: this migration's own notes quote the old broken call.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ '\mpublic\.is_admin\s*\(\s*[a-z_]'
+  ) THEN
+    RAISE EXCEPTION 'SELFTEST: a public function still calls public.is_admin(<arg>), an overload that does not exist';
+  END IF;
+
+  RAISE NOTICE 'reschedule/cancel authorization and certification guard now resolve against objects that exist.';
 END
 $selftest$;
 

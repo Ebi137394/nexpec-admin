@@ -124,7 +124,21 @@ select is(
   'N4: exactly one flash report exists for the one failed item');
 
 -- ── N5 — it flows through the EXISTING state machine ────────────────────────
+--  SEPARATION OF DUTIES. open → acknowledged is guarded in
+--  flash_report_transition: "Reporters cannot acknowledge their own report".
+--  INSP raised this NCR, so flash_reports.reporter_id = INSP and INSP is
+--  refused here — correctly. Acknowledging as INSP would be asking the product
+--  to let one principal both raise and clear a non-conformance, so the fix is a
+--  SECOND, distinct, legitimately-authorized principal, not a weaker guard.
+--  ADM (already seeded above, profiles.role='admin') is that principal: the
+--  guard resolves admin/super_admin to 'super_admin' standing, which is a job
+--  party for this purpose and is not the reporter. The claims are restored to
+--  INSP immediately afterwards so the rest of the suite runs as before.
+set local request.jwt.claims to '{"sub":"d4444444-4444-4444-4444-444444444444","role":"authenticated"}';
+
 select public.flash_report_transition(:'NCR'::uuid, 'acknowledged', 'seen by admin');
+
+set local request.jwt.claims to '{"sub":"d2222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 select is(
   (select status from public.flash_reports where id = :'NCR'::uuid),

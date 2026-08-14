@@ -1013,6 +1013,57 @@ level.
 
 ---
 
+## 3l. RELEASE CLOSEOUT COMPLETE — every automated gate green
+
+**HEAD `fbc32e3`+ · all 56 pgTAP suites · 37/37 Edge Functions on the deployment
+runtime · Golden Path 32/32 · Manual QA previews live.**
+
+| Gate | Result |
+|---|---|
+| `supabase db reset` | **exit 0 — 186 migrations** |
+| `node scripts/qa/run-pgtap.mjs` | **56 suites · 56 PASS · 0 FAIL** |
+| `deno check` @ deno 2.1.4 (deployment) | **37 passed, 0 failed** |
+| `npm run qa:e2e:money` (Golden Path) | **32 passed, 0 failed** |
+| root / shared-core / apps/web tsc | **exit 0** |
+| `npm test` (vitest) | **168 passed** |
+| `qa:ml-tests` | **43 assertions** |
+| `npm run test:replay` | itp 19 · visit 22 · review 13 |
+| `npm run build:web` | **exit 0** |
+| 12 QA/RLS/security/db-ref guards | **all exit 0** |
+| Web preview | **http://localhost:3000 → 200**, on the LOCAL stack |
+| Mobile preview | Metro :8081 — **33.9 MB bundle, 5045 modules, 0 errors** |
+
+### The most important find of this wave
+
+`qa:e2e:money` had **never executed** — it demands staging credentials and exited
+FATAL before its first assertion. Run for real, two of its checks demanded that
+client settlement move the inspector payout from `pending_amount` to
+`available_balance`. `20260801458000 (P0-2b)` **deleted that on purpose**, calling
+it "automatic inspector payment triggered by a client action, which the standing
+rule forbids … the third and last automatic-money path" (with `432000` and
+`444000` the other two).
+
+**The Golden Path was asserting the exact automatic-payment defect this project
+spent three migrations removing** — and would have failed anyone who re-fixed it.
+Now inverted and strengthened: settlement must leave the inspector untouched.
+
+### Local stack notes for Manual QA
+
+- `supabase/config.toml` previously declared ONLY `[functions.*]`, so
+  `supabase start` brought up Postgres alone and auth answered 000. `[api]`,
+  `[db]`, `[auth]`, `[inbucket]` added — **local only**, hosted projects are
+  configured in the dashboard.
+- **After `supabase db reset`, restart auth AND kong** — the DB is recreated
+  underneath GoTrue and Kong caches a stale upstream (502):
+  `docker restart supabase_auth_nexpec supabase_kong_nexpec`
+- `apps/web/.env.development.local` (gitignored) points the Web app at the LOCAL
+  stack. `apps/web/.env.local` points at the REMOTE project — the override exists
+  so QA never writes test data there. Delete it to go back to remote.
+- `apps/web` is **excluded** from npm workspaces (`!apps/web`); use
+  `cd apps/web && npm run dev`, never `--workspace=@nexpec/web`.
+
+---
+
 ## 3b. NEXT SESSION STARTS HERE
 
 **HEAD (see git)** · `behind=0 ahead=0` · tracked tree clean · untracked `.claude/**` is

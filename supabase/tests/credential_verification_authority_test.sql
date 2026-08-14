@@ -58,6 +58,18 @@ select plan(36);
 -- ════════════════════════════════════════════════════════════════════════════
 create temporary table _cvfx (k text primary key, v uuid not null);
 
+-- The fixture id table is read by _cvfx() from INSIDE `set local role
+-- authenticated` blocks (sections C–G). A temp table is owned by the session
+-- user (postgres) and carries no grants, so every one of those reads failed
+-- with `permission denied for table _cvfx` — an artefact of the fixture, not
+-- of the authority under test. PUBLIC already holds USAGE on the session temp
+-- schema, so SELECT on the table is the whole gap. This is a session-local,
+-- rolled-back table of random UUIDs: granting SELECT on it widens nothing.
+-- Deliberately NOT solved by making _cvfx() SECURITY DEFINER, which would put
+-- a definer function reading a temp table into public for the transaction's
+-- lifetime and add a real search_path surface to a test helper.
+grant select on _cvfx to public;
+
 insert into _cvfx(k, v) values
   ('admin',        gen_random_uuid()),
   ('inspector',    gen_random_uuid()),

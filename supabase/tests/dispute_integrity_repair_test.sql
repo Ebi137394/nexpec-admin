@@ -22,6 +22,7 @@
 
 BEGIN;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 -- One TAP assertion guarding the whole suite. Every assertion in this file
 -- lives in DO blocks that RAISE on failure, which aborts the transaction --
 -- so if anything fails, the closing ok() below never emits and the runner
@@ -58,10 +59,20 @@ BEGIN
     (v_admin, 'admin','DI Admin','di.admin@test.nx',true),
     (v_rando, 'client','DI Rando','di.rando@test.nx',true);
 
-  INSERT INTO public.jobs (id, client_id, contractor_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, v_insp, 'DISPUTE REPAIR TEST', 'suite', 'in_progress', 'approved')
-  RETURNING id INTO v_job;
+  -- ── the canonical dispatch sequence ─────────────────────────────────────
+  --  NEVER preset contractor_id: trg_jobs_dispatch_requires_funding treats a
+  --  non-null contractor_id on INSERT as a dispatch and refuses it with
+  --  FUNDING_REQUIRED, because a prepay job with no client_settled_at is not
+  --  funded. Create the job UNASSIGNED, fund it through the platform path,
+  --  then attach the inspector. open → assigned → in_progress are all legal
+  --  under guard_jobs_status_transition.
+  v_job := nx_fx_unfunded_job(v_client, 'DISPUTE REPAIR TEST');
+  UPDATE public.jobs SET description = 'suite' WHERE id = v_job;
+  PERFORM nx_fx_fund_job(v_job);
+  UPDATE public.jobs SET contractor_id = v_insp, status = 'assigned' WHERE id = v_job;
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
 
+  -- Counted AFTER funding, so D7 measures only what filing a dispute moves.
   SELECT count(*) INTO v_txn_before FROM public.transactions WHERE user_id = v_insp;
 
   -- ── D1 — the RPC executes at all ────────────────────────────────────────
@@ -97,7 +108,11 @@ BEGIN
   -- ── D5 — the chosen category is stored verbatim ─────────────────────────
   SELECT reason_category INTO v_cat FROM public.job_disputes WHERE id = v_disp;
   IF v_cat <> 'quality' THEN
-    RAISE EXCEPTION 'D5 FAILED: category was rewritten to %% (expected the user''s own ''quality'')', v_cat;
+    -- `%%` here was a literal percent sign, so this RAISE had ZERO format
+    -- placeholders and one argument. plpgsql rejects that at COMPILE time
+    -- ("too many parameters specified for RAISE"), which killed the whole DO
+    -- block before its first statement ran.
+    RAISE EXCEPTION 'D5 FAILED: category was rewritten to % (expected the user''s own ''quality'')', v_cat;
   END IF;
   RAISE NOTICE 'D5 ok — user category preserved verbatim';
 

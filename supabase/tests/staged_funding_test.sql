@@ -69,13 +69,26 @@ select ok(
   'the dispatch gate no longer demands FULL settlement — the create-payment-intent deadlock is broken'
 );
 
+--  448000 had the guard call nx_funding_initial_satisfied(NEW.id). 478000
+--  removed that call deliberately and its own selftest (478000:208) now RAISES
+--  if it ever comes back: that helper resolves the legacy carrier by reading
+--  public.jobs BY ID, and in a BEFORE INSERT trigger the row does not exist yet,
+--  which made the whole INSERT dispatch path unsatisfiable. Asserting the old
+--  callee name here would assert the defect back in.
+--
+--  The PROPERTY Lane 5 contracted for is unchanged and is what is asserted: the
+--  gate reads the spine and requires the INITIAL tranche to be genuinely funded.
+--  It now does so directly — EXISTS over job_funding_stages to detect a
+--  schedule, then nx_funding_stage_is_funded(NEW.id,'initial'), which reads
+--  stage rows and not the jobs row, so it is correct during BEFORE INSERT.
 select ok(
   exists (
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public'
        and p.proname = 'nx_guard_dispatch_requires_funding'
-       and p.prosrc ~* 'nx_funding_initial_satisfied'),
-  'the dispatch gate consults the staged-funding spine'
+       and p.prosrc ~* 'public\.job_funding_stages'
+       and p.prosrc ~* 'nx_funding_stage_is_funded\s*\(\s*NEW\.id\s*,\s*''initial'''),
+  'the dispatch gate consults the staged-funding spine and requires the initial tranche'
 );
 
 -- ── C. dispatch is still gated ──────────────────────────────────────────────

@@ -151,6 +151,14 @@ BEGIN
   INSERT INTO public.qcp_revisions (qcp_id, revision_no, status, created_by)
   VALUES (v_qcp, 1, 'draft', v_buyer) RETURNING id INTO v_rev1;
 
+  --  nx_qcp_submit_revision refuses "a revision with no stage has nothing to
+  --  review", so the revision must carry at least one stage before QD13 drives
+  --  it through the state machine. Stages are insertable only while the
+  --  revision is draft (trg_qcp_stages_draft_only), so this has to happen here
+  --  and not later.
+  INSERT INTO public.qcp_stages (revision_id, sequence_no, name, responsible_party)
+  VALUES (v_rev1, 1, 'Material Receipt and Welding', 'Supplier QC');
+
   INSERT INTO public.qcp_required_documents (revision_id, label, is_mandatory, acceptance_criteria)
   VALUES (v_rev1, 'Welding Procedure Specification', true, 'ASME IX qualified')
   RETURNING id INTO v_req_a;
@@ -351,6 +359,9 @@ BEGIN
   -- ── QD16/QD17 — a SUPERSEDED revision is frozen history, still readable ───
   INSERT INTO public.qcp_revisions (qcp_id, revision_no, status, supersedes_id, created_by)
   VALUES (v_qcp, 2, 'draft', v_rev1, v_buyer) RETURNING id INTO v_rev2;
+  --  Same reason as revision 1: no stage, nothing to submit. Draft-only window.
+  INSERT INTO public.qcp_stages (revision_id, sequence_no, name, responsible_party)
+  VALUES (v_rev2, 1, 'Material Receipt and Welding', 'Supplier QC');
   INSERT INTO public.qcp_required_documents (revision_id, label, is_mandatory)
   VALUES (v_rev2, 'Welding Procedure Specification', true) RETURNING id INTO v_req_r2;
 

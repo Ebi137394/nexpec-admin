@@ -37,6 +37,7 @@ DECLARE
   v_insp   uuid := gen_random_uuid();
   v_other  uuid := gen_random_uuid();
   v_client uuid := gen_random_uuid();
+  v_admin  uuid := gen_random_uuid();
   v_c30    uuid;
   v_far    uuid;
   v_pend   uuid;
@@ -53,13 +54,20 @@ BEGIN
   VALUES
     (v_insp,  '00000000-0000-0000-0000-000000000000','authenticated','authenticated','ce.insp@test.nx',  now(),now()),
     (v_other, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','ce.other@test.nx', now(),now()),
-    (v_client,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','ce.client@test.nx',now(),now());
+    (v_client,'00000000-0000-0000-0000-000000000000','authenticated','authenticated','ce.client@test.nx',now(),now()),
+    (v_admin, '00000000-0000-0000-0000-000000000000','authenticated','authenticated','ce.admin@test.nx', now(),now());
 
   INSERT INTO public.profiles (id, role, full_name, email, is_verified, is_available, specialty_slugs)
   VALUES
     (v_insp, 'inspector','CE Inspector','ce.insp@test.nx', true,true, ARRAY['ndt']),
     (v_other,'inspector','CE Other',    'ce.other@test.nx',true,true, ARRAY['ndt']),
-    (v_client,'client',  'CE Client',   'ce.client@test.nx',true,true,'{}');
+    (v_client,'client',  'CE Client',   'ce.client@test.nx',true,true,'{}'),
+    -- E9 mutates contractor_certifications.status, which is exactly what
+    -- protect_certification_verification now guards (it was dead code until
+    -- 20260801488000 repaired it). The fixture therefore needs REAL admin
+    -- standing — nx_is_admin() reads public.profiles.role — rather than a
+    -- service_role bypass, which would prove nothing about the admin rule.
+    (v_admin, 'admin',   'CE Admin',    'ce.admin@test.nx', true,false,'{}');
 
   INSERT INTO public.certifications (user_id, name, issuing_organization, status, expiry_date)
   VALUES (v_insp,'API-570','API','verified', current_date + 30) RETURNING id INTO v_c30;
@@ -154,6 +162,11 @@ BEGIN
   END IF;
   INSERT INTO public.contractor_certifications (contractor_id, title, expiry_date, status)
   VALUES (v_insp, 'LEGACY CERT', current_date - 5, 'valid') RETURNING id INTO v_legacy;
+  -- Adopt admin standing before touching status. The suite has been running as
+  -- v_other (an inspector) since E7, and trigger_protect_cert_verification
+  -- refuses a status change from anyone who is not an admin. Give the fixture
+  -- proper standing; never disarm the guard.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   PERFORM public.expire_old_certifications();
   SELECT status INTO v_status FROM public.contractor_certifications WHERE id = v_legacy;
   IF v_status <> 'expired' THEN

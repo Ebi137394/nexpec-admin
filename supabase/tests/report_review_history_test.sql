@@ -107,9 +107,26 @@ select is(public.nx_report_review_transition('something_unmapped'), 'other',
   'an unmapped status falls through to other rather than guessing');
 
 -- ── D/E/F. self-approval, actor integrity, no money ─────────────────────────
+--  Bound to the guard FUNCTION, not to a trigger NAME. 430000:543 installed
+--  trg_report_no_self_approval (singular); 462000:196 added the plural spelling
+--  as a second, double-firing trigger; 466000:121 dropped BOTH and reinstalled
+--  exactly one — trg_reports_no_self_approval. Asserting the singular name here
+--  would now fail against a schema where the guard is present and, since
+--  466000, actually works on INSERT as well. The property that matters is that
+--  inspection_reports carries the guard on both DML sides, which is what is
+--  asserted; the name is deliberately not part of the contract.
 select ok(
-  exists (select 1 from pg_trigger where tgname = 'trg_report_no_self_approval' and not tgisinternal),
-  'self-approval of a report is guarded'
+  exists (
+    select 1
+      from pg_trigger t
+      join pg_proc  p on p.oid = t.tgfoid
+      join pg_class c on c.oid = t.tgrelid
+     where not t.tgisinternal
+       and c.relname = 'inspection_reports'
+       and p.proname = 'nx_guard_report_no_self_approval'
+       and (t.tgtype & 4) > 0     -- INSERT: a report cannot be BORN self-approved
+       and (t.tgtype & 16) > 0),  -- UPDATE: nor become so afterwards
+  'self-approval of a report is guarded, on INSERT as well as UPDATE'
 );
 
 select ok(

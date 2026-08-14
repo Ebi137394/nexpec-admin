@@ -184,16 +184,25 @@ BEGIN
   VALUES (v_jobB, v_insp, 'Consolidated report B', 'submitted') RETURNING id INTO v_repB;
 
   -- THE PLAN. Revision 1, approved, one stage, linking template A only.
+  --
+  --  A revision is BUILT while it is draft and only then approved. Every child
+  --  table (qcp_stages, qcp_stage_templates, qcp_required_documents) is guarded
+  --  by tg_qcp_child_draft_only / tg_qcp_required_document_guard, which refuse
+  --  INSERT once the parent revision has left 'draft'
+  --  (QCP_REVISION_IMMUTABLE). Creating the revision already-approved and then
+  --  filling it is therefore not a state Production can reach, and the guards
+  --  say so. The state machine is also strictly forward-only
+  --  (tg_qcp_revision_state: draft → under_review → approved), so the promotion
+  --  goes through the canonical RPCs rather than a direct status UPDATE.
   INSERT INTO public.quality_control_plans
     (project_id, organization_id, supplier_id, title, created_by)
   VALUES (v_proj, v_org, v_supp, 'Pressure Vessel QCP', v_buyer)
   RETURNING id INTO v_qcp;
   INSERT INTO public.qcp_revisions
-    (qcp_id, revision_no, status, quality_scope, standards, procedures,
-     approved_by, approved_at, created_by)
-  VALUES (v_qcp, 1, 'approved', 'Shop fabrication and hydro test',
+    (qcp_id, revision_no, status, quality_scope, standards, procedures, created_by)
+  VALUES (v_qcp, 1, 'draft', 'Shop fabrication and hydro test',
           ARRAY['ASME VIII Div 1','ISO 9001'], 'WPS-001 / PQR-001',
-          v_buyer, now(), v_buyer)
+          v_buyer)
   RETURNING id INTO v_rev;
   INSERT INTO public.qcp_stages (revision_id, sequence_no, name, responsible_party)
   VALUES (v_rev, 1, 'Fabrication and Test', 'Contractor QC')
@@ -208,6 +217,15 @@ BEGIN
     (revision_id, label, document_id, is_mandatory, acceptance_criteria)
   VALUES (v_rev, 'Material Test Reports', NULL, true, 'EN 10204 3.1 minimum')
   RETURNING id INTO v_reqMand;
+
+  --  …and now approve it, as the buyer (org owner, so nx_qcp_can_author holds).
+  --  nx_qcp_approve_revision stamps approved_by = auth.uid(), which is what Q1
+  --  asserts is rendered as the buyer's canonical handle.
+  PERFORM set_config('request.jwt.claims',
+                     json_build_object('sub', v_buyer::text)::text, true);
+  PERFORM public.nx_qcp_submit_revision(v_rev);
+  PERFORM public.nx_qcp_approve_revision(v_rev, 'QCP reporting fixture approval');
+  PERFORM set_config('request.jwt.claims', '', true);
 
   -- A second plan that has never been approved.
   INSERT INTO public.quality_control_plans

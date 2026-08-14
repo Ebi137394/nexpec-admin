@@ -45,7 +45,12 @@
 begin;
 \i supabase/tests/_fixtures/canonical_job.sql
 create extension if not exists pgtap;
-select plan(57);
+-- 61 = the count the runner itself measures with /^\s*(?:ok|not ok)\s+\d+/gm
+-- against real pgTAP output, not a count taken by eye. The previous 57 predated
+-- the section-I cleanup assertions ever being reached: the transaction aborted
+-- on the profiles DELETE, so I1/I2/I3 never emitted and the shortfall was
+-- masked by the abort rather than by the plan being right.
+select plan(61);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  FIXTURES — every id generated, never literal
@@ -92,8 +97,17 @@ select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticate
 
 -- ★ Production auto-provisions profiles from auth.users. A bare insert here
 --   hits profiles_pkey; the DO UPDATE is mandatory, not stylistic.
+--
+-- ★ u_admin is 'admin', NOT 'super_admin'. super_admin is a platform singleton:
+--   nx_protect_privileged_profiles refuses to delete, demote or suspend the last
+--   active one (LAST_SUPER_ADMIN), and this database has no other. A fixture
+--   that mints one therefore cannot clean itself up, and section I aborted the
+--   whole transaction on the profiles DELETE. The guard is right; the fixture
+--   had no business creating a platform singleton. Nothing here needs that
+--   standing: u_admin is only ever used as a uuid VALUE in rows that must be
+--   refused (A7, D6), and jwt_admin is never installed as a session identity.
 insert into public.profiles (id, email, role, full_name, is_verified) values
-  (:'u_admin'::uuid, 'qcp.admin@test.nx', 'super_admin', 'QCP Admin',      true),
+  (:'u_admin'::uuid, 'qcp.admin@test.nx', 'admin',       'QCP Admin',      true),
   (:'u_lead'::uuid,  'qcp.lead@test.nx',  'client',      'Org A Lead',     true),
   (:'u_view'::uuid,  'qcp.view@test.nx',  'client',      'Org A Viewer',   true),
   (:'u_blead'::uuid, 'qcp.blead@test.nx', 'client',      'Org B Lead',     true),
@@ -306,10 +320,21 @@ select lives_ok(
          :'rd_a1', :'rev_a1', :'d_a'),
   'B9 a requirement may link a document belonging to the plan''s own organization');
 
+-- The refusal is real and this assertion still demands it. Only the SQLSTATE
+-- named here was wrong: tg_guard_qcp_required_document deliberately splits its
+-- codes — 42501 for AUTHORITY denials (QCP_SIGNOFF_SELF / QCP_SIGNOFF_DENIED,
+-- "you are not allowed to do this"), 23514 for COHERENCE violations
+-- (QCP_DOCUMENT_FOREIGN / QCP_DOCUMENT_FOREIGN_ASSET, "this row is not a
+-- legal row"). Citing another tenant's document is the second kind, and
+-- qcp_documents_test QD2/QD3 catch check_violation for exactly this pair. The
+-- expected message is pinned too, so this now proves the cross-tenant guard
+-- specifically rather than accepting any incidental check violation.
 select throws_ok(
   format($q$update public.qcp_required_documents set document_id = %L::uuid where id = %L::uuid$q$,
          :'d_b', :'rd_a1'),
-  '42501', NULL,
+  '23514',
+  format('QCP_DOCUMENT_FOREIGN: document %s belongs to organization %s, but this QCP belongs to organization %s — a governing quality plan cannot cite another tenant''s document.',
+         :'d_b', :'o_b', :'o_a'),
   'B10 CROSS-ORG: a requirement cannot link another tenant''s document');
 
 -- ════════════════════════════════════════════════════════════════════════════

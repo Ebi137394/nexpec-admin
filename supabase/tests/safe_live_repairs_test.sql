@@ -182,14 +182,24 @@ SELECT 'confirmed_before', coalesce(admin_confirmed_at::text, '')
   FROM public.jobs WHERE id = :'JOB';
 
 -- M1 — executes (42703 before)
+--  Called as the ASSIGNED INSPECTOR. request_milestone_release is an inspector
+--  action by construction — it refuses any caller whose uid is not
+--  jobs.contractor_id ('only the assigned inspector may request') and its admin
+--  notification reads "An inspector has requested a milestone payout". The
+--  earlier draft called it as the CLIENT, which never reached the repair under
+--  test: before the canonical fixture landed, the suite aborted at setup and the
+--  caller identity was never exercised; once it ran, the client was correctly
+--  refused on authority and 42703 was never reached. Switching the caller tests
+--  the column repair this suite exists for; it does not relax the authority
+--  check, which O5/E-class assertions elsewhere still cover.
 SELECT lives_ok($$
 do $m1$
 DECLARE
-  v_client uuid := 'ba222222-2222-2222-2222-222222222222';
+  v_insp uuid := 'ba333333-3333-3333-3333-333333333333';
   v_job    uuid := $$ || quote_literal(:'JOB') || $$;
   v_ok boolean; v_err text;
 BEGIN
-  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text)::text, true);
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_insp::text)::text, true);
   v_ok := true;
   BEGIN
     PERFORM public.request_milestone_release(v_job, 100000, 'first milestone complete');

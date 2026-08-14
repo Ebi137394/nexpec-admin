@@ -59,21 +59,55 @@ select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticate
                (:'deact'::uuid), (:'coauth'::uuid), (:'cli'::uuid)) v(u)
 on conflict (id) do nothing;
 
-insert into public.profiles (id, email, role, status)
-values (:'adm'::uuid,    'adm@test.local',    'admin',     'active'),
-       (:'insp'::uuid,   'insp@test.local',   'inspector', 'active'),
-       (:'senior'::uuid, 'senior@test.local', 'senior',    'active'),
-       (:'senr2'::uuid,  'senr2@test.local',  'senior',    'active'),
-       (:'deact'::uuid,  'deact@test.local',  'senior',    'suspended'),
-       (:'coauth'::uuid, 'coauth@test.local', 'senior',    'active'),
-       (:'cli'::uuid,    'cli@test.local',    'client',    'active')
-on conflict (id) do update set role = excluded.role, status = excluded.status;
+--  The buyer carries an AUTHORISED CREDIT LINE. The job below is net_terms, and
+--  net_terms is precisely the mode that dispatches against credit rather than
+--  against a prepaid tranche: nx_guard_dispatch_requires_funding resolves
+--  nx_job_buyer_principal(job) = COALESCE(agency_id, client_id) and refuses the
+--  dispatch unless that principal's profiles.client_credit_limit_cents > 0.
+--  Seeded here, with no JWT claims set, so auth.uid() is NULL and the profile
+--  privileged-column guard treats this as the trusted server context it is —
+--  the same standing the platform has when it authorises a credit line.
+insert into public.profiles (id, email, role, status, client_credit_limit_cents)
+--  0 is the column default and means "no authorised credit"; only the buyer
+--  gets a line, so nobody else accidentally becomes dispatchable on credit.
+values (:'adm'::uuid,    'adm@test.local',    'admin',     'active',    0),
+       (:'insp'::uuid,   'insp@test.local',   'inspector', 'active',    0),
+       (:'senior'::uuid, 'senior@test.local', 'senior',    'active',    0),
+       (:'senr2'::uuid,  'senr2@test.local',  'senior',    'active',    0),
+       (:'deact'::uuid,  'deact@test.local',  'senior',    'suspended', 0),
+       (:'coauth'::uuid, 'coauth@test.local', 'senior',    'active',    0),
+       (:'cli'::uuid,    'cli@test.local',    'client',    'active',    500000)
+on conflict (id) do update set role = excluded.role,
+                               status = excluded.status,
+                               client_credit_limit_cents = excluded.client_credit_limit_cents;
 
-insert into public.jobs (id, title, client_id, contractor_id, status, payment_mode,
+-- ── the job, dispatched CANONICALLY ─────────────────────────────────────────
+--  It used to be INSERTed with contractor_id already populated and
+--  status='in_progress'. Populating contractor_id IS a dispatch as far as
+--  nx_guard_dispatch_requires_funding is concerned (it treats a NULL OLD
+--  contractor on INSERT as a dispatch), so the whole suite aborted at setup with
+--      FUNDING_REQUIRED: job … is net_terms but has no resolvable buyer principal
+--  — because on the INSERT side nx_job_buyer_principal reads public.jobs BY ID
+--  and that row does not exist yet inside a BEFORE INSERT trigger. Production
+--  never creates a job already dispatched, so the fixture now does what
+--  production does: create it UNASSIGNED, then attach the inspector in a
+--  separate statement, where the row exists and the credit line resolves.
+--
+--  net_terms deliberately does NOT take nx_fx_fund_job. Prepaying it would
+--  destroy sections E and F: settle_client_payment must return settled=false on
+--  the 20% tranche and settled=true only after the 80%, and both are meaningless
+--  against a job that was already settled at fixture time.
+insert into public.jobs (id, title, client_id, status, moderation_status, payment_mode,
                          client_price_cents, inspector_payout_cents)
-values (:'job'::uuid, 'Behavioural suite job', :'cli'::uuid, :'insp'::uuid,
-        'in_progress', 'net_terms', 100000, 70000)
+values (:'job'::uuid, 'Behavioural suite job', :'cli'::uuid,
+        'open', 'approved', 'net_terms', 100000, 70000)
 on conflict (id) do nothing;
+
+--  open → assigned → in_progress, both legal in guard_jobs_status_transition.
+update public.jobs
+   set contractor_id = :'insp'::uuid, status = 'assigned'
+ where id = :'job'::uuid;
+update public.jobs set status = 'in_progress' where id = :'job'::uuid;
 
 insert into public.inspection_reports (id, job_id, inspector_id, status)
 values (:'rep'::uuid, :'job'::uuid, :'insp'::uuid, 'submitted'),

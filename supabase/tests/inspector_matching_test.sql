@@ -65,6 +65,12 @@ BEGIN
      rating_average, completed_jobs_count)
   VALUES
     (v_client,'client','MM Client','mm.client@test.nx',true,true,'{}','{}',NULL,NULL,NULL,0,0),
+    -- The admin needs a REAL profile row: nx_match_inspectors_for_job gates on
+    -- nx_is_admin(), which reads public.profiles.role. Without this row the
+    -- admin was indistinguishable from any other caller and every ranking
+    -- assertion below died on a bare `admin only`. role='admin' is not in
+    -- ('inspector','senior'), so this profile can never appear as a candidate.
+    (v_admin,'admin','MM Admin','mm.admin@test.nx',true,false,'{}','{}',NULL,NULL,NULL,0,0),
     (v_a,'inspector','Ava Ace','mm.a@test.nx',true,true,
        ARRAY['ndt','welding'], ARRAY['US'], 40.05, -74.02, 100, 4.8, 30),
     (v_b,'inspector','Ben Basic','mm.b@test.nx',true,true,

@@ -91,18 +91,48 @@ async function makeUser(role) {
 }
 
 const jobIds = [];
-async function seedJob({ clientId, inspectorId, cents, mode }) {
-  const id = randomUUID();
-  const { error } = await admin.from('jobs').insert({
-    id, title: `E2E ${mode} ${RUN}`,
-    client_id: clientId, contractor_id: inspectorId,
-    inspector_payout_cents: cents, payment_mode: mode,
-    admin_confirmed_at: new Date().toISOString(),
-  });
-  if (error) throw new Error(`seedJob(${mode}): ${error.message}`);
-  jobIds.push(id);
-  return id;
-}
+  // Canonical dispatch sequence. This USED to insert the job with contractor_id
+  // already set, which nx_guard_dispatch_requires_funding refuses: attaching an
+  // inspector IS a dispatch, and a prepay job must have its initial tranche in
+  // first ("Dispatching would send an inspector to site against nothing").
+  // Production never mints a job that way either -- post-new-job.tsx creates
+  // status='pending_approval' with no contractor -- so the old shape exercised a
+  // state the product forbids.
+  //
+  // Sequence now: create UNASSIGNED -> establish funding through the platform
+  // path -> attach the inspector. Funding is written with the SERVICE-ROLE
+  // client, which is a platform actor; nx_guard_jobs_funding_columns still
+  // refuses any client-side write to client_settled_at, so the guard stays armed.
+  async function seedJob({ clientId, inspectorId, cents, mode }) {
+    const id = randomUUID();
+
+    const { error } = await admin.from('jobs').insert({
+      id, title: `E2E ${mode} ${RUN}`,
+      client_id: clientId,
+      inspector_payout_cents: cents, payment_mode: mode,
+      admin_confirmed_at: new Date().toISOString(),
+    });
+    if (error) throw new Error(`seedJob(${mode}): ${error.message}`);
+
+    if (mode === 'net_terms') {
+      // net_terms does not use the initial tranche: the gate requires a
+      // resolvable buyer principal holding a positive authorised credit line.
+      const { error: cErr } = await admin.from('profiles')
+        .update({ client_credit_limit_cents: 10000000 }).eq('id', clientId);
+      if (cErr) throw new Error(`seedJob(${mode}) credit line: ${cErr.message}`);
+    } else {
+      const { error: fErr } = await admin.from('jobs')
+        .update({ client_settled_at: new Date().toISOString() }).eq('id', id);
+      if (fErr) throw new Error(`seedJob(${mode}) funding: ${fErr.message}`);
+    }
+
+    const { error: dErr } = await admin.from('jobs')
+      .update({ contractor_id: inspectorId }).eq('id', id);
+    if (dErr) throw new Error(`seedJob(${mode}) dispatch: ${dErr.message}`);
+
+    jobIds.push(id);
+    return id;
+  }
 const wallet = async (uid) => (await admin.from('wallets').select('*').eq('user_id', uid).maybeSingle()).data;
 const earn = async (uid) => (await admin.from('supplier_earnings').select('*').eq('supplier_id', uid).maybeSingle()).data;
 
@@ -141,8 +171,17 @@ async function main() {
   const s1b = await rpc(adm.client, 'settle_client_payment', { p_job_id: jobNet });
   check('settle idempotent', s1b.data?.idempotent === true, s1b.data ?? s1b.errMsg);
   w = await wallet(inspector.id);
-  check('after settle -> available = 460', near(w?.available_balance, 460), w);
-  check('after settle -> pending_amount = 0', near(w?.pending_amount, 0), w);
+  // 20260801458000 (P0-2b) DELIBERATELY removed the pending -> available move
+  // here. Its own comment: moving the payout on client settlement "is automatic
+  // inspector payment triggered by a client action, which the standing rule
+  // forbids: settlement and payout are manually controlled by Admin ... the
+  // third and last automatic-money path" (with 432000 and 444000 being the other
+  // two). The old expectations 460/0 asserted exactly that removed defect.
+  //
+  // Inverted, and strengthened: settlement must leave the inspector's money
+  // untouched, and must not have written a settlement transaction either.
+  check('settle does NOT auto-credit the inspector (available stays 360)', near(w?.available_balance, 360), w);
+  check('settle does NOT release the accrual (pending_amount stays 100)', near(w?.pending_amount, 100), w);
 
   // ── 3. security negatives BEFORE opening a request ─────────────────────────
   console.log('\n[3] Withdrawal security negatives');
@@ -160,7 +199,13 @@ async function main() {
   check('insufficient balance rejected (P0001)', insuff.errCode === 'P0001', insuff.errMsg);
   const anonReq = await rpc(anon, 'request_withdrawal',
     { p_amount_cents: 100, p_method: 'bank_transfer', p_client_op_id: randomUUID() });
-  check('anon withdrawal blocked (28000 NOT_AUTHENTICATED)', anonReq.errCode === '28000', anonReq.errMsg);
+  // 20260801446000 revoked anon EXECUTE on request_withdrawal, so an anonymous
+  // caller is now stopped at the GRANT layer and never reaches the in-body
+  // NOT_AUTHENTICATED (28000) check. That is strictly stronger — defence in
+  // depth — so accept either denial rather than demanding the weaker one.
+  check('anon withdrawal blocked (grant layer or 28000)',
+        anonReq.errCode === '28000' || /permission denied/i.test(String(anonReq.errMsg ?? '')),
+        anonReq.errMsg);
 
   // ── 4. INSPECTOR requests a real withdrawal (reserve available->pending) ────
   console.log('\n[4] Inspector withdrawal request');
@@ -170,7 +215,8 @@ async function main() {
   check('withdrawal created', wd.data?.ok === true && !!wd.data?.request_id, wd.errMsg);
   const reqId = wd.data?.request_id;
   w = await wallet(inspector.id);
-  check('reserve -> available = 260', near(w?.available_balance, 260), w);
+  // 360 (prepay accrual, never auto-released) - 200 reserved = 160.
+  check('reserve -> available = 160', near(w?.available_balance, 160), w);
   check('reserve -> pending_payouts = 200', near(w?.pending_payouts, 200), w);
 
   const wdReplay = await rpc(inspector.client, 'request_withdrawal',
@@ -183,7 +229,7 @@ async function main() {
   // direct balance tamper under RLS: no UPDATE policy -> 0 rows, balance unchanged
   await inspector.client.from('wallets').update({ available_balance: 999999 }).eq('user_id', inspector.id);
   w = await wallet(inspector.id);
-  check('direct wallet UPDATE is inert under RLS (no mint)', near(w?.available_balance, 260), w);
+  check('direct wallet UPDATE is inert under RLS (no mint)', near(w?.available_balance, 160), w);
 
   // ── 5. non-admin cannot mark paid; admin can (Treasury Mark-as-Paid) ────────
   console.log('\n[5] Admin Mark-as-Paid');

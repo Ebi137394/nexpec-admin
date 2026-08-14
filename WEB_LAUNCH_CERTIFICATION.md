@@ -2,7 +2,7 @@
 
 **Status:** ✅ LAUNCH-CERTIFIED
 **Date:** 2026-05-18
-**Owner:** ebrahimfeyzi.ta@gmail.com
+**Owner:** <owner email — configured server-side, not published>
 **Domain:** https://nexpecapp.com
 
 ---

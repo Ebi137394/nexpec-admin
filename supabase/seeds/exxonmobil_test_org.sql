@@ -40,8 +40,12 @@ BEGIN;
 -- ─────────────────────────────────────────────────────────────────────
 DO $seed$
 DECLARE
-  v_owner_email           text := 'ebrahimfeyzi.ta@gmail.com';   -- becomes role 'owner'
-  v_procurement_email     text := 'ebrahimfeyzi.ta@gmail.com';   -- becomes role 'procurement_admin' (set to NULL to skip)
+  -- Owner address is NOT hard-coded. Set it at run time, e.g.
+--   psql -v owner_email='you@example.com' -f this_file.sql
+-- The fallback is a non-routable example address so a forgotten override
+-- can never mail a real person from a test seed.
+  v_owner_email           text := coalesce(current_setting('nexpec.owner_email', true), 'owner@example.invalid');   -- becomes role 'owner'
+  v_procurement_email     text := coalesce(current_setting('nexpec.owner_email', true), 'owner@example.invalid');   -- becomes role 'procurement_admin' (set to NULL to skip)
   v_viewer_email          text := NULL;                          -- becomes role 'viewer' (set to NULL to skip)
 
   v_org_id          uuid;
@@ -170,5 +174,5 @@ COMMIT;
 -- -- Sanity-check the new authorization helper:
 -- SELECT public.can_manage_org_structure(
 --   (SELECT id FROM public.organizations WHERE slug = 'exxonmobil'),
---   (SELECT id FROM auth.users WHERE lower(email) = 'ebrahimfeyzi.ta@gmail.com' LIMIT 1)
+--   (SELECT id FROM auth.users WHERE lower(email) = lower(coalesce(current_setting('nexpec.owner_email', true), 'owner@example.invalid')) LIMIT 1)
 -- ) AS owner_can_manage;

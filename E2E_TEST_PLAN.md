@@ -20,7 +20,7 @@
 
 | Role          | Email                          | UUID prefix    | Notes                                           |
 |---------------|--------------------------------|----------------|-------------------------------------------------|
-| super_admin   | ebrahimfeyzi.ta@gmail.com      | `efa609bf…`    | Owner failsafe — full admin                     |
+| super_admin   | <owner email — configured server-side, not published>      | `efa609bf…`    | Owner failsafe — full admin                     |
 | client        | client@test.com                | `a6aab8d8…`    | Org: Nasa                                       |
 | client (alt)  | ebifeyzi.i@mail.com            | `2a3f5868…`    | For cross-tenant tests                          |
 | enterprise    | test@acme.com                  | `2d8d9876…`    | Multi-role client portal test                   |

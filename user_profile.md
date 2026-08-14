@@ -7,7 +7,7 @@ metadata:
   originSessionId: 49b95114-7fa8-48bb-91e6-6eeb9c30c3df
 ---
 
-ebi (git author "Ebi <ebrahimfeyzi.ta@gmail.com>") is building **NEXPEC**, a multi-domain industrial-inspection marketplace.
+ebi (git author "Ebi <<owner email — configured server-side, not published>>") is building **NEXPEC**, a multi-domain industrial-inspection marketplace.
 
 Monorepo layout: Expo / React Native mobile app at the repo root (`app/` Expo Router, `src/`, `components/`, `hooks/`), a Next.js web app under `apps/web/`, and a Supabase backend (`supabase/migrations`, RPCs, edge functions). Shared TypeScript lives in `@nexpec/shared-core` (taxonomy, specialty groups) and re-exports to both surfaces.
 

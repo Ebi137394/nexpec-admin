@@ -9,7 +9,7 @@ metadata:
 
 Operating on the NEXPEC mount from the Linux sandbox:
 
-- **Git identity isn't preset.** Before the first commit in a session, set repo-local identity to match history: `git config user.name "Ebi" && git config user.email "ebrahimfeyzi.ta@gmail.com"`.
+- **Git identity isn't preset.** Before the first commit in a session, set repo-local identity to match history: `git config user.name "Ebi" && git config user.email "<owner email — configured server-side, not published>"`.
 - **File deletion is gated.** `rm` fails with "Operation not permitted" until the `allow_cowork_file_delete` tool is called for the NEXPEC folder (once per session unlocks it).
 - A stale `.git/index.lock` can linger after an interrupted git call — safe to `rm -f .git/index.lock` (bash calls are independent and short-lived, so nothing is actually running).
 - **Full-project `tsc --noEmit` exceeds the 45s bash window** and background jobs don't survive across independent bash calls. To verify a change, write a temp `tsconfig.check.json` that `extends ./tsconfig.json` and `include`s only the changed files, run `tsc -p` on it, then delete it.

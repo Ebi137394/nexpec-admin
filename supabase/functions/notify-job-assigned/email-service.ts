@@ -18,9 +18,16 @@ export async function sendJobAssignmentEmail(data: JobAssignmentEmailData) {
       // 🔴 ترفند تست: فرستنده در حالت سندباکس فقط و فقط باید این باشه
       from: "NEXPEC <onboarding@resend.dev>",
       
-      // 🔴 ترفند تست: ایمیل واقعیِ خودت رو تو این خط بنویس
-      // Resend در حالت تست فقط به ایمیل صاحب اکانت پیام میده
-      to: ["ebrahimfeyzi.ta@gmail.com"], 
+      // 🔴 ترفند تست: Resend در حالت سندباکس فقط به ایمیل صاحب اکانت پیام می‌دهد.
+      //    آدرس شخصی دیگر اینجا hard-code نمی‌شود و از متغیر محیطی خوانده می‌شود.
+      //
+      // Sandbox override, read from server-side config — never hard-coded.
+      // Resend's test mode only delivers to the account owner's address, so
+      // RESEND_TEST_RECIPIENT redirects mail there while sandboxing. Leave it
+      // UNSET in any real environment and notifications go to the actual
+      // inspector, which is the intended behaviour — while it IS set, every
+      // assignment notification silently lands in one inbox instead of theirs.
+      to: [Deno.env.get("RESEND_TEST_RECIPIENT") ?? data.inspectorEmail],
       
       // ایمیلِ فیکِ بازرس رو می‌ذاریم تو عنوان که بفهمی این پیام مربوط به کی بوده
       subject: `[TEST] New Job Assignment - NEXPEC (For: ${data.inspectorEmail})`,

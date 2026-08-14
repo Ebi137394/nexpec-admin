@@ -6,6 +6,48 @@
 # Every other function defaults to verify_jwt = true (a user or service-role JWT).
 # See docs/ops/DEPLOY_RUNBOOK.md (Stage C1).
 
+# ── Local development stack ──────────────────────────────────────────────────
+#  Added so `supabase start` brings up the API gateway and GoTrue, not just
+#  Postgres. Before this, config.toml declared ONLY [functions.*], so the CLI
+#  started the database alone: `supabase start` exited 0 with one container, the
+#  auth endpoint answered 000, and anything needing a real session could not run
+#  locally. That blocked the money-flow Golden Path (scripts/qa/e2e-money-flow.mjs
+#  calls auth.admin.createUser) and any local Web preview.
+#
+#  LOCAL ONLY. config.toml governs the local stack; hosted projects are
+#  configured in the Supabase dashboard, so nothing here reaches staging or
+#  Production. Ports match the ones this project has always used (54321/54322/
+#  54324), so existing DB_URL/API_URL references keep working.
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Local only: skips the confirmation round-trip so fixtures and Golden Paths can
+# create users directly. Hosted environments are unaffected by this file.
+enable_confirmations = false
+
+[inbucket]
+enabled = true
+port = 54324
+
 [functions.critical-alert-monitor]
 enabled = true
 verify_jwt = true   # TODO confirm caller: if invoked by external cron via WEBHOOK_SECRET, set false

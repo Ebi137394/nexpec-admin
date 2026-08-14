@@ -18,8 +18,8 @@
 --  VE3  visit_id NULL is still accepted on both tables (job-level, legacy)
 --  VE4  a capture cannot carry ANOTHER JOB's visit
 --  VE5  an item cannot carry another job's visit
---  VE6  a CANCELLED visit refuses new evidence
---  VE7  a SUPERSEDED (rescheduled) visit refuses new evidence…
+--  VE6  a CANCELLED visit RETAINS new evidence, attributed to itself (396000)
+--  VE7  a SUPERSEDED (rescheduled) visit FORWARDS new evidence to its successor…
 --  VE8  …while evidence already recorded on it survives, visit_id intact
 --  VE9  a visit-scoped item cannot be filed under another inspector's name
 --  VE10 an outsider cannot create visit evidence
@@ -75,6 +75,8 @@ DECLARE
   v_ov1 uuid; v_sv1 uuid;
 
   v_cap_visit uuid := gen_random_uuid();   -- VE1, the visit-scoped capture
+  v_cap_cancelled uuid;
+  v_cap_forwarded uuid;
   v_cap_job   uuid := gen_random_uuid();   -- VE3, the job-level capture
   v_cap_a     uuid := gen_random_uuid();   -- VE22 chain link 1
   v_cap_b     uuid := gen_random_uuid();   -- VE22 chain link 2
@@ -259,23 +261,63 @@ BEGIN
   END IF;
   RAISE NOTICE 'VE5 ok — cross-job item refused (%)', left(v_err, 60);
 
-  -- ── VE6 — a cancelled visit accrues no new evidence ─────────────────────
+  -- ── VE6 — a cancelled visit RETAINS evidence, attributed to itself ──────
+  --  This assertion was inverted. It demanded that a cancelled visit refuse new
+  --  evidence, which is the PRE-20260801396000 expectation. That migration made
+  --  the opposite call, deliberately, and tg_guard_capture_visit still carries
+  --  the reasoning verbatim:
+  --
+  --      'cancelled' is accepted deliberately: there is no successor to forward
+  --      to, and destroying proof of work that was performed is worse than
+  --      recording it against a visit later cancelled. The visit's own status
+  --      already tells that story.
+  --
+  --  Contrast 'rescheduled', which IS forwarded to the live successor (VE7/VE8
+  --  below) precisely because a successor exists. Cancelled has nowhere to go, so
+  --  refusing the write would destroy field evidence of work already done.
+  --
+  --  So the property under test is retention + honest attribution, and this now
+  --  asserts all three halves of it rather than simply expecting no error:
+  --    (a) the capture is accepted,
+  --    (b) it stays attributed to the CANCELLED visit — silently re-pointing it
+  --        at another visit would be a worse defect than refusing it, and
+  --    (c) the visit itself still reads 'cancelled', which is what makes the
+  --        retained evidence interpretable rather than misleading.
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   PERFORM public.nx_job_cancel_visit(v_v2, 'scope removed');
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
+  v_cap_cancelled := gen_random_uuid();
   v_ok := false;
   BEGIN
     INSERT INTO public.inspection_captures
       (id, job_id, requirement_id, inspector_id, kind, captured_at, visit_id)
-    VALUES (gen_random_uuid(), v_job, v_req, v_lead, 'photo', now(), v_v2);
+    VALUES (v_cap_cancelled, v_job, v_req, v_lead, 'photo', now(), v_v2);
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF v_ok THEN RAISE EXCEPTION 'VE6 FAILED: new evidence was attributed to a CANCELLED visit'; END IF;
-  RAISE NOTICE 'VE6 ok — cancelled visit refuses new evidence';
+
+  IF NOT v_ok THEN
+    RAISE EXCEPTION
+      'VE6 FAILED: evidence for work already performed was destroyed by a later cancellation (%)',
+      left(v_err, 90);
+  END IF;
+
+  SELECT count(*) INTO v_n FROM public.inspection_captures
+   WHERE id = v_cap_cancelled AND visit_id = v_v2 AND job_id = v_job;
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'VE6 FAILED: the capture was not left attributed to the cancelled visit it was recorded against';
+  END IF;
+
+  SELECT count(*) INTO v_n FROM public.job_visits
+   WHERE id = v_v2 AND status = 'cancelled';
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'VE6 FAILED: the visit no longer reads cancelled, so its retained evidence is no longer interpretable';
+  END IF;
+
+  RAISE NOTICE 'VE6 ok — cancelled visit RETAINS evidence, still attributed to itself, visit still reads cancelled';
 
   -- ── VE7/VE8 — a superseded visit refuses new work, keeps its history ────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
@@ -283,19 +325,48 @@ BEGIN
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   EXECUTE 'SET LOCAL ROLE authenticated';
+  --  VE7 was also inverted, and for the same reason as VE6. It demanded that a
+  --  SUPERSEDED (rescheduled) visit refuse new evidence. 20260801396000 changed
+  --  that deliberately, and the migration header says why: raising here returned
+  --  SQLSTATE 23514, which the offline layer classifies as FATAL, so a capture
+  --  taken in the field before a reschedule was permanently DISCARDED on drain.
+  --
+  --  A rescheduled visit differs from a cancelled one in exactly one way that
+  --  matters: it HAS a live successor. So the guard forwards the write to it
+  --  rather than refusing. The successor is on the same job by construction, so
+  --  the cross-job coherence guarantee (VE4/VE5) is untouched.
+  --
+  --  The real property is therefore forwarding, not refusal, and refusal would
+  --  be the worse outcome. Asserted here as: accepted, AND re-pointed at the live
+  --  successor, AND specifically NOT left on the superseded visit.
+  v_cap_forwarded := gen_random_uuid();
   v_ok := false;
   BEGIN
     INSERT INTO public.inspection_captures
       (id, job_id, requirement_id, inspector_id, kind, captured_at, visit_id)
-    VALUES (gen_random_uuid(), v_job, v_req, v_lead, 'photo', now(), v_v1);
+    VALUES (v_cap_forwarded, v_job, v_req, v_lead, 'photo', now(), v_v1);
     v_ok := true;
   EXCEPTION WHEN OTHERS THEN v_err := SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
-  IF v_ok THEN
-    RAISE EXCEPTION 'VE7 FAILED: new evidence was attributed to a SUPERSEDED visit';
+
+  IF NOT v_ok THEN
+    RAISE EXCEPTION
+      'VE7 FAILED: a capture taken before the reschedule was refused, which is what the offline layer treats as FATAL and discards (%)',
+      left(v_err, 90);
   END IF;
-  RAISE NOTICE 'VE7 ok — superseded visit refuses new evidence';
+
+  SELECT visit_id INTO v_vid FROM public.inspection_captures WHERE id = v_cap_forwarded;
+  IF v_vid IS DISTINCT FROM v_v1new THEN
+    RAISE EXCEPTION
+      'VE7 FAILED: the capture was not forwarded to the live successor (got %, expected %)',
+      v_vid, v_v1new;
+  END IF;
+  IF v_vid = v_v1 THEN
+    RAISE EXCEPTION 'VE7 FAILED: new evidence was left on the SUPERSEDED visit instead of its successor';
+  END IF;
+
+  RAISE NOTICE 'VE7 ok — evidence for a superseded visit is forwarded to the live successor, never lost';
 
   SELECT visit_id, inspector_id INTO v_vid, v_owner
     FROM public.inspection_captures WHERE id = v_cap_visit;

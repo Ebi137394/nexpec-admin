@@ -49,6 +49,7 @@ DECLARE
   v_n int; v_block int; v_owner uuid; v_ncr uuid;
   v_ok boolean; v_err text;
   v_txn_before int; v_txn_after int;
+  v_conf_before timestamptz;
 BEGIN
   INSERT INTO auth.users (id, instance_id, aud, role, email, created_at, updated_at)
   SELECT u,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
@@ -67,23 +68,23 @@ BEGIN
   INSERT INTO public.inspection_evidence_requirements (template_id, sort_order, kind, label)
   VALUES (v_tmpl, 1, 'photo', 'Weld root photo') RETURNING id INTO v_req;
 
-  -- compliance job carries the template; the plain job carries none
-  -- Canonical: create UNASSIGNED, fund through the platform path, then
-  -- attach the inspector. Production never inserts contractor_id, and the
-  -- dispatch gate refuses an unfunded job.
-  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, inspection_type, scope_template_id)
-  VALUES (gen_random_uuid(), v_client, 'ITP JOB', 'suite', 'in_progress', 'approved', 'compliance', v_tmpl)
-  RETURNING id INTO v_job;
-  PERFORM nx_fx_fund_job(v_job);
-  UPDATE public.jobs SET contractor_id = v_lead WHERE id = v_job;
-  -- Canonical: create UNASSIGNED, fund through the platform path, then
-  -- attach the inspector. Production never inserts contractor_id, and the
-  -- dispatch gate refuses an unfunded job.
-  INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
-  VALUES (gen_random_uuid(), v_client, 'PLAIN JOB', 'suite', 'in_progress', 'approved')
-  RETURNING id INTO v_plainjob;
-  PERFORM nx_fx_fund_job(v_plainjob);
-  UPDATE public.jobs SET contractor_id = v_lead WHERE id = v_plainjob;
+  -- compliance job carries the template; the plain job carries none.
+  -- Both are built with the canonical helper: create UNASSIGNED → the
+  -- inspector applies → funding through the authorized platform path →
+  -- dispatch via admin_dispatch_job. That is what makes v_lead the job's
+  -- contractor_id, i.e. a genuine PARTY to the job, rather than a raw
+  -- `UPDATE jobs SET contractor_id` — which the frozen fixture contract
+  -- forbids and which no production path performs.
+  -- Post-dispatch status is 'assigned'; 'assigned' → 'in_progress' is a
+  -- legal transition under guard_jobs_status_transition.
+  v_job := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'ITP JOB');
+  UPDATE public.jobs
+     SET inspection_type = 'compliance', scope_template_id = v_tmpl
+   WHERE id = v_job;
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
+
+  v_plainjob := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'PLAIN JOB');
+  UPDATE public.jobs SET status = 'in_progress' WHERE id = v_plainjob;
 
   -- the plan: one normal, one HOLD, one WITNESS — reusing the evidence requirement
   INSERT INTO public.itp_points
@@ -103,7 +104,13 @@ BEGIN
   VALUES (v_tmpl,'Testing',3,'witness','Hydro test witness', false)
   RETURNING id INTO v_pWitness;
 
+  -- Baselines for P16, taken AFTER setup so they measure the ITP flow alone.
+  -- admin_dispatch_job legitimately stamps admin_confirmed_at as part of the
+  -- canonical dispatch, so P16 asserts the ITP flow leaves it UNCHANGED —
+  -- not that it is NULL, which would only have held for a job that was never
+  -- dispatched through the platform path.
   SELECT count(*) INTO v_txn_before FROM public.transactions;
+  SELECT admin_confirmed_at INTO v_conf_before FROM public.jobs WHERE id = v_job;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
   PERFORM public.nx_job_add_inspector(v_job, v_lead, 'lead',        NULL,  true,  NULL);
@@ -212,8 +219,20 @@ BEGIN
   RAISE NOTICE 'P11 ok — schema rejects a non-blocking hold point';
 
   -- ── P12 — failed point raises a real NCR ────────────────────────────────
+  -- The welder — a job TEAM member — records the failure. That predicate is
+  -- team membership, which he satisfies.
   v_res := public.nx_itp_record_result(v_pNormal, v_job, 'failed', NULL, 'MTR mismatch', NULL);
   v_rid := (v_res->>'result_id')::uuid;
+  -- Raising the NCR is a different authority. nx_raise_ncr_from_itp_point is
+  -- SECURITY INVOKER and delegates to flash_report_create, which authorises
+  -- job PARTIES ONLY — contractor_id / client_id / agency_id, else admin.
+  -- That is deliberately NARROWER than ITP team membership, so the welder is
+  -- correctly refused: he is on the team but is not a party to the job.
+  -- v_lead IS the job's contractor_id (established by admin_dispatch_job in
+  -- the canonical setup above), so the inspector of record raises the NCR.
+  -- DO NOT "fix" a failure here by widening the party check, by adding the
+  -- welder to an allow-list, or by granting him admin.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_lead::text)::text, true);
   v_res := public.nx_raise_ncr_from_itp_point(v_rid, 'major', 'defect', 'raised from ITP');
   v_ncr := (v_res->>'flash_report_id')::uuid;
   IF v_ncr IS NULL THEN RAISE EXCEPTION 'P12 FAILED: no NCR id returned (%)', v_res; END IF;
@@ -270,8 +289,10 @@ BEGIN
   IF v_txn_after <> v_txn_before THEN
     RAISE EXCEPTION 'P16 FAILED: ITP flow created % transaction row(s)', v_txn_after - v_txn_before;
   END IF;
-  IF (SELECT admin_confirmed_at FROM public.jobs WHERE id = v_job) IS NOT NULL THEN
-    RAISE EXCEPTION 'P16 FAILED: ITP flow set admin_confirmed_at';
+  IF (SELECT admin_confirmed_at FROM public.jobs WHERE id = v_job)
+       IS DISTINCT FROM v_conf_before THEN
+    RAISE EXCEPTION 'P16 FAILED: the ITP flow changed admin_confirmed_at (% -> %)',
+      v_conf_before, (SELECT admin_confirmed_at FROM public.jobs WHERE id = v_job);
   END IF;
   RAISE NOTICE 'P16 ok — no money moved';
 

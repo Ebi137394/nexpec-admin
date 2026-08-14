@@ -38,6 +38,7 @@
 
 begin;
 create extension if not exists pgtap;
+\i supabase/tests/_fixtures/canonical_job.sql
 
 select plan(31);
 
@@ -110,10 +111,47 @@ update public.jobs
 update public.jobs set status = 'in_progress' where id = :'job'::uuid;
 
 insert into public.inspection_reports (id, job_id, inspector_id, status)
-values (:'rep'::uuid, :'job'::uuid, :'insp'::uuid, 'submitted'),
-       -- a second report that never gets delivered, for the document-access probes
-       ('30000000-0000-0000-0000-000000000002', :'job'::uuid, :'insp'::uuid, 'submitted')
+values (:'rep'::uuid, :'job'::uuid, :'insp'::uuid, 'submitted')
 on conflict (id) do nothing;
+
+--  ── the SECOND, never-delivered report, for the section G document probes ──
+--  It used to be a second row on THIS job by THIS inspector, which is not a
+--  thing the product permits: inspection_reports carries
+--      UNIQUE (job_id, inspector_id)   -- unique_report_per_job_inspector
+--  i.e. ONE report row per (job, inspector). That is not incidental — it is the
+--  report-cardinality invariant, and 20260801400000_itp_reporting.sql self-tests
+--  for the constraint's continued existence and aborts the migration with
+--  "report cardinality changed" if it ever disappears. So the old fixture asked
+--  the schema for something it is designed to refuse, and the whole suite died
+--  at setup on the duplicate key before a single assertion ran.
+--
+--  What section G actually needs is a report that (a) is authored by :insp,
+--  (b) sits on a job whose client is :cli, and (c) never reaches 'delivered' —
+--  nx_client_may_read_report_doc reads exactly r.status, r.inspector_id and
+--  j.client_id. None of that requires it to be on the SAME job; it requires a
+--  SECOND ENGAGEMENT. So the inspector gets one, built through the canonical
+--  path (apply → fund → admin_dispatch_job) rather than hand-assembled, which
+--  keeps the dispatch and funding guards armed. It is deliberately left prepay
+--  and fully settled: it is scenery for the document probes, and section E/F
+--  pin their money assertions to the net_terms job above by id, so this job
+--  cannot contaminate them. Verified: dispatching it creates no earning/payout/
+--  settlement row for :insp and does not move their wallet.
+select nx_fx_dispatched_job(
+         :'cli'::uuid, :'insp'::uuid, :'adm'::uuid,
+         'Behavioural suite job 2 (document-access scenery)') as job2 \gset
+
+insert into public.inspection_reports (id, job_id, inspector_id, status)
+values ('30000000-0000-0000-0000-000000000002', :'job2'::uuid, :'insp'::uuid, 'submitted')
+on conflict (id) do nothing;
+
+--  ── an UNPAID job of the Client's, for the P0-3 UPDATE probe in section H ──
+--  Section H cannot aim that probe at the main job; see the note there. It needs
+--  a job that has NOT been through settle_client_payment, so the Client's
+--  attempted stamp is a real state change. nx_fx_unfunded_job presets no
+--  contractor and no funding column at all, which is exactly the starting state
+--  P0-3 is about.
+select nx_fx_unfunded_job(
+         :'cli'::uuid, 'Behavioural suite unpaid job (P0-3 probe)') as unpaid \gset
 
 -- A REALISTIC pre-existing inspector balance, so "unchanged" is real evidence.
 -- 125.50 available from earlier work, plus one historical settlement row.
@@ -332,18 +370,32 @@ select lives_ok(
 --  Gating status is not gating the FILE. nx_can_access_doc granted the client
 --  the report on job membership alone, so the deliverable was downloadable
 --  before review, before the remaining tranche and before delivery.
+--
+--  EACH PROBE RUNS AS THE IDENTITY IT PASSES. That is not decoration. The
+--  predicate takes p_uid, but its second branch is `IF nx_is_admin() THEN RETURN
+--  true`, and nx_is_admin() reads the CALLER's JWT, not p_uid. Section F ends
+--  under the Admin's claims for the golden-path delivery, and this section used
+--  to inherit them — so the predicate returned true for every p_uid and these
+--  three assertions were answering "is the caller an admin?" instead of "may
+--  this user read the file?". Production reaches this through
+--  nx_gate_report_doc_for_client(report, p_uid) with p_uid = the requesting
+--  user (466000:167), i.e. caller and subject are the SAME principal. The
+--  claims below restore that, which is what makes these answers mean anything.
+set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000007","role":"authenticated"}';
 select ok(
   not public.nx_client_may_read_report_doc(
     '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000007'),
   'the CLIENT cannot read an undelivered report document'
 );
 
+set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}';
 select ok(
   public.nx_client_may_read_report_doc(
     '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
   'the report AUTHOR can always read their own draft'
 );
 
+set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000004","role":"authenticated"}';
 select ok(
   not public.nx_client_may_read_report_doc(
     '30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004'),
@@ -351,10 +403,26 @@ select ok(
 );
 
 -- ── H. P0-3: the client cannot stamp their own settlement ───────────────────
+--  THIS PROBE MUST NOT BE AIMED AT THE MAIN JOB. Section F has already driven
+--  that job through settle_client_payment, so jobs.client_settled_at is stamped
+--  — and now() is transaction_timestamp(), CONSTANT for the whole transaction.
+--  `set client_settled_at = now()` therefore rewrites the byte-identical value
+--  the payment path wrote moments earlier. nx_guard_jobs_funding_columns fires
+--  on `NEW.client_settled_at IS DISTINCT FROM OLD.client_settled_at`, so it
+--  stayed silent and the assertion caught no exception.
+--
+--  That is a fixture defect, NOT a hole in the guard, and it was proved both
+--  ways before this was touched: on an already-settled job the identical-value
+--  write is permitted (it changes nothing, so it escalates nothing), while
+--  `now() + interval '1 day'` on that same job as that same Client is refused
+--  with FUNDING_COLUMN_IS_PLATFORM_ONLY / 42501. The guard is healthy; the
+--  probe was pointed at a no-op.
+--
+--  So P0-3 is proved where it actually lives — a Client FABRICATING a settlement
+--  on a job of theirs that has NOT been paid, which is a genuine state change.
 set local request.jwt.claims to '{"sub":"10000000-0000-0000-0000-000000000007","role":"authenticated"}';
 select throws_ok(
-  $$ update public.jobs set client_settled_at = now()
-      where id = '20000000-0000-0000-0000-000000000001' $$,
+  format($$ update public.jobs set client_settled_at = now() where id = %L $$, :'unpaid'),
   '42501',
   null,
   'the CLIENT cannot write jobs.client_settled_at (P0-3, UPDATE side)'

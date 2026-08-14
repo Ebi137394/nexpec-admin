@@ -126,15 +126,33 @@ async function main() {
   //  (create unassigned -> fund via the platform path -> admin_dispatch_job) is
   //  what Manual QA is there to exercise by hand.
   console.log('\n[remaining roles]');
+  // OWNER ACCESS POLICY: NEXPEC has ONE real privileged human operator.
+  //
+  //  The synthetic privileged pair (qa.superadmin / qa.admin) is NOT created by
+  //  default. It exists only to let automated least-privilege and
+  //  privilege-escalation tests run, and must be removed again before a human
+  //  ever signs in for Manual QA — otherwise the platform ships with two standing
+  //  admin identities nobody owns.
+  //
+  //  Opt in explicitly with SEED_PRIVILEGED=1, and clean up with
+  //  scripts/qa/revoke-privileged-qa.mjs.
+  const SEED_PRIVILEGED = process.env.SEED_PRIVILEGED === '1';
+
   const roles = [
-    ['qa.superadmin@nexpec.test', 'super_admin', 'QA Super Admin'],
-    ['qa.admin@nexpec.test',      'admin',       'QA Admin'],
     ['qa.client@nexpec.test',     'client',      'QA Client'],
     ['qa.inspector@nexpec.test',  'inspector',   'QA Inspector'],
     ['qa.senior@nexpec.test',     'senior',      'QA Senior Inspector'],
     ['qa.enterprise@nexpec.test', 'enterprise',  'QA Enterprise Employer'],
     ['qa.talent@nexpec.test',     'inspector',   'QA Talent Candidate'],
   ];
+  if (SEED_PRIVILEGED) {
+    roles.unshift(
+      ['qa.superadmin@nexpec.test', 'super_admin', 'QA Super Admin (TEMPORARY)'],
+      ['qa.admin@nexpec.test',      'admin',       'QA Admin (TEMPORARY)'],
+    );
+    console.log('  ⚠ SEED_PRIVILEGED=1 — creating TEMPORARY privileged accounts.');
+    console.log('    Remove them with scripts/qa/revoke-privileged-qa.mjs before Manual QA.');
+  }
   const ids = {};
   for (const [email, role, name] of roles) {
     try {
@@ -156,9 +174,31 @@ async function main() {
     if (cjErr) fail('client job', cjErr); else ok('client job created UNASSIGNED');
   }
 
+  // ── The one real privileged operator ──────────────────────────────────────
+  //  Created ONLY when the owner names themselves explicitly. Three conditions
+  //  must all hold: the target passed the Production guard above, the approved
+  //  Staging ref is the target, and NEXPEC_OWNER_EMAIL is set. The address is
+  //  never logged — only a short hash, so a report can prove WHICH identity was
+  //  provisioned without publishing the owner's personal email.
+  const OWNER_EMAIL = process.env.NEXPEC_OWNER_EMAIL;
+  if (OWNER_EMAIL) {
+    if (!URL.includes('zmzvmgaeovleuvbvwxei')) {
+      console.error('  REFUSED: owner super_admin may only be created on the approved Staging ref.');
+      process.exitCode = 1;
+    } else {
+      const { createHash } = await import('node:crypto');
+      const h = createHash('sha256').update(OWNER_EMAIL).digest('hex').slice(0, 8);
+      try {
+        await upsertUser(OWNER_EMAIL, 'super_admin', 'NEXPEC Owner');
+        ok(`owner super_admin provisioned (identity hash ${h}) — email intentionally not logged`);
+      } catch (e) { fail(`owner super_admin (${h})`, e); }
+    }
+  } else {
+    console.log('\n  note: NEXPEC_OWNER_EMAIL not set — no owner super_admin created.');
+  }
+
   console.log('\n──────────────────────────────────────────────');
   for (const [email, role] of [
-    ['qa.superadmin@nexpec.test','super_admin'], ['qa.admin@nexpec.test','admin'],
     ['qa.client@nexpec.test','client'], ['qa.inspector@nexpec.test','inspector'],
     ['qa.senior@nexpec.test','senior'], ['qa.enterprise@nexpec.test','enterprise'],
     ['qa.talent@nexpec.test','talent candidate'], ['qa.agency@nexpec.test','agency'],

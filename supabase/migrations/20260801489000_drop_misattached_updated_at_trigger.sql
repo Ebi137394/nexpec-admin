@@ -1,3 +1,16 @@
+-- ── RENUMBERED 488000 → 489000 (ordering fix) ──────────────────────────────
+--  This file previously shared the timestamp 20260801488000 with
+--  20260801488000_missing_overload_and_dead_trigger_fix.sql. Supabase applies
+--  same-timestamp migrations in FILENAME order, and 'd' sorts before 'm', so the
+--  self-test below ran BEFORE that file repaired
+--  protect_certification_verification() — which still assigned NEW.updated_at on
+--  a table that has no such column. The assertion fired correctly and aborted the
+--  whole chain at migration 181 of 182 on every clean database.
+--
+--  Renumbered rather than weakened: the assertion is right, it was simply asked
+--  the question too early. Neither migration had ever applied on a clean chain,
+--  so nothing deployed is affected.
+--
 -- ════════════════════════════════════════════════════════════════════════════
 --  20260801488000_drop_misattached_updated_at_trigger.sql
 --

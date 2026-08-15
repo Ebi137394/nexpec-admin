@@ -197,6 +197,39 @@ export async function fetchJobApplications(
       return [];
     }
 
+    // ── DISCLOSURE ──────────────────────────────────────────────────────────
+    //  Which identity fields this Client may see is decided by the project
+    //  policy (jobs.identity_mode) and projected server-side by
+    //  job_applicant_identity_view — professional|full reveal name/résumé/
+    //  certifications, full additionally reveals email/phone.
+    //
+    //  This surface previously hard-coded fullName/email/avatarUrl/locationCity
+    //  to null with a comment asserting the client "never" receives PII, which
+    //  made Professional and Full behave identically to Protected no matter
+    //  what an Admin saved. The policy engine was working; this reader simply
+    //  never asked it.
+    //
+    //  The view is the authority, not this code: it is job- and
+    //  application-scoped, requires the caller to own the job, and (since
+    //  20260801516000) requires the application to have been forwarded. Fields
+    //  absent under the active policy come back NULL, so a downgrade removes
+    //  PII on the next read with no cache of its own.
+    const disclosureById = new Map<string, Record<string, unknown>>();
+    {
+      const { data: disc } = await supabase
+        .from('job_applicant_identity_view')
+        .select(
+          'application_id, identity_mode, inspector_display_name, inspector_email, ' +
+            'inspector_phone, inspector_avatar_url, inspector_headline, ' +
+            'inspector_resume_summary, inspector_resume_url, inspector_cv_url, ' +
+            'inspector_certifications, inspector_qualifications, location_city',
+        )
+        .eq('job_id', jobId);
+      for (const d of (disc ?? []) as unknown as Record<string, unknown>[]) {
+        disclosureById.set(String(d.application_id), d);
+      }
+    }
+
     return data.map((row): JobApplicationRow => {
       const r = row as unknown as Record<string, unknown>;
       // Supabase's embedded select returns either a single object or
@@ -205,6 +238,7 @@ export async function fetchJobApplications(
       const insp = Array.isArray(rawInspector)
         ? (rawInspector[0] as unknown as Record<string, unknown> | undefined)
         : (rawInspector as unknown as Record<string, unknown> | null);
+      const disclosure = disclosureById.get(String(r.id));
 
       return {
         id: String(r.id),
@@ -216,14 +250,16 @@ export async function fetchJobApplications(
         inspector: insp
           ? {
               id: String(insp.id),
-              // ANTI-POACHING: the client never receives inspector PII during
-              // the application/dispatch phase. Identity escrow reveals the
-              // real name only after report-confirm or a VIP early-disclosure.
-              // The card renders the pseudonymous NX- handle from `id`, exactly
-              // like /p/[userId] and /inspectors. (Admin keeps god-mode views.)
-              fullName: null,
-              email: null,
-              avatarUrl: null,
+              // ANTI-POACHING: whatever the active project policy does NOT
+              // authorise comes back NULL from the view, so the card falls back
+              // to the pseudonymous NX- handle exactly as before. Under
+              // 'protected' every one of these is NULL and the rendering is
+              // byte-for-byte what it was; under 'professional' the name
+              // appears; under 'full' the contact details do too. The decision
+              // is the database's, never this component's.
+              fullName: (disclosure?.inspector_display_name as string | null) ?? null,
+              email: (disclosure?.inspector_email as string | null) ?? null,
+              avatarUrl: (disclosure?.inspector_avatar_url as string | null) ?? null,
               ratingAverage:
                 typeof insp.rating_average === 'number'
                   ? (insp.rating_average as number)
@@ -234,7 +270,7 @@ export async function fetchJobApplications(
                 typeof insp.completed_jobs_count === 'number'
                   ? (insp.completed_jobs_count as number)
                   : null,
-              locationCity: null,
+              locationCity: (disclosure?.location_city as string | null) ?? null,
               yearsOfExperience:
                 (insp.years_of_experience as string | null) ?? null,
             }

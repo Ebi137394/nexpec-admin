@@ -72,6 +72,20 @@ insert into public.applications (id, job_id, applicant_id, status) values
   (:'APPP', :'JOBP', :'INSP', 'pending'),
   (:'APPF', :'JOBF', :'INSP', 'pending');
 
+--  Forward both to the Client. Since 20260801516000 the disclosure view
+--  additionally requires forwarded_to_client_at IS NOT NULL, because it
+--  previously gated on job ownership alone and a Client could read a disclosed
+--  name and email from an application the Admin had never forwarded.
+--
+--  This suite proves WHAT each policy discloses, so it must first reach the
+--  point in the lifecycle where disclosure is legitimate. Without this the
+--  assertions below tested the absent gate rather than the projection.
+--  identity_disclosure_matrix_test.sql owns the complementary proof that an
+--  UNFORWARDED application stays invisible under all three policies.
+update public.applications
+   set forwarded_to_client_at = now()
+ where id in (:'APPP', :'APPF');
+
 -- ══════════════════════════════════════════════════════════════════════════
 --  PROTECTED
 -- ══════════════════════════════════════════════════════════════════════════

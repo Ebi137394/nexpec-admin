@@ -40,7 +40,8 @@
     "test:replay:itp": "node --experimental-strip-types --test src/core/offline/__tests__/itpReplay.test.mjs",
     "test:replay:visit": "node --experimental-strip-types --test src/core/offline/__tests__/visitReplay.test.mjs",
     "test:replay:review": "node --experimental-strip-types --test src/core/offline/__tests__/reviewReplay.test.mjs",
-    "test:replay": "npm run test:replay:itp && npm run test:replay:visit && npm run test:replay:review"
+    "test:replay": "npm run test:replay:itp && npm run test:replay:visit && npm run test:replay:review",
+    "qa:edge-functions": "node scripts/qa/check-edge-functions.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

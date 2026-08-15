@@ -267,7 +267,11 @@ Deno.serve(async (req) => {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'normal');
       
-      disputeData.evidence_files.forEach((file, index) => {
+      // Annotated explicitly: `disputeData` comes back from an ungenerified
+      // supabase-js client, so it is `any` and the declared DisputeData
+      // interface never actually reaches this callback. Under the deployment
+      // runtime's `strict` config that made both params implicit `any` (TS7006).
+      disputeData.evidence_files.forEach((file: string, index: number) => {
         doc.text(`${index + 1}. ${file}`, 20, yPos);
         yPos += 6;
       });
@@ -372,20 +376,22 @@ Deno.serve(async (req) => {
   }
 });
 
-// Add CORS headers for all requests
-addEventListener('fetch', (event) => {
-  event.respondWith(
-    (async () => {
-      const response = await fetch(event.request);
-      const newHeaders = new Headers(response.headers);
-      newHeaders.set('Access-Control-Allow-Origin', '*');
-      newHeaders.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      newHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: newHeaders,
-      });
-    })()
-  );
-});
+// NOTE — a second `addEventListener('fetch', …)` handler used to live here,
+// claiming to "add CORS headers for all requests". It was removed because it was
+// wrong three separate ways:
+//
+//   1. WRONG RUNTIME API. FetchEvent (`event.respondWith` / `event.request`) is
+//      the Deno Deploy shape. Supabase Edge Runtime dispatches to the `Deno.serve`
+//      handler above, so this listener never fired — it registered against a
+//      global event that is never dispatched. `deno check` on the deployment
+//      runtime (deno 2.1.4) reported exactly that: TS2339 on both properties.
+//   2. IT WOULD HAVE RECURSED IF IT EVER FIRED. Its body did
+//      `await fetch(event.request)` — re-requesting the SAME URL that invoked it.
+//      Had the listener ever been dispatched, each request would have spawned
+//      another request to itself until the runtime killed the isolate.
+//   3. REDUNDANT. `corsHeaders` above already answers the OPTIONS preflight and
+//      is spread onto every response. CORS was never actually coming from here,
+//      which is precisely why nobody noticed the handler was inert.
+//
+// The function's real entrypoint is the `Deno.serve` call above. Do not add a
+// `fetch` event listener back.

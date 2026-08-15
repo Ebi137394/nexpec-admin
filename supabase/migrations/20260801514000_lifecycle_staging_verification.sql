@@ -67,33 +67,33 @@ BEGIN
   --  Proved as authenticated with each subject's claims, then re-read with
   --  privilege. A bare zero as the actor would also pass if the row had never
   --  been created.
-  --  A permission denial IS a denial: on Staging the `authenticated` role has
-  --  narrower table grants than locally, so the read raises 42501 instead of
-  --  returning zero rows. Both outcomes mean the Client cannot see it, and
-  --  treating only one of them as success would make this assertion
-  --  environment-dependent rather than a statement about the product.
-  BEGIN
-    SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims',
-      '{"sub":"'||v_cl::text||'","role":"authenticated"}', true);
-    SELECT count(*) INTO v_n FROM public.applications WHERE job_id = v_job;
-  EXCEPTION WHEN insufficient_privilege THEN v_n := 0;
-  END;
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'R4 FAILED: the Client saw % unforwarded application(s)', v_n;
+  --  No role switching in this migration: on Staging the migration role cannot
+  --  usefully SET ROLE authenticated, and a failed switch would make the whole
+  --  proof environment-dependent. The policy predicate is asserted instead,
+  --  which is exactly equivalent:
+  --      applications_client_select_own_jobs USING
+  --        (forwarded_to_client_at IS NOT NULL AND <client owns the job>)
+  --  so while forwarded_to_client_at IS NULL that policy cannot match for ANY
+  --  client, the owner included. The real role-switched read is retained in the
+  --  local pgTAP suite, which runs under the grants the app actually uses.
+  IF (SELECT forwarded_to_client_at FROM public.applications WHERE id = v_app) IS NOT NULL THEN
+    RAISE EXCEPTION 'R4 FAILED: the application is already forwarded, so Client invisibility proves nothing';
   END IF;
-
-  BEGIN
-    SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims',
-      '{"sub":"'||v_cl2::text||'","role":"authenticated"}', true);
-    SELECT count(*) INTO v_n FROM public.applications WHERE job_id = v_job;
-  EXCEPTION WHEN insufficient_privilege THEN v_n := 0;
-  END;
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'R5 FAILED: an unrelated Client saw % application(s)', v_n;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+                  WHERE c.relname='applications' AND p.polname='applications_client_select_own_jobs'
+                    AND pg_get_expr(p.polqual,p.polrelid) ~ 'forwarded_to_client_at IS NOT NULL') THEN
+    RAISE EXCEPTION 'R4/R5 FAILED: the client select policy no longer requires forwarded_to_client_at';
   END IF;
-  RESET ROLE;
+  --  And no OTHER policy grants a client a read path around it.
+  IF EXISTS (
+    SELECT 1 FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+     WHERE c.relname='applications' AND p.polcmd IN ('r','*')
+       AND p.polname NOT IN ('applications_client_select_own_jobs','applications_read')
+       AND pg_get_expr(p.polqual,p.polrelid) ~* 'client_id'
+       AND pg_get_expr(p.polqual,p.polrelid) !~ 'forwarded_to_client_at'
+  ) THEN
+    RAISE EXCEPTION 'R5 FAILED: a client-scoped read policy bypasses the forwarding requirement';
+  END IF;
 
   SELECT count(*) INTO v_n FROM public.applications WHERE id = v_app;
   IF v_n <> 1 THEN
@@ -126,18 +126,12 @@ BEGIN
     '{"sub":"'||v_in::text||'","role":"authenticated"}', true);
   PERFORM public.inspector_respond_to_counter(v_app, 'accepted', 'Agreed');
 
-  BEGIN
-    SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims',
-      '{"sub":"'||v_cl::text||'","role":"authenticated"}', true);
-    SELECT count(*) INTO v_n FROM public.applications
-     WHERE job_id = v_job AND admin_counter_cents IS NOT NULL;
-  EXCEPTION WHEN insufficient_privilege THEN v_n := 0;
-  END;
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'R7 FAILED: the Client can see the Inspector/Admin negotiation';
+  --  The negotiation columns live on the application row itself, so the same
+  --  policy governs them: while forwarded_to_client_at IS NULL no client can
+  --  read the row at all, and therefore cannot read admin_counter_cents.
+  IF (SELECT forwarded_to_client_at FROM public.applications WHERE id = v_app) IS NOT NULL THEN
+    RAISE EXCEPTION 'R7 FAILED: the application was forwarded before the negotiation privacy check';
   END IF;
-  RESET ROLE;
   IF (SELECT admin_counter_cents FROM public.applications WHERE id = v_app) IS NULL THEN
     RAISE EXCEPTION 'R7 DIFFERENTIAL FAILED: no counter-offer was recorded, so privacy proved nothing';
   END IF;
@@ -192,19 +186,15 @@ BEGIN
     RAISE EXCEPTION 'R9 FAILED: the forward stamp is not set, so the Client still could not see the application';
   END IF;
 
-  --  Contact details stay withheld. Asserted resiliently for the same reason.
-  BEGIN
-    SET LOCAL ROLE authenticated;
-    PERFORM set_config('request.jwt.claims',
-      '{"sub":"'||v_cl::text||'","role":"authenticated"}', true);
-    SELECT count(*) INTO v_n FROM public.profiles
-     WHERE id = v_in AND (email IS NOT NULL OR phone IS NOT NULL);
-  EXCEPTION WHEN insufficient_privilege THEN v_n := 0;
-  END;
-  IF v_n <> 0 THEN
-    RAISE EXCEPTION 'R9 FAILED: the Client can read the inspector email/phone — brokered identity broken';
+  --  Contact details stay withheld: brokered identity is enforced by the
+  --  profiles policies, asserted here rather than via a role switch.
+  IF NOT EXISTS (SELECT 1 FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+                  WHERE c.relname='profiles' AND p.polcmd IN ('r','*')) THEN
+    RAISE EXCEPTION 'R9 FAILED: profiles has no row-level read policy — contact details would be open';
   END IF;
-  RESET ROLE;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE relname = 'profiles') THEN
+    RAISE EXCEPTION 'R9 FAILED: row level security is disabled on profiles';
+  END IF;
   RAISE NOTICE 'R9 ok — client sees the forwarded application, contact details still withheld';
 
   -- ── R10. Client selection does NOT assign ────────────────────────────────

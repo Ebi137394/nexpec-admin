@@ -97,10 +97,15 @@ select is(
   'fully_executed',
   'COUNTER-SIGN → contract is FULLY EXECUTED');
 
-select is(
+--  INVERTED by 20260801506000. Counter-signing must NOT assign the job:
+--  under the canonical lifecycle the Admin alone dispatches, after Client
+--  selection, full contract execution AND the initial 20% funding. A signature
+--  satisfies exactly one of those, so a signature that assigned was a
+--  dispatch performed by the buyer.
+select isnt(
   (select status from public.jobs where id = :'JOB'),
   'assigned',
-  'COUNTER-SIGN → job is ASSIGNED');
+  'COUNTER-SIGN does NOT assign the job — dispatch is the Admin''s alone');
 
 -- ★ THE DEFECT THIS MIGRATION FIXES.
 select isnt(
@@ -157,15 +162,19 @@ update public.jobs set contractor_id = :'INSP' where id = :'JOB';
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"a2222222-2222-2222-2222-222222222222","role":"authenticated"}';
-select lives_ok(
+--  Work cannot begin off the back of a signature. inspector_start_job requires
+--  an assigned job, and the job is deliberately no longer assigned at this
+--  point — the Admin has not dispatched. Refusal is the correct behaviour.
+select throws_ok(
   $$ select public.inspector_start_job('a4444444-4444-4444-4444-444444444444') $$,
-  'START JOB: reachable now that counter-signing leaves the job assigned');
+  NULL, NULL,
+  'START JOB is refused before Admin dispatch — signing does not start work');
 reset role;
 
-select is(
+select isnt(
   (select status from public.jobs where id = :'JOB'),
   'in_progress',
-  'START JOB → job is IN PROGRESS (the only path to it)');
+  'the job did NOT reach in_progress — work cannot start before Admin dispatch');
 
 -- ══════════════════════════════════════════════════════════════════════════
 --  D. Contract deep link
@@ -210,10 +219,12 @@ select lives_ok(
   $$ select public.heal_contract_to_active('a8888888-8888-8888-8888-888888888888') $$,
   'HEAL: reconciling a fully executed contract does not raise');
 
+--  INVERTED by 20260801508000. Healing an executed contract must reconcile
+--  money and binding, never manufacture a dispatch. An OPEN job stays OPEN.
 select is(
   (select status from public.jobs where id = :'JOB2'),
-  'assigned',
-  'HEAL: an OPEN job is reconciled to ASSIGNED');
+  'open',
+  'HEAL leaves an OPEN job OPEN — contract execution never auto-dispatches');
 
 select isnt(
   (select status from public.jobs where id = :'JOB2'),
@@ -244,9 +255,15 @@ select is(
 select nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'heal probe in progress',
                             120000, 100000, 'prepay') as "JOB3" \gset
 update public.jobs set status = 'in_progress' where id = :'JOB3';
-insert into public.job_contracts (
-  id, job_id, client_id, inspector_id, status, client_price_cents, inspector_payout_cents
-) values (:'CON3', :'JOB3', :'CL', :'INSP', 'fully_executed', 120000, 100000);
+--  ADOPT the contract the canonical fixture already executed for JOB3.
+--  uniq_job_contracts_active_per_job permits one active contract per job, and
+--  since 20260801504000 the fixture must execute one to dispatch at all — so a
+--  second INSERT here collides. Hand-writing status='fully_executed' would also
+--  set the exact column the dispatch gate reads, which is the shortcut the gate
+--  exists to prevent.
+select id as "CON3" from public.job_contracts
+ where job_id = :'JOB3' and voided_at is null
+ order by created_at desc limit 1 \gset
 
 select lives_ok(
   $$ select public.heal_contract_to_active('aaaa1111-1111-4111-8111-111111111111') $$,

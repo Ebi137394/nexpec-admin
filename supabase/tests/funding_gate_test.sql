@@ -49,11 +49,16 @@ insert into _fx(k, v) values
   ('client_credit',  gen_random_uuid()),
   ('client_nocred',  gen_random_uuid()),
   ('inspector',      gen_random_uuid()),
+  ('admin',          gen_random_uuid()),
+  ('app_funded',     gen_random_uuid()),
+  ('app_net_ok',     gen_random_uuid()),
   ('job_unfunded',   gen_random_uuid()),
   ('job_funded',     gen_random_uuid()),
   ('job_net_ok',     gen_random_uuid()),
   ('job_net_nocred', gen_random_uuid()),
   ('job_badmode',    gen_random_uuid());
+
+\i supabase/tests/_fixtures/canonical_job.sql
 
 create or replace function _fx(p text) returns uuid
 language sql stable as $$ select v from _fx where k = p $$;
@@ -62,13 +67,19 @@ insert into auth.users (id, email) values
   (_fx('client_prepay'), 'fg-prepay@test.invalid'),
   (_fx('client_credit'), 'fg-credit@test.invalid'),
   (_fx('client_nocred'), 'fg-nocred@test.invalid'),
-  (_fx('inspector'),     'fg-inspector@test.invalid');
+  (_fx('inspector'),     'fg-inspector@test.invalid'),
+  (_fx('admin'),         'fg-admin@test.invalid');
 
 insert into public.profiles (id, email, role) values
   (_fx('client_prepay'), 'fg-prepay@test.invalid', 'client'),
   (_fx('client_credit'), 'fg-credit@test.invalid', 'client'),
   (_fx('client_nocred'), 'fg-nocred@test.invalid', 'client'),
-  (_fx('inspector'),     'fg-inspector@test.invalid', 'inspector')
+  (_fx('inspector'),     'fg-inspector@test.invalid', 'inspector'),
+  --  role 'admin', not 'super_admin': admin_generate_job_contract needs
+  --  admin standing, and nx_active_super_admin_count refuses to let the
+  --  super_admin population reach zero, so a synthetic super_admin could
+  --  not be cleaned up at teardown.
+  (_fx('admin'),         'fg-admin@test.invalid', 'admin')
 on conflict (id) do update
   set email = excluded.email, role = excluded.role;
 
@@ -126,6 +137,23 @@ select is(
 --  B. Funded prepay dispatches
 -- ════════════════════════════════════════════════════════════════════════════
 update public.jobs set client_settled_at = now() where id = _fx('job_funded');
+
+-- ── the OTHER dispatch precondition ─────────────────────────────────────────
+--  20260801504000 gates the assign transition on a fully executed contract for
+--  the selected inspector. This suite proves the FUNDING gate, so the contract
+--  precondition has to be genuinely satisfied first — otherwise B1/D1 would be
+--  refused for the wrong reason and would prove nothing about funding.
+--  Satisfied through the real RPC chain (generate -> client sign -> inspector
+--  sign); job_contracts.status is never written directly, which would defeat
+--  the very gate this suite must not weaken.
+insert into public.applications (id, job_id, applicant_id, status, bid_amount_cents)
+values (_fx('app_funded'), _fx('job_funded'), _fx('inspector'), 'CLIENT_SELECTED', 70000),
+       (_fx('app_net_ok'), _fx('job_net_ok'), _fx('inspector'), 'CLIENT_SELECTED', 70000);
+
+select nx_fx_execute_contract(_fx('job_funded'), _fx('app_funded'),
+         _fx('client_prepay'), _fx('inspector'), _fx('admin'), 100000, 70000);
+select nx_fx_execute_contract(_fx('job_net_ok'), _fx('app_net_ok'),
+         _fx('client_credit'), _fx('inspector'), _fx('admin'), 100000, 70000);
 
 select lives_ok(
   format('update public.jobs set status = ''assigned'', contractor_id = %L where id = %L',
@@ -236,13 +264,24 @@ select is(
 -- ════════════════════════════════════════════════════════════════════════════
 --  I. Cleanup, asserted
 -- ════════════════════════════════════════════════════════════════════════════
+--  Contracts and applications reference both the jobs and the profiles, so
+--  they must be removed first or the profile delete trips
+--  applications_applicant_id_fkey.
+delete from public.job_contracts where job_id in (
+  _fx('job_unfunded'), _fx('job_funded'), _fx('job_net_ok'),
+  _fx('job_net_nocred'), _fx('job_badmode'));
+delete from public.applications where job_id in (
+  _fx('job_unfunded'), _fx('job_funded'), _fx('job_net_ok'),
+  _fx('job_net_nocred'), _fx('job_badmode'));
 delete from public.jobs where id in (
   _fx('job_unfunded'), _fx('job_funded'), _fx('job_net_ok'),
   _fx('job_net_nocred'), _fx('job_badmode'));
 delete from public.profiles where id in (
-  _fx('client_prepay'), _fx('client_credit'), _fx('client_nocred'), _fx('inspector'));
+  _fx('client_prepay'), _fx('client_credit'), _fx('client_nocred'),
+  _fx('inspector'), _fx('admin'));
 delete from auth.users where id in (
-  _fx('client_prepay'), _fx('client_credit'), _fx('client_nocred'), _fx('inspector'));
+  _fx('client_prepay'), _fx('client_credit'), _fx('client_nocred'),
+  _fx('inspector'), _fx('admin'));
 
 select is(
   (select count(*)::int from public.jobs where id in (

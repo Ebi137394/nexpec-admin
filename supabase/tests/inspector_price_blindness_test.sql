@@ -56,6 +56,7 @@ SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
 DECLARE
+  v_app    uuid;
   v_client uuid := gen_random_uuid();
   v_insp   uuid := gen_random_uuid();
   v_admin  uuid := gen_random_uuid();
@@ -94,6 +95,15 @@ BEGIN
   -- Created 'open', not 'assigned': status='assigned' at INSERT is itself a
   -- dispatch, so the gate fired before funding could run. open -> assigned is a
   -- legal transition, so fund first, then dispatch in one UPDATE.
+  --  Since 20260801504000 the assign transition also requires a fully executed
+  --  contract for the selected inspector. Satisfied through the real RPC chain
+  --  (generate -> client sign -> inspector sign); job_contracts.status is never
+  --  written directly, which would defeat the gate.
+  v_app := gen_random_uuid();
+  INSERT INTO public.applications (id, job_id, applicant_id, status, bid_amount_cents)
+  VALUES (v_app, v_job, v_insp, 'CLIENT_SELECTED', 120000);
+  PERFORM nx_fx_execute_contract(v_job, v_app, v_client, v_insp, v_admin, 230000, 120000);
+
   UPDATE public.jobs SET contractor_id = v_insp, status = 'assigned' WHERE id = v_job;
 
   -- ── P1 — no column privilege for authenticated ─────────────────────────

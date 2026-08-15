@@ -154,6 +154,20 @@ update public.jobs set identity_mode = 'professional' where id = :'JOB';
 select nx_fx_fund_job(:'JOB');
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"b3333333-3333-3333-3333-333333333333","role":"authenticated"}';
+--  Since 20260801504000 dispatch requires a fully executed contract for the
+--  selected inspector. Established through the real RPC chain, never by
+--  writing job_contracts.status.
+--  reset role first: the helper reads job_contracts to decide whether to adopt
+--  an existing contract, and under role `authenticated` RLS hides that row, so
+--  it would try to generate a second one. The signature RPCs it calls are
+--  SECURITY DEFINER and authorise on the JWT claims, which the helper sets
+--  itself, so running it privileged does not bypass any authorization.
+reset role;
+select nx_fx_execute_contract(:'JOB'::uuid, :'APP'::uuid, :'CL'::uuid, :'INSP'::uuid,
+                              :'ADM'::uuid, 230000, 200000);
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"b3333333-3333-3333-3333-333333333333","role":"authenticated"}';
+
 select public.admin_dispatch_job(:'JOB', :'APP', 230000::bigint, 200000::bigint);
 
 set local request.jwt.claims to '{"sub":"b2222222-2222-2222-2222-222222222222","role":"authenticated"}';
@@ -171,13 +185,13 @@ reset role;
 -- columns are left NULL. effective_identity_mode is deliberately NOT set here:
 -- trg_job_contracts_identity_snapshot stamps it on entry to fully_executed,
 -- which is precisely the audit-snapshot behaviour under test.
-insert into public.job_contracts (
-  id, job_id, application_id, client_id, inspector_id,
-  status, client_price_cents, inspector_payout_cents
-) values (
-  :'CON', :'JOB', :'APP', :'CL', :'INSP',
-  'fully_executed', 230000, 200000
-);
+--  ADOPT the contract the dispatch step already executed for this job.
+--  uniq_job_contracts_active_per_job permits one active contract per job, and
+--  hand-writing status='fully_executed' would set the exact column the
+--  dispatch gate reads — the shortcut the gate exists to prevent.
+select id as "CON" from public.job_contracts
+ where job_id = :'JOB' and voided_at is null
+ order by created_at desc limit 1 \gset
 
 select isnt(
   (select effective_identity_mode from public.job_contracts where id = :'CON'),

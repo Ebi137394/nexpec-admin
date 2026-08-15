@@ -104,6 +104,20 @@ values (:'job'::uuid, 'Behavioural suite job', :'cli'::uuid,
         'open', 'approved', 'net_terms', 100000, 70000)
 on conflict (id) do nothing;
 
+--  Since 20260801504000 the assign transition also requires a fully executed
+--  contract for the selected inspector. Satisfied here through the real RPC
+--  chain (generate → client sign → inspector sign) rather than by writing
+--  job_contracts.status, which would defeat the gate this suite must not
+--  weaken. An application is required because admin_generate_job_contract is
+--  keyed on one.
+insert into public.applications (id, job_id, applicant_id, status, bid_amount_cents)
+values ('20000000-0000-0000-0000-0000000000a1'::uuid, :'job'::uuid, :'insp'::uuid,
+        'CLIENT_SELECTED', 70000)
+on conflict (id) do nothing;
+
+select nx_fx_execute_contract(:'job'::uuid, '20000000-0000-0000-0000-0000000000a1'::uuid,
+         :'cli'::uuid, :'insp'::uuid, :'adm'::uuid, 100000, 70000);
+
 --  open → assigned → in_progress, both legal in guard_jobs_status_transition.
 update public.jobs
    set contractor_id = :'insp'::uuid, status = 'assigned'

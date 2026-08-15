@@ -81,17 +81,27 @@ update public.jobs
 insert into public.jobs (id, title, client_id, status, source_rfq_id) values
   (:'JOBR','rfq spawned job', :'CL', 'in_progress', :'RFQ');
 
--- A fully_executed contract for I1 (snapshot stamps at insert while job=protected).
-insert into public.job_contracts (id, job_id, client_id, inspector_id, client_price_cents, inspector_payout_cents, status) values
-  (:'CON1', :'JOB', :'CL', :'I1', 100000, 60000, 'fully_executed');
+-- A fully_executed contract for I1. Since 20260801504000 the canonical fixture
+-- already executes one for this job through the real RPC chain, and
+-- uniq_job_contracts_active_per_job permits exactly one active contract per
+-- job — so this ADOPTS the fixture's contract instead of inserting a second.
+-- Hand-inserting status='fully_executed' would also have written the very
+-- column the dispatch gate reads, which is the shortcut the gate exists to
+-- prevent.
+select id as "CON1" from public.job_contracts
+ where job_id = :'JOB' and voided_at is null
+ order by created_at desc limit 1 \gset
 -- Replacement applications (I2, I3) on the inspection job.
 insert into public.applications (id, job_id, applicant_id, status) values
   (:'APP2', :'JOB', :'I2', 'shortlisted'),
   (:'APP3', :'JOB', :'I3', 'shortlisted');
 
 -- ── SCHEMA CONSTRAINTS (as superuser) ───────────────────────────────────────
+--  Bound to :'CON1', not the old hard-coded uuid. CON1 is now the fixture's
+--  contract, so a literal id would update ZERO rows, raise nothing, and the
+--  assertion would report a passing constraint that was never exercised.
 select throws_ok(
-  $$ update public.job_contracts set client_approval_type='admin_authorized' where id='d8888888-8888-8888-8888-888888888888' $$,
+  format($$ update public.job_contracts set client_approval_type='admin_authorized' where id=%L $$, :'CON1'),
   '23514', NULL, 'admin_authorized WITHOUT actor/timestamp/reason is rejected');
 select is(
   (select effective_identity_mode from public.job_contracts where id=:'CON1'),

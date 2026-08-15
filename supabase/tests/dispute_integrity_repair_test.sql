@@ -33,6 +33,7 @@ SET LOCAL client_min_messages TO NOTICE;
 
 DO $suite$
 DECLARE
+  v_app    uuid;
   v_client uuid := gen_random_uuid();
   v_insp   uuid := gen_random_uuid();
   v_admin  uuid := gen_random_uuid();
@@ -69,6 +70,15 @@ BEGIN
   v_job := nx_fx_unfunded_job(v_client, 'DISPUTE REPAIR TEST');
   UPDATE public.jobs SET description = 'suite' WHERE id = v_job;
   PERFORM nx_fx_fund_job(v_job);
+  --  Since 20260801504000 the assign transition also requires a fully executed
+  --  contract for the selected inspector. Satisfied through the real RPC chain
+  --  (generate -> client sign -> inspector sign); job_contracts.status is never
+  --  written directly, which would defeat the gate.
+  v_app := gen_random_uuid();
+  INSERT INTO public.applications (id, job_id, applicant_id, status, bid_amount_cents)
+  VALUES (v_app, v_job, v_insp, 'CLIENT_SELECTED', 70000);
+  PERFORM nx_fx_execute_contract(v_job, v_app, v_client, v_insp, v_admin, 100000, 70000);
+
   UPDATE public.jobs SET contractor_id = v_insp, status = 'assigned' WHERE id = v_job;
   UPDATE public.jobs SET status = 'in_progress' WHERE id = v_job;
 

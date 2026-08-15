@@ -392,9 +392,13 @@ function timelineCopy(
   }
   // moderation = approved
   if (status === 'open') {
+    //  `apps` counts only vetted, released applications — RLS hides the rest.
+    //  The zero case must not say "no applications yet": applicants may well
+    //  exist and still be in NEXPEC's review. Describing the review stage keeps
+    //  it truthful without disclosing a hidden count.
     return apps > 0
-      ? `Live. ${apps} application${apps === 1 ? '' : 's'} so far, review and pick a candidate when you're ready.`
-      : 'Live. No applications yet, vetted inspectors typically apply within hours.';
+      ? `Live. ${apps} vetted candidate${apps === 1 ? '' : 's'} ready for your review.`
+      : 'Live. NEXPEC is reviewing applicants and will share vetted candidates with you.';
   }
   if (status === 'assigned') return 'Inspector assigned. Work is queued to begin.';
   if (status === 'in_progress') return 'Work in progress. Report is incoming.';

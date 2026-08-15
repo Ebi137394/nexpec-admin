@@ -100,6 +100,81 @@ BEGIN
   RETURN v_app;
 END $fn$;
 
+
+-- ─── the required contract, executed by BOTH parties ────────────────────────
+--  20260801504000 gates the assign transition on a fully executed contract, so
+--  this is part of the canonical sequence, not an optional extra.
+--
+--  IDEMPOTENT. uniq_job_contracts_active_per_job allows exactly one active
+--  contract per job, and several suites legitimately create their own before
+--  reaching dispatch. This helper therefore ADOPTS an existing active contract
+--  instead of generating a second one, and skips any signature already
+--  present. Generating unconditionally made those suites fail on the unique
+--  index — a fixture defect, not a product one.
+--
+--  It never writes job_contracts.status directly. Presetting 'fully_executed'
+--  would defeat the dispatch gate exactly the way presetting contractor_id
+--  defeats the admin broker, so the real RPC chain is called:
+--      admin_generate_job_contract -> pending_client_signature
+--      client_sign_job_contract    -> pending_inspector_signature
+--      inspector_sign_job_contract -> fully_executed
+create or replace function nx_fx_execute_contract(
+  p_job          uuid,
+  p_application  uuid,
+  p_client       uuid,
+  p_inspector    uuid,
+  p_admin        uuid,
+  p_client_price bigint default 100000,
+  p_payout       bigint default 70000
+) returns uuid
+language plpgsql as $fn$
+DECLARE v_contract uuid; v_status text; v_prev text;
+BEGIN
+  v_prev := coalesce(current_setting('request.jwt.claims', true), '');
+
+  SELECT id, status INTO v_contract, v_status
+    FROM public.job_contracts
+   WHERE job_id = p_job AND voided_at IS NULL
+   ORDER BY created_at DESC LIMIT 1;
+
+  IF v_contract IS NULL THEN
+    PERFORM set_config('request.jwt.claims',
+      '{"sub":"' || p_admin::text || '","role":"authenticated"}', true);
+    PERFORM public.admin_generate_job_contract(
+      p_application, p_client_price, p_payout, 'fixture contract terms', NULL);
+    SELECT id, status INTO v_contract, v_status
+      FROM public.job_contracts
+     WHERE job_id = p_job AND voided_at IS NULL
+     ORDER BY created_at DESC LIMIT 1;
+  END IF;
+
+  IF v_contract IS NULL THEN
+    RAISE EXCEPTION 'nx_fx_execute_contract: no contract exists or could be generated for job %', p_job;
+  END IF;
+
+  IF v_status = 'pending_client_signature' THEN
+    PERFORM set_config('request.jwt.claims',
+      '{"sub":"' || p_client::text || '","role":"authenticated"}', true);
+    PERFORM public.client_sign_job_contract(v_contract, 'Fixture Client', '127.0.0.1');
+    SELECT status INTO v_status FROM public.job_contracts WHERE id = v_contract;
+  END IF;
+
+  IF v_status = 'pending_inspector_signature' THEN
+    PERFORM set_config('request.jwt.claims',
+      '{"sub":"' || p_inspector::text || '","role":"authenticated"}', true);
+    PERFORM public.inspector_sign_job_contract(v_contract, 'Fixture Inspector', '127.0.0.1');
+    SELECT status INTO v_status FROM public.job_contracts WHERE id = v_contract;
+  END IF;
+
+  IF v_status <> 'fully_executed' THEN
+    RAISE EXCEPTION 'nx_fx_execute_contract: contract % ended in status %, not fully_executed',
+      v_contract, v_status;
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', v_prev, true);
+  RETURN v_contract;
+END $fn$;
+
 -- ─── the whole canonical sequence, end to end ───────────────────────────────
 --  Returns the dispatched job id. p_admin MUST be a profile with role
 --  'admin' or 'super_admin': admin_dispatch_job authenticates via auth.uid()
@@ -115,7 +190,7 @@ create or replace function nx_fx_dispatched_job(
   p_mode         text   default 'prepay'
 ) returns uuid
 language plpgsql as $fn$
-DECLARE v_job uuid; v_app uuid; v_prev text;
+DECLARE v_job uuid; v_app uuid; v_prev text; v_contract uuid;
 BEGIN
   v_prev := coalesce(current_setting('request.jwt.claims', true), '');
 
@@ -132,7 +207,19 @@ BEGIN
     PERFORM nx_fx_fund_job(v_job);
   END IF;
 
-  -- 4. dispatch through the canonical Admin RPC, as the admin
+  -- 4. the required contract, generated and signed by BOTH parties.
+  --    20260801504000 gates the assign transition on a fully executed
+  --    contract, so this is now part of the canonical sequence rather than
+  --    an optional extra. Presetting job_contracts.status would defeat the
+  --    guard exactly the way presetting contractor_id defeats the broker, so
+  --    the real RPC chain is called instead:
+  --      admin_generate_job_contract -> pending_client_signature
+  --      client_sign_job_contract    -> pending_inspector_signature
+  --      inspector_sign_job_contract -> fully_executed
+  PERFORM nx_fx_execute_contract(v_job, v_app, p_client, p_inspector, p_admin,
+                                 p_client_price, p_payout);
+
+  -- 5. dispatch through the canonical Admin RPC, as the admin
   PERFORM set_config('request.jwt.claims',
     '{"sub":"' || p_admin::text || '","role":"authenticated"}', true);
   PERFORM public.admin_dispatch_job(v_job, v_app, p_client_price, p_payout);

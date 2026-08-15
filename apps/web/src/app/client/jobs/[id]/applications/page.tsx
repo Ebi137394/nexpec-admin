@@ -169,12 +169,19 @@ export default async function ClientJobApplicationsPage({
           <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl bg-violet/15 text-violet-glow ring-1 ring-inset ring-violet/30">
             <Users className="h-5 w-5" strokeWidth={1.75} />
           </div>
+          {/*  This list shows only applications NEXPEC has vetted and released
+              (applications.forwarded_to_client_at). Unreleased applications are
+              correctly hidden by RLS, so "no applications" would be false — the
+              copy must describe the review stage without revealing whether any
+              hidden applicants exist, which would leak a count the buyer is not
+              entitled to. */}
           <h2 className="mt-5 font-display text-xl font-semibold tracking-tight text-white">
-            No applications yet.
+            No vetted applications available yet.
           </h2>
           <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
-            Vetted inspectors usually start applying within minutes of
-            posting. Check back shortly or refresh.
+            NEXPEC reviews every applicant — credentials, specialty fit,
+            experience and availability — before sharing a candidate with you.
+            You&apos;ll be notified as soon as a vetted candidate is ready.
           </p>
         </section>
       )}

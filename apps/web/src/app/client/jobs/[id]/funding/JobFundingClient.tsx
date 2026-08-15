@@ -58,6 +58,7 @@ import {
   type ClientFundingProjection,
   type FundingStageView,
 } from '@nexpec/shared-core/domain';
+import { deliveryStatusCopy } from '@nexpec/shared-core/domain';
 import { bindFundingCore } from './fundingCore';
 import {
   bpsLabel,
@@ -206,8 +207,55 @@ export function JobFundingClient({ job }: { job: FundingJobFacts }) {
     outstanding.length === 1 ? (outstanding[0] ?? null) : null;
   const isLegacy = stages.length === 0;
 
+  //  Delivery wording comes from the shared contract, never composed here.
+  //  A credit-released job must NOT read "Final delivery blocked", and an
+  //  OVERDUE invoice must not either — the report is already released and
+  //  stays accessible. deliveryStatusCopy() owns that rule for Web and Mobile
+  //  alike so the two cannot disagree.
+  const finalStage = stages.find((s) => s.code === 'final') ?? null;
+  const deliveryCopy = finalStage
+    ? deliveryStatusCopy({
+        gatesDelivery: finalStage.gatesDelivery,
+        remainingCents: outstandingTotalCents,
+        netTermDays: (finalStage.netTermDays as 15 | 30 | 60 | null) ?? null,
+        invoiceDueAt: finalStage.invoiceDueAt,
+        invoiceStatus:
+          finalStage.status === 'funded'
+            ? 'paid'
+            : finalStage.status === 'waived'
+              ? 'waived'
+              : finalStage.invoiceDueAt
+                ? Date.now() > new Date(finalStage.invoiceDueAt).getTime()
+                  ? 'overdue'
+                  : Date.now() >
+                      new Date(finalStage.invoiceDueAt).getTime() -
+                        7 * 24 * 60 * 60 * 1000
+                    ? 'due_soon'
+                    : 'open'
+                : 'open',
+      })
+    : null;
+
   return (
     <div className="space-y-8">
+      {deliveryCopy && (
+        <section
+          aria-label="Final report delivery"
+          className={[
+            'rounded-xl border p-4',
+            deliveryCopy.tone === 'blocked'
+              ? 'border-amber-400/30 bg-amber-400/5'
+              : deliveryCopy.tone === 'released'
+                ? 'border-violet-400/30 bg-violet-400/5'
+                : 'border-emerald-400/30 bg-emerald-400/5',
+          ].join(' ')}
+        >
+          <p className="text-sm font-semibold text-white">{deliveryCopy.headline}</p>
+          {deliveryCopy.detail && (
+            <p className="mt-1 text-sm text-zinc-300">{deliveryCopy.detail}</p>
+          )}
+        </section>
+      )}
       {/* ── total + the two gate tiles ───────────────────────────────── */}
       <section
         aria-label="Funding position"

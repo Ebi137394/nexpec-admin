@@ -25,6 +25,7 @@ import { ArrowLeft, TriangleAlert } from 'lucide-react';
 import { fetchFundingRecord } from '../_lib/fundingAdmin';
 import { FundingScheduleTable } from '../_components/FundingScheduleTable';
 import { FundingTermsForm } from '../_components/FundingTermsForm';
+import { JobCreditReleaseForm } from '../_components/DeliveryPolicyForm';
 
 export const metadata: Metadata = {
   title: 'Job funding · NEXPEC Admin',
@@ -94,6 +95,38 @@ export default async function AdminJobFundingPage({
           clientPriceCents={funding.clientPriceCents}
           stages={funding.stages}
         />
+      </section>
+
+      {/*  Delivery policy. Reads the FINAL tranche's real gates_delivery /
+          net_term_days straight from job_funding_stages — no mock state. */}
+      <section aria-labelledby="delivery-policy-heading">
+        <h2
+          id="delivery-policy-heading"
+          className="font-display text-lg font-semibold text-white"
+        >
+          Final report delivery
+        </h2>
+        <p className="mt-1 mb-3 text-sm text-zinc-400">
+          Strict Prepay requires the remaining 80% before delivery. Approved Credit
+          Release delivers the report and invoices the balance on Net terms.
+        </p>
+        {(() => {
+          const finalStage = funding.stages.find((s) => s.code === 'final');
+          if (!finalStage) {
+            return (
+              <p className="text-sm text-zinc-500">
+                This job has no final tranche, so there is no delivery policy to set.
+              </p>
+            );
+          }
+          return (
+            <JobCreditReleaseForm
+              jobId={job.id}
+              currentlyGating={finalStage.gatesDelivery}
+              netTermDays={finalStage.netTermDays}
+            />
+          );
+        })()}
       </section>
 
       <section aria-labelledby="audit-heading">

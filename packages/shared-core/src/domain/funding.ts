@@ -119,6 +119,16 @@ export interface FundingStageView {
   readonly pctBps: number;
   readonly status: FundingStageStatus;
   readonly fundedAt: string | null;
+  /**
+   * Whether this tranche must be settled before the final report may be
+   * delivered (20260801500000). True for every legacy row by backfill, so
+   * Strict Prepay reads correctly without a migration of this type.
+   */
+  readonly gatesDelivery: boolean;
+  /** Net term once released on credit; null while the tranche still gates. */
+  readonly netTermDays: number | null;
+  readonly invoicedAt: string | null;
+  readonly invoiceDueAt: string | null;
 }
 
 /**

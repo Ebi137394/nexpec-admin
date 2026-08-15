@@ -53,6 +53,10 @@ interface StageRow {
   status: FundingStageStatus;
   funded_at: string | null;
   trigger_basis: FundingTriggerBasis;
+  gates_delivery: boolean | null;
+  net_term_days: number | null;
+  invoiced_at: string | null;
+  invoice_due_at: string | null;
 }
 
 interface ReviewRow {
@@ -68,7 +72,7 @@ interface ReviewRow {
 }
 
 const STAGE_COLUMNS =
-  'code, tranche_no, pct_bps, status, funded_at, trigger_basis';
+  'code, tranche_no, pct_bps, status, funded_at, trigger_basis, gates_delivery, net_term_days, invoiced_at, invoice_due_at';
 
 const REVIEW_COLUMNS =
   'id, round, reviewer_id, assigned_by, assigned_at, decision, decided_at, comments, superseded_at';
@@ -80,6 +84,13 @@ function toStageView(r: StageRow): FundingStageView {
     pctBps: r.pct_bps,
     status: r.status,
     fundedAt: r.funded_at,
+    //  Legacy rows predate 20260801500000 but the column is NOT NULL DEFAULT
+    //  true, so a missing value can only mean an older client bundle. Default
+    //  to gating — the safe direction, never accidentally "released".
+    gatesDelivery: r.gates_delivery ?? true,
+    netTermDays: r.net_term_days ?? null,
+    invoicedAt: r.invoiced_at ?? null,
+    invoiceDueAt: r.invoice_due_at ?? null,
   };
 }
 

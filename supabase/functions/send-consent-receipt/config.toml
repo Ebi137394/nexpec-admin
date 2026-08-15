@@ -1,8 +1,32 @@
 # supabase/functions/send-consent-receipt/config.toml
-
-[project]
-id = "sxqpjxhslzzcdrdctatm"
+#
+# ⚠ THE CLI DOES NOT READ THIS FILE. Function configuration is read from the
+#   repository-root supabase/config.toml only. Anything written here is inert.
+#
+# It previously carried:
+#
+#     [project]
+#     id = "sxqpjxhslzzcdrdctatm"          # the PRODUCTION project ref
+#
+#     [functions.send-consent-receipt]
+#     verify_jwt = false                    # "Allow webhook calls without JWT"
+#
+# Both were removed. Neither was in effect, and each was misleading in a
+# dangerous direction:
+#
+#   • The [project] id pinned PRODUCTION inside a function directory. Any tool
+#     or habit that honoured it would have targeted the live project.
+#   • verify_jwt = false read as though this endpoint were unauthenticated. It
+#     is not: send-consent-receipt is absent from supabase/config.toml, so it
+#     deploys with the platform default verify_jwt = true, and index.ts performs
+#     its own checks on top (401 on a missing bearer, auth.getUser() on the
+#     caller). The weaker setting was never applied — but a reader had no way to
+#     know that, and "fixing" the CLI to honour this file would have silently
+#     opened a consent endpoint.
+#
+# If this function ever genuinely needs verify_jwt = false, declare it in
+# supabase/config.toml with the reason, the way every other exception there is
+# declared.
 
 [functions.send-consent-receipt]
-verify_jwt = false  # Allow webhook calls without JWT
 import_map = "./import_map.json"

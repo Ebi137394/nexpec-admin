@@ -105,11 +105,28 @@ BEGIN
   -- ── T1: normal verified inspector ────────────────────────────────────────
   PERFORM public.admin_assign_inspector_directly(
     v_job, v_insp_ok, 230000, 120000, 'Known contractor for this site');
-  SELECT (contractor_id = v_insp_ok), status
+  --  INVERTED by 20260801512000. Direct assignment STARTS the contract
+  --  workflow; it does not dispatch. Asserting contractor_id here would assert
+  --  the defect back in: an Admin's direct assignment used to dispatch with no
+  --  contract, no signatures and no funding check.
+  SELECT (contractor_id IS NULL), status
     INTO v_ok, v_status
     FROM public.jobs WHERE id = v_job;
-  IF NOT COALESCE(v_ok, false) THEN RAISE EXCEPTION 'T1 FAILED: contractor_id not set to the assigned inspector'; END IF;
-  IF v_status <> 'assigned' THEN RAISE EXCEPTION 'T1 FAILED: job status is % (expected assigned)', v_status; END IF;
+  IF NOT COALESCE(v_ok, false) THEN
+    RAISE EXCEPTION 'T1 FAILED: contractor_id was set — direct assignment dispatched prematurely';
+  END IF;
+  IF v_status <> 'open' THEN
+    RAISE EXCEPTION 'T1 FAILED: job status is % (expected open — dispatch is a later, separate Admin step)', v_status;
+  END IF;
+
+  --  …and it must have started the contract workflow, in its normal
+  --  unsigned state. A contract that arrived already executed would mean the
+  --  RPC faked signatures.
+  SELECT count(*) INTO v_n FROM public.job_contracts
+   WHERE job_id = v_job AND status = 'pending_client_signature' AND voided_at IS NULL;
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'T1 FAILED: expected exactly 1 unsigned contract after direct assignment, got %', v_n;
+  END IF;
   RAISE NOTICE 'T1 ok — verified inspector assigned, job=assigned';
 
   -- provenance recorded, and NOT flagged as an override
@@ -168,8 +185,18 @@ BEGIN
       v_job3, v_admin, 230000, 120000,
       'Performing this inspection personally — specialist scope');
 
-    SELECT count(*) INTO v_n FROM public.jobs WHERE id = v_job3 AND contractor_id = v_admin;
-    IF v_n <> 1 THEN RAISE EXCEPTION 'T4 FAILED: admin not set as contractor'; END IF;
+    --  INVERTED, same reason as T1: self-assignment is PERMITTED and recorded,
+    --  but it still does not dispatch. What T4 proves is that the self-assign
+    --  path is allowed and provenance-stamped — not that it assigns.
+    SELECT count(*) INTO v_n FROM public.jobs WHERE id = v_job3 AND contractor_id IS NULL;
+    IF v_n <> 1 THEN
+      RAISE EXCEPTION 'T4 FAILED: self-assignment dispatched prematurely — contractor_id was set';
+    END IF;
+    SELECT count(*) INTO v_n FROM public.job_contracts
+     WHERE job_id = v_job3 AND status = 'pending_client_signature' AND voided_at IS NULL;
+    IF v_n <> 1 THEN
+      RAISE EXCEPTION 'T4 FAILED: self-assignment did not start the contract workflow (contracts=%)', v_n;
+    END IF;
 
     SELECT count(*) INTO v_n FROM public.application_assignment_origin
      WHERE job_id = v_job3 AND self_assigned = true
@@ -193,14 +220,23 @@ BEGIN
   END;
 
   -- ── T6: job + application state coherent after every assignment ─────────
+  --  INVERTED. Coherence after a direct assignment now means: the job is still
+  --  OPEN and unassigned, and the application is CLIENT_SELECTED awaiting the
+  --  contract — not hired. 'hired' is stamped by admin_dispatch_job at the
+  --  moment the Admin actually brokers the assignment, which has not happened.
+  --  Joining on j.contractor_id would also match zero rows now that it is NULL,
+  --  so the join is on the application's own job, not on the contractor.
   SELECT count(*) INTO v_n
     FROM public.jobs j
-    JOIN public.applications a ON a.job_id = j.id AND a.applicant_id = j.contractor_id
+    JOIN public.applications a ON a.job_id = j.id
    WHERE j.id IN (v_job, v_job2)
-     AND j.status = 'assigned'
-     AND a.status = 'hired';
-  IF v_n <> 2 THEN RAISE EXCEPTION 'T6 FAILED: job/application state incoherent (matched %)', v_n; END IF;
-  RAISE NOTICE 'T6 ok — job=assigned and application=hired for every assignment';
+     AND j.status = 'open'
+     AND j.contractor_id IS NULL
+     AND a.status = 'CLIENT_SELECTED';
+  IF v_n <> 2 THEN
+    RAISE EXCEPTION 'T6 FAILED: expected 2 open, unassigned jobs with a CLIENT_SELECTED application (matched %)', v_n;
+  END IF;
+  RAISE NOTICE 'T6 ok — job stays open/unassigned with a CLIENT_SELECTED application';
 
   -- ── T8: a NON-ADMIN cannot use the RPC at all ───────────────────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_outsider::text)::text, true);
@@ -248,11 +284,18 @@ BEGIN
 
   -- ── T13: an ACTIVE inspector still requires void/replacement ────────────
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_admin::text)::text, true);
-  INSERT INTO public.job_contracts (job_id, application_id, client_id, inspector_id,
-                                    client_price_cents, inspector_payout_cents, status)
-  SELECT v_job, a.id, v_client, v_insp_ok, 230000, 120000, 'fully_executed'
-    FROM public.applications a WHERE a.job_id = v_job AND a.applicant_id = v_insp_ok LIMIT 1
-  RETURNING id INTO v_contract;
+  --  ADOPT the contract T1's direct assignment already started. Inserting a
+  --  second one collides with uniq_job_contracts_active_per_job, and writing
+  --  status='fully_executed' by hand would fake an execution no signature
+  --  produced. The RPC's own guard treats any contract with status <> 'voided'
+  --  as live, so a pending_client_signature contract is exactly the condition
+  --  T13 exists to test.
+  SELECT id INTO v_contract FROM public.job_contracts
+   WHERE job_id = v_job AND voided_at IS NULL
+   ORDER BY created_at DESC LIMIT 1;
+  IF v_contract IS NULL THEN
+    RAISE EXCEPTION 'T13 SETUP FAILED: no live contract exists for the job under test';
+  END IF;
 
   v_ok := false;
   BEGIN

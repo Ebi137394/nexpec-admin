@@ -308,3 +308,72 @@ export function deliverReportToClient(
     options,
   );
 }
+
+// ── delivery policy: Strict Prepay vs Approved Credit Release ───────────────
+//  Extends the staged-funding spine (20260801500000). The 20/80 split is NOT
+//  configurable here — only whether the FINAL tranche gates delivery, and if
+//  not, the Net term its invoice falls due on.
+//
+//  Neither call moves money. Releasing a job on credit records an obligation;
+//  it never credits a wallet and never pays an Inspector. Settlement stays
+//  manual Admin work through admin_mark_payout_processed, exactly as it was
+//  before this feature existed.
+
+/** The two Admin-selectable delivery modes. */
+export type DeliveryPolicyMode = 'STRICT_PREPAY' | 'CREDIT_RELEASE';
+
+/** The only Net terms the database accepts. Net-45 is deliberately absent. */
+export const NET_TERM_DAYS = [15, 30, 60] as const;
+export type NetTermDays = (typeof NET_TERM_DAYS)[number];
+
+/** Invoice lifecycle as computed server-side by nx_funding_invoice_status. */
+export type InvoiceStatus = 'open' | 'due_soon' | 'overdue' | 'paid' | 'waived';
+
+/**
+ * Sets a CLIENT's default delivery policy. Admin/super_admin only — the
+ * server re-checks the caller's role from profiles, so a forged claim fails.
+ * A reason is mandatory and recorded in funding_policy_audit alongside the
+ * previous and new policy.
+ */
+export function setClientDeliveryPolicy(
+  clientId: string,
+  mode: DeliveryPolicyMode,
+  netTermDays: NetTermDays | null,
+  reason: string,
+  options?: RetryOptions,
+) {
+  return rpcWithRetry(
+    'nx_admin_set_client_delivery_policy',
+    {
+      p_client_id: clientId,
+      p_mode: mode,
+      p_net_term_days: netTermDays,
+      p_reason: reason,
+    },
+    options,
+  );
+}
+
+/**
+ * One-time per-JOB override: releases the outstanding final balance so the
+ * report can be delivered while it is unpaid. The server restricts this to
+ * the `final` tranche — the 20% initial tranche gates DISPATCH and is never
+ * releasable, or an assignment would be handed out for free.
+ */
+export function releaseJobOnCredit(
+  jobId: string,
+  netTermDays: NetTermDays,
+  reason: string,
+  options?: RetryOptions,
+) {
+  return rpcWithRetry(
+    'nx_admin_release_job_on_credit',
+    { p_job_id: jobId, p_net_term_days: netTermDays, p_reason: reason },
+    options,
+  );
+}
+
+/** Open / Due Soon / Overdue / Paid / Waived for a job's final tranche. */
+export function fetchInvoiceStatus(jobId: string, options?: RetryOptions) {
+  return rpcWithRetry('nx_funding_invoice_status', { p_job_id: jobId }, options);
+}

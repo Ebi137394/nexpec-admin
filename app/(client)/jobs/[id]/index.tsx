@@ -30,6 +30,7 @@ import {
   AlertTriangle,
 } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { JobDeliveryStatusCard } from '@/components/funding/JobDeliveryStatusCard';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 // ★ Phase 5 — Industrial Black Box (RLS-filtered to events on this job)
 import AuditTimeline from '@/src/components/audit/AuditTimeline';
@@ -426,6 +427,11 @@ export default function JobDetailScreen() {
             </View>
 
             <Text style={styles.jobDescription}>{job.description}</Text>
+
+            {/*  Final-report delivery position. Wording comes from the shared
+                contract, so this can never say "blocked" for a credit-released
+                or overdue job. Funding itself stays Web-only. */}
+            <JobDeliveryStatusCard jobId={String(id)} />
 
             <View style={styles.jobDetails}>
               <View style={styles.detailRow}>

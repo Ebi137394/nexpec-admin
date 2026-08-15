@@ -24,6 +24,11 @@ export * from './net/supabaseRetry';
 export * from './storage/signedUrls';
 export * from './domain/jobStatus';
 export * from './domain/money';
+//  Delivery policy (Strict Prepay vs Approved Credit Release). Exported from
+//  the ROOT as well as ./domain because Metro does not resolve this package's
+//  subpath exports — mobile imports the root, and without this line
+//  deliveryStatusCopy would bundle cleanly and be undefined at runtime.
+export * from './domain/deliveryPolicy';
 export * from './domain/audit';
 export * from './domain/scheduledDate';
 export * from './domain/itp';

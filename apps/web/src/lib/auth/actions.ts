@@ -254,8 +254,21 @@ export async function requestPasswordReset(formData: FormData) {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
     'http://localhost:3000';
 
+  // Recovery must land on the SERVER callback, not straight on /reset-password.
+  //
+  // @supabase/ssr pins flowType: 'pkce' (createBrowserClient.js:37), so this
+  // call registers a PKCE challenge and stashes the code_verifier in a cookie
+  // written by the SERVER client. The emailed link therefore comes back as
+  // ?code=… and the exchange needs that verifier. A browser-side exchange on
+  // /reset-password cannot read a server-written (httpOnly) cookie, so the code
+  // was never exchanged, no session ever appeared, and the page fell through to
+  // its "expired" branch — which is exactly the reported symptom.
+  //
+  // /auth/callback runs on the server, reads the verifier, calls
+  // exchangeCodeForSession, writes the auth cookies, then forwards to
+  // ?next=/reset-password (whitelisted there to paths beginning with '/').
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${origin}/reset-password`,
+    redirectTo: `${origin}/auth/callback?next=/reset-password`,
   });
 
   if (error) {

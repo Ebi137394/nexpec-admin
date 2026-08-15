@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  apps/web/src/app/admin/domains/page.tsx — Inspection Domains (admin)
 //
-//  Surfaces the four inspection_domains config rows for the Platform
+//  Surfaces every inspection_domains config row for the Platform
 //  Owner / super_admin. Lets them flip is_launched and is_active without
 //  touching SQL.
 //
@@ -205,11 +205,15 @@ function EmptyState() {
         No domains configured
       </h2>
       <p className="mt-1 text-sm text-zinc-400">
-        Apply migration{' '}
+        The catalogue is restored by migration{' '}
         <code className="font-mono text-zinc-300">
-          20260616120000_inspection_domain_primitive.sql
+          20260801498000_restore_inspection_domain_catalogue.sql
+        </code>
+        , which seeds one row per <code className="font-mono text-zinc-300">
+          inspection_domain
         </code>{' '}
-        and the four seed rows will appear here.
+        enum member. If this screen is empty, that migration has not been
+        applied to this environment.
       </p>
     </div>
   );

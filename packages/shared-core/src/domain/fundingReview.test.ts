@@ -72,6 +72,15 @@ const stage = (
   pctBps,
   status,
   fundedAt: status === 'funded' ? '2026-08-01T00:00:00Z' : null,
+  // The delivery-policy fields (20260801500000). gatesDelivery mirrors the
+  // backfill default — every legacy tranche gates delivery until an Admin
+  // releases it on credit — so a stage built here behaves as Strict Prepay,
+  // which is what these cases assert against. The three credit fields stay
+  // null: no invoice exists until a Credit Release is granted.
+  gatesDelivery: true,
+  netTermDays: null,
+  invoicedAt: null,
+  invoiceDueAt: null,
 });
 
 const round = (o: Partial<SeniorReviewRound> & { round: number }): SeniorReviewRound => ({

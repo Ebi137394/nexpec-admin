@@ -18,6 +18,8 @@
     "build:web": "cd apps/web && npm run build",
     "build:shared": "npm run build -w @nexpec/shared-core",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck:app": "tsc --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:app",
     "test": "npm run test --workspaces --if-present",
     "test:cov": "npm run test:cov --workspaces --if-present",
     "qa:outbox": "node scripts/qa/check-outbox-routing.mjs",

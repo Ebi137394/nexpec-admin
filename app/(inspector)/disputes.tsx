@@ -242,11 +242,18 @@ export default function InspectorDisputesScreen() {
     }
   }, [selectedJobId, category, body, fetchDisputes, t, language]);
 
+  // job_disputes admits exactly open | resolved_paid | resolved_refunded. This
+  // memo used to be written in the CLIENT screen's vocabulary — investigating /
+  // resolved / rejected / closed — none of which the table can hold, so the
+  // Resolved and Closed tiles were permanently 0 no matter how many disputes had
+  // been settled. Counted in the Inspector screen's own statuses now, and the
+  // third tile calls out the refunded subset, which is the one an inspector
+  // actually needs to see: refunded means they were not paid.
   const counts = useMemo(
     () => ({
-      open: items.filter((i) => i.status === 'open' || i.status === 'investigating').length,
-      resolved: items.filter((i) => i.status === 'resolved').length,
-      other: items.filter((i) => i.status === 'rejected' || i.status === 'closed').length,
+      open: items.filter((i) => i.status === 'open').length,
+      resolved: items.filter((i) => i.status === 'resolved_paid' || i.status === 'resolved_refunded').length,
+      refunded: items.filter((i) => i.status === 'resolved_refunded').length,
     }),
     [items],
   );
@@ -303,8 +310,8 @@ export default function InspectorDisputesScreen() {
             </View>
             <View style={s.statDiv} />
             <View style={{ flex: 1 }}>
-              <Text style={[s.statValue, { color: C.textMuted }]}>{counts.other}</Text>
-              <Text style={s.statLabel}>{t('Closed')}</Text>
+              <Text style={[s.statValue, { color: C.textMuted }]}>{counts.refunded}</Text>
+              <Text style={s.statLabel}>{t('Refunded')}</Text>
             </View>
           </View>
 

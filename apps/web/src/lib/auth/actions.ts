@@ -73,6 +73,12 @@ async function destinationForUser(supabase: Awaited<ReturnType<typeof createSupa
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
   if (normalisedRole === 'super_admin' || normalisedRole === 'admin') return '/admin/dashboard';
   if (normalisedRole === 'inspector') return '/inspector/dashboard';
+  // 'senior' is a Senior Inspector. Middleware admits the role to /inspector/*
+  // (20260801 / 07068be) but this function was never updated, so the role fell
+  // through to the `return '/'` fallback below and a Senior Inspector who
+  // signed in was shown the public marketing homepage. Their purpose-built
+  // surface is the review inbox, so that is where signing in lands them.
+  if (normalisedRole === 'senior') return '/inspector/reviews';
   // client / agency / enterprise all share the same Client Portal — the
   // surface is UI-identical, data isolation is enforced by client_id = uid().
   if (

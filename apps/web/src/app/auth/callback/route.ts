@@ -23,6 +23,10 @@ function pathForRole(role: string | null | undefined): string {
   const r = (role ?? '').toString().trim().toLowerCase();
   if (r === 'super_admin' || r === 'admin') return '/admin/dashboard';
   if (r === 'inspector') return '/inspector/dashboard';
+  // 'senior' — same omission that hit 'supplier' below. Kept in sync with
+  // destinationForUser(); check-role-routing.mjs now fails if either function
+  // stops covering a role that profiles_role_check admits.
+  if (r === 'senior') return '/inspector/reviews';
   if (r === 'client' || r === 'agency' || r === 'enterprise') {
     return '/client/dashboard';
   }

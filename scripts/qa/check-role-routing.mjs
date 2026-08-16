@@ -41,6 +41,26 @@ import { spawnSync } from 'node:child_process';
 
 const MIDDLEWARE = 'apps/web/src/middleware.ts';
 
+//  Middleware is NOT the only thing that decides where a signed-in user lands.
+//  Two more functions do, and they are the ones the sign-in form and the
+//  OAuth/magic-link callback actually use:
+//
+//    lib/auth/actions.ts        destinationForUser()  — the email+password form
+//    app/auth/callback/route.ts pathForRole()         — Google/Apple/magic link
+//
+//  This gate originally read only MIDDLEWARE, so it reported "all roles have a
+//  portal and a destination" while a Senior Inspector who signed in was still
+//  being dropped on the marketing homepage: middleware had been fixed, these
+//  two had not. A gate that green-lights a live defect is worse than no gate,
+//  so all three are now required to cover every role the database admits.
+//
+//  This is a recurring class, not a one-off: pathForRole() carries its own
+//  #QA note recording that 'supplier' drifted out of it the same way.
+const DEST_SOURCES = [
+  ['apps/web/src/lib/auth/actions.ts', 'destinationForUser', /normalisedRole === '([a-z_]+)'/g],
+  ['apps/web/src/app/auth/callback/route.ts', 'pathForRole', /r === '([a-z_]+)'/g],
+];
+
 const PG = {
   host: process.env.PGHOST ?? '127.0.0.1',
   port: process.env.PGPORT ?? '54322',
@@ -100,6 +120,29 @@ const destRoles = new Set(
   [...stripComments(destBlock[0]).matchAll(/normalisedRole === '([a-z_]+)'/g)].map((m) => m[1]),
 );
 
+//  The same requirement, applied to the two real destination resolvers.
+const destSourceRoles = new Map();
+for (const [file, fnName, re] of DEST_SOURCES) {
+  let body;
+  try {
+    body = readFileSync(file, 'utf8');
+  } catch {
+    console.error(`FATAL: ${file} is missing — it resolves a post-sign-in destination.`);
+    process.exit(1);
+  }
+  //  Take the function body only, so an unrelated role string elsewhere in the
+  //  file cannot make a role look handled.
+  const fn = body.match(new RegExp(`function ${fnName}[\\s\\S]*?\\n}`));
+  if (!fn) {
+    console.error(`FATAL: could not locate ${fnName}() in ${file}.`);
+    process.exit(1);
+  }
+  destSourceRoles.set(
+    `${fnName} (${file})`,
+    new Set([...stripComments(fn[0]).matchAll(re)].map((m) => m[1])),
+  );
+}
+
 const dbRoles = rolesFromDatabase();
 const failures = [];
 
@@ -110,12 +153,20 @@ for (const role of dbRoles) {
   if (!destRoles.has(role)) {
     failures.push(`${role}: no post-sign-in destination — falls through to the marketing root '/', which is indistinguishable from being signed out`);
   }
+  for (const [label, roles] of destSourceRoles) {
+    if (!roles.has(role)) {
+      failures.push(`${role}: ${label} has no branch for it — the role lands on the marketing root '/' after signing in`);
+    }
+  }
 }
 
 console.log('\nrole routing (roles read from the live profiles.role CHECK)');
 console.log(`  roles in database   : ${dbRoles.join(', ')}`);
 console.log(`  admitted by a portal: ${[...portalRoles].sort().join(', ')}`);
 console.log(`  given a destination : ${[...destRoles].sort().join(', ')}`);
+for (const [label, roles] of destSourceRoles) {
+  console.log(`  ${label.split(' ')[0].padEnd(20)}: ${[...roles].sort().join(', ')}`);
+}
 
 if (failures.length) {
   console.error('\nUNROUTED ROLES:\n');

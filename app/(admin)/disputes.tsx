@@ -209,13 +209,28 @@ export default function AdminDisputesScreen() {
       ) as string[];
 
       // 2. Dispute rows for these jobs
-      const { data: dRows } = await supabase
-        .from('disputes')
-        .select('id, job_id, filed_by, category, body, status, created_at')
+      // SCHEMA: read `.from('disputes')` selecting filed_by / category / body.
+      // None exist — the canonical table is job_disputes with raised_by /
+      // reason_category / reason. The error was discarded (no `error` binding
+      // at all), so every disputed job on the Admin board rendered with no
+      // dispute detail attached and nothing anywhere said why.
+      const { data: dRows, error: dErr } = await supabase
+        .from('job_disputes')
+        .select('id, job_id, raised_by, reason_category, reason, status, created_at')
         .in('job_id', jobIds)
         .order('created_at', { ascending: false });
+      if (dErr) throw dErr;
       const dMap = new Map<string, DisputeRow>();
-      (dRows as DisputeRow[] | null)?.forEach((d) => {
+      ((dRows ?? []) as Array<Record<string, unknown>>).forEach((r) => {
+        const d: DisputeRow = {
+          id: String(r.id),
+          job_id: String(r.job_id),
+          filed_by: String(r.raised_by ?? ''),
+          category: String(r.reason_category ?? 'other'),
+          body: String(r.reason ?? ''),
+          status: String(r.status ?? 'open'),
+          created_at: String(r.created_at ?? ''),
+        };
         // Keep most recent per job
         if (!dMap.has(d.job_id)) dMap.set(d.job_id, d);
       });

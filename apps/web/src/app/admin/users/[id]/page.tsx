@@ -467,7 +467,7 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             label="Jobs they're assigned to"
           />
           <LinkChip
-            href={`/admin/disputes?opener_id=${profile.id}`}
+            href={`/admin/disputes?raisedBy=${profile.id}`}
             label="Disputes they opened"
           />
           <LinkChip

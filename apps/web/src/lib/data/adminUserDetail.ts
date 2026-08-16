@@ -245,8 +245,10 @@ export async function fetchAdminUserDetail(
       reviewsReceived: await countRows(supabase, 'reviews', {
         reviewee_id: userId,
       }),
-      disputesOpened: await countRows(supabase, 'disputes', {
-        opener_id: userId,
+      // job_disputes is the canonical table and raised_by is its raiser column;
+      // `disputes.opener_id` exists on neither, so this counted nothing.
+      disputesOpened: await countRows(supabase, 'job_disputes', {
+        raised_by: userId,
       }),
     };
 

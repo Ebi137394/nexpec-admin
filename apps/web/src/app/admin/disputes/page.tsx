@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: Promise<{ jobId?: string }>;
+  searchParams: Promise<{ jobId?: string; raisedBy?: string }>;
 }
 
 export default async function DisputesPage({ searchParams }: PageProps) {
@@ -32,7 +32,7 @@ export default async function DisputesPage({ searchParams }: PageProps) {
 
   const [{ jobs, total, totalEscrowCents }, selectedJob, timeline] =
     await Promise.all([
-      fetchDisputesQueue(),
+      fetchDisputesQueue(sp.raisedBy ?? null),
       sp.jobId ? fetchDisputeJob(sp.jobId) : Promise.resolve(null),
       sp.jobId ? fetchDisputeTimeline(sp.jobId) : Promise.resolve([]),
     ]);

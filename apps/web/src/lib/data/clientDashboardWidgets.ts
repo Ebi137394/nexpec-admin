@@ -94,11 +94,19 @@ export async function fetchClientDashboardWidgets(): Promise<ClientDashboardWidg
     // Pending — open disputes I opened
     let openDisputesByMe = 0;
     {
+      // SCHEMA: this read `.from('disputes').eq('opener_id', …)` and filtered
+      // .in('status', ['open','investigating']). Three faults at once — the
+      // canonical table is job_disputes, its raiser column is raised_by, and
+      // 'investigating' is not admissible under job_disputes_status_check
+      // (open | resolved_paid | resolved_refunded). The query errored on every
+      // call with an empty message body, the warn below printed nothing
+      // useful, and the tile read a permanent 0 no matter how many disputes
+      // the client had open.
       const { count, error: disputesErr } = await supabase
-        .from('disputes')
+        .from('job_disputes')
         .select('id', { count: 'exact', head: true })
-        .eq('opener_id', user.id)
-        .in('status', ['open', 'investigating']);
+        .eq('raised_by', user.id)
+        .eq('status', 'open');
       if (disputesErr) {
         console.warn(
           '[clientDashboardWidgets] open-disputes count failed:',

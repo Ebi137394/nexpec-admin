@@ -35,7 +35,9 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent('/inspector/disputes'));
 
-  const disputes = await fetchMyDisputes();
+  // fetchMyDisputes now returns { rows, error }. A failed query must render as
+  // a failure, not as "no disputes" — the previous shape made those identical.
+  const { rows: disputes, error: disputesError } = await fetchMyDisputes();
   const returnTo = '/inspector/disputes';
 
   return (
@@ -74,7 +76,20 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
         <h2 className="font-display text-lg font-semibold tracking-tight text-white">
           Your disputes ({disputes.length})
         </h2>
-        {disputes.length === 0 ? (
+        {disputesError ? (
+          // Never show "No disputes filed." for a query that failed.
+          <div className="mt-5 flex items-start gap-3 rounded-3xl border border-accent-red/30 bg-accent-red/10 p-6">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-accent-red" />
+            <div>
+              <p className="text-sm font-semibold text-accent-red">
+                Could not load your disputes.
+              </p>
+              <p className="mt-1 text-xs text-accent-red/80">
+                This is a failure to read, not an empty list. {disputesError}
+              </p>
+            </div>
+          </div>
+        ) : disputes.length === 0 ? (
           <div className="mt-5 rounded-3xl border border-dashed border-white/[0.08] bg-white/[0.01] p-8 text-center">
             <AlertTriangle className="mx-auto h-8 w-8 text-zinc-600" strokeWidth={1.5} />
             <p className="mt-3 text-sm text-zinc-300">No disputes filed.</p>
@@ -92,10 +107,10 @@ export default async function InspectorDisputesPage({ searchParams }: PageProps)
                   </p>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
-                      d.status === 'resolved' || d.status === 'closed'
+                      d.status === 'resolved_paid'
                         ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
-                        : d.status === 'rejected'
-                          ? 'border-accent-red/30 bg-accent-red/10 text-accent-red'
+                        : d.status === 'resolved_refunded'
+                          ? 'border-cyan-glow/30 bg-cyan-glow/10 text-cyan-glow'
                           : 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber'
                     }`}
                   >

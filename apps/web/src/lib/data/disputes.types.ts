@@ -26,20 +26,33 @@ export const DISPUTE_CATEGORY_LABELS: Record<DisputeCategory, string> = {
   other: 'Other',
 };
 
-export type DisputeStatus =
-  | 'open'
-  | 'investigating'
-  | 'resolved'
-  | 'rejected'
-  | 'closed';
+// Mirrors job_disputes_status_check exactly:
+//   CHECK (status = ANY (ARRAY['open','resolved_paid','resolved_refunded']))
+//
+// This union previously read 'open' | 'investigating' | 'resolved' | 'rejected'
+// | 'closed'. Four of those five values are not admissible on the table, so
+// every status filter built from them matched zero rows — including the client
+// dashboard's .in('status', ['open','investigating']) tile. Do not add a value
+// here without adding it to the CHECK constraint in a migration first.
+export type DisputeStatus = 'open' | 'resolved_paid' | 'resolved_refunded';
 
 export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
   open: 'Open',
-  investigating: 'Investigating',
-  resolved: 'Resolved',
-  rejected: 'Rejected',
-  closed: 'Closed',
+  resolved_paid: 'Resolved, paid',
+  resolved_refunded: 'Resolved, refunded',
 };
+
+/**
+ * Fetchers return the error instead of swallowing it. The previous shape was a
+ * bare DisputeRow[], and `catch { return []; }` meant a failed query and "this
+ * user has no disputes" were indistinguishable at the call site — which is how
+ * every dispute page shipped permanently empty without anyone noticing.
+ */
+export interface DisputesResult {
+  rows: DisputeRow[];
+  /** Non-null when the query failed. The page must say so, not render empty. */
+  error: string | null;
+}
 
 export interface DisputeRow {
   id: string;

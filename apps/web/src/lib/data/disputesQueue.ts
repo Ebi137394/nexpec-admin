@@ -11,19 +11,50 @@ import type { DisputeJob, DisputeTimelineEvent } from './disputesQueue.types';
 
 export type { DisputeJob, DisputeTimelineEvent };
 
-export async function fetchDisputesQueue(): Promise<{
+/**
+ * @param raisedBy  Optional. Narrows the board to jobs that carry a
+ *   job_disputes row raised by this profile. /admin/users/[id] links here with
+ *   "Disputes they opened"; before this parameter existed that link passed
+ *   `?opener_id=…`, which the page did not read at all — it silently showed the
+ *   whole board, so the chip looked like a filter and was not one.
+ */
+export async function fetchDisputesQueue(raisedBy?: string | null): Promise<{
   jobs: DisputeJob[];
   total: number;
   totalEscrowCents: number;
 }> {
   const supabase = await createSupabaseServerClient();
 
-  const { data: rawJobs, error } = await supabase
+  // Resolve the raiser's job ids first, so the filter is applied by the
+  // database rather than by trimming a already-fetched page of 200.
+  let restrictToJobIds: string[] | null = null;
+  if (raisedBy) {
+    const { data: dRows, error: dErr } = await supabase
+      .from('job_disputes')
+      .select('job_id')
+      .eq('raised_by', raisedBy);
+    if (dErr) {
+      console.warn('[disputesQueue] raiser filter failed:', dErr.message);
+      return { jobs: [], total: 0, totalEscrowCents: 0 };
+    }
+    restrictToJobIds = Array.from(
+      new Set((dRows ?? []).map((r) => String(r.job_id))),
+    );
+    // No disputes raised by this user means an empty board, not the full one.
+    if (restrictToJobIds.length === 0) {
+      return { jobs: [], total: 0, totalEscrowCents: 0 };
+    }
+  }
+
+  let jobsQuery = supabase
     .from('jobs_secure_view')
     .select(
       'id, title, location, created_at, updated_at, client_id, contractor_id, client_price_cents, payout_amount_cents',
     )
-    .eq('status', 'disputed')
+    .eq('status', 'disputed');
+  if (restrictToJobIds) jobsQuery = jobsQuery.in('id', restrictToJobIds);
+
+  const { data: rawJobs, error } = await jobsQuery
     .order('updated_at', { ascending: false })
     .limit(200);
 

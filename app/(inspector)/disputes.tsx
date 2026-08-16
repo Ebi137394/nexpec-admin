@@ -65,19 +65,17 @@ const CATEGORIES = [
   { value: 'other', label: 'Other' },
 ] as const;
 
-type DisputeStatus =
-  | 'open'
-  | 'investigating'
-  | 'resolved'
-  | 'rejected'
-  | 'closed';
+// Mirrors job_disputes_status_check:
+//   CHECK (status = ANY (ARRAY['open','resolved_paid','resolved_refunded']))
+// The previous union invented investigating/resolved/rejected/closed. None are
+// admissible on the table, so any row would have fallen through STATUS_META to
+// undefined had a row ever loaded at all.
+type DisputeStatus = 'open' | 'resolved_paid' | 'resolved_refunded';
 
 const STATUS_META: Record<DisputeStatus, { label: string; tone: string; toneDim: string }> = {
   open: { label: 'Open', tone: C.amber, toneDim: C.amberDim },
-  investigating: { label: 'Investigating', tone: C.primary, toneDim: C.primaryDim },
-  resolved: { label: 'Resolved', tone: C.ok, toneDim: C.okDim },
-  rejected: { label: 'Rejected', tone: C.danger, toneDim: C.dangerDim },
-  closed: { label: 'Closed', tone: C.textMuted, toneDim: 'rgba(107,115,144,0.14)' },
+  resolved_paid: { label: 'Resolved, paid', tone: C.ok, toneDim: C.okDim },
+  resolved_refunded: { label: 'Resolved, refunded', tone: C.primary, toneDim: C.primaryDim },
 };
 
 interface DisputeRow {
@@ -122,14 +120,34 @@ export default function InspectorDisputesScreen() {
       return;
     }
     try {
+      // SCHEMA: this read `.from('disputes')` selecting category / body /
+      // resolution and filtering on filed_by. None of those exist. The
+      // canonical table is job_disputes (what file_dispute, flag_job_dispute
+      // and resolve_job_dispute all use) and its columns are reason_category /
+      // reason / resolution_notes / raised_by. Every call threw, the catch
+      // below set an error state, and the Inspector's dispute list never
+      // rendered a single row.
       const { data, error } = await supabase
-        .from('disputes')
-        .select('id, job_id, category, body, status, resolution, created_at, resolved_at')
-        .eq('filed_by', user.id)
+        .from('job_disputes')
+        .select(
+          'id, job_id, reason_category, reason, status, resolution_notes, created_at, resolved_at',
+        )
+        .eq('raised_by', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
-      const rows = (data ?? []) as Omit<DisputeRow, 'job_title'>[];
+      const rows = (
+        (data ?? []) as Array<Record<string, unknown>>
+      ).map((r) => ({
+        id: String(r.id),
+        job_id: String(r.job_id),
+        category: String(r.reason_category ?? 'other'),
+        body: String(r.reason ?? ''),
+        status: r.status as DisputeStatus,
+        resolution: (r.resolution_notes as string | null) ?? null,
+        created_at: String(r.created_at ?? ''),
+        resolved_at: (r.resolved_at as string | null) ?? null,
+      })) as Omit<DisputeRow, 'job_title'>[];
       const jobIds = Array.from(new Set(rows.map((r) => r.job_id)));
       const titles = new Map<string, string | null>();
       if (jobIds.length > 0) {

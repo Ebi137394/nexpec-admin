@@ -176,14 +176,39 @@ request renders **on demand while the route still declares
 dynamic API throws. `/discover` and the feeds never hit this because they were
 prerendered at build time.
 
-**Fix applied (verification in flight):** make the cookie read optional in
-`i18n/request.ts` — during static generation there is no request cookie, so the
-right answer is the default locale, not a crash.
+**FIXED and verified behaviourally on two real Preview deployments** (`4d73786`):
 
-**Still to confirm on resume:** `/inspections/[slug]` has the *same* shape
-(revalidate + generateStaticParams) yet correctly returns **404**. That
-difference is not yet explained and the fix is not proven until it is — do not
-close D13 without re-probing all three routes on a fresh Preview.
+| Route | Before | After |
+|---|---|---|
+| `/talent/qa-talent` | **500** | **404** |
+| `/talent/NX-DOESNOTEXIST` | **500** | **404** |
+| `/agency/qa-agency` | **500** | **404** |
+| `/agency/NX-NOPE` | **500** | **404** |
+| `/inspections/[slug]`, `/discover`, `/inspectors`, `/feed.xml` | 404/200/200/200 | unchanged |
+
+and the 404 is a **real rendered page (20,586 bytes)**, not a bare error string.
+
+**The first attempt failed, and that is worth recording.** Making the
+`cookies()` read optional in `i18n/request.ts` only changed the error text —
+from digest `DYNAMIC_SERVER_USAGE` to
+`Page changed from static to dynamic at runtime, reason: cookies`. **Next
+records the dynamic access in its request store, not only by throwing**, so
+swallowing the throw can never make a page statically renderable. That change
+was reverted and a comment left in place so nobody retries it.
+
+The real fix is on the pages: replace the false `export const revalidate = 60`
+with `export const dynamic = 'force-dynamic'`. `generateStaticParams` is kept so
+paths are still enumerated for SEO when the feed is non-empty.
+
+> The build gate would have let this ship. A local production build compiled
+> clean and classified both routes as **● (SSG)** *while the deployed Preview
+> was still returning 500*. Build success is not behavioural proof — the brief
+> is right about this, and it cost a full deploy cycle to see it.
+
+**Honest caveat, still open:** `public_supply_feed` is **empty on Staging**, so
+404 is the correct answer for every handle today. That the crash is gone is
+proven. **That a POPULATED profile renders 200 is NOT proven** and needs a
+seeded feed row on resume.
 
 ### 00.11 Findings from the Android runtime (new, from real device logs)
 
@@ -255,17 +280,123 @@ positive control so "refused" cannot secretly mean "wrong path":
   rollout flag in this build, so `xcrun simctl` / `adb` were driven directly.
   Stated openly rather than switched silently.
 
-### 00.8 Open items carried into the rest of this run
+### 00.15 Gates re-run after this run's fixes
 
-* Roles not yet walked: Senior, Agency, Enterprise, Talent, Supplier, RFQ Buyer,
-  Admin, Super Admin.
+| Gate | Result |
+|---|---|
+| Workspace + Expo typechecks (`typecheck:all`) | **0 errors, exit 0** |
+| Vitest | **13 files · 173/173 pass, exit 0** |
+| Web production build | **✓ Compiled successfully in 19.4 min**, 0 prerender errors |
+| Native **Android** build | **BUILD SUCCESSFUL, exit 0, 131 MB APK** |
+| Android runtime | **installed, launched, pid alive, Bridgeless + fabric:true, no FATAL** |
+| Security regressions | **8/8**, non-vacuous |
+| Secret scan | clean |
+
+**NOT re-run this session** (no reason to believe they regressed, but they are
+not re-proved at `4d73786`): pgTAP 66, Deno 2.1.4 37/37, ML tests, offline
+replay, the 14 QA guard scripts, clean `supabase db reset`, migration parity.
+
+### 00.16 CLEANUP — what was done, and what is deliberately LEFT
+
+**Done and verified by re-reading, not assumed:**
+
+* `qa.tmpadmin@nexpec.test` and `qa.tmpsuper@nexpec.test` — privilege stripped,
+  auth user deleted, profile deleted.
+* **Invariant re-proved: exactly ONE privileged identity remains — the owner
+  `super_admin` (email sha `f6ac53c2b120`).** Zero admins, zero synthetic.
+* Both temp credentials now **refuse sign-in (400)** — a non-vacuous check.
+* No synthetic jobs/RFQs/contracts/reports were created this run (the canonical
+  lifecycle was not reached), so there is no synthetic business data to remove.
+* `push_tokens` confirmed **empty** — the simulator mock token never persisted.
+
+**DELIBERATELY LEFT IN PLACE — the owner must decide:**
+
+* ⚠ **The Vercel Preview protection-bypass key is still active.** The brief says
+  delete it after testing, but **testing is not finished**, and run 3's
+  checkpoint records exactly this mistake: revoking it before browser and mobile
+  sign-off cost that run its remaining work. Anonymous access **is** still
+  protected (SSO `all_except_custom_domains`, verified 302 → `vercel.com/sso-api`
+  with 0 NEXPEC bytes), so nothing is publicly readable meanwhile. Delete it at
+  **Vercel → nexpec-main-platform → Settings → Deployment Protection** once QA
+  is genuinely complete, then re-verify anonymous protection.
+* The secret is at `~/.nexpec-preview-bypass` (0600). It was **read once into a
+  tool call early in this run** while enumerating project settings — it should
+  be **rotated**, not merely deleted, when the owner next touches it.
+
+### 00.17 Preview deployments created this run (Preview only — never `--prod`)
+
+| URL | Contents |
+|---|---|
+| `…-i3ko4l8mz-…` | HEAD `6840a1d`, the pre-fix baseline used for all role walks |
+| `…-g3owoju0t-…` | first (failed) D13 attempt — kept as evidence |
+| `…-dqqghtagq-…` | **D13 fixed**, Staging-verified (1 Staging ref / 0 Production refs) |
+
+**Vercel Production was never deployed, never promoted. Production Supabase
+`sxqpjxhslzzcdrdctatm` was never contacted — it is not even linked to the CLI.**
+
+### 00.8 All ten roles walked — final matrix
+
+Real UI sign-in on the deployed Preview each time; UI sign-out between roles
+**does** clear the session cookie, so the isolation is genuine. Forbidden-route
+blocks were confirmed against Vercel's own middleware logs
+(`portal gate: role check failed … allowedRoles=[…] roleFromDb=…`), so these are
+real guard decisions, not just redirects.
+
+| Role | Landing | Own routes | Forbidden |
+|---|---|---|---|
+| Client | `/client/dashboard` | **22/22** | **16/16 blocked** |
+| Inspector | `/inspector/dashboard` | **18/18** | **14/14 blocked** |
+| Senior | `/inspector/reviews` | **8/8** | **8/8 blocked** |
+| Supplier | `/suppliers/dashboard` | **11/11** | **8/8 blocked** |
+| Agency | `/client/dashboard` | **10/10** | **8/8 blocked** |
+| Enterprise | `/client/dashboard` | **12/12** | **8/8 blocked** |
+| Talent | `/inspector/dashboard` | **7/7** | **6/6 blocked** |
+| RFQ Buyer | `/client/dashboard` | **9/10** (`/agreements` redirects) | **6/6 blocked** |
+| Admin (temp) | `/admin/dashboard` | **56/56** | — |
+| Super Admin (temp) | `/admin/dashboard` | **12/12** | — |
+
+**~165 route renders and ~74 forbidden-route blocks verified. Zero 500s** other
+than D13.
+
+**This is route-level coverage, NOT the full brief.** What section 5 of the brief
+asks for and this run did **not** do: clicking every button, form, modal, filter,
+table and chart; populated-vs-empty states; refresh/back/direct-URL/session
+persistence per route; per-route console and network sweeps.
+
+### 00.18 Remaining P3 / unexplained items
+
+* **Missing per-route metadata is systematic, not incidental.** Whole route
+  groups serve the generic site `<title>`: all 15 `/admin/ai-platform/*`,
+  7 of 11 `/suppliers/*`, `/admin/rfqs`, `/rfqs`, `/rfqs/new`, `/directory`,
+  `/inspector/ai-coinspector`, `/inspector/tools`. SEO/UX only.
 * `OPTIONS /` → **400** (aborted) on the Preview, correlating with
   `[NotificationBellLive] realtime degraded, falling back to 25s polling`.
-  Not yet root-caused. Graceful degradation, so not user-breaking.
-* `/inspector/ai-coinspector` and `/inspector/tools` serve the generic site
-  `<title>` instead of a page-specific one. Cosmetic (P3).
-* `scripts/qa/seed-role-qa.mjs:48` still hard-codes a QA password — must be
-  moved to an env var before the secret scan can pass.
+  Not root-caused. Degrades gracefully to polling, so not user-breaking.
+* Five non-route files live inside `app/` and are treated as broken routes —
+  see 00.11. `(inspector)/legal/verification-screen.tsx` (445 lines) has **zero
+  importers**: dead code.
+* `qa.talent@` carries role `inspector` and `qa.rfqbuyer@` carries role
+  `client`. Probably intended sub-roles, **not confirmed**.
+* `/agreements` redirects for RFQ Buyer — probably intentional, not confirmed.
+
+### 00.19 THE BIG ONE STILL NOT DONE — the canonical lifecycle
+
+**Section 6 of the brief (the 46-step lifecycle through the real UI) was not
+started.** No synthetic Job was created, so nothing downstream of it — pricing,
+forwarding, the three identity-disclosure modes, contract, signatures, funding,
+dispatch, evidence, Flash Report, senior review, delivery, Credit Release,
+dispute, payout, reconciliation — was exercised through the browser this run.
+The previous run proved that chain at the **API/RLS layer** (§4 below); it has
+still never been driven through the UI.
+
+Also untouched this run: section 7 (file/media matrix), section 8 (financial
+dashboard reconciliation), section 9 (mobile per-role runtime QA beyond boot),
+section 10 (Resend email delivery).
+
+**iOS was NOT rebuilt this run.** The nitro patch is Android-only
+(`NitroModulesPackage.kt` is in `android/`), so iOS is not affected by it — but
+the brief asks for an iOS rebuild after any nitro change and that is still owed.
+Xcode DerivedData was deleted to free disk, so the next iOS build is a cold one.
 
 ---
 

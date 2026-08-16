@@ -43,7 +43,9 @@
     "test:replay": "npm run test:replay:itp && npm run test:replay:visit && npm run test:replay:review",
     "qa:edge-functions": "node scripts/qa/check-edge-functions.mjs",
     "qa:db-columns": "node scripts/qa/check-db-columns.mjs",
-    "qa:orphans": "node scripts/qa/check-orphan-modules.mjs"
+    "qa:orphans": "node scripts/qa/check-orphan-modules.mjs",
+    "bundle:staging:android": "bash scripts/qa/bundle-mobile-staging.sh android",
+    "bundle:staging:ios": "bash scripts/qa/bundle-mobile-staging.sh ios"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

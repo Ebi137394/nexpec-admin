@@ -96,3 +96,4 @@ graphify-out/
 # a locally-pinned lockfile would assert an integrity contract the deploy path
 # never consults.
 supabase/functions/deno.lock
+.expo-staging-*

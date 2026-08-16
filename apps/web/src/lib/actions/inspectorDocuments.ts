@@ -116,10 +116,13 @@ export async function createInspectorDocument(formData: FormData): Promise<void>
   const { error: insertErr } = await supabase.from('inspector_documents').insert({
     inspector_id: user.id,
     kind,
-    label,
+    // `label` is stored as doc_name; expires_at is expiry_date. See
+    // 20260801524000 for the four columns that had no counterpart at all.
+    doc_name: label,
     file_path: objectPath,
-    expires_at: expiresAt,
+    expiry_date: expiresAt,
     notes,
+    updated_at: new Date().toISOString(),
   });
 
   if (insertErr) {

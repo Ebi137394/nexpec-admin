@@ -27,7 +27,9 @@ export async function fetchInspectorDocuments(): Promise<InspectorDocument[]> {
     const { data, error } = await supabase
       .from('inspector_documents')
       .select(
-        'id, kind, label, file_path, expires_at, notes, created_at, updated_at',
+        // SCHEMA: `label` is `doc_name` and `expires_at` is `expiry_date`; kind,
+      // file_path, notes and updated_at were absent until 20260801524000.
+        'id, kind, doc_name, file_path, expiry_date, notes, created_at, updated_at',
       )
       .eq('inspector_id', user.id)
       .order('created_at', { ascending: false });

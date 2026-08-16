@@ -64,15 +64,30 @@ export async function PendingReviewCallout({
     tone === 'client' ? 'client_to_inspector' : 'inspector_to_client';
 
   // Look up the caller's own review for this job, in this direction.
-  // PostgREST returns null with no error when missing — that's our
-  // "not yet reviewed" signal.
-  const { data: existing } = await supabase
+  //
+  // SCHEMA: this selected `body, published_at` and filtered `.eq('direction',…)`.
+  // None of the three exist on public.reviews — the columns are `comment` and
+  // `created_at`, and direction is derived from reviewer_role_snap rather than
+  // stored. The query therefore errored on every render; the error was never
+  // bound, `existing` came back undefined, and the component always drew the
+  // "leave a review" state. A user who HAD already reviewed the job was
+  // repeatedly invited to review it again.
+  //
+  // Filtering on reviewer_id alone is sufficient here: reviews_no_self_review_check
+  // guarantees reviewer ≠ reviewee, so the caller has at most one review per job.
+  const { data: existing, error: existingErr } = await supabase
     .from('reviews')
-    .select('id, rating, body, published_at, moderation_status')
+    .select('id, rating, comment, created_at, moderation_status')
     .eq('job_id', jobId)
     .eq('reviewer_id', user.id)
-    .eq('direction', direction)
     .maybeSingle();
+
+  if (existingErr) {
+    // Do not render the invitation state off the back of a failed read — that
+    // is what produced the duplicate-review prompt in the first place.
+    console.warn('[PendingReviewCallout] existing-review lookup failed:', existingErr.message);
+    return null;
+  }
 
   const counterparty =
     counterpartyLabel?.trim() ||
@@ -103,15 +118,15 @@ export async function PendingReviewCallout({
               <p className="mt-1 text-sm text-zinc-200">
                 <span className="font-mono text-amber-300">{stars}</span>{' '}
                 <span className="text-zinc-500">
-                  {new Date(existing.published_at).toLocaleDateString(
+                  {new Date(existing.created_at).toLocaleDateString(
                     'en-US',
                     { month: 'short', day: 'numeric', year: 'numeric' },
                   )}
                 </span>
               </p>
-              {existing.body ? (
+              {existing.comment ? (
                 <p className="mt-2 line-clamp-2 max-w-xl text-sm text-zinc-400">
-                  "{existing.body}"
+                  "{existing.comment}"
                 </p>
               ) : null}
               {existing.moderation_status &&

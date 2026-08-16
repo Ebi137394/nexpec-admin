@@ -25,10 +25,14 @@ export async function fetchInspectorCertifications(): Promise<
     const { data, error } = await supabase
       .from('inspector_certifications')
       .select(
-        'id, name, issuing_body, certificate_number, issued_at, expires_at, certificate_path, notes, created_at, updated_at',
+        // SCHEMA: four of these are renames onto columns that already existed under
+      // other names (certification_type / certification_number / issued_date /
+      // expiry_date). The other four were genuinely absent and are added by
+      // 20260801524000. Before both changes every read here failed 42703.
+        'id, certification_type, issuing_body, certification_number, issued_date, expiry_date, certificate_path, notes, created_at, updated_at',
       )
       .eq('inspector_id', user.id)
-      .order('expires_at', { ascending: true, nullsFirst: false });
+      .order('expiry_date', { ascending: true, nullsFirst: false });
 
     if (error || !data) {
       if (error && typeof console !== 'undefined') {
@@ -51,11 +55,11 @@ export async function fetchInspectorCertifications(): Promise<
 
       items.push({
         id: String(r.id),
-        name: String(r.name ?? ''),
+        name: String(r.certification_type ?? ''),
         issuingBody: (r.issuing_body as string | null) ?? null,
-        certificateNumber: (r.certificate_number as string | null) ?? null,
-        issuedAt: (r.issued_at as string | null) ?? null,
-        expiresAt: (r.expires_at as string | null) ?? null,
+        certificateNumber: (r.certification_number as string | null) ?? null,
+        issuedAt: (r.issued_date as string | null) ?? null,
+        expiresAt: (r.expiry_date as string | null) ?? null,
         certificateUrl: signedUrl,
         certificatePath: path,
         notes: (r.notes as string | null) ?? null,

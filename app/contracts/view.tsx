@@ -25,14 +25,17 @@ export default function ContractView() {
   const fetchSignatureStatus = useCallback(async () => {
     const { data, error } = await supabase
       .from('contracts')
-      .select('client_signed_at, inspector_signed_at')
+      // SCHEMA: the column is contractor_signed_at. `inspector_signed_at`
+      // does not exist, so this select 42703'd and the signature status
+      // panel silently kept its initial (unsigned) state for both parties.
+      .select('client_signed_at, contractor_signed_at')
       .eq('id', id)
       .single();
 
     if (!error && data) {
       setStatus({
         client: !!data.client_signed_at,
-        inspector: !!data.inspector_signed_at
+        inspector: !!data.contractor_signed_at
       });
     }
   }, [id]);

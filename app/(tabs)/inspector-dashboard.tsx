@@ -156,12 +156,24 @@ export default function DashboardScreen() {
           .eq('contractor_id', user.id)
           .in('status', PENDING_PROPOSAL_STATUSES),
 
-        // 4. Earnings (from CONTRACTS)
+        // 4. Earnings — from the INSPECTOR PAYOUT view, never from contracts.
+        //
+        //    This read `.from('contracts').select('price, amount')`. Neither
+        //    column exists, so every reduce below summed nothing and "Total
+        //    earnings" was a permanent 0.
+        //
+        //    The obvious repair — mapping to contracts.total_amount_cents —
+        //    would be WORSE than the bug. total_amount_cents is the CLIENT
+        //    price. Showing it to an inspector as their earnings breaks the
+        //    price-blindness invariant (an inspector must never see the client
+        //    price or the platform spread) and would leak the spread on every
+        //    dashboard load. jobs_inspector_secure_view exposes the payout
+        //    columns and only those, which is what the Web dashboard reads too.
         supabase
-          .from('contracts')
-          .select('price, amount')
+          .from('jobs_inspector_secure_view')
+          .select('inspector_payout_cents, payout_amount_cents, payout_status, payout_paid_at')
           .eq('contractor_id', user.id)
-          .in('status', COMPLETED_CONTRACT_STATUSES),
+          .eq('payout_status', 'paid'),
         
         // 5. Notifications — v3 columns: recipient_id, is_read
         //    (Migration 20260518400000 renamed user_id → recipient_id and
@@ -186,9 +198,13 @@ export default function DashboardScreen() {
 
       // Calculate Earnings safely
       if (earningsRes.status === 'fulfilled' && earningsRes.value.data && !earningsRes.value.error) {
-        newData.totalEarnings = earningsRes.value.data.reduce((sum: number, item: any) => {
-          return sum + (item.price || item.amount || 0);
+        // Payout columns are CENTS. formatCurrency below takes a major-unit
+        // number, so convert once here rather than scaling at the call site.
+        const cents = earningsRes.value.data.reduce((sum: number, item: any) => {
+          const v = item.inspector_payout_cents ?? item.payout_amount_cents ?? 0;
+          return sum + (Number(v) || 0);
         }, 0);
+        newData.totalEarnings = cents / 100;
       }
 
       setDashboardData(newData);

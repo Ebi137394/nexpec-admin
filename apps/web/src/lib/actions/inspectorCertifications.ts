@@ -125,13 +125,19 @@ export async function createInspectorCertification(
     .from('inspector_certifications')
     .insert({
       inspector_id: user.id,
-      name,
+      // certification_type / certification_number / issued_date / expiry_date
+      // are the real column names; issuing_body, certificate_path, notes and
+      // updated_at were added by 20260801524000. Every insert here used to fail
+      // 42703 after the file had already been uploaded, so the storage object
+      // was written and then rolled back on every single submission.
+      certification_type: name,
       issuing_body: issuingBody || null,
-      certificate_number: certificateNumber || null,
-      issued_at: issuedAt || null,
-      expires_at: expiresAt || null,
+      certification_number: certificateNumber || null,
+      issued_date: issuedAt || null,
+      expiry_date: expiresAt || null,
       certificate_path: objectPath,
       notes: notes || null,
+      updated_at: new Date().toISOString(),
     });
 
   if (insertErr) {

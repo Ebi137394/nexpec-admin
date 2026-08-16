@@ -1,0 +1,29 @@
+{
+  "//": [
+    "Files excluded from the column-drift gate.",
+    "",
+    "AN ENTRY HERE IS NOT 'this query is fine'. It is 'this module is not",
+    "reachable from any route entry point, so its broken query cannot run'.",
+    "Every path below was verified with:",
+    "",
+    "    node scripts/qa/check-orphan-modules.mjs --check <path>",
+    "",
+    "and reported ORPHAN. If a module is ever imported from a route, it stops",
+    "being an orphan, the exclusion becomes a lie, and the entry must be removed",
+    "and the query FIXED — not the other way round.",
+    "",
+    "Do NOT add a reachable file here to make the gate green. The whole point of",
+    "the gate is that a query naming a column that does not exist fails at",
+    "runtime and usually renders as a permanently empty screen."
+  ],
+  "orphanedModules": [
+    "src/core/hooks/useAssistant.ts",
+    "src/core/services/queryAssetIntelligence.ts",
+    "src/core/utils/verifySetup.ts",
+    "src/roles/admin/hooks/useAdminSupport.ts",
+    "src/roles/client/components/AssetSearch.tsx",
+    "src/roles/client/components/CriticalAlerts.tsx",
+    "src/roles/client/components/InspectionPipeline.tsx",
+    "src/roles/client/components/LiveRadar.tsx"
+  ]
+}

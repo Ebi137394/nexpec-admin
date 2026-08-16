@@ -443,8 +443,11 @@ export function PipelineSection({ userId, userRole }: Props) {
           // 5) Milestone release requests — read from audit_events
           supabase
             .from('audit_events')
-            .select('id, payload, created_at')
-            .eq('event_kind', 'milestone_release_requested')
+            // SCHEMA: the columns are `metadata` and `event_type`; `payload` and
+        // `event_kind` exist on no relation, so this query always 42703'd and
+        // the milestone-request strip was permanently empty.
+        .select('id, metadata, created_at')
+            .eq('event_type', 'milestone_release_requested')
             .order('created_at', { ascending: false })
             .limit(15),
         ]);
@@ -461,7 +464,7 @@ export function PipelineSection({ userId, userRole }: Props) {
         const openDisputeRows = (openDisputesRes.data ?? []) as J[];
         const milestoneRows = (milestoneReqRes.data ?? []) as Array<{
           id: string;
-          payload: { job_id?: string; job_title?: string | null; amount_cents?: number | null };
+          metadata: { job_id?: string; job_title?: string | null; amount_cents?: number | null };
           created_at: string | null;
         }>;
 
@@ -520,13 +523,13 @@ export function PipelineSection({ userId, userRole }: Props) {
           });
         });
         milestoneRows.forEach((r) => {
-          const jobId = r.payload?.job_id ?? null;
+          const jobId = r.metadata?.job_id ?? null;
           collected.push({
             id: `ad-milestone:${r.id}`,
             kind: 'admin_milestone_request',
             jobId,
-            jobTitle: r.payload?.job_title ?? null,
-            amountCents: r.payload?.amount_cents ?? null,
+            jobTitle: r.metadata?.job_title ?? null,
+            amountCents: r.metadata?.amount_cents ?? null,
             updatedAt: r.created_at,
             routeTo: jobId ? `/(admin)/jobs/${jobId}` : `/(admin)/dashboard`,
             ctaLabel: 'Action',

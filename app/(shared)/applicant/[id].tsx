@@ -19,12 +19,13 @@ interface InspectorProfile {
 interface WorkExperience {
   id: string;
   user_id: string;
-  company: string | null;
-  title: string | null;
+  // Mirrors public.work_experience exactly. It has no `is_current` column —
+  // "current" is expressed by a NULL end_date, which is what the UI now reads.
+  company_name: string | null;
+  job_title: string | null;
   start_date: string | null;
   end_date: string | null;
   description: string | null;
-  is_current: boolean | null;
 }
 
 interface Certification {
@@ -138,7 +139,9 @@ export default function ApplicantBlindProfileScreen() {
         // ANTI-POACHING: a "Blind Profile" must not fetch the inspector's real
         // name or precise location. Only the opaque id (→ NX handle), bio, skills.
         supabase.from('profiles').select('id, bio, skills').eq('id', id).single(),
-        supabase.from('work_experience').select('id, user_id, company, title, start_date, end_date, description, is_current').eq('user_id', id).order('start_date', { ascending: false }),
+        // SCHEMA: the columns are company_name / job_title; `company`, `title`
+        //   and `is_current` do not exist, so the whole experience block failed.
+        supabase.from('work_experience').select('id, user_id, company_name, job_title, start_date, end_date, description').eq('user_id', id).order('start_date', { ascending: false }),
         supabase.from('certifications').select('id, user_id, title, issuing_organization, issue_date, expiry_date, credential_id').eq('user_id', id).order('issue_date', { ascending: false }),
         // ★ HIRE-008: canonical applications table. Legacy column
         //   name inspector_id → applicant_id renamed in place.
@@ -301,7 +304,8 @@ export default function ApplicantBlindProfileScreen() {
         <View style={styles.timeline}>
           {experience.map((exp, idx) => {
             const last = idx === experience.length - 1;
-            const range = fmtRange(exp.start_date, exp.end_date, exp.is_current, t('blind.present', 'Present'));
+            const isCurrent = exp.end_date === null;
+            const range = fmtRange(exp.start_date, exp.end_date, isCurrent, t('blind.present', 'Present'));
             const dur = calcDuration(exp.start_date, exp.end_date);
             return (
               <View key={exp.id} style={styles.tlItem}>
@@ -313,16 +317,16 @@ export default function ApplicantBlindProfileScreen() {
                   <View style={[styles.expHdr, row]}>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.expTitle, { textAlign: txtAlign }]} numberOfLines={2}>
-                        {exp.title ?? t('blind.untitled_role', 'Role')}
+                        {exp.job_title ?? t('blind.untitled_role', 'Role')}
                       </Text>
-                      {exp.company && (
+                      {exp.company_name && (
                         <View style={[styles.expCoRow, row]}>
                           <Building2 size={12} color={D.textTertiary} strokeWidth={2} />
-                          <Text style={styles.expCompany} numberOfLines={1}>{exp.company}</Text>
+                          <Text style={styles.expCompany} numberOfLines={1}>{exp.company_name}</Text>
                         </View>
                       )}
                     </View>
-                    {exp.is_current && (
+                    {isCurrent && (
                       <View style={styles.curBadge}>
                         <View style={styles.curDot} />
                         <Text style={styles.curTxt}>{t('blind.current', 'Current')}</Text>

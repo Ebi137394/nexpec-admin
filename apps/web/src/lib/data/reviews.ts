@@ -1,5 +1,27 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  lib/data/reviews.ts — fetchers for the review surface
+//
+//  ── SCHEMA NOTE (why the column names here look indirect) ──────────────────
+//  Three columns these fetchers used do not exist on public.reviews:
+//
+//      body          → the column is `comment`
+//      published_at  → there is no publication timestamp; `created_at` is the
+//                      row's time and `moderation_status = 'visible'` is what
+//                      actually gates publication
+//      direction     → not stored at all; it is DERIVED from
+//                      reviewer_role_snap, whose CHECK admits
+//                      client | agency | enterprise | inspector
+//
+//  Every select and every `.order('published_at')` therefore failed, both
+//  fetchers hit `if (error || !data) return []`, and the public profile at
+//  /p/[userId] rendered zero reviews for everyone, permanently. The failure was
+//  silent by construction: an empty review list is indistinguishable from a
+//  user who has not been reviewed.
+//
+//  The public path also now reads `reviews_public`, the view that filters
+//  `moderation_status = 'visible'`. Reading the base table meant hidden,
+//  disputed and flagged reviews were eligible to be served on a PUBLIC profile
+//  — they were not, only because the query never succeeded.
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -19,14 +41,17 @@ export async function fetchReviewsForUser(
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase
-      .from('reviews')
+      // reviews_public, not reviews: the view carries the
+      // moderation_status = 'visible' filter, which a PUBLIC profile must not
+      // be trusted to apply for itself.
+      .from('reviews_public')
       .select(
         // ANTI-POACHING: the PUBLIC profile path joins NO reviewer identity.
         // Reviewer renders as a generic "Verified client" (see ReviewCard).
-        'id, job_id, reviewer_id, reviewee_id, direction, rating, would_recommend, body, published_at, jobs(title)',
+        'id, job_id, reviewer_id, reviewee_id, reviewer_role_snap, rating, would_recommend, comment, created_at, jobs(title)',
       )
       .eq('reviewee_id', userId)
-      .order('published_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
     if (error || !data) {
       if (error && typeof console !== 'undefined') {
@@ -50,11 +75,17 @@ export async function fetchReviewsForJob(jobId: string): Promise<Review[]> {
     const { data, error } = await supabase
       .from('reviews')
       .select(
-        'id, job_id, reviewer_id, reviewee_id, direction, rating, would_recommend, body, published_at, jobs(title), reviewer:profiles!reviews_reviewer_id_fkey(full_name, email)',
+        'id, job_id, reviewer_id, reviewee_id, reviewer_role_snap, rating, would_recommend, comment, created_at, jobs(title), reviewer:profiles!reviews_reviewer_id_fkey(full_name, email)',
       )
       .eq('job_id', jobId)
-      .order('published_at', { ascending: true });
-    if (error || !data) return [];
+      .order('created_at', { ascending: true });
+    if (error) {
+      // Not swallowed into an empty list — an unreadable pair of reviews and a
+      // job nobody reviewed must not look the same in the log.
+      console.warn('[fetchReviewsForJob] failed:', error.message);
+      return [];
+    }
+    if (!data) return [];
     return (data as unknown as Array<Record<string, unknown>>).map(toReview);
   } catch {
     return [];
@@ -132,10 +163,15 @@ function toReview(r: Record<string, unknown>): Review {
     reviewerId: String(r.reviewer_id),
     reviewerLabel: reviewerJoin?.full_name ?? reviewerJoin?.email ?? null,
     revieweeId: String(r.reviewee_id),
-    direction: r.direction as ReviewDirection,
+    // DERIVED, not stored. reviewer_role_snap freezes the reviewer's role at
+    // submission time, so it stays correct even if the account changes role
+    // later — which is exactly why the snapshot column exists.
+    direction: (r.reviewer_role_snap === 'inspector'
+      ? 'inspector_to_client'
+      : 'client_to_inspector') as ReviewDirection,
     rating: typeof r.rating === 'number' ? r.rating : Number(r.rating ?? 0),
     wouldRecommend: Boolean(r.would_recommend),
-    body: (r.body as string | null) ?? null,
-    publishedAt: String(r.published_at ?? ''),
+    body: (r.comment as string | null) ?? null,
+    publishedAt: String(r.created_at ?? ''),
   };
 }

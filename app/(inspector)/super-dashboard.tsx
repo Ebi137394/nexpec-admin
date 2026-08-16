@@ -56,11 +56,16 @@ export default function SuperDashboard() {
       }
 
       // 2. Fetch real unread messages count (optional enhancement)
+      // SCHEMA: public.messages is conversation-scoped — it has
+      // conversation_id / sender_id / is_read and NO receiver_id, so this
+      // filter 42703'd and the unread badge was always 0. "Unread for me" is
+      // therefore "unread, in a conversation I am in, that I did not send".
       const { count } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('is_read', false);
+        .neq('sender_id', user.id)
+        .eq('is_read', false)
+        .is('deleted_at', null);
         
       setUnreadMessages(count || 0);
 

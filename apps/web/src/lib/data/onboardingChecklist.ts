@@ -342,7 +342,9 @@ async function buildClientSteps(
         const { count } = await supabase
           .from('org_members')
           .select('id', { count: 'exact', head: true })
-          .in('organization_id', ids);
+          // SCHEMA: org_members keys on `org_id`; `organization_id` does not exist,
+          // so this count silently resolved to 0 for every organization.
+          .in('org_id', ids);
         orgMemberCount = count ?? 0;
       }
     } catch (err) {

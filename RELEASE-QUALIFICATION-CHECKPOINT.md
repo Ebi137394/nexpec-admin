@@ -7,7 +7,128 @@
 
 ---
 
-## 0. RUN 3 — 2026-08-16, later session
+## 0. RUN 4 — 2026-08-16, latest session
+
+### 0.1 What was PROVEN this run (all behavioural, all on Staging)
+
+| Area | Result | Evidence |
+|---|---|---|
+| **Owner-only settlement RPCs** | **32/32 PASS** | `scripts/qa/verify-owner-financial-ops.mjs` |
+| **Supabase Storage end to end** | **8/8 PASS** | `scripts/qa/verify-storage-e2e.mjs` |
+| **iOS app RUNNING on a simulator** | **PASS** | screenshots, live Metro bundle |
+| **Android emulator provisioned and booted** | **PASS** | API 35 arm64, boot 41.7 s |
+| **Preview SSO protection** | **PASS — genuinely enabled** | anonymous request lands on `vercel.com/login`, 0 NEXPEC bytes |
+
+### 0.2 Owner-only financial operations — 32/32, no owner credential used
+
+`admin_mark_payout_processed` and `admin_resolve_dispute` gate real money and are
+`super_admin`-only by design, so they had never been exercised. Proving them
+needs either the owner's credential or a weakened guard, and both are
+unacceptable — so the script creates **one throwaway `super_admin`** with a
+crypto-random secret that is never printed, proves the matrix, deletes it, and
+asserts the owner stands alone again. The owner's address is read only as a
+sha256 prefix (`f6ac53c2`) and is never modified.
+
+Proven, with no real money and no Stripe call:
+
+* **15/15 refusals** — client, inspector, senior, supplier, agency, enterprise
+  and talent are all refused for **both** RPCs, with the guard's own message
+  (`Only super_admin can mark payouts processed`).
+* **Anonymous refused at the grant level** — `permission denied for function`.
+* **A plain `admin` is refused too** — this is the strict-super_admin claim, and
+  it holds.
+* **No automatic payout** at creation, on funding the client tranche, or on any
+  status transition through `in_progress` and `completed`.
+* **Dispatch without a fully executed contract is refused** — `CONTRACT_REQUIRED`.
+  A funded job does not become dispatchable just because the money arrived.
+* `super_admin` settlement writes `payout_paid_at`, the reference and `marked_by`.
+* **The retry is refused** — `Job payout is already marked paid`. No duplicate payout.
+* Dispute resolution is gated on the `disputed` state.
+* Exactly **one** privileged identity remains: the owner.
+
+**A trap this run fell into and fixed.** The first draft selected a
+`payout_processed_at` column that does not exist. PostgREST errored, the helper
+returned `{}`, and the empty object read as "no payout has happened" — a passing
+test built on a failed query. The real column is `payout_paid_at`. The helper now
+**raises** on a read error instead of returning an empty object. Worth
+remembering: this is exactly the failure mode the brief warns about, and it
+appeared inside the very script written to guard against it.
+
+### 0.3 Storage — Supabase free tier passes, so R2 is NOT a release blocker
+
+Exercised with a genuine 75-byte PNG: upload as the owning inspector into a
+private bucket; metadata truthful (size and mimetype match the real bytes, not
+the client's claim); signed download **byte-identical by sha256**; a different
+role refused; an anonymous caller refused; a 1-second signed URL refused once
+expired (http 400); a disallowed MIME rejected by the bucket allowlist; the
+object deleted and its absence **re-read**, not assumed.
+
+The negative cases are non-vacuous — the owner reads that exact key successfully
+in the same run, so "refused" means the guard fired rather than the path being wrong.
+
+Staging carries **12 buckets, 11 private**, each with a size limit and MIME
+allowlist; only `avatars` is public, which is appropriate for profile images.
+**Recommendation: ship on Supabase Storage.** Adding R2 would introduce
+credentials, a billing relationship and a rollback surface to replace something
+that already passes.
+
+### 0.4 iOS — the app is genuinely RUNNING, not merely bundling
+
+* iPhone 16 Pro `0E876197-…`, iOS 18.2, booted.
+* `com.nexpec.app` installed and launched (pid 6583); the **sign-in screen
+  renders** — logo, email/password, Apple/Google/LinkedIn, SSO and Enterprise.
+* The native shell is the Jun 20 build. That is legitimate here: **`ios/Podfile.lock`
+  has 0 commits since Jun 19**, so the native layer is unchanged, and a Debug
+  build serves all JS from Metro — the app is running today's code.
+* **Runtime bundle proof**: `GET /index.bundle?platform=ios` → 200,
+  **33,680,281 bytes, 5,047 modules**, `zmzvmgaeovleuvbvwxei` **× 1**,
+  `sxqpjxhslzzcdrdctatm` **× 0**. No `failed to compile`, no
+  `Unable to resolve module`. (38 `SyntaxError` hits are library string
+  literals, not build errors — a 34 MB bundle with a full module registry is not
+  a Metro failure payload.)
+
+**The Claude iOS Simulator MCP is unusable on this machine** — it insists *"Xcode
+is installed but not selected"* while `xcode-select -p` returns
+`/Applications/Xcode.app/Contents/Developer` and `xcodebuild -version` reports
+Xcode 26.3. Worked around with `xcrun simctl` directly, stated openly.
+
+### 0.5 Android — free tooling installed from nothing, emulator booted
+
+No Java, no SDK, no Android Studio existed. Installed **entirely free, in the
+user directory, with no sudo and no billing**, via
+`scripts/qa/android-bootstrap.sh` → `~/.nexpec-android`:
+
+* Temurin JDK 17.0.20 (Eclipse Adoptium)
+* Android command-line tools + platform-tools + emulator + `platforms;android-35`
+* `system-images;android-35;google_apis;arm64-v8a`
+* AVD **`nexpec_qa`** (pixel_6) — **booted in 41.7 s**, `adb` shows
+  `emulator-5554  device`, `sys.boot_completed=1`
+
+First `expo run:android` attempt failed with *"Could not find device with name:
+emulator-5554"* — pass the **AVD name** (`--device nexpec_qa`), not the adb
+serial. Gradle build was still running at checkpoint time.
+
+### 0.6 Corrections to run 3's report
+
+* **"The old bypass key from run 2 is still on the project"** — wrong. The
+  project has **0** protection-bypass keys; run 2's revocation did work.
+* **SSO protection is enabled**, despite the v9 project API returning
+  `ssoProtection: None`. Proven behaviourally: an anonymous request to the
+  Preview 302s to `vercel.com/login?next=/sso-api…`, 481 KB of Vercel login HTML,
+  **0** NEXPEC markers. The API field shape was misleading; the behaviour is not.
+
+### 0.7 Still blocked, and exactly why
+
+| Blocker | Evidence | What unblocks it |
+|---|---|---|
+| **Browser role walks** | Preview needs a bypass key; 0 exist; every documented Vercel create/revoke endpoint 404s on this token | Owner adds one in Dashboard → Settings → Deployment Protection |
+| **Resend Custom SMTP** | `vercel env pull` → `[SENSITIVE]`; REST env value empty; Supabase edge secrets `{"secrets":[]}` | Owner supplies the key, or creates a new restricted one in the Resend dashboard |
+| **Auth email rate limit** | `PATCH {"rate_limit_email_sent":30}` → **401 Custom SMTP required** | Same as above. Staging stays at **2/hour** |
+| **Local dev browser QA** | `next dev` took 80 s to boot, **497 s to compile `/`**; three warm-ups timed out at 240 s | Not a product defect — use the Preview |
+
+---
+
+## 0b. RUN 3 — 2026-08-16, later session
 
 ### 0.1 Migration parity — RESOLVED, and the earlier number was wrong
 

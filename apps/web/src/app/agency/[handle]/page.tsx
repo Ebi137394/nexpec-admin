@@ -19,7 +19,10 @@ import {
   humanizeSlug,
 } from '@/lib/data/teaser';
 
-export const revalidate = 60;
+// Same as /talent/[handle]: the root layout reads the locale cookie, so this
+// page can never be statically generated. `revalidate` was a false claim and
+// produced a hard 500 on a public page. See that file for the full reasoning.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nexpecapp.com';
 

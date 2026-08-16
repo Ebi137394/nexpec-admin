@@ -12,24 +12,16 @@ import type { AbstractIntlMessages } from 'next-intl';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, isValidLocale } from './config';
 
 export default getRequestConfig(async () => {
-  // `cookies()` is a DYNAMIC api. The root layout calls getLocale()/getMessages(),
-  // so this runs for every page — including the ones that opt into static
-  // generation with `export const revalidate`. In that context next/headers
-  // throws DynamicServerError, which surfaced as a hard 500
-  // (FUNCTION_INVOCATION_FAILED, digest DYNAMIC_SERVER_USAGE) on
-  // /talent/[handle] and /agency/[handle]: their generateStaticParams returns
-  // [] whenever the public supply feed is empty, so nothing is prerendered and
-  // every request rendered on demand in static-generation mode.
-  //
-  // There is no request cookie during static generation, so the correct answer
-  // there is simply the default locale — not a crash.
-  let raw: string | undefined;
-  try {
-    const cookieStore = await cookies();
-    raw = cookieStore.get(LOCALE_COOKIE)?.value;
-  } catch {
-    raw = undefined;
-  }
+  // NOTE: `cookies()` is a DYNAMIC api, and the root layout calls
+  // getLocale()/getMessages(), so EVERY page in this app is dynamic by
+  // construction. Catching the DynamicServerError here does NOT make a page
+  // statically renderable — Next records the dynamic access in its store, not
+  // only via the throw, and the render still fails with
+  // "Page changed from static to dynamic at runtime, reason: cookies".
+  // The fix therefore belongs on the pages that falsely declared themselves
+  // static (see /talent/[handle], /agency/[handle]), not here.
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(LOCALE_COOKIE)?.value;
   const locale = isValidLocale(raw) ? raw : DEFAULT_LOCALE;
 
   let messages: AbstractIntlMessages;

@@ -19,7 +19,18 @@ import {
   humanizeSlug,
 } from '@/lib/data/teaser';
 
-export const revalidate = 60;
+// This page cannot be statically generated. The root layout resolves the locale
+// from the NEXT_LOCALE cookie (next-intl getLocale/getMessages -> next/headers
+// cookies()), which makes every page in this app dynamic by construction.
+// Declaring `revalidate` here was a false claim: generateStaticParams returns []
+// whenever the public supply feed is empty, so nothing was prerendered, and every
+// request then rendered on demand in static-generation mode and died with
+// "Page changed from static to dynamic at runtime, reason: cookies" — a hard 500
+// on a PUBLIC page that /discover links to.
+//
+// generateStaticParams is kept: when the feed is non-empty those paths are still
+// enumerated for SEO, they are just rendered dynamically.
+export const dynamic = 'force-dynamic';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://nexpecapp.com';
 

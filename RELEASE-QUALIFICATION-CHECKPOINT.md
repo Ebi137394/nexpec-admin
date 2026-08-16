@@ -145,7 +145,49 @@ check edge functions with 2.1.4, never with whatever `deno` is on PATH.
 running when the session ended; **neither had failed.** Re-run them first on
 resume, with `~/.nexpec-deno214` ahead of `deno` on PATH.
 
-### 0.57 Android — where the build actually got to
+### 0.57 DEFECT D8 — the Android app cannot be built at all (release blocker)
+
+**Status: root-caused, NOT fixed.** Deliberately left unfixed: diagnosing it
+consumed the end of the session, and a dependency downgrade is exactly the kind
+of change that must not be made without room to re-verify the iOS build that
+currently works.
+
+```
+> Task :react-native-nitro-modules:compileDebugKotlin FAILED
+NitroModulesPackage.kt:26  None of the following functions can be called with
+                           the arguments supplied: ReactModuleInfo(...)
+```
+
+**Root cause.** `react-native-nitro-modules@0.35.9` is built against **React
+Native 0.83** — that is its own `devDependencies.react-native`. This project is
+on **React Native 0.76.9**. `NitroModulesPackage.kt` calls a `ReactModuleInfo`
+constructor shape that exists in 0.83 and in neither of the two overloads RN
+0.76 publishes (the 6-arg and 7-arg forms named in the error).
+
+**Why it slipped in.** `package.json` declares `"react-native-nitro-modules":
+"^0.35.9"`. The caret lets npm resolve forward into releases built for a much
+newer React Native. `react-native-fast-tflite@3.0.1` is what pulls nitro in.
+
+**Why it was never caught.** Nothing in CI or the release gates builds Android.
+The Mobile gates are typecheck and *bundle* — and a Metro bundle is pure JS, so
+it never compiles a line of Kotlin. This is precisely the "a successful bundle
+is not runtime proof" gap: the JS bundle has been green all along while the
+Android app was unbuildable.
+
+**Fix direction (for the next run, verify — do not assume):**
+
+1. Pin `react-native-nitro-modules` to the newest release whose own
+   `devDependencies.react-native` is 0.76.x, and pin `react-native-fast-tflite`
+   to the matching major that peers with it.
+2. `rm -rf node_modules android/app/build && npm install`.
+3. Rebuild Android **and** re-verify iOS — nitro is used by both, so a downgrade
+   can break the iOS build that is currently working.
+4. **Add an Android assemble step to the gates.** A bundle gate cannot catch this
+   class of defect and never will.
+
+### 0.58 Android — tooling is ready; where the build got to
+
+
 
 `expo run:android --device nexpec_qa --no-bundler` progressed through: Gradle
 configure → **NDK 26.1.10909125 downloaded and installed (3.0 GB)** →

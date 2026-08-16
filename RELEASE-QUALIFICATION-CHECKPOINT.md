@@ -1,9 +1,136 @@
 # NEXPEC Release Qualification — Checkpoint
 
-> **Status: IN PROGRESS — NOT COMPLETE.** Sections 0 and 8 are the live ones.
-> Section 0 is the newest work and the exact resume point; everything from
-> section 1 down is the previous run and remains accurate except where section 0
-> corrects it.
+> **Status: IN PROGRESS — NOT COMPLETE.** Section 00 is the newest work and the
+> exact resume point; everything below it is earlier runs and remains accurate
+> except where a newer section corrects it.
+
+---
+
+## 00. RUN 5 — 2026-08-16, current session
+
+**HEAD at start: `6840a1d`, branch `release/identity-replacement`, clean, synced.**
+
+### 00.1 The two blockers from run 4 are BOTH cleared
+
+| Run 4 said | Physical reality now |
+|---|---|
+| "Browser walks blocked — 0 bypass keys exist, every create/revoke endpoint 404s" | **A bypass key EXISTS** on the project (`automation-bypass`, owner-created after run 4). Browser access is **restored and working**. |
+| "D8 root cause: nitro 0.35.9 targets RN 0.83; downgrade the dependency" | **Root cause was misdiagnosed.** It is a *named-argument* mismatch, fixable in place. No downgrade needed. See 00.3. |
+
+### 00.2 Preview at HEAD, and it targets Staging
+
+* Preview at exactly `6840a1d`: `nexpec-main-platform-i3ko4l8mz-ebi137394s-projects.vercel.app`
+* **Anonymous access is protected** — `GET /sign-in` → **302** to `vercel.com/sso-api`,
+  15 bytes, **0** NEXPEC markers. SSO protection stays `all_except_custom_domains`.
+* **Staging proof 1** — across the 13 served `_next/static` chunks + the HTML:
+  `zmzvmgaeovleuvbvwxei` **×1**, `sxqpjxhslzzcdrdctatm` **×0**.
+* **Staging proof 2** — the only `*.supabase.co` host anywhere in the served
+  bundle is `zmzvmgaeovleuvbvwxei.supabase.co`.
+* **Staging proof 3** — the session cookie the app sets after a real sign-in is
+  `sb-zmzvmgaeovleuvbvwxei-auth-token`.
+
+The bypass secret is stored at `~/.nexpec-preview-bypass` (0600, outside the
+repo) and is never typed into a tool call: a local redirector
+(`<scratchpad>/redirector.mjs`, 127.0.0.1:8791) performs the one-time
+cookie-setting hop. **CLEANUP OBLIGATION: delete this key at the end and
+re-verify anonymous protection.**
+
+### 00.3 D8 — root-caused correctly and FIXED (native build still verifying)
+
+Run 4's fix direction would not have worked. The registry disproves it:
+
+* nitro versions whose own `devDependencies.react-native` is **0.76.x** are
+  **0.20.0 / 0.20.1 / 0.21.0** only; `0.22.0` already moves to RN 0.77.
+* but `react-native-fast-tflite@3.0.1` (published 2026-04-21) was generated
+  against nitro **0.35.x**. Pinning nitro back to 0.21 would leave fast-tflite's
+  vendored nitrogen C++ calling a nitro API ~14 minor versions newer than the
+  library present. A downgrade trades a Kotlin error for a C++ one.
+
+**The actual defect is one call site.** RN 0.76's `ReactModuleInfo` primary
+constructor names its first four parameters `_name`, `_className`,
+`_canOverrideExistingModule`, `_needsEagerInit` — private, underscore-prefixed.
+Nitro calls it with **named arguments** (`canOverrideExistingModule = …`), which
+matches RN 0.83 but resolves against nothing on 0.76. The parameter **order is
+identical on both**, so positional arguments compile against either.
+
+Fix: `patches/react-native-nitro-modules+0.35.9.patch` (1.6 KB) converts that one
+call to positional form, plus `"postinstall": "patch-package"` in `package.json`
+so it survives `npm install`. `patch-package@8` was already a devDependency but
+was **unwired** — no `postinstall`, no `patches/`. Nothing was downgraded.
+
+Risk check on the C++ side: nitro's entire RN coupling is `jsi/jsi.h`,
+`ReactCommon/CallInvoker.h` and `ReactCommon/CallInvokerHolder.h` — stable
+across 0.76→0.83.
+
+**Also found and fixed while reproducing:** `android/gradle.properties` had
+`newArchEnabled=false`. `android/` and `ios/` are gitignored and fully generated,
+so the tree was stale — `withNexpecNewArch` only forces the value during
+prebuild. Nitro/Skia/Reanimated cannot compile under the Old Architecture, so
+this was a second, independent reason the Android build could not succeed.
+`expo prebuild --platform android --clean` now regenerates it at
+**`newArchEnabled=true`** (verified in the generated file).
+
+### 00.4 Browser role walks — IN PROGRESS, real UI sign-in on the deployed Preview
+
+Method: sign in through the actual deployed sign-in form (a React Server Action),
+then walk routes in-session. Sign-out between roles is the real UI button and
+**does clear the session cookie** — verified, so role isolation is genuine.
+
+| Role | Landing | Own routes | Forbidden routes |
+|---|---|---|---|
+| **Client** | `/client/dashboard` ✓ | **22/22 render** | **16/16 blocked** |
+| **Inspector** | `/inspector/dashboard` ✓ | **18/18 render** | **14/14 blocked** |
+
+### 00.5 A methodology trap this run fell into — and the correction
+
+The first walker flagged **every** authenticated Inspector route as "signed
+out". It was wrong. The detector matched `/sign in to nexpec/i` against the raw
+HTML, and **every authenticated page embeds the i18n bundle**, which contains
+`auth.signInTitle = "Sign in to NEXPEC"`. A real navigation to the same URL
+rendered `Wallet, NEXPEC` correctly.
+
+This is checkpoint trap #7 (loose regex) in a new costume, and it nearly
+produced a fabricated P0. **Discriminate on `<title>`**, not on body text:
+the sign-in page is the only one titled `Sign in, …`. Corrected walker re-run
+clean.
+
+Related: a `fetch()`-based walker is a weaker oracle than navigation — treat a
+surprising *uniform* failure across every route as an instrumentation bug until
+a real navigation disagrees with it.
+
+### 00.6 Temporary privileged identities — CREATED, cleanup owed
+
+Staging had **exactly one** privileged identity at session start: the owner
+`super_admin` (email sha `f6ac53c2b120`), zero admins — invariant intact.
+`qa.admin@` and `qa.superadmin@` do **not** authenticate (revoked in run 2).
+
+Created for this run, random secrets, never printed, stored 0600 at
+`<scratchpad>/temp-identities.json`:
+
+* `qa.tmpadmin@nexpec.test` → `admin`
+* `qa.tmpsuper@nexpec.test` → `super_admin`
+
+**CLEANUP OBLIGATION:** run `<scratchpad>/cleanup-temp-admin.mjs`. It strips
+privilege first, then deletes, then re-reads and asserts exactly one privileged
+identity remains, then proves the temp credentials no longer authenticate.
+
+### 00.7 Standing QA accounts on Staging (verified this run)
+
+8 of 10 authenticate with the seeded password. `qa.talent@` carries role
+`inspector` and `qa.rfqbuyer@` carries role `client` — to be confirmed as
+intended sub-roles rather than seeding defects.
+
+### 00.8 Open items carried into the rest of this run
+
+* Roles not yet walked: Senior, Agency, Enterprise, Talent, Supplier, RFQ Buyer,
+  Admin, Super Admin.
+* `OPTIONS /` → **400** (aborted) on the Preview, correlating with
+  `[NotificationBellLive] realtime degraded, falling back to 25s polling`.
+  Not yet root-caused. Graceful degradation, so not user-breaking.
+* `/inspector/ai-coinspector` and `/inspector/tools` serve the generic site
+  `<title>` instead of a page-specific one. Cosmetic (P3).
+* `scripts/qa/seed-role-qa.mjs:48` still hard-codes a QA password — must be
+  moved to an env var before the secret scan can pass.
 
 ---
 

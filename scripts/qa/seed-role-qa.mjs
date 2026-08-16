@@ -45,7 +45,16 @@ try {
 }
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
-const PASSWORD = 'NexpecQA!2026';
+// Never hard-code a credential in the repository, even a synthetic one — a
+// committed password is a secret-scan finding regardless of how harmless the
+// account is, and it silently becomes the shared default for every environment
+// somebody points this script at. Supply it per run:
+//   QA_SEED_PASSWORD='…' node scripts/qa/seed-role-qa.mjs
+const PASSWORD = process.env.QA_SEED_PASSWORD;
+if (!PASSWORD) {
+  console.error('FATAL: set QA_SEED_PASSWORD (no default is baked in on purpose).');
+  process.exit(1);
+}
 const ok = (m) => console.log(`  ok   ${m}`);
 const fail = (m, e) => { console.error(`  FAIL ${m}: ${e?.message ?? e}`); process.exitCode = 1; };
 

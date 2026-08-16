@@ -9,6 +9,7 @@
     "packages/*"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",

@@ -1,237 +1,187 @@
 # NEXPEC Release Qualification — Checkpoint
 
 > **Status: IN PROGRESS — NOT COMPLETE.** Do not treat this as a completion
-> report. Section 9 lists exactly what remains.
-
-This file was **missing** at the start of this session even though the prior
-handoff said to read it — it had never been committed. Recreated here from
-verified physical state, not from the handoff narrative.
+> report. Section 9 lists exactly what remains and the exact next command.
 
 ---
 
-## 1. Physical state (verified this session)
+## 1. Physical state (verified this session, 2026-08-16)
 
 | | |
 |---|---|
 | Branch | `release/identity-replacement` |
-| HEAD | `fd5e76f` |
-| Origin | `fd5e76f` — synchronized, 0 ahead / 0 behind |
-| Preview (current) | `nexpec-main-platform-bsixz4k8a-…` — READY, target `preview`, sha `fd5e76f` |
+| HEAD | `8f59bb3` |
+| Origin | **1 push pending** — see section 9 |
 | Working tree | clean (only untracked `.claude/`) |
-| Staging Supabase | `zmzvmgaeovleuvbvwxei` |
-| Production Supabase | `sxqpjxhslzzcdrdctatm` — **untouched** |
+| Staging Supabase | `zmzvmgaeovleuvbvwxei` — 204 migrations applied |
+| Production Supabase | `sxqpjxhslzzcdrdctatm` — **untouched, never contacted** |
+| Local DB | clean `supabase db reset` at 202 files = 202 recorded; +2 applied since = 204 |
+| Preview (last deployed) | `nexpec-main-platform-ogeuehlrp-…` — READY, sha `84cf65b` (**stale**, 3 commits behind) |
+| Redirector | 127.0.0.1:8791 → repointed at the exact-HEAD deployment |
+| Temp Staging admin | `qa.tempadmin@nexpec.test` — **still active**, still needed |
+| Vercel bypass key | 1 key — **still active**, still needed |
 
-## 2. Preview and Staging proof
+Node note: `@supabase/supabase-js` needs **Node 22** here (Node 20 has no native
+WebSocket and `createClient` throws). Use
+`export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH`.
 
-* Preview for `07068be`: `nexpec-main-platform-ksz4a6x9a-…` — READY, target
-  `preview`, commit sha confirmed via Vercel API.
-* **Staging targeting proved at runtime**, in the browser, after signing in:
-  auth cookie is `sb-zmzvmgaeovleuvbvwxei-auth-token`. No Production cookie
-  present. Deployed HTML contains **0** occurrences of the Production ref.
-* Project has SSO protection `all_except_custom_domains` with **1** bypass key.
-  The bypass works (header form → 200 on the current deployment).
-* The bypass secret is **never printed**. It is read from the previous
-  session's scratchpad file by a local redirector
-  (`<scratchpad>/bypass-redirector.mjs`, 127.0.0.1:8791) which puts it only in
-  a `Location` header. Point the browser at `http://127.0.0.1:8791/<path>`.
+## 2. Tooling built this session (reusable — do not rewrite)
 
-## 3. Defect closed this session — D7 (completing the prior partial fix)
+Under `<scratchpad>/qa/`:
 
-**Senior Inspector still landed on the marketing page after sign-in**, on the
-deployed Preview, *after* `07068be` claimed to fix it.
+* `harness.mjs` — signs real QA users in through GoTrue and issues PostgREST /
+  RPC calls with their actual JWT. Refuses any ref that is not Staging. Exports
+  `signIn`, `rest`, `rpc`, `check`, `summarise`, `tempAdminCreds`, `ACCOUNTS`.
+* `psql.sh` — direct read introspection against Staging (pooler, port 5432).
+* `redirector.mjs` + `preview-base.txt` — bypass redirector; **repoint by editing
+  `preview-base.txt`**, no code edit needed. Secret never printed.
+* `lane-supplier.mjs`, `lane-supplier2.mjs` — the supplier behavioural lanes.
 
-* Reproduced in browser against Staging: `qa.senior@nexpec.test` signed in and
-  landed on `/`, title "Industrial Inspection, Engineered for Trust".
-* `/inspector/reviews` **was** directly reachable — so `07068be`'s middleware
-  fix worked; only the post-login destination was still broken.
-* **Root cause:** middleware is not the only decider. Two other functions are,
-  and they are the ones actually used —
-  `destinationForUser()` in `lib/auth/actions.ts` (email+password form) and
-  `pathForRole()` in `app/auth/callback/route.ts` (OAuth/magic-link). Neither
-  had a `senior` branch; both fell through to `return '/'`. `07068be` touched
-  only `middleware.ts`.
-* **The role is `senior`, not `senior_inspector`.** `profiles_role_check`
-  admits: inspector, client, agency, enterprise, supplier, senior, admin,
-  super_admin.
-* **The existing gate passed while the defect was live** — it parsed only
-  `middleware.ts`. Extended to require all 8 DB roles to be covered by all
-  three sources, extracting each function body so an unrelated role string
-  cannot fake coverage.
-* **Non-vacuity proved**: removing the new branch fails the gate; restoring it
-  returns green.
-* Fixed in `fd5e76f`. Senior now lands on `/inspector/reviews`.
+## 3. Defects found, fixed and verified this session
 
-### D7 — verified on the deployed Preview `bsixz4k8a` (sha `fd5e76f`)
+### D8 — P1 · inspector_skills fully tamperable · `825c422`
 
-| Check | Result |
+`inspector_skills` carried two baseline policies written `USING (true)` with no
+command and no role → FOR ALL TO PUBLIC with the INSERT check degrading to
+`true`, while `authenticated` kept write grants. Permissive policies OR, so the
+admin overlay could not narrow it.
+
+Reproduced on Staging with three real JWTs: a **client** inserted a row carrying
+the **inspector's** `user_id` (201); an unrelated **supplier** then PATCHed
+(200) and DELETEd (200) it. anon was refused for want of a grant — which is why
+every anon sweep missed it.
+
+Fixed by `20260801528000`: owner-scoped writes, authenticated read, anon SELECT
+revoked, admin overlay untouched. Suite `inspector_skills_write_tamper_test.sql`
+**13/13**, and it asserts the *class* — no permissive write-capable policy in
+`public` may keep an unconditional predicate for a non-service role.
+Re-verified on Staging post-push.
+
+### D9 — P0 · supplier could read AND rewrite the platform spread, and self-award · `43aa9d8`
+
+`supplier_quotes` mixes supplier-owned data (`quote`) with broker-owned data
+(`client_price_cents`, `admin_note`, `presented_at`, `presented_by`, `status`)
+on one row. RLS scoped the row; nothing scoped the column; `authenticated` held
+table-wide grants; PostgREST exposes the table directly.
+
+Reproduced on Staging with a real supplier JWT against the supplier's own quote:
+
+| Request | Result before fix |
 |---|---|
-| Sign-in destination | **PASS** — `/inspector/reviews`, h1 "Assigned reviews" |
-| Staging target | **PASS** — cookie `sb-zmzvmgaeovleuvbvwxei-auth-token` |
-| `/inspector/reviews` reachable | PASS (200) |
-| `/inspector/dashboard` reachable | PASS (200) — Senior is an inspector who also reviews |
-| `/admin/dashboard` refused | PASS — redirects to `/` |
-| `/client/dashboard` refused | PASS — redirects to `/` |
-| `/suppliers/dashboard` refused | PASS — redirects to `/` |
-| Review inbox empty state | Truthful, not a masked error — all app REST calls completed; a Refresh re-fetch produced zero failures. The one console 400 comes from Vercel's preview toolbar (`_next-live/feedback`, `/.well-known/vercel/jwe`), expected when a bypass cookie is used instead of SSO. |
+| `GET ?select=client_price_cents` | 200 — the platform margin |
+| `PATCH {client_price_cents: 1}` | 200 — margin rewritten |
+| `PATCH {status:"accepted"}` | 200 — **self-awarded** |
+| `PATCH {presented_by:"<self>"}` | 200 — audit attribution forged |
+| `PATCH {admin_note:"…"}` | 200 — broker note overwritten |
 
-**Still outstanding for Senior (needs a report routed to them):** open an assigned
-review, return-with-comments, Inspector resubmit, Senior approve, and the
-negative path that a Senior cannot review a report they authored. The inbox is
-legitimately empty on Staging, so this requires the lifecycle scenario in
-section 8 to produce a report first.
+Self-award is the worst: `status='accepted'` is the trigger that spawns the
+source/FAT job, so Admin was not in practice the only award authority.
 
-## 3b. Supplier role sweep — session of 2026-08-15 23:10
+Fixed by `20260801530000` using the pattern `public.jobs` already uses — no
+table grant, column-level SELECT on the safe set, UPDATE on the bid alone, and
+`rfq_admin_quotes_view` (security_barrier, `nx_is_admin()`, owner-backed, same
+construction as `jobs_secure_view`) for the admin console.
 
-Preview `bsixz4k8a` (sha `fd5e76f`), account `qa.supplier@nexpec.test`.
+**A trigger guard would have been wrong** and the suite records why: `submit_quote`
+is called by the SUPPLIER and `award_quote` by the CLIENT, so
+`nx_actor_is_platform()` is false inside both. Only privileges separate a direct
+PostgREST request from a SECURITY DEFINER RPC.
 
-| Check | Result |
-|---|---|
-| Sign-in destination | **PASS** — `/suppliers/dashboard` |
-| Staging target | **PASS** — `sb-zmzvmgaeovleuvbvwxei-auth-token` |
-| Dashboard renders (clean tab) | **PASS** — 1364 chars, 399 DOM nodes, 4 opportunity links, full nav, footer reads `build-fd5e76f` |
-| Navigation routes discovered | 10: dashboard, opportunities, bids, profile, contracts, documents, finance, messages, support, settings |
-| Route HTTP + self-landing | **10/10 PASS** (200, no redirect away) |
-| Authorization boundaries | **6/6 PASS** — `/admin/dashboard`, `/admin/users`, `/admin/funding`, `/client/dashboard`, `/inspector/dashboard`, `/inspector/reviews` all redirect to `/`. **0 leaks.** |
-| Per-route rendered-content verification | **NOT DONE** — only dashboard verified by real navigation |
-| Forms / mutations (submit a bid, upload document, finance withdrawal) | **NOT DONE** |
+Mobile made it worse — `useSupplierEcosystem.ts` used `select('*')` on
+supplier_quotes in three places, shipping the spread and the internal admin note
+to the supplier's device. Now a strict projection.
 
-### Methodology warning for the next session — read this
+Suite `supplier_quote_broker_columns_test.sql` **18/18**; re-verified on Staging
+(11/11) after the push.
 
-Two false signals were produced and disproved during this sweep. Do not repeat them:
+### D10 — P2 · Inspector dispute tiles always read zero + a missing gate · `8f59bb3`
 
-1. **Loose error regex.** Matching `/500/` against page HTML flags Tailwind
-   classes (`gray-500`, `w-500`) and reported all 11 routes as failing. Match
-   real Next.js error surfaces only:
-   `Application error: a (client|server)-side exception`, `__next_error__`,
-   `This page could not be found`.
-2. **Self-inflicted blank pages.** Overriding `window.fetch` and injecting a
-   script into a tab broke React rendering in *that tab*: pages showed 32 chars
-   and 0 links while the server was returning 48KB of correct HTML with a valid
-   RSC payload. A clean tab rendered the same route perfectly. **Always confirm
-   a suspected render defect in a fresh tab before filing it.**
+`npm run typecheck` runs `--workspaces --if-present`, and the Expo app at the
+repo root is **not a workspace** — so nothing under `app/` was ever typechecked.
+Five real errors were sitting in the tree while the gate reported green:
 
-Neither was a product defect. No fix was needed or made.
+* `app/(inspector)/disputes.tsx` counted disputes in the *Client* screen's
+  vocabulary (investigating/resolved/rejected/closed). `job_disputes` admits only
+  `open|resolved_paid|resolved_refunded`, so the Resolved and Closed tiles were
+  permanently 0. (The Client screen is fine — it collapses `resolved_*` at the
+  mapping layer deliberately.)
+* `fundingReview.test.ts`'s `stage()` helper predated the delivery-policy fields.
 
-## 3c. Parallel QA wave dispatched — 2026-08-15 23:27
+Added `typecheck:app` / `typecheck:all` so the root app is gated from now on.
 
-Coordinator retains sole ownership of fixes, commits, deployment and this file.
-All five lanes are READ-ONLY on the repo and report findings only.
-
-| Lane | Scope | Isolation |
-|---|---|---|
-| 1 | Supplier, Agency, RFQ marketplace | own cookie jar `/tmp/lane1` |
-| 2 | Client, Enterprise, Talent | own cookie jar `/tmp/lane2` |
-| 3 | Inspector, Senior, Admin + canonical lifecycle | own cookie jar `/tmp/lane3` |
-| 4 | Documents/uploads/links + financial reconciliation | own cookie jar `/tmp/lane4` |
-| 5 | Mobile Android/iOS, security isolation, regression gates | no browser |
-
-**Why curl jars and not the shared browser:** the MCP browser is one pane per
-session. Five concurrent lanes would overwrite each other's role cookies and
-produce false cross-role results. Per-file cookie jars give true session
-isolation.
-
-Every lane was given the two disproved false-signal traps from section 3b so
-they are not rediscovered as defects.
-
-Synthetic records are namespaced `LANE1-` … `LANE4-` for cleanup.
-
-## 4. Observation (not yet a filed defect)
-
-`scripts/qa/seed-role-qa.mjs:48` contains a **hardcoded QA password committed
-to the repo**, used for all `qa.*@nexpec.test` accounts. Staging-only and
-synthetic, not the owner's credential — but it is a committed credential and
-should probably move to an env var. Not changed this session.
-
-## 5. Gates — last known results
-
-Green as of this session unless noted:
+## 4. Gate results this session
 
 | Gate | Result |
 |---|---|
-| pgTAP | 60/60 at `f43192f`; **not re-run since the D4/D5/D6 commits — must re-run** |
-| Migration chain | 196 recorded = 196 files at `f43192f`; **re-verify, new migrations landed since** |
-| Workspace typechecks | 0 errors (re-run this session at `fd5e76f`) |
-| Role-routing gate | 8/8 roles, all three sources (new this session) |
-| Deno 2.1.4 | 37/37 at `f43192f`; handoff reports 38/38 after D1 — **re-run with declared-entrypoint checker** |
-| Web build / Mobile bundles | green per handoff; **re-run required** |
+| Clean `supabase db reset` | **PASS** — 202 recorded = 202 files, exit 0 |
+| Migration chain vs files | **PASS** — Staging now 204 = 204 |
+| `npm run typecheck` (workspaces) | **PASS** — 0 errors |
+| `npm run typecheck:app` (root/Expo) | **PASS** — 0 errors (was 5, see D10) |
+| vitest | **PASS** — 13 files, 173/173 |
+| pgTAP D8 suite | **PASS** 13/13 |
+| pgTAP D9 suite | **PASS** 18/18 |
+| Full pgTAP (62 + 2 new) | **NOT RE-RUN since the new migrations** |
+| Deno 2.1.4 · Web build · Mobile bundles | **NOT RE-RUN** |
 
-## 6. Temporary resources — MUST be cleaned before completion
-
-* Temporary Staging `admin` account `qa.tempadmin@nexpec.test`
-  → revoke with `scripts/qa/revoke-temp-admin.mjs`.
-* Rotated Vercel Preview automation-bypass secret (1 key on project)
-  → revoke via Vercel project settings.
-* Local redirector process on 127.0.0.1:8791 → kill.
-* Temporary bundle/export dirs under both sessions' scratchpads.
-* Any synthetic scenario rows created during the lifecycle run.
-
-## 7. Role sweep — progress
+## 5. Role coverage
 
 | Role | Status |
 |---|---|
-| Inspector | 18/18 routes (prior session) |
-| Client | sign-in only, used for Staging proof |
-| **Senior Inspector** | **routing + isolation VERIFIED on Preview (7/7 checks). Review-flow actions blocked until a report is routed — see D7 table.** |
-| **Supplier** | **sign-in + dashboard render + 10/10 routes + 6/6 authz boundaries PASS. Per-route content and forms NOT done — see 3b.** |
-| Agency / Enterprise / Talent / RFQ Buyer / Temp Admin | **not started** |
+| Supplier | routing + 10/10 routes + 6/6 authz (prior). **This session: 24/24 opportunity→quote→revise→isolation, then 13/17→17/17 markup/award/contract after D9.** Remaining: documents/uploads, messages, finance withdrawal, support/profile/settings, agreement signing |
+| Senior Inspector | routing + isolation 7/7 (prior). Review flow blocked until a report exists |
+| Inspector | 18/18 routes (prior). Functional flow not started |
+| RFQ Buyer | raises RFQ, sees curated offer, awards — proved inside the supplier lanes |
+| Client / Agency / Enterprise / Talent / Temp Admin | **not started** |
 
-## 8. What is NOT yet done
+## 6. Temporary resources — MUST be removed before completion
 
-Everything below remains outstanding:
+| Resource | Status | Removal |
+|---|---|---|
+| `qa.tempadmin@nexpec.test` | active, needed | `node scripts/qa/revoke-temp-admin.mjs` |
+| **`qa.supplier2@nexpec.test`** (new — cross-supplier isolation peer) | active, needed | delete auth user + profile + supplier_profiles |
+| Vercel Preview bypass key | active, needed | Vercel → Settings → Deployment Protection → delete |
+| Redirector 127.0.0.1:8791 | running | `pkill -f redirector.mjs` |
+| Synthetic scenario rows | RFQ `b96b74b9…`, quote `5c48a0fc…`, deal `2f486351…`, agreement `fb98579a…` — prefix `RQ2026-SUP` | delete after the lifecycle work no longer needs them |
 
-* Senior functional flow: review inbox → open assigned review →
-  return-with-comments → Inspector resubmit → Senior approve; plus negative
-  paths (cannot review own report, no Client-delivery control, cannot enter
-  Client/Admin/Supplier surfaces).
-* Role sweep for Supplier, Agency, Enterprise, Talent, RFQ Buyer, Temp Admin,
-  Owner surfaces — every nav item, every route, forms and mutations, console
-  and network errors.
-* Full canonical 30-step lifecycle through the real Web UI with one
-  uniquely-prefixed synthetic scenario.
-* Mobile qualification: Android + iOS typecheck, Staging bundle, login and role
-  routing, offline queue/replay/duplicate protection, consent withdrawal never
-  queuing offline, disclosure and funding wording parity with Web.
-* Full final regression sweep (section 5 above, all re-run from clean state).
-* Cleanup of everything in section 6.
+## 7. Methodology warnings — do not rediscover these
+
+1. **Loose error regex.** `/500/` matches Tailwind classes (`gray-500`). Match
+   only `Application error: a (client\|server)-side exception`, `__next_error__`,
+   `This page could not be found`.
+2. **Self-inflicted blank pages.** Overriding `window.fetch` in a tab breaks
+   React rendering in that tab only. Confirm any suspected render defect in a
+   fresh tab first.
+3. **A zero-row write is not a denial.** Always read the row back with the
+   service role to prove it did not change.
+4. **A client cannot read `supplier_quotes` at all** — that is price-blindness
+   working. The real client learns the offer id from `rfq_client_offers_view`.
+   A test that reaches for the raw table will get NULL and a false failure.
+
+## 8. Open questions carried forward
+
+* `scripts/qa/seed-role-qa.mjs:48` still holds a committed QA password. Staging
+  -only and synthetic, but it should move to an env var. Not a release blocker.
 
 ## 9. Next action on resume — exact commands
 
-**Session state at checkpoint**
+```bash
+cd ~/Desktop/nexpec
+export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+git push origin release/identity-replacement          # 3 commits pending
+npx vercel deploy                                      # NOT --prod
+# then repoint the redirector:
+echo "<new preview url>" > <scratchpad>/qa/preview-base.txt && \
+  pkill -f redirector.mjs && node <scratchpad>/qa/redirector.mjs &
+```
 
-* Browser: tab `tab-1`, signed in as `qa.supplier@nexpec.test`, on
-  `/suppliers/dashboard`. Tab `seed` is CONTAMINATED (fetch override) — close
-  it or ignore it; never trust a render result from it.
-* Background: bypass redirector on **127.0.0.1:8791**, pid varies.
-  Restart with:
-  `node <my-scratchpad>/bypass-redirector.mjs &`
-  It rewrites the deployment host inline — update the `BASE` constant when the
-  Preview URL changes.
-* No other background processes.
+Then, in order:
 
-**Resume steps**
-
-1. Verify state:
-   `git rev-parse --short HEAD && git status --porcelain`
-2. Ensure redirector is up, then browse via `http://127.0.0.1:8791/<path>`.
-3. Finish Supplier: per-route content in a CLEAN tab, then forms — submit a
-   bid on an opportunity, upload to Document Vault, attempt a finance
-   withdrawal, send a brokered message. Verify cross-supplier isolation.
-4. Then Agency → Enterprise → Talent → RFQ Buyer → Temp Admin → Owner, using
-   the same pattern: sign in, harvest nav via
-   `[...document.querySelectorAll('a[href^="/"]')]`, probe own routes and a
-   forbidden set, then verify content per route in a clean tab.
-5. Then the canonical lifecycle (section 8).
-
-**Do NOT** re-run the full regression suite mid-sweep; it belongs at the end.
-
-## 10. Temporary resources — current status
-
-| Resource | Status | Revocation |
-|---|---|---|
-| `qa.tempadmin@nexpec.test` (Staging admin) | **STILL ACTIVE — required for the Temp Admin sweep** | `node scripts/qa/revoke-temp-admin.mjs` |
-| Vercel Preview bypass (1 key) | **STILL ACTIVE — required for browser QA** | Vercel dashboard → project → Settings → Deployment Protection → Protection Bypass for Automation → Delete. **Never paste the secret anywhere.** |
-| Redirector on 127.0.0.1:8791 | running | `pkill -f bypass-redirector.mjs` |
-| Scratchpad bundles/exports (both sessions) | present | delete scratchpad dirs |
-| Synthetic scenario rows | **none created this session** | n/a |
-
-No synthetic Jobs or duplicate QA data were created during this sprint.
+1. Finish Supplier — documents/uploads (MIME, size, invalid type, oversize,
+   preview, download), brokered messaging, finance/earnings, withdrawal request,
+   agreement signing, support/profile/settings.
+2. Agency, then Client, Enterprise, Talent.
+3. Inspector → Senior → Temp Admin, then the canonical 30-step lifecycle with a
+   single uniquely-prefixed synthetic scenario.
+4. Mobile Android + iOS against Staging.
+5. Full final regression (section 4 rows marked NOT RE-RUN), then cleanup of
+   everything in section 6.

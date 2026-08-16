@@ -134,6 +134,47 @@ was fetched to `~/.nexpec-deno214` and run against the same files: **37/37, zero
 failures.** The product is fine; the newer type-checker is stricter. Always
 check edge functions with 2.1.4, never with whatever `deno` is on PATH.
 
+### 0.56 Security / privacy / route guards at `c14bc03`
+
+**12 of 14 PASS, 0 FAIL, 2 unfinished (slow, not failing):**
+`check-role-routing`, `check-price-blindness`, `check-inspector-price-blindness`,
+`check-admin-money-mapping`, `check-outbox-routing`, `check-orphan-modules`,
+`check-db-refs`, `check-db-columns`, `check-sql-schema-refs`,
+`check-rls-admin-coverage`, `check-admin-route-reachability` — all PASS.
+`check-edge-functions` and `check-assignment-client-invisibility` were still
+running when the session ended; **neither had failed.** Re-run them first on
+resume, with `~/.nexpec-deno214` ahead of `deno` on PATH.
+
+### 0.57 Android — where the build actually got to
+
+`expo run:android --device nexpec_qa --no-bundler` progressed through: Gradle
+configure → **NDK 26.1.10909125 downloaded and installed (3.0 GB)** →
+`:app:processDebugResources`. It was still compiling when the session ended.
+**It had not failed.** The remaining long pole is C++ compilation for
+`react-native-fast-tflite`, `nitro` and `reanimated`.
+
+Resume with:
+
+```bash
+export ANDROID_HOME=$HOME/.nexpec-android/sdk
+export JAVA_HOME=$HOME/.nexpec-android/jdk/Contents/Home
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+emulator -avd nexpec_qa -no-snapshot-load -no-audio -gpu swiftshader_indirect &
+cd ~/Desktop/nexpec
+set -a; . /Users/ebrahimfeyzi/Desktop/nexpec/.env.staging.local; set +a
+EXPO_NO_DOTENV=1 npx expo run:android --device nexpec_qa --no-bundler
+```
+
+Then verify at runtime exactly as iOS was verified:
+
+```bash
+curl -s "http://localhost:8081/index.bundle?platform=android&dev=true&minify=false" -o /tmp/a.js
+grep -c zmzvmgaeovleuvbvwxei /tmp/a.js   # expect >= 1
+grep -c sxqpjxhslzzcdrdctatm /tmp/a.js   # expect 0
+adb shell am start -n com.nexpec.app/.MainActivity
+adb logcat -d | grep -iE "ReactNative|FATAL|Exception" | tail -40
+```
+
 ### 0.6 Corrections to run 3's report
 
 * **"The old bypass key from run 2 is still on the project"** — wrong. The

@@ -21,6 +21,14 @@ export interface Rfq {
   scope_template_id: string | null; requires_source_inspection: boolean; spawned_job_id: string | null; created_at: string;
 }
 export interface Quote { id: string; rfq_id: string; supplier_id: string; quote: any; status: string; created_at: string; }
+// STRICT PROJECTION for every supplier-side quote read, mirroring the Web
+// SUPPLIER_QUOTE_COLS. supplier_quotes also carries the broker-owned columns
+// client_price_cents, admin_note and presented_by. A supplier knows their own
+// cost, so the client price is NEXPEC's exact margin — `select('*')` used to
+// ship it to the device. Those columns are no longer granted to `authenticated`
+// (20260801530000), so `*` would now fail outright rather than leak. Read the
+// listed columns and nothing else.
+const QUOTE_COLS = 'id, rfq_id, supplier_id, quote, status, created_at';
 // Client-facing offer (rfq_client_offers_view) — marked-up price + NX- handle ONLY.
 // The raw supplier price / amount / supplier_id are NOT present (price-blindness).
 export interface ClientOffer {
@@ -95,7 +103,7 @@ export function useRfqDetail(id?: string) {
       const { data: o } = await supabase.from('rfq_client_offers_view').select('*').eq('rfq_id', id).order('created_at', { ascending: true });
       setOffers((o ?? []) as ClientOffer[]); setMyQuote(null);
     } else if (myId) {
-      const { data: mq } = await supabase.from('supplier_quotes').select('*').eq('rfq_id', id).eq('supplier_id', myId).maybeSingle();
+      const { data: mq } = await supabase.from('supplier_quotes').select(QUOTE_COLS).eq('rfq_id', id).eq('supplier_id', myId).maybeSingle();
       setMyQuote((mq ?? null) as Quote | null); setOffers([]);
     } else {
       setMyQuote(null); setOffers([]);
@@ -389,7 +397,7 @@ export function useMyQuotes() {
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id;
     if (!uid) { setItems([]); setLoading(false); return; }
-    const { data: quotes } = await supabase.from('supplier_quotes').select('*').eq('supplier_id', uid).order('created_at', { ascending: false });
+    const { data: quotes } = await supabase.from('supplier_quotes').select(QUOTE_COLS).eq('supplier_id', uid).order('created_at', { ascending: false });
     const qlist = (quotes ?? []) as Quote[];
     const ids = Array.from(new Set(qlist.map((q) => q.rfq_id)));
     let rfqMap: Record<string, any> = {};
@@ -559,7 +567,7 @@ export function useSupplierFinance() {
     const uid = u.user?.id;
     if (!uid) { setData(null); setLoading(false); return; }
     const [{ data: quotes }, { data: txns }] = await Promise.all([
-      supabase.from('supplier_quotes').select('*').eq('supplier_id', uid).order('created_at', { ascending: false }),
+      supabase.from('supplier_quotes').select(QUOTE_COLS).eq('supplier_id', uid).order('created_at', { ascending: false }),
       supabase.from('transactions').select('id,type,amount,description,status,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(50),
     ]);
     const qlist = (quotes ?? []) as Quote[];

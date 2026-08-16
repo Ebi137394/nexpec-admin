@@ -141,12 +141,21 @@ export async function fetchAdminRfqs(): Promise<AdminRfqRow[]> {
 
 export async function fetchAdminRfqQuotes(rfqId: string): Promise<{ rfq: Rfq | null; quotes: AdminQuote[] }> {
   const { data: r } = await sb().from('supplier_rfqs').select('*').eq('id', rfqId).maybeSingle();
-  // Wide select (post-markup-migration). If client_price_cents isn't present yet —
-  // migration not applied, or PostgREST schema cache stale — fall back to a narrow
-  // select so the admin can ALWAYS see the raw supplier quotes (never blank).
+  // client_price_cents is the platform spread and is NOT granted to
+  // `authenticated` on supplier_quotes (20260801530000) — a supplier knows
+  // their own cost, so reading it would hand them NEXPEC's margin. The admin
+  // console reads it through rfq_admin_quotes_view instead: owned by postgres,
+  // security_barrier, gated on nx_is_admin(), so it is simply empty for anyone
+  // else. Same construction as jobs_secure_view.
+  //
+  // The narrow fallback below is NOT an error-swallow: it runs only when the
+  // view is unavailable (migration not applied, or a stale PostgREST schema
+  // cache) and it reads the supplier-safe columns the admin can still see, so
+  // the admin sees the raw quotes with the markup shown as unknown rather than
+  // an empty page. A null client_price_cents is rendered as "not priced".
   type AdminRow = Omit<AdminQuote, 'supplier_name'>;
   let rows: AdminRow[] = [];
-  const wide = await sb().from('supplier_quotes')
+  const wide = await sb().from('rfq_admin_quotes_view')
     .select('id, rfq_id, supplier_id, quote, status, client_price_cents, created_at')
     .eq('rfq_id', rfqId).order('created_at', { ascending: true });
   if (!wide.error && wide.data) {

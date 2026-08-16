@@ -47,7 +47,17 @@ const PORTAL_ROLES: Record<string, ReadonlyArray<string>> = {
   // separation that matters is data ownership, already enforced by
   // client_id = auth.uid() and RLS on jobs.
   [CLIENT_PREFIX]: ['client', 'agency', 'enterprise', 'admin', 'super_admin'],
-  [INSPECTOR_PREFIX]: ['inspector', 'admin', 'super_admin'],
+  // 'senior' is a Senior Inspector — an inspector who ALSO reviews, not a
+  // separate portal. Omitting it here bounced them out of every /inspector
+  // route including /inspector/reviews, the inbox built specifically for them,
+  // so the role had no reachable surface on Web at all.
+  //
+  // inspector/layout.tsx already allowed 'senior' and carries a comment saying
+  // the mobile sibling had been fixed "and this one was missed". It had not
+  // been missed there — it was missed HERE. Middleware runs first, so the
+  // layout's allowance could never be reached and the note read as if the bug
+  // were already closed.
+  [INSPECTOR_PREFIX]: ['inspector', 'senior', 'admin', 'super_admin'],
   [SUPPLIERS_PREFIX]: ['supplier', 'admin', 'super_admin'],
 };
 
@@ -265,7 +275,10 @@ export async function middleware(request: NextRequest) {
       // falls back to marketing root.
       if (normalisedRole === 'super_admin' || normalisedRole === 'admin') {
         dest = '/admin/dashboard';
-      } else if (normalisedRole === 'inspector') {
+      } else if (normalisedRole === 'inspector' || normalisedRole === 'senior') {
+        // 'senior' fell through every branch here and landed on `dest = '/'`,
+        // the marketing root. A Senior Inspector signing in was shown the
+        // public homepage — the one role in the product with no destination.
         dest = '/inspector/dashboard';
       } else if (
         normalisedRole === 'client' ||

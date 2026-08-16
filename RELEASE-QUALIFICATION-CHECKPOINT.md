@@ -112,6 +112,29 @@ Two false signals were produced and disproved during this sweep. Do not repeat t
 
 Neither was a product defect. No fix was needed or made.
 
+## 3c. Parallel QA wave dispatched — 2026-08-15 23:27
+
+Coordinator retains sole ownership of fixes, commits, deployment and this file.
+All five lanes are READ-ONLY on the repo and report findings only.
+
+| Lane | Scope | Isolation |
+|---|---|---|
+| 1 | Supplier, Agency, RFQ marketplace | own cookie jar `/tmp/lane1` |
+| 2 | Client, Enterprise, Talent | own cookie jar `/tmp/lane2` |
+| 3 | Inspector, Senior, Admin + canonical lifecycle | own cookie jar `/tmp/lane3` |
+| 4 | Documents/uploads/links + financial reconciliation | own cookie jar `/tmp/lane4` |
+| 5 | Mobile Android/iOS, security isolation, regression gates | no browser |
+
+**Why curl jars and not the shared browser:** the MCP browser is one pane per
+session. Five concurrent lanes would overwrite each other's role cookies and
+produce false cross-role results. Per-file cookie jars give true session
+isolation.
+
+Every lane was given the two disproved false-signal traps from section 3b so
+they are not rediscovered as defects.
+
+Synthetic records are namespaced `LANE1-` … `LANE4-` for cleanup.
+
 ## 4. Observation (not yet a filed defect)
 
 `scripts/qa/seed-role-qa.mjs:48` contains a **hardcoded QA password committed

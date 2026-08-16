@@ -120,6 +120,141 @@ identity remains, then proves the temp credentials no longer authenticate.
 `inspector` and `qa.rfqbuyer@` carries role `client` — to be confirmed as
 intended sub-roles rather than seeding defects.
 
+### 00.9 D8 IS FIXED — a real APK exists, installs, and RUNS on the emulator
+
+Committed as **`9aac6b9`** (local; see 00.14 — the push was blocked).
+
+| Step | Evidence |
+|---|---|
+| Gradle | **BUILD SUCCESSFUL in 2m 59s**, `GRADLE_EXIT=0` |
+| APK | `android/app/build/outputs/apk/debug/app-debug.apk` — **131 MB / 137,638,284 bytes** |
+| The task that used to fail | `:react-native-nitro-modules:compileDebugKotlin` now **compiles**, through to `bundleDebugAar` |
+| Install | `adb install -r` → **Success**; `pm list packages` shows `com.nexpec.app` |
+| Emulator | `nexpec_qa`, API 35, **`ro.product.cpu.abi = arm64-v8a`** |
+| Launch | `am start -n com.nexpec.app/.MainActivity` → **pid 3535, still alive**, no `FATAL EXCEPTION`, no `dlopen failed` |
+| New Architecture at RUNTIME | `ReactNativeJS: Bridgeless mode is enabled` and `Running "main" with {…,"fabric":true}` |
+
+**The native libraries that prove the fix are real** — these ship inside the APK
+and are exactly what a broken-nitro / Old-Architecture build can never produce:
+
+* **`libNitroModules.so` — 1,201,936 B** ← the library that would not compile
+* **`libNitroTflite.so` — 483,704 B** ← fast-tflite's nitrogen module
+* **`libtensorflowlite_jni.so` — 4,320,472 B**
+* **`libtensorflowlite_gpu_jni.so` — 2,501,208 B**
+* `librnskia.so` 16.2 MB, `libreanimated.so`, `libworklets.so`, `libhermes.so`
+
+**Android bundle, Staging-only:** 34,031,275 bytes, **5,062 modules**,
+`zmzvmgaeovleuvbvwxei` **×1**, `sxqpjxhslzzcdrdctatm` **×0**,
+`Unable to resolve module` ×0.
+
+> Two build lessons worth keeping. (1) The first attempt died at **[143/145] C++
+> linking on ENOSPC** — the disk was 100% full — *after* it had already proven
+> the Kotlin fix by getting that far. Read a build failure's *position* before
+> its exit code. (2) It was compiling **four ABIs**. The emulator is arm64-v8a.
+> `-PreactNativeArchitectures=arm64-v8a` cut a 69-minute build to **2m59s**.
+> Keep that flag for QA builds only — release builds still need every ABI.
+
+### 00.10 DEFECT D13 — `/talent/[handle]` and `/agency/[handle]` return HTTP 500 (P1)
+
+**Reproducible on every handle, real or not**, on the deployed Preview:
+
+```
+GET /talent/qa-talent        -> 500  FUNCTION_INVOCATION_FAILED  (96-byte body)
+GET /talent/NX-DOESNOTEXIST  -> 500
+GET /agency/qa-agency        -> 500
+GET /discover                -> 200   ← and /discover LINKS TO these pages
+```
+
+Runtime log: `digest: 'DYNAMIC_SERVER_USAGE'`, `page: '/talent/…'`.
+
+**Mechanism.** `apps/web/src/i18n/request.ts` calls `await cookies()`. The root
+layout calls next-intl's `getLocale()`/`getMessages()`, so that runs for every
+page. `public_supply_feed` is **empty on Staging** (0 inspector, 0 agency_pool),
+so `generateStaticParams()` returns `[]` → nothing is prerendered → every
+request renders **on demand while the route still declares
+`export const revalidate = 60`**, i.e. in static-generation mode, where a
+dynamic API throws. `/discover` and the feeds never hit this because they were
+prerendered at build time.
+
+**Fix applied (verification in flight):** make the cookie read optional in
+`i18n/request.ts` — during static generation there is no request cookie, so the
+right answer is the default locale, not a crash.
+
+**Still to confirm on resume:** `/inspections/[slug]` has the *same* shape
+(revalidate + generateStaticParams) yet correctly returns **404**. That
+difference is not yet explained and the fix is not proven until it is — do not
+close D13 without re-probing all three routes on a fresh Preview.
+
+### 00.11 Findings from the Android runtime (new, from real device logs)
+
+1. **Five files inside `app/` are not routes but Expo Router treats them as
+   such**, warning on every boot: `(admin)/financial/_shared.tsx`,
+   `(super-admin)/financial/_shared.tsx`, `(inspector)/reviews/reviewClient.ts`,
+   `(inspector)/reviews/roundState.ts`,
+   `(inspector)/legal/verification-screen.tsx`. All five have **0 default
+   exports**. Four are genuine co-located helpers (imported by 5, 5, 2 and 2
+   siblings). **`verification-screen.tsx` (445 lines) has zero importers — dead
+   code.** A leading `_` does *not* exclude a file from Expo Router; the fix is
+   to move non-route modules out of `app/`. P3, but they are reachable routes.
+2. `[RootLayout] EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY not set, using hard-coded
+   test fallback. Production builds MUST override.` — a hard-coded Stripe test
+   key fallback exists in the app. P2 config risk; the warning is correct but
+   the fallback should fail closed for production builds.
+3. `--- RUNNING ON SIMULATOR --- / Generating Mock Token for database testing…`
+   (`src/core/notifications/hooks/usePushNotifications.ts:128`) — alarming
+   wording, but it is an **Expo push token**, not an auth token, and it is gated
+   on `!Device.isDevice`, so it cannot fire on real hardware. Verified
+   **`push_tokens` is empty on Staging** — nothing was persisted. P3 (rename).
+
+### 00.12 Security regressions re-proved at HEAD — 8/8, non-vacuous
+
+`<scratchpad>/security-regressions.mjs`. Every negative is paired with a
+positive control so "refused" cannot secretly mean "wrong path":
+
+* admin **cannot** self-promote to `super_admin` (D12 holds) — control: the same
+  admin reads its own profile fine, and the role is **re-read with the service
+  role** afterwards, because a zero-row write is not a denial.
+* plain `admin` **refused** by `admin_mark_payout_processed` with the guard's own
+  message — and the call is asserted to have **resolved** (not `PGRST202`).
+* `super_admin` **passes the role gate** and fails on the job instead.
+* inspector sees **no** client-price/spread **values**; client sees **no**
+  payout/spread **values**.
+* a client **cannot** forge an `inspector_skills` row for an inspector.
+* anonymous **cannot** list profiles.
+
+> Trap hit and fixed mid-run: the first draft called the RPC with `p_reference`.
+> The real signature is `(p_job_id, p_stripe_reference, p_notes)`. Wrong argument
+> names give **PGRST202**, which reads exactly like a denial — and it made the
+> super_admin control **vacuously pass**. The assertions now require
+> `code !== 'PGRST202'`. `inspector_skills` likewise has no `skill`/`level`
+> column; it is `category`/`brand_name`/`model`/`years_experience`.
+
+### 00.13 Secret scan — clean
+
+* `AuthKey_CNYPT4NG28.p8` (Apple) sits in the repo root but is **untracked and
+  gitignored** (`.gitignore:64 *.p8`). No leak.
+* Remaining regex hits are a placeholder (`re_xxxx…` in a deploy example), PEM
+  header string-manipulation in `generate-vca`, and the **well-known public
+  Supabase local-dev demo anon key** inside a curl comment. No real key material
+  in tracked files.
+* Fixed: `scripts/qa/seed-role-qa.mjs` no longer hard-codes the QA password; it
+  requires `QA_SEED_PASSWORD` and exits if unset.
+
+### 00.14 Environment problems that are NOT product defects
+
+* **The disk hit 100%** (`ENOSPC`) and killed both the first Android build and
+  the first web production build. Freed ~16 GB (Xcode DerivedData, `.next`,
+  `.cxx`, npm cache). **Re-check free space before any build on this machine.**
+* `git push origin release/identity-replacement` was **blocked by the sandbox
+  permission classifier**. Commit `9aac6b9` exists locally and is **not pushed**.
+  The owner needs to either allow the push or run it manually.
+* The emulator showed a **"System UI isn't responding"** ANR under
+  `swiftshader_indirect` while Gradle saturated the CPU. That is the emulator's
+  SystemUI, not `com.nexpec.app` — the app's pid stayed alive throughout.
+* The Claude iOS-Simulator and Android-emulator MCPs are both disabled by
+  rollout flag in this build, so `xcrun simctl` / `adb` were driven directly.
+  Stated openly rather than switched silently.
+
 ### 00.8 Open items carried into the rest of this run
 
 * Roles not yet walked: Senior, Agency, Enterprise, Talent, Supplier, RFQ Buyer,

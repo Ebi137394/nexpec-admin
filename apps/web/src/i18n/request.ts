@@ -12,8 +12,24 @@ import type { AbstractIntlMessages } from 'next-intl';
 import { DEFAULT_LOCALE, LOCALE_COOKIE, isValidLocale } from './config';
 
 export default getRequestConfig(async () => {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(LOCALE_COOKIE)?.value;
+  // `cookies()` is a DYNAMIC api. The root layout calls getLocale()/getMessages(),
+  // so this runs for every page — including the ones that opt into static
+  // generation with `export const revalidate`. In that context next/headers
+  // throws DynamicServerError, which surfaced as a hard 500
+  // (FUNCTION_INVOCATION_FAILED, digest DYNAMIC_SERVER_USAGE) on
+  // /talent/[handle] and /agency/[handle]: their generateStaticParams returns
+  // [] whenever the public supply feed is empty, so nothing is prerendered and
+  // every request rendered on demand in static-generation mode.
+  //
+  // There is no request cookie during static generation, so the correct answer
+  // there is simply the default locale — not a crash.
+  let raw: string | undefined;
+  try {
+    const cookieStore = await cookies();
+    raw = cookieStore.get(LOCALE_COOKIE)?.value;
+  } catch {
+    raw = undefined;
+  }
   const locale = isValidLocale(raw) ? raw : DEFAULT_LOCALE;
 
   let messages: AbstractIntlMessages;

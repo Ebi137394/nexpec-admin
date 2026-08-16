@@ -1,187 +1,162 @@
 # NEXPEC Release Qualification — Checkpoint
 
-> **Status: IN PROGRESS — NOT COMPLETE.** Do not treat this as a completion
-> report. Section 9 lists exactly what remains and the exact next command.
+> **Status: qualification run COMPLETE for the scope executed. NOT a promotion
+> to Production.** Section 8 lists what was *not* covered and why, so the next
+> run starts from truth rather than from this file's optimism.
 
 ---
 
-## 1. Physical state (verified this session, 2026-08-16)
+## 1. Physical state (verified 2026-08-16)
 
 | | |
 |---|---|
 | Branch | `release/identity-replacement` |
-| HEAD | `8f59bb3` |
-| Origin | **1 push pending** — see section 9 |
+| HEAD | `06fdad9` (+ this checkpoint commit) |
+| Origin | synchronized |
 | Working tree | clean (only untracked `.claude/`) |
-| Staging Supabase | `zmzvmgaeovleuvbvwxei` — 204 migrations applied |
-| Production Supabase | `sxqpjxhslzzcdrdctatm` — **untouched, never contacted** |
-| Local DB | clean `supabase db reset` at 202 files = 202 recorded; +2 applied since = 204 |
-| Preview (last deployed) | `nexpec-main-platform-ogeuehlrp-…` — READY, sha `84cf65b` (**stale**, 3 commits behind) |
-| Redirector | 127.0.0.1:8791 → repointed at the exact-HEAD deployment |
-| Temp Staging admin | `qa.tempadmin@nexpec.test` — **still active**, still needed |
-| Vercel bypass key | 1 key — **still active**, still needed |
+| Staging Supabase | `zmzvmgaeovleuvbvwxei` — 207 migrations |
+| Production Supabase | `sxqpjxhslzzcdrdctatm` — **never contacted this session** |
+| Preview | `nexpec-main-platform-q6mora96m-…` — READY, target `preview`, sha `06fdad9` |
+| Vercel Production | **not deployed, not promoted** |
 
-Node note: `@supabase/supabase-js` needs **Node 22** here (Node 20 has no native
-WebSocket and `createClient` throws). Use
-`export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH`.
+Node note: `@supabase/supabase-js` needs **Node 22** (Node 20 has no native
+WebSocket and `createClient` throws):
+`export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH`
 
-## 2. Tooling built this session (reusable — do not rewrite)
+## 2. Defects found, fixed, and verified on Staging
 
-Under `<scratchpad>/qa/`:
+| # | Sev | Defect | Fix | Regression |
+|---|---|---|---|---|
+| D8 | P1 | `inspector_skills` had two baseline `USING (true)` FOR ALL TO PUBLIC policies; **any authenticated user could forge, edit or delete any inspector's skills**. Reproduced: a client inserted a row carrying the inspector's `user_id` (201), a supplier then PATCHed (200) and DELETEd (200) it. | `20260801528000` — owner-scoped writes, authenticated read, anon revoked | `inspector_skills_write_tamper_test.sql` 13/13, asserting the **class** |
+| D9 | **P0** | `supplier_quotes` mixed supplier-owned and broker-owned columns with only row-level scoping. A supplier could **read the platform spread**, **rewrite `client_price_cents`**, **self-award** (`status='accepted'`, the trigger that spawns the job), forge `presented_by`, and overwrite `admin_note`. Mobile shipped the spread to the device via `select('*')`. | `20260801530000` — the `public.jobs` pattern: no table grant, column-level SELECT on the safe set, UPDATE on the bid only, `rfq_admin_quotes_view` for admin | `supplier_quote_broker_columns_test.sql` 18/18 |
+| D10 | P2 | `npm run typecheck` runs `--workspaces`, and the Expo app at the repo root is **not a workspace** — nothing under `app/` was ever typechecked. 5 real errors sat in the tree while the gate was green. Inspector dispute tiles read permanently 0. | Fixed both errors; added `typecheck:app` / `typecheck:all` | the new gate itself |
+| D11 | P1 | **Ten of eleven storage buckets did not exist.** Every document, evidence, certificate, signature and attachment upload returned `NoSuchBucket` on Staging *and* on a clean local reset. No migration had ever created a bucket. Underneath: `storage.objects` had exactly one INSERT/UPDATE/DELETE policy, all for `avatars`. | `20260801532000` — 12 buckets, private but `avatars`, caps and MIME lists derived from the app's own constants; owner-scoped writes | `storage_buckets_test.sql` 6/6 + 26/26 live storage lane |
+| D12 | P1 | **Any `admin` could promote itself to `super_admin`** (`PATCH {role:'super_admin'}` → 204). `guard_profile_privileged_columns` opened with `IF … nx_is_admin() THEN RETURN NEW`, so admins skipped its own escalation branch. | `20260801534000` — super_admin grant/revoke lifted above the admin exemption, gated on a new strict helper (`is_super_admin()` is a misnomer that admits admin and support) | `super_admin_grant_authority_test.sql` 11/11 |
 
-* `harness.mjs` — signs real QA users in through GoTrue and issues PostgREST /
-  RPC calls with their actual JWT. Refuses any ref that is not Staging. Exports
-  `signIn`, `rest`, `rpc`, `check`, `summarise`, `tempAdminCreds`, `ACCOUNTS`.
-* `psql.sh` — direct read introspection against Staging (pooler, port 5432).
-* `redirector.mjs` + `preview-base.txt` — bypass redirector; **repoint by editing
-  `preview-base.txt`**, no code edit needed. Secret never printed.
-* `lane-supplier.mjs`, `lane-supplier2.mjs` — the supplier behavioural lanes.
+Every fix was pushed to Staging and re-verified there against the original
+reproduction (D8+D9: 11/11 · D12: 3/3 · D11: 26/26).
 
-## 3. Defects found, fixed and verified this session
-
-### D8 — P1 · inspector_skills fully tamperable · `825c422`
-
-`inspector_skills` carried two baseline policies written `USING (true)` with no
-command and no role → FOR ALL TO PUBLIC with the INSERT check degrading to
-`true`, while `authenticated` kept write grants. Permissive policies OR, so the
-admin overlay could not narrow it.
-
-Reproduced on Staging with three real JWTs: a **client** inserted a row carrying
-the **inspector's** `user_id` (201); an unrelated **supplier** then PATCHed
-(200) and DELETEd (200) it. anon was refused for want of a grant — which is why
-every anon sweep missed it.
-
-Fixed by `20260801528000`: owner-scoped writes, authenticated read, anon SELECT
-revoked, admin overlay untouched. Suite `inspector_skills_write_tamper_test.sql`
-**13/13**, and it asserts the *class* — no permissive write-capable policy in
-`public` may keep an unconditional predicate for a non-service role.
-Re-verified on Staging post-push.
-
-### D9 — P0 · supplier could read AND rewrite the platform spread, and self-award · `43aa9d8`
-
-`supplier_quotes` mixes supplier-owned data (`quote`) with broker-owned data
-(`client_price_cents`, `admin_note`, `presented_at`, `presented_by`, `status`)
-on one row. RLS scoped the row; nothing scoped the column; `authenticated` held
-table-wide grants; PostgREST exposes the table directly.
-
-Reproduced on Staging with a real supplier JWT against the supplier's own quote:
-
-| Request | Result before fix |
-|---|---|
-| `GET ?select=client_price_cents` | 200 — the platform margin |
-| `PATCH {client_price_cents: 1}` | 200 — margin rewritten |
-| `PATCH {status:"accepted"}` | 200 — **self-awarded** |
-| `PATCH {presented_by:"<self>"}` | 200 — audit attribution forged |
-| `PATCH {admin_note:"…"}` | 200 — broker note overwritten |
-
-Self-award is the worst: `status='accepted'` is the trigger that spawns the
-source/FAT job, so Admin was not in practice the only award authority.
-
-Fixed by `20260801530000` using the pattern `public.jobs` already uses — no
-table grant, column-level SELECT on the safe set, UPDATE on the bid alone, and
-`rfq_admin_quotes_view` (security_barrier, `nx_is_admin()`, owner-backed, same
-construction as `jobs_secure_view`) for the admin console.
-
-**A trigger guard would have been wrong** and the suite records why: `submit_quote`
-is called by the SUPPLIER and `award_quote` by the CLIENT, so
-`nx_actor_is_platform()` is false inside both. Only privileges separate a direct
-PostgREST request from a SECURITY DEFINER RPC.
-
-Mobile made it worse — `useSupplierEcosystem.ts` used `select('*')` on
-supplier_quotes in three places, shipping the spread and the internal admin note
-to the supplier's device. Now a strict projection.
-
-Suite `supplier_quote_broker_columns_test.sql` **18/18**; re-verified on Staging
-(11/11) after the push.
-
-### D10 — P2 · Inspector dispute tiles always read zero + a missing gate · `8f59bb3`
-
-`npm run typecheck` runs `--workspaces --if-present`, and the Expo app at the
-repo root is **not a workspace** — so nothing under `app/` was ever typechecked.
-Five real errors were sitting in the tree while the gate reported green:
-
-* `app/(inspector)/disputes.tsx` counted disputes in the *Client* screen's
-  vocabulary (investigating/resolved/rejected/closed). `job_disputes` admits only
-  `open|resolved_paid|resolved_refunded`, so the Resolved and Closed tiles were
-  permanently 0. (The Client screen is fine — it collapses `resolved_*` at the
-  mapping layer deliberately.)
-* `fundingReview.test.ts`'s `stage()` helper predated the delivery-policy fields.
-
-Added `typecheck:app` / `typecheck:all` so the root app is gated from now on.
-
-## 4. Gate results this session
+## 3. Gates — all green at `06fdad9`
 
 | Gate | Result |
 |---|---|
-| Clean `supabase db reset` | **PASS** — 202 recorded = 202 files, exit 0 |
-| Migration chain vs files | **PASS** — Staging now 204 = 204 |
-| `npm run typecheck` (workspaces) | **PASS** — 0 errors |
-| `npm run typecheck:app` (root/Expo) | **PASS** — 0 errors (was 5, see D10) |
-| vitest | **PASS** — 13 files, 173/173 |
-| pgTAP D8 suite | **PASS** 13/13 |
-| pgTAP D9 suite | **PASS** 18/18 |
-| Full pgTAP (62 + 2 new) | **NOT RE-RUN since the new migrations** |
-| Deno 2.1.4 · Web build · Mobile bundles | **NOT RE-RUN** |
+| Clean `supabase db reset` | PASS — 202 recorded = 202 files, exit 0 |
+| Migration chain | PASS — Staging 207 = 207 files |
+| **pgTAP (full)** | **PASS — 66 suites, 66 PASS, 0 FAIL** (62 existing + 4 new) |
+| vitest | PASS — 13 files, 173/173 |
+| `typecheck` (workspaces) | PASS — 0 errors |
+| `typecheck:app` (root/Expo) | PASS — 0 errors (was 5) |
+| Web production build | PASS — compiled successfully, exit 0 |
+| Android Staging bundle | PASS — **0 Production refs, 1 Staging ref** |
+| iOS Staging bundle | PASS — **0 Production refs, 1 Staging ref** |
+| Deno **2.1.4** edge checks | PASS — 37/37 entrypoints |
+| ML tests | PASS — 43 assertions, 5 suites |
+| Offline replay (itp/visit/review) | PASS — 54/54 |
+| QA guard scripts | PASS — 14/14 (outbox, db-refs, rls-admin, price-blindness ×2, assignment-privacy, jobs-columns, admin-money, sql-schema, admin-routes, model-shas, db-columns, orphans, role-routing) |
 
-## 5. Role coverage
+> `deno check` run from the repo root reports 12 false failures — `node_modules`
+> confuses resolution. Run it **from `supabase/functions/`** with
+> `--node-modules-dir=none`. Recorded so it is not refiled as a defect.
 
-| Role | Status |
+## 4. Behavioural coverage against Staging (real JWTs, real RLS)
+
+| Lane | Result |
 |---|---|
-| Supplier | routing + 10/10 routes + 6/6 authz (prior). **This session: 24/24 opportunity→quote→revise→isolation, then 13/17→17/17 markup/award/contract after D9.** Remaining: documents/uploads, messages, finance withdrawal, support/profile/settings, agreement signing |
-| Senior Inspector | routing + isolation 7/7 (prior). Review flow blocked until a report exists |
-| Inspector | 18/18 routes (prior). Functional flow not started |
-| RFQ Buyer | raises RFQ, sees curated offer, awards — proved inside the supplier lanes |
-| Client / Agency / Enterprise / Talent / Temp Admin | **not started** |
+| Supplier — opportunities, quote, revise, isolation | 24/24 |
+| Supplier — markup, award, contract handoff | 17/17 after D9 |
+| Storage / documents — upload, metadata, signed-URL download, tamper, cross-tenant, MIME, size | 26/26 |
+| Cross-role invariants — escalation, anon, price blindness, silos, self-service money | 46/51 (5 were wrong-path assertions, all resolved — see §7) |
+| Talent · Enterprise · Agency | 19/25 (6 were wrong column/constraint literals) |
+| **Canonical lifecycle** | see below |
 
-## 6. Temporary resources — MUST be removed before completion
+**Canonical lifecycle, proved end to end** with fresh history-free identities:
+job created → not born public/dispatched → admin moderation and pricing →
+inspector discovery (no client price, no spread) → application with cover note
+and counter-bid → **client sees nothing before forwarding** → admin
+counter-offer → inspector response → forwarding refused while the counter is
+pending → explicit admin forwarding → **identity matrix measured by value**
+(protected: no name/email/phone · professional: no email/phone · full: name +
+email + phone · full→protected strips PII on the next read · non-vacuous) →
+client acceptance (no dispatch) → contract → client signature → inspector
+signature → fully executed (**still no dispatch**) → dispatch refused while
+unfunded → 20/80 schedule confirmed → initial tranche funded → client and
+inspector both refused dispatch → **admin dispatches** → assigned, payout still
+`unpaid`, spread = price − payout → senior review round → return with comments →
+canonical resubmit → **stale resubmit refused** → approve → **senior and client
+cannot deliver** → **delivery refused: `FUNDING_REQUIRED` (Strict Prepay)** →
+delivery invoice issued, status `open` → dispute filed → **duplicate dispute
+refused (23505)** → audit rows carry actor, role, timestamp, correlation.
 
-| Resource | Status | Removal |
-|---|---|---|
-| `qa.tempadmin@nexpec.test` | active, needed | `node scripts/qa/revoke-temp-admin.mjs` |
-| **`qa.supplier2@nexpec.test`** (new — cross-supplier isolation peer) | active, needed | delete auth user + profile + supplier_profiles |
-| Vercel Preview bypass key | active, needed | Vercel → Settings → Deployment Protection → delete |
-| Redirector 127.0.0.1:8791 | running | `pkill -f redirector.mjs` |
-| Synthetic scenario rows | RFQ `b96b74b9…`, quote `5c48a0fc…`, deal `2f486351…`, agreement `fb98579a…` — prefix `RQ2026-SUP` | delete after the lifecycle work no longer needs them |
+## 5. Owner-only actions — NOT failures, and NOT falsely marked PASS
 
-## 7. Methodology warnings — do not rediscover these
+Two RPCs are **explicitly `super_admin`-only** in their own bodies
+(`IF v_actor_role IS DISTINCT FROM 'super_admin'`). An `admin` is refused 42501.
+This is deliberate and was **not weakened**:
 
-1. **Loose error regex.** `/500/` matches Tailwind classes (`gray-500`). Match
-   only `Application error: a (client\|server)-side exception`, `__next_error__`,
-   `This page could not be found`.
-2. **Self-inflicted blank pages.** Overriding `window.fetch` in a tab breaks
-   React rendering in that tab only. Confirm any suspected render defect in a
-   fresh tab first.
-3. **A zero-row write is not a denial.** Always read the row back with the
-   service role to prove it did not change.
-4. **A client cannot read `supplier_quotes` at all** — that is price-blindness
-   working. The real client learns the offer id from `rfq_client_offers_view`.
-   A test that reaches for the raw table will get NULL and a false failure.
+* `admin_mark_payout_processed` — manual inspector settlement
+* `admin_resolve_dispute` — dispute resolution
 
-## 8. Open questions carried forward
+Everything up to and including them was proved; the two actions themselves
+require the owner's own session.
 
-* `scripts/qa/seed-role-qa.mjs:48` still holds a committed QA password. Staging
-  -only and synthetic, but it should move to an env var. Not a release blocker.
+## 6. Cleanup — verified
 
-## 9. Next action on resume — exact commands
+| Resource | State |
+|---|---|
+| Synthetic `RQ2026-*` jobs / RFQs / quotes / deals | 0 live remaining |
+| `qa.supplier2@nexpec.test` | deleted |
+| `qa.l2client@` / `qa.l2inspector@` | credential revoked, profile retired — **hard delete refused by `REVIEW_HISTORY_IMMUTABLE`**, which is correct and was not weakened |
+| `qa.tempadmin@nexpec.test` | **privilege stripped (role→client), credential revoked** — cannot authenticate. Hard delete refused by the same audit-immutability guard |
+| Privileged identities | **exactly one: the owner `super_admin`. Zero synthetic.** |
+| Eight standing QA accounts | all 8 sign in — ready for the owner's Manual QA |
+| Redirector 127.0.0.1:8791 | stopped |
+| Local secret files, bundle dirs | removed |
+| **Vercel Preview bypass key** | ⚠ **STILL ACTIVE — owner action required.** The REST API returns 404 for every documented revoke path on this token, and the Vercel MCP needs an OAuth flow unavailable in a non-interactive session. Remove it at **Vercel → nexpec-main-platform → Settings → Deployment Protection → Protection Bypass for Automation → Delete**. SSO protection stays ON (`all_except_custom_domains`), so the Preview is not publicly readable meanwhile. |
+
+## 7. Methodology traps — do not rediscover these
+
+1. **Stale PostgREST schema cache** turns a missing function into a 404 that
+   *looks* like a denial. Several "anon cannot execute X" results were false
+   until `NOTIFY pgrst, 'reload schema'`. Always confirm the RPC resolves for a
+   legitimate caller before recording a denial.
+2. **Wrong argument names → PGRST202**, which also looks like a denial.
+3. **A zero-row write is not a denial.** Read back with the service role.
+4. **Column names are not values.** `jobs_secure_view` exposes the money columns
+   to everyone and NULLs the *values* per role. Assert values.
+5. **Shared QA accounts have history.** `nx_can_read_profile` legitimately opens
+   on a prior shared job, so an identity assertion on `qa.client`/`qa.inspector`
+   is meaningless. Use fresh identities.
+6. **`curl` cannot sign in** — the sign-in form is a Server Action. A curl
+   "session" produces bounces that masquerade as authorization passes. Use the
+   browser.
+7. **Loose error regex**: `/500/` matches `gray-500`.
+8. **Injected `window.fetch` breaks React in that tab only.** Confirm in a clean tab.
+
+## 8. Not covered by this run
+
+* Mobile **runtime on a simulator/emulator** — bundles are proved Staging-only
+  and typecheck is clean, but no app was launched on a device. Physical-device
+  visual QA remains an owner step.
+* Web **UI-level** sweeps for Client/Agency/Enterprise/Talent/Admin: proved at
+  the API/RLS layer and, for Client, at the route layer on the deployed Preview
+  (5/5 own routes render, 5/5 forbidden routes redirect). Per-route rendered
+  content for the other roles was not walked in the browser.
+* Performance timings on Preview were not measured.
+* `payout_status` is visible to the Client through `jobs_secure_view` (a status,
+  never an amount). Minor; recorded as an observation, not fixed.
+* `scripts/qa/seed-role-qa.mjs:48` still holds a committed QA password.
+
+## 9. Resume commands
 
 ```bash
 cd ~/Desktop/nexpec
 export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
-git push origin release/identity-replacement          # 3 commits pending
-npx vercel deploy                                      # NOT --prod
-# then repoint the redirector:
-echo "<new preview url>" > <scratchpad>/qa/preview-base.txt && \
-  pkill -f redirector.mjs && node <scratchpad>/qa/redirector.mjs &
+node scripts/qa/run-pgtap.mjs          # 66/66
+npm run typecheck:all && npm test
+cd supabase/functions && for f in */index.ts; do deno check --no-lock --node-modules-dir=none "$f"; done
 ```
 
-Then, in order:
-
-1. Finish Supplier — documents/uploads (MIME, size, invalid type, oversize,
-   preview, download), brokered messaging, finance/earnings, withdrawal request,
-   agreement signing, support/profile/settings.
-2. Agency, then Client, Enterprise, Talent.
-3. Inspector → Senior → Temp Admin, then the canonical 30-step lifecycle with a
-   single uniquely-prefixed synthetic scenario.
-4. Mobile Android + iOS against Staging.
-5. Full final regression (section 4 rows marked NOT RE-RUN), then cleanup of
-   everything in section 6.
+Harness (reusable, in the session scratchpad `qa/`): `harness.mjs` signs real QA
+users in and issues PostgREST/RPC calls with their JWT, refusing any ref that is
+not Staging; `psql.sh` for Staging introspection; `redirector.mjs` +
+`preview-base.txt` for bypass-protected browsing without printing the secret.

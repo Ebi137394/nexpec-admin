@@ -1,23 +1,118 @@
 # NEXPEC Release Qualification — Checkpoint
 
-> **Status: qualification run COMPLETE for the scope executed. NOT a promotion
-> to Production.** Section 8 lists what was *not* covered and why, so the next
-> run starts from truth rather than from this file's optimism.
+> **Status: IN PROGRESS — NOT COMPLETE.** Sections 0 and 8 are the live ones.
+> Section 0 is the newest work and the exact resume point; everything from
+> section 1 down is the previous run and remains accurate except where section 0
+> corrects it.
 
 ---
 
-## 1. Physical state (verified 2026-08-16)
+## 0. RUN 3 — 2026-08-16, later session
+
+### 0.1 Migration parity — RESOLVED, and the earlier number was wrong
+
+The previous report printed both `202=202` and `207=207`. **`207` was never
+counted — it was asserted.** Measured three ways:
+
+| Source | Count |
+|---|---|
+| `supabase/migrations/*.sql` in the repository | **205** |
+| Staging `zmzvmgaeovleuvbvwxei` applied | **205** |
+| Local `supabase_migrations.schema_migrations` after a clean reset | **205** |
+
+* remote-only (applied with no file): **none**
+* file-only (file never applied): **none**
+* timestamp collisions: **none**
+* filenames strictly ascending: **yes**
+
+`202=202` was true at the moment it was printed — that was the clean reset
+before three later migrations existed. The only genuine discrepancy was that the
+**local ledger had fallen 3 rows behind its own schema**: `20260801530000`,
+`20260801532000` and `20260801534000` were applied to the local database with
+`psql` during development and never written to `schema_migrations`, while the
+same three reached Staging properly through `supabase db push`. The objects were
+verifiably present locally (`rfq_admin_quotes_view`, 12 storage buckets,
+`nx_is_strict_super_admin`) while the ledger said otherwise.
+
+Repaired the correct way: a clean `supabase db reset` replayed all 205 files
+from scratch, exit 0. **No migration was edited, none was back-dated, and no
+repair migration was needed** — the files were always right; only the local
+bookkeeping was stale.
+
+### 0.2 Staging Auth — one real fix
+
+`site_url` pointed at `…-2dqcocmzh-…`, a **dead preview from an earlier run**.
+That value alone decides where recovery and confirmation links land, so every
+Staging auth email was aimed at a deployment that no longer serves.
+Repointed to the live Preview and confirmed by read-back.
+
+### 0.3 Three external walls — evidence, not assumption
+
+| Wall | What was actually tried | Result |
+|---|---|---|
+| **Resend Custom SMTP** | `RESEND_API_KEY` and `RESEND_FROM_EMAIL` exist in Vercel (preview+production), so the account exists. `vercel env pull` returns `[SENSITIVE]`; the REST env endpoint returns an empty value. Supabase edge secrets on Staging: `{"secrets":[]}` — no copy there either. | **The key is not readable from this position.** Custom SMTP cannot be configured without it, and there are no Resend account credentials here to mint a new one. |
+| **Auth email rate limit** | `PATCH /config/auth {"rate_limit_email_sent":30}` | **401** — `"Custom SMTP required to configure SMTP_SENDER_NAME or RATE_LIMIT_EMAIL_SENT"`. Blocked behind the same wall. Staging stays at **2 emails/hour**. |
+| **Cloudflare R2** | No `wrangler` CLI, no `~/.wrangler`, no Cloudflare credentials anywhere in the environment. | **No account access.** R2 also requires the owner to confirm billing even on the free tier. |
+| **Android emulator** | No `adb`, `emulator`, `sdkmanager`, `avdmanager`; no Android Studio; no `~/Library/Android/sdk`. | **No Android SDK at all.** A full SDK + system image install is multi-GB and needs interactive licence acceptance. |
+
+Also found while looking: the `notify-job-assigned` edge function reads
+`Deno.env.get("RESEND_API_KEY")`, and Staging has **zero** edge secrets set — so
+that function's email path is inert on Staging today. Recorded, not fixed
+(fixing it needs the same unreachable key).
+
+### 0.4 iOS runtime — build in flight at checkpoint time
+
+The Claude iOS Simulator MCP refuses with *"Xcode is installed but not
+selected"*, but `xcode-select -p` **is** `/Applications/Xcode.app/Contents/Developer`
+and `xcodebuild -version` reports Xcode 26.3. The MCP's own check disagrees with
+the machine. Worked around it by driving the simulator directly with
+`xcrun simctl` — stated openly rather than switched silently.
+
+* iPhone 16 Pro `0E876197-FBFD-40FA-80B3-5AF5A8E0758F` — **booted**
+* `npx expo run:ios --device <udid> --no-bundler` with
+  `EXPO_NO_DOTENV=1` + `.env.staging.local` exported — **running**, currently
+  compiling React-Fabric. A first clean build of a bare RN 0.76 project takes
+  20–45 min here.
+* First attempt failed `exit 127` — the background shell could not resolve the
+  relative `.env.staging.local`. **Use the absolute path.**
+
+### 0.5 Browser walks — blocked twice, and why
+
+1. **Local dev server is unusable for QA on this machine.** `next dev` on :3001
+   took 80 s to boot and **497 s to compile `/`**; three warm-up requests all
+   timed out at 240 s. Not a product defect — dev-mode compilation — but it
+   makes localhost useless for browser QA here. Server stopped to free CPU.
+2. **The deployed Preview needs a bypass secret that no longer exists.** It was
+   destroyed during the previous run's cleanup, before browser work was finished.
+   The Vercel REST API returns 404 for every documented protection-bypass path on
+   this token, so it can be neither revoked nor regenerated from here.
+   `tab-1` navigating to the new Preview lands on `vercel.com` (SSO), confirming it.
+3. The `seed` tab still holds a valid `_vercel_jwt` for
+   **`q6mora96m` (sha `06fdad9`)**, which differs from HEAD only by a docs
+   commit — a legitimate surface for the remaining walks. The browser pane went
+   unresponsive (300 s timeouts) while Xcode saturated the machine; retry once
+   the build finishes.
+
+**Lesson for the next run: do not revoke the bypass key until browser AND mobile
+work are both signed off.** Section 8 of the previous run listed browser walks
+as outstanding, and cleanup ran anyway.
+
+---
+
+## 1. Physical state (verified 2026-08-16, run 3)
 
 | | |
 |---|---|
 | Branch | `release/identity-replacement` |
-| HEAD | `06fdad9` (+ this checkpoint commit) |
+| HEAD | `43dffe3` (+ this checkpoint commit) |
 | Origin | synchronized |
 | Working tree | clean (only untracked `.claude/`) |
-| Staging Supabase | `zmzvmgaeovleuvbvwxei` — 207 migrations |
-| Production Supabase | `sxqpjxhslzzcdrdctatm` — **never contacted this session** |
-| Preview | `nexpec-main-platform-q6mora96m-…` — READY, target `preview`, sha `06fdad9` |
+| Staging Supabase | `zmzvmgaeovleuvbvwxei` — **205 migrations** (see 0.1) |
+| Production Supabase | `sxqpjxhslzzcdrdctatm` — **never contacted in any run** |
+| Preview (HEAD) | `nexpec-main-platform-pnl2una4x-…` — READY, target `preview`, sha `43dffe3`, **0 Production refs / 1 Staging ref across all 15 chunks** |
+| Preview (browser-authorized) | `nexpec-main-platform-q6mora96m-…` — sha `06fdad9`, docs-only delta |
 | Vercel Production | **not deployed, not promoted** |
+| Owner | sole persistent `super_admin`; **zero synthetic privileged accounts** |
 
 Node note: `@supabase/supabase-js` needs **Node 22** (Node 20 has no native
 WebSocket and `createClient` throws):
@@ -146,17 +241,77 @@ require the owner's own session.
   never an amount). Minor; recorded as an observation, not fixed.
 * `scripts/qa/seed-role-qa.mjs:48` still holds a committed QA password.
 
-## 9. Resume commands
+## 9. Resume — exact state and next commands
+
+**Do these first, in this order.**
+
+1. **Recreate a Preview bypass secret** (Vercel Dashboard → nexpec-main-platform
+   → Settings → Deployment Protection → Protection Bypass for Automation →
+   *Add*). Store it at `~/.nexpec-preview-bypass`, write
+   `<scratchpad>/bypass-url.txt` containing
+   `<preview-url>/sign-in?x-vercel-protection-bypass=<secret>&x-vercel-set-bypass-cookie=true`,
+   then `node <scratchpad>/qa/redirector.mjs &`. **Do not revoke it until both
+   browser and mobile sign-off are done** — that mistake cost this run.
+   The OLD key from run 2 is still on the project and still needs deleting.
+
+2. **Finish the iOS runtime check** (build may already be done):
+
+   ```bash
+   tail -5 <scratchpad>/qa/ios-build.log          # look for IOS_BUILD_EXIT
+   xcrun simctl list devices booted
+   xcrun simctl launch 0E876197-FBFD-40FA-80B3-5AF5A8E0758F com.nexpec.app
+   xcrun simctl io 0E876197-FBFD-40FA-80B3-5AF5A8E0758F screenshot /tmp/ios.png
+   ```
+
+   If the build failed, rebuild with the **absolute** env path:
+
+   ```bash
+   set -a; . /Users/ebrahimfeyzi/Desktop/nexpec/.env.staging.local; set +a
+   EXPO_NO_DOTENV=1 npx expo run:ios \
+     --device 0E876197-FBFD-40FA-80B3-5AF5A8E0758F --no-bundler
+   ```
+
+   Then start Metro against Staging and verify at runtime: Staging ref present /
+   Production ref absent, login and role routing, marketplace + application,
+   counter-offer, assignments, visits, evidence, offline outbox and reconnect,
+   Flash Reports, report submission, senior review, agency/supplier dashboards,
+   Talent consent, deep links, disclosure policy, no client-price or spread leak,
+   zero transform/runtime errors.
+
+3. **Web browser walks** against `q6mora96m` (or a fresh Preview once step 1 is
+   done): Supplier forms (quote submit/edit/withdraw, award/contract handoff,
+   agreement signature, document upload/preview/download/seal, brokered
+   messaging, finance, synthetic withdrawal, cross-supplier isolation), then
+   Agency, RFQ Buyer, Enterprise (SSO/SCIM lifecycle), Talent (consent grant /
+   withdrawal / offline-failure), Inspector, Senior, temporary Admin.
+   **The temporary Admin must be recreated** — run 2 stripped its privilege and
+   revoked its credential.
+
+4. **Canonical lifecycle through the real UI**, then reconcile every monetary
+   card, table and chart against the database.
+
+5. **Final regression** (all of section 3 below) and cleanup (section 6).
+
+**Blocked, needs the owner — ask at exactly these walls:**
+
+* Resend API key, for Supabase Custom SMTP and the Staging email rate limit (0.3).
+* A Cloudflare account with R2 enabled, plus billing confirmation (0.3).
+* Android SDK/emulator, or a decision to record Android as physical-device-only (0.3).
+* Owner session for `admin_mark_payout_processed` and `admin_resolve_dispute` —
+  both are `super_admin`-only **by design** and must not be weakened (section 5).
+
+**Harness** (session scratchpad `qa/`): `harness.mjs` signs real QA users in and
+issues PostgREST/RPC calls with their JWT, refusing any non-Staging ref;
+`psql.sh` for Staging introspection; `redirector.mjs` + `preview-base.txt` for
+bypass-protected browsing without printing the secret. Node 22 is required
+(`export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH`).
+
+**Standing verification commands**
 
 ```bash
 cd ~/Desktop/nexpec
 export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
-node scripts/qa/run-pgtap.mjs          # 66/66
+node scripts/qa/run-pgtap.mjs          # 66/66 at 43dffe3
 npm run typecheck:all && npm test
 cd supabase/functions && for f in */index.ts; do deno check --no-lock --node-modules-dir=none "$f"; done
 ```
-
-Harness (reusable, in the session scratchpad `qa/`): `harness.mjs` signs real QA
-users in and issues PostgREST/RPC calls with their JWT, refusing any ref that is
-not Staging; `psql.sh` for Staging introspection; `redirector.mjs` +
-`preview-base.txt` for bypass-protected browsing without printing the secret.

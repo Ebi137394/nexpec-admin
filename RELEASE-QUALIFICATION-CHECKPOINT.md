@@ -108,6 +108,32 @@ First `expo run:android` attempt failed with *"Could not find device with name:
 emulator-5554"* — pass the **AVD name** (`--device nexpec_qa`), not the adb
 serial. Gradle build was still running at checkpoint time.
 
+### 0.55 Regression gates re-run at `c14bc03` — and two false alarms disproved
+
+| Gate | Result |
+|---|---|
+| **pgTAP** | **66 suites · 66 PASS · 0 FAIL** |
+| **Vitest** | **13 files · 173 tests · 173 PASS**, exit 0 |
+| **Workspace typechecks** (`typecheck:all`) | **0 errors**, exit 0 |
+| **Deno — deployment runtime 2.1.4** | **37 pass · 0 fail** |
+| **Migration ledger after stack restart** | **205 recorded**, unchanged |
+
+**False alarm 1 — "66 pgTAP suites failing".** The first run reported
+`66 suites · 0 PASS · 66 FAIL`, every one with `psql exit 2; no TAP plan emitted`.
+That is not 66 regressions: **the local Docker stack had died** (`docker ps`
+returned nothing, port 54322 refused connections). After `supabase start`, the
+identical command returned **66/66 PASS**. A uniform abort-before-plan across
+every suite is an environment signature, not a product one.
+
+**False alarm 2 — "3 Deno edge functions fail typecheck".** `anchor-inspection-seals`,
+`generate-vca` and `verify-affidavit` fail `TS2769` on
+`crypto.subtle.importKey('spki', …)` under the **Deno 2.9.5** on this machine —
+`Uint8Array<ArrayBufferLike>` no longer satisfies `ArrayBufferView<ArrayBuffer>`
+in newer lib definitions. The brief specifies the deployment runtime, so 2.1.4
+was fetched to `~/.nexpec-deno214` and run against the same files: **37/37, zero
+failures.** The product is fine; the newer type-checker is stricter. Always
+check edge functions with 2.1.4, never with whatever `deno` is on PATH.
+
 ### 0.6 Corrections to run 3's report
 
 * **"The old bypass key from run 2 is still on the project"** — wrong. The

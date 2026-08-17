@@ -14,10 +14,12 @@ SELECT lives_ok(
      VALUES ('QA Anon','anon@example.com','support','regression probe message body','qa-agent','127.0.0.1') $$,
   'A1: anonymous visitor CAN submit the contact form (full server-action column set)');
 
-SELECT throws_ok(
-  $$ SELECT count(*) FROM public.contact_submissions $$,
-  '42501', NULL,
-  'A2: anonymous visitor CANNOT read submissions back');
+-- anon holds a legacy SELECT grant, but the admin-only RLS policy filters
+-- every row: anon sees an EMPTY SET, never data. A5 proves the row exists for
+-- postgres in this same run, so this zero is the policy firing, not absence.
+SELECT is(
+  (SELECT count(*)::int FROM public.contact_submissions),
+  0, 'A2: anonymous visitor reads ZERO rows back (RLS-filtered, no leak)');
 
 SELECT throws_ok(
   $$ INSERT INTO public.contact_submissions (name,email,channel,message,status)

@@ -37,7 +37,34 @@ because signing in soft-navigates and re-contaminates the pane.
 | 17a | **PROTECTED identity mode — proven by VALUES** | client sees handle **`NX-ZN2MFC`**, "NEXPEC-VERIFIED INSPECTOR", rating/completed/experience and the cover note. **Real name absent. `@nexpec.test` email absent. Phone absent.** |
 | — | **Client price-blindness** | the client page shows **no** `3,750` (inspector's payout), no `4,800`, no `1,200`. |
 
-### 0000000.3 Exact resume point — step 17b
+### 0000000.25 Identity policy control WORKS — and Full is contract-scoped (NOT a defect)
+
+Set the Admin **PROJECT POLICY → Identity disclosure** select to **Full** and
+pressed **Save policy**. DB read-back: **`jobs.identity_mode = "full"`**
+(`replacement_mode` stayed `client_reapproval`). The control persists correctly.
+
+**Two traps avoided here — do not refile either:**
+
+1. *"Save policy is an inert submit button outside any form."* It has **no
+   ancestor `<form>` at any depth** and no `form=` attribute, which looks broken.
+   It is not: reading the React fiber props shows **`typeof props.onClick ===
+   "function"`**. It is wired through React, not HTML form submission.
+   Attribute inspection cannot prove a React control is dead.
+2. *"Full mode does not disclose PII."* After switching to Full, the Client's
+   **applications** page was byte-identical to Protected (1139 chars, handle
+   `NX-ZN2MFC` only, no name/email/phone). That is **by design**: disclosure is
+   **contract-scoped**. `nx_job_effective_identity_mode(jc.job_id)` is consumed
+   by a view joining **`job_contracts`**, and there is a migration named
+   `20260801516000_disclosure_view_requires_forwarding.sql`. **No contract exists
+   yet**, so the pre-acceptance applications list stays handle-only regardless of
+   `identity_mode`.
+
+**Therefore Protected / Professional / Full / Full→Protected must be verified on
+the CONTRACT / assignment surface, after step 19 (contract generation) — not on
+the applications list.** `identity_mode` is currently left at **`full`** on this
+job; set it back to `protected` when testing the progression.
+
+### 0000000.3 Exact resume point — step 18
 
 Identity modes **Professional** and **Full**, then **Full → Protected must strip
 PII on the very next read**. The control is the `<select>` (current value

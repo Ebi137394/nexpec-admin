@@ -6,7 +6,58 @@
 
 ---
 
-## 0000000000000. RUN 16 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000000000000. RUN 17 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `2e42f04`+. Preview `nexpec-main-platform-5t8bmlhjg-…`. Report
+`06f77797-…` = **`submitted`** (revision 2, senior round 1 returned+addressed).
+Lifecycle **40/46**.**
+
+### 1. Steps 38–41 PASS — the correction loop
+
+| Step | Evidence |
+|---|---|
+| Senior comments visible to Inspector | submit-report page renders "Changes requested, round 1 … Returned for revision. Three items: (1) CML-27 …" — the full 512-char comment |
+| Resubmitted through the real form | `status` → **`submitted`**, `updated_at` **14:01:36 → 14:24:32**, notes = 550-char revision 2 |
+| UI blocks resubmit while in review | after resubmit the form is withdrawn: "Your report is in Senior Inspector review. You will be able to correct and resubmit it if the reviewer returns it to you." |
+| **Stale replay REFUSED, zero mutation** | `nx_report_resubmit` with the superseded token → **400 `NOT_AWAITING_CORRECTION`**; `updated_at` unchanged, notes still "REVISION 2. UT wal…" |
+| No money moved anywhere in the loop | `jobs.payout_status` = **unpaid** throughout |
+
+**Be precise about what the stale test proved.** The refusal came from the
+**status** guard, which fires first — the report was `submitted`, not
+`returned_to_inspector`. The dedicated **timestamp** concurrency guard
+(`p_expected_updated_at`) is therefore **NOT yet isolated**. To isolate it:
+return the report to the inspector again, capture token A, resubmit once
+(bumping `updated_at`), have the senior return it AGAIN, then replay token A
+while the status is legitimately `returned_to_inspector`. Only then does a
+mismatch exercise the timestamp branch.
+
+### 2. Schema facts corrected this run
+
+* `report_senior_reviews` keys on **`inspection_report_id`**, not `report_id` —
+  that is why run 16's audit query 400'd.
+* `inspection_reports` has **no** `senior_comments` column; comments live in
+  `report_senior_reviews.comments`.
+* Resubmit RPC: `nx_report_resubmit(p_job_id, p_report_id,
+  p_expected_updated_at, p_summary, p_response_to_reviewer)`.
+* Round 1 row: `decision=returned`, `comments` 512 chars, `superseded_at` NULL.
+
+### 3. Exact next action
+
+1. Senior signs in, sees the **new round**, and **approves** via
+   `/inspector/reviews/06f77797-…` (radio value `approved`).
+2. Confirm approval neither delivers nor pays.
+3. `nx_admin_deliver_report('06f77797-…')` → expect **FUNDING_REQUIRED**
+   (T2 `final` 384000c still `scheduled`).
+4. Fund T2: `nx_funding_mark_stage_funded({p_job_id, p_code:'final',
+   p_payment_intent:'manual:QA-SYNTHETIC-80PCT'})`; reconcile 96000+384000=480000.
+5. Deliver through the real Admin UI; verify client access + payout still unpaid.
+6. Then isolate the timestamp guard as described in §1.
+
+**Harness**: `<scratchpad>/rpc.mjs <staging.env> <email> 'fn::{json}'`.
+
+---
+
+## 0000000000000. RUN 16 — 2026-08-17, previous session.
 
 **HEAD `fac23c9`+. Preview `nexpec-main-platform-5t8bmlhjg-…`. Job
 `e2859bf6-…` assigned · Contract `5e0a123a-…` fully_executed · Report

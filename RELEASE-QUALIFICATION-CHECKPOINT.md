@@ -6,7 +6,90 @@
 
 ---
 
-## 0000000000. RUN 13 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000000000. RUN 14 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `1c566ce`+. Preview `nexpec-main-platform-5t8bmlhjg-…` (anon 302→SSO,
+Staging ×1 / Prod ×0). Job `e2859bf6-…` **DISPATCHED**. Contract `5e0a123a-…`
+fully_executed. Lifecycle **31/46**.**
+
+### 1. D17 / D18 / D19 FIXED — the contract screens were lying
+
+| # | Sev | Defect | Truth |
+|---|---|---|---|
+| D17 | P1 | "The job is now in progress" on full execution, in 3 places | Signing does NOT dispatch — `20260801506000` removed the status promotion, so the job stayed `open` / `contractor_id NULL`. It told the inspector to start undispatched work. |
+| D18 | P1 | "Released to your Stripe Connect account after you and admin sign off" | Settlement is **manual**: `admin_mark_payout_processed` is super_admin-only, needs job `completed`, needs an explicit reference, refuses a repeat. Nothing auto-pays. |
+| D19 | P2 | Voided contract `60a87929` listed with an "Open contract" button | UI-only dead end. Server was already sound. |
+
+**D19 server proof** (real inspector JWT):
+```
+voided   60a87929 -> 400 contract not awaiting inspector signature (status=voided)
+executed 5e0a123a -> 400 contract not awaiting inspector signature (status=fully_executed)
+```
+Voided contracts now render in a muted, clearly-labelled "Contract history"
+section and are not actionable.
+
+**Mobile was checked and is NOT affected** — `app/job-details/[id].tsx` gates its
+"in progress" copy on `job?.status === 'in_progress'`, which is honest.
+
+**New gate** `scripts/qa/check-truthful-lifecycle-copy.mjs` refuses
+progress/dispatch claims and automatic-payment promises across contract,
+signature, payout, wallet and finance surfaces. **Non-vacuous**: on the pre-fix
+source it flags exactly the 3 shipped strings; passes on the fix. None of this
+is catchable by tsc, tests or a build — they are strings.
+
+### 2. Steps 27–31 PASS — funding and dispatch
+
+```
+DISPATCH (unfunded) -> 400 FUNDING_REQUIRED: job e2859bf6...
+   hint: "Client funds the initial tranche first."
+   DB after: status=open, contractor_id=null, escrow_status=pending   (ZERO mutation)
+```
+
+Funding schedule created and reconciles **exactly**:
+
+```
+T1 initial 2000bps   96000c  ($960 = 20%)  gates_delivery=true
+T2 final   8000bps  384000c  ($3,840 = 80%) gates_delivery=true
+TOTAL              480000c  = client price 480000   MATCH
+```
+
+20% funded with the synthetic reference `manual:QA-SYNTHETIC-20PCT`
+(**no real charge**) → `nx_funding_initial_satisfied = true`,
+`nx_funding_delivery_satisfied = **false**` (Strict Prepay still blocks delivery).
+
+**Dispatched through the real Admin UI** (Spread Editor, 4800 typed, payout
+pre-filled 3750, real submit):
+
+```
+jobs.status                = assigned
+jobs.contractor_id         = a7556734…   (the accepted inspector)
+jobs.hired_inspector_id    = a7556734…
+jobs.client_price_cents    = 480000   ($4,800)
+jobs.inspector_payout_cents= 375000   ($3,750)
+jobs.platform_spread_cents = 105000   ($1,050)   POSITIVE, exact
+jobs.payout_status         = unpaid   (NO automatic payout)
+applications.status        = hired
+```
+
+### 3. Methodology note — a trap hit and avoided
+
+The first dispatch probe returned **PGRST202**, which reads like a denial. It was
+a wrong argument name: the parameter is **`p_payout_cents`**, not
+`p_inspector_payout_cents`. Confirmed against `pg_get_function_arguments`. This
+is checkpoint trap #2; always resolve the real signature before recording a
+refusal.
+
+### 4. Exact next action
+
+1. Inspector assignment surface → evidence upload → Flash Report.
+2. Full report → Senior return → resubmit → stale rejection → approve.
+3. Strict Prepay: prove delivery blocked while `delivery_satisfied=false`, then
+   fund T2 `final` and deliver.
+4. Identity modes Protected/Professional/Full→Protected + per-job isolation.
+
+---
+
+## 0000000000. RUN 13 — 2026-08-17, previous session.
 
 **HEAD `4f5f08c`+. Preview `nexpec-main-platform-j7qwf41u7-…` (anon 302→SSO,
 Staging ×1 / Prod ×0). Job `e2859bf6-…` · Application `f8d0024a-…` ·

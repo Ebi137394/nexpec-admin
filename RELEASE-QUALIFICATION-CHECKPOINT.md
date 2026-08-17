@@ -6,7 +6,92 @@
 
 ---
 
-## 00000000. RUN 11 — 2026-08-17, latest session. READ THIS FIRST.
+## 000000000. RUN 12 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `90527f6` (+ this commit). Preview `nexpec-main-platform-j7qwf41u7-…`
+(anon 302→SSO, Staging ×1 / Prod ×0). Job `e2859bf6-…` · Application
+`f8d0024a-…` · **Contract `60a87929-1809-4b15-b341-6e94b948df55`**.
+Lifecycle **21/46**.**
+
+### 1. D15b FIXED — six more "use server" value exports; four surfaces were dead
+
+The D15 gate proved the bug was never dispatch-specific. Same fix applied to
+`credentials.ts`, `jobModeration.ts`, `organizations.ts` (×3), `settings.ts` via
+plain sibling state modules (`credentialsState` / `jobModerationState` /
+`organizationsState` / `settingsState`); action modules now re-export only the
+TYPE, consumers import the value from the plain module.
+
+That means **credential review, the useActionState moderation path, org
+invite / role-change / member-removal, and the fee schedule were all dead at
+runtime** exactly like dispatch, and are now restored.
+
+Verified: gate **PASS** (24 modules, 0 violations) · gate still **FAILS with
+exactly 6 violations on the pre-fix tree** (non-vacuous) · `apps/web` tsc 0 ·
+`typecheck:all` 0 · **`next build` BUILD_EXIT=0**.
+
+Two mistakes made and corrected while patching: a regex that stopped at the
+first `}` left nested interfaces behind (12 TS2440/TS2484 errors — fixed with
+brace matching), and `UpdateRoleActionState` was first transcribed with a `role`
+field when the real shape is `from_role`/`to_role`.
+
+### 2. Step 20 RE-VERIFIED — now conclusive
+
+Previously step 20 only proved "nothing changed", which was worthless because
+the action was crashing on module load. Re-tested on the new Preview:
+
+* the action **executes**;
+* the UI **displays the real refusal**:
+  `CONTRACT_REQUIRED: job e2859bf6-… cannot be dispatched to inspector
+  a7556734-… without a fully executed contract`;
+* DB unchanged — `status=open`, `contractor_id=null`.
+
+So dispatch-without-contract is genuinely guarded, and the guard's reason is
+surfaced to the admin. **No silent-swallow defect remains on this path.**
+
+### 3. Contract generated — pricing reconciles exactly
+
+`/admin/contracts` (application UUID typed by hand; no prefill). First attempt
+was **correctly refused** with a visible message — *"Provide inline terms or a
+contract link."* — good validation, displayed via the error param.
+
+Second attempt with 567 chars of terms succeeded:
+
+```
+contract 60a87929-1809-4b15-b341-6e94b948df55
+status                 pending_client_signature
+client_price_cents     480000     ($4,800)
+inspector_payout_cents 375000     ($3,750)
+CONTRACT SPREAD        105000     ($1,050)  POSITIVE, exact
+client_signed_at       null
+inspector_signed_at    null
+```
+
+**Important:** `jobs.client_price_cents` is still 0 and
+`jobs.platform_spread_cents` still −375000. **Job-level pricing is applied at
+DISPATCH, not at contract generation.** D14 therefore resolves at dispatch —
+re-check for `+105000` there, not now.
+
+### 4. Exact next action
+
+Client signs → Inspector signs → verify neither signature dispatches →
+verify dispatch still refused until the 20% is funded → fund 20% (Staging test
+tooling only) → Admin dispatch → then confirm
+`jobs.client_price_cents=480000` and `jobs.platform_spread_cents=+105000`.
+
+Identity modes (Professional / Full / Full→Protected / per-job isolation) are
+now testable: the contract exists and `job_contracts.effective_identity_mode`
+is currently **null** while `jobs.identity_mode` is **`full`** — resolve which
+one drives disclosure before asserting anything.
+
+```bash
+cd ~/Desktop/nexpec && export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>; cd $S && node make-temp-admin2.mjs; node $S/redirector.mjs &
+# pane fix: preview_stop -> preview_start AT the target URL, after every sign-in
+```
+
+---
+
+## 00000000. RUN 11 — 2026-08-17, previous session.
 
 **HEAD `a588b98`. Job `e2859bf6-…` · Application `f8d0024a-…`. Lifecycle 20/46.**
 

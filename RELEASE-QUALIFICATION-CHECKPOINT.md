@@ -6,7 +6,75 @@
 
 ---
 
-## 00000000000000. RUN 17 — 2026-08-17, latest session. READ THIS FIRST.
+## 000000000000000. RUN 18 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `b9acf2c`+. Job `e2859bf6-…` · Report `06f77797-…` = **`delivered`**.
+Lifecycle **44/46**. Money: 480000 / 375000 / **+105000**, payout **unpaid**.**
+
+### 1. DEFECT D21 (P1, workflow) FOUND AND FIXED — resubmitted reports were stranded
+
+`nx_report_resubmit` flipped the report to `submitted` and then notified
+"the live reviewer" via `decision IS NULL AND superseded_at IS NULL` — but it
+**never opened a new round**. The prior round was already `returned`, so that
+matched nothing and `nx_notify_lifecycle` ran with a **NULL recipient**.
+
+Reproduced on Staging with the canonical report: status `submitted`,
+**0 open rounds**, **0 `report_resubmitted` notifications**, and the Senior UI
+showing "RETURNED WITH COMMENTS" with **no decision form**. The inspector
+corrects the report and from then on nobody is told and nobody can act.
+
+Fix `20260801538000`: reopen a round for the same reviewer (already
+eligibility-checked, and the author of the comments being answered), guarded on
+"no open round exists" so a retry cannot double-insert, numbered `max+1`.
+No decided row is touched. Rollback provided.
+
+### 2. The timestamp branch is now GENUINELY isolated
+
+Run 17 could not prove it — the stale replay was refused by
+`NOT_AWAITING_CORRECTION`, which **shadowed** `p_expected_updated_at`.
+Suite section C returns the report first so the status guard is satisfied; the
+stale token is then rejected by **`REPORT_CHANGED`**, and C3/C4 read the row
+back to prove the stale summary was never written (a zero-row write is not
+accepted as proof anywhere).
+
+pgTAP **13/13**. **Non-vacuous**: pre-fix, B2/B3/B4/D2 (the reopening
+assertions) FAIL while C1–C4 still PASS — correct, since the timestamp branch
+pre-existed and only the reopening is new.
+
+The fixture satisfies the real dispatch guards rather than weakening them:
+`nx_guard_dispatch_requires_contract` (fully_executed contract) and
+`nx_guard_dispatch_requires_funding` (funded initial stage) are both set up
+properly. `job_funding_stages.trigger_basis` is NOT NULL — use
+`'before_assignment'`.
+
+### 3. Steps 42–44 PASS — approval, funding gate, delivery
+
+| Step | Evidence |
+|---|---|
+| Senior approves (real UI) | `status = senior_approved`; rounds = [1 `returned`, 2 `approved`]; round 1 preserved |
+| Approval does NOT deliver | `is_published=false`, `is_client_approved=false` |
+| Approval does NOT pay | `payout_status=unpaid`, job still `assigned` |
+| **Strict Prepay isolated** | `nx_admin_deliver_report` → **`FUNDING_REQUIRED`: the remaining funding tranche must be in before the final signed report is delivered** |
+| T2 funded synthetically | `manual:QA-SYNTHETIC-80PCT`; `nx_funding_delivery_satisfied` → **true** |
+| **Schedule reconciles exactly** | initial 96000 `funded` + final 384000 `funded` = **480000 = client price** |
+| **Delivered** | `nx_admin_deliver_report` → 200; `status = delivered`; `final_report_doc` carries the REVISION 2 summary |
+| **Delivery does NOT pay** | `payout_status` = **unpaid**; 480000 / 375000 / +105000 unchanged |
+
+### 4. Exact next action
+
+1. Verify **Client** can open/preview/download the delivered report through the
+   real Client UI (signed links, byte integrity, audit history).
+2. `admin_mark_payout_processed` with a synthetic reference via a
+   **temporary Staging super_admin** (never the owner) — then prove the retry is
+   refused (idempotency) and audit carries actor/role/timestamp/reference.
+3. Then: Credit Release Net-15/30/60, invoices/overdue, dispute + duplicate
+   refusal, identity matrix, media/link/voice, messaging, all-role UI,
+   Android/iOS + TFLite, OAuth branding, Resend, final gates, cleanup +
+   bypass-key rotation.
+
+---
+
+## 00000000000000. RUN 17 — 2026-08-17, previous session.
 
 **HEAD `2e42f04`+. Preview `nexpec-main-platform-5t8bmlhjg-…`. Report
 `06f77797-…` = **`submitted`** (revision 2, senior round 1 returned+addressed).

@@ -97,3 +97,4 @@ graphify-out/
 # never consults.
 supabase/functions/deno.lock
 .expo-staging-*
+qa-artifacts/

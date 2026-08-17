@@ -77,7 +77,66 @@ Credit jobs `12b2d876`(N15,also identity fixture) `fa753d46`(N30,dispute→compl
 
 ---
 
-## ## RUN 25 — 2026-08-17, MAX-EFFORT (cont). READ THIS FIRST.
+## ## ## RUN 26 — 2026-08-17, MAX-EFFORT FINAL. READ THIS FIRST.
+
+**HEAD `e5b70fa`. Both native builds proven. Cleanup done. Production untouched.**
+
+### iOS — clean cold build SUCCEEDED, app runs
+* First build failed on RN New-Arch codegen (`RCTThirdPartyFabricComponentsProvider.mm`);
+  a clean `expo prebuild -p ios --clean` + `pod install` regenerated it.
+* `expo run:ios --device <sim>` then hit "No code signing certificates" — a
+  simulator build needs none; rebuilt via
+  `xcodebuild -destination 'platform=iOS Simulator,id=<udid>' CODE_SIGNING_ALLOWED=NO`
+  → **BUILD SUCCEEDED**, `NEXPEC.app` produced.
+* **TFLite native stack compiled for iOS arm64** (definitive): build products
+  include `react-native-fast-tflite.build/.../HybridTfliteModuleSpec.o`,
+  `NitroModules.build/.../NativeNitroModules+NewArch.o`,
+  `NitroTflite-Swift-Cxx-Bridge.o`. D8's cross-platform concern closed on BOTH.
+* Installed + launched on iPhone 16 Pro sim (pid alive, no crash), **full native
+  sign-in screen renders**. iOS runtime bundle **33.9MB, Staging×1 / Prod×0**.
+* iOS TFLite HybridObject registers lazily (on first vision use), unlike
+  Android's eager startup load — so no startup log line, but the object code is
+  in the binary (compiled .o above).
+
+### Final cleanup — DONE
+* Synthetic credit jobs `12b2d876`/`fa753d46`/`ee1cf1c1` **soft-deleted**
+  (hard-delete correctly refused by `audit_capture_trigger` — not weakened);
+  their disputes/reports/stages/contracts/applications cleared. 0 live QA-CREDIT jobs.
+* Storage QA objects under `<inspector>/qa-media/` removed (inspection-photos ×2,
+  inspector_certificates ×1, chat_attachments ×1).
+* Inspector synthetic phone restored to NULL; NET60 inspection_type restored to quality.
+* All temp admins revoked — **0 temp accounts authenticate**; exactly **one
+  privileged identity: the owner** `ebrahimfeyzi.ta@gmail.com`.
+* Anonymous Preview access: **302 → vercel SSO, 0 NEXPEC bytes**.
+* QA processes stopped (redirector, Metro, Android emu, iOS sim). 0 remaining.
+
+### Final gate state (HEAD e5b70fa)
+pgTAP 73/73 · Vitest 173/173 · workspace tsc 0 · app tsc 0 · Deno 2.1.4 37/37 ·
+web production build exit 0 · all guards PASS · secret scan clean (7 false
+positives) · migration parity **212 = 212 = 212**, 0 local-only, 0 remote-only ·
+Preview `ary5vmebk` at HEAD, Staging-only, smoke OK.
+
+### Two residual OWNER-ONLY items (cannot complete from here)
+1. **Preview bypass key deletion** — the automation-bypass key still exists on
+   the project; every Vercel REST protection-bypass path 404s on this CLI token.
+   Owner deletes it at Dashboard → nexpec-main-platform → Settings → Deployment
+   Protection → Protection Bypass for Automation → Delete. **SSO protection is ON
+   regardless**, so the Preview is not publicly readable meanwhile.
+2. **Resend API key** and **OAuth provider consent-screen branding**
+   (Google/Apple/LinkedIn) — email delivery and provider-console config need the
+   owner's credentials (documented since run 3).
+
+### One honest test-coverage gap (not a defect)
+Literal on-device `model.run()` detection output through the mobile UI was not
+captured. The TFLite native stack is proven built+loaded+registered+instantiated
+on Android and built on iOS, but the AI Co-Inspector capture screen requires a
+compliance-type job, and the simulator build's "Mock Token for database testing"
+auth path made the capture query reject the reconfigured job. The native runtime
+is proven; the end-to-end inference render is the one uncaptured step.
+
+---
+
+## RUN 25 — 2026-08-17, MAX-EFFORT (cont). READ THIS FIRST.
 
 **HEAD `9f55a3e`. FINAL ANCHOR GREEN. Preview `ary5vmebk` at HEAD, Staging-only.**
 

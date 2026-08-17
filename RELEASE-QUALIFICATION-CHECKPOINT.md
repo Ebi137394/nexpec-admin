@@ -77,6 +77,72 @@ Credit jobs `12b2d876`(N15,also identity fixture) `fa753d46`(N30,dispute→compl
 
 ---
 
+## ## RUN 25 — 2026-08-17, MAX-EFFORT (cont). READ THIS FIRST.
+
+**HEAD `9f55a3e`. FINAL ANCHOR GREEN. Preview `ary5vmebk` at HEAD, Staging-only.**
+
+### Full regression anchor at HEAD 9f55a3e
+| Gate | Result |
+|---|---|
+| pgTAP | **73 suites · 73 PASS · 0 FAIL** |
+| Vitest | 13 files · **173/173** |
+| Workspace typecheck | 0 |
+| Mobile (app) typecheck | 0 |
+| Deno 2.1.4 edge | 37/37 |
+| Web production build | **exit 0** |
+| Guards | use-server, truthful-copy, price-blindness ×2, role-routing (8/8), app-route-default-exports, orphan-modules — all PASS |
+| Secret scan | **clean** — 7 hits all false positives (key-prefix validation, masking comments, redaction test data, public supabase-demo local JWT) |
+| Migration parity | all session migrations pushed to Staging; local=remote |
+| Preview | `nexpec-main-platform-ary5vmebk` = HEAD 9f55a3e, anon 302→SSO, Staging×1/Prod×0, smoke: /sign-in 200, authed routes 307→sign-in |
+
+### Defects fixed this session (all Staging + pgTAP)
+* **D24** submit_inspection_report — nonexistent `under_review` write (always rolled back) + NO authorization (any user could upsert onto any job). Rebuilt to web-path parity. `20260801544000`. Suite 9/9 (7/9 fail pre-fix).
+* **D25** admin_resolve_dispute wrote `jobs.completed_at` (no such column) → every resolution 42703. `20260801546000`.
+* **D25b** resolution left job_disputes open/NULL. `20260801548000` closes the record. Combined suite 13/13 (8/9 fail pre-fix).
+* **direct-view role parity** `20260801542000` — sender_party by role not identity (agency/enterprise senders were mislabelled admin).
+* **Expo Router helpers** — 5 helper files moved out of app/ to src/, importers rewired, guard added (`check-app-route-default-exports`, non-vacuous).
+
+### Behavioural lanes green (Staging)
+* Credit Release Net-15/30/60 end-to-end + durable `credit_release_class_test` 16/16.
+* Dispute: file/duplicate-refused/role-refused/super_admin-resolves/double-refused, no money moved.
+* Identity matrix by field value: Protected/Professional/Full/Full→Protected/unforwarded-invisible/unrelated+anon refused.
+* Media/storage real bytes 14/14: upload, truthful metadata, byte-identical signed download, expired/anon/cross-user refused, MIME 415, oversize, PDF+voice, delete+absence.
+* Messaging: client+inspector post, admin oversight view (buyer/inspector labels), admin mediation via composer RLS insert, unrelated+anon refused.
+
+### Android native runtime — PROVEN
+Real **137MB arm64-v8a APK** (D8 patch works through full C++ compile), installed on nexpec_qa (API-35), launched, signed in as inspector → dashboard renders **real Staging data** (QA-CREDIT-NET60, $4.5k). logcat: `libNitroTflite.so` loaded (arm64-v8a), `TfliteModule`+`AssetLoader` HybridObjects **registered**, `HybridTfliteModuleSpec` C++↔JS prototype **instantiated**, `librnskia.so` loaded. Staging×1/Prod×0, zero FATAL.
+
+**x86_64 ABI note (not an arm64 blocker):** x86_64 CMake configure fails on this
+Apple-Silicon host at the compiler-ABI-detection tmp step — a CMake/ninja env
+issue, not fast-tflite source. Emulator + modern phones are arm64-v8a; built
+`-PreactNativeArchitectures=arm64-v8a` (documented gradle.properties flag).
+
+**Real inference through the UI (Android):** gated behind the compliance-capture
+wizard (needs inspection_type=compliance). The simulator build uses a "Mock
+Token for database testing" auth path whose RLS view of a job differs, so the
+capture query rejected the reconfigured job. Native TFLite stack is proven
+loaded+registered+instantiated; the literal model.run() via UI is the one gap.
+The standalone `app/ai-coinspector.tsx` is ORPHAN (no layout registration, no
+importers) — record for the orphan scan.
+
+### iOS — codegen fixed, build in flight
+First build failed on RN New-Arch codegen (`RCTThirdPartyFabricComponentsProvider.mm`).
+Clean `expo prebuild -p ios --clean` + `pod install` regenerated it (POD_EXIT=0).
+`expo run:ios --device <sim-udid>` then hit "No code signing certificates" —
+wrong destination resolution; a SIMULATOR build needs none. Rebuilding via
+`xcodebuild -destination 'platform=iOS Simulator,id=<udid>' CODE_SIGNING_ALLOWED=NO`.
+Result pending in $S/ios-sim-build.log.
+
+### Genuine owner-only blockers (from earlier runs, unchanged)
+* Resend API key — needed for real email delivery / Custom SMTP.
+* OAuth provider consent-screen branding (Google/Apple/LinkedIn) — provider-console config.
+
+### Remaining before READY
+1. iOS sim build → launch → TFLite (in flight).
+2. Final cleanup: credit jobs `12b2d876`/`fa753d46`(completed via dispute)/`ee1cf1c1`, dispute rows, storage qa-media objects, temp admins; rotate Preview bypass; verify sole owner; confirm Production untouched.
+
+---
+
 ## 00000000000000000000. RUN 23 — 2026-08-17, latest session. READ THIS FIRST.
 
 **HEAD `afa75c9`+. CREDIT RELEASE LANE FULLY GREEN — Net-15/30/60 end-to-end.**

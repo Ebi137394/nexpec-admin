@@ -6,7 +6,64 @@
 
 ---
 
-## 000000000000. RUN 15 — 2026-08-17, latest session. READ THIS FIRST.
+## 0000000000000. RUN 16 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `fac23c9`+. Preview `nexpec-main-platform-5t8bmlhjg-…`. Job
+`e2859bf6-…` assigned · Contract `5e0a123a-…` fully_executed · Report
+**`06f77797-…` = `returned_to_inspector`** (senior round 1 returned).
+Lifecycle **37/46**.**
+
+### 1. Senior review lane — steps 35–37 PASS
+
+| Step | Evidence |
+|---|---|
+| Assign senior reviewer | `nx_admin_assign_senior_reviewer` → `{"ok":true,"round":1,"superseded_round":false}` |
+| Report visible in the real Senior UI | `/inspector/reviews` lists it; senior lands there correctly post-login |
+| **Returned with real comments** | radio `returned` clicked, 512-char technical comment typed, "Return to Inspector" submitted → `inspection_reports.status = **returned_to_inspector**` |
+| No money moved | `jobs.payout_status` = **unpaid**, job still `assigned` |
+
+**IDs needed to continue**
+```
+SENIOR  qa.senior@nexpec.test  = eebb4407-c22c-44a9-9455-7ee4a740190b   (role is 'senior', NOT 'senior_inspector')
+REPORT                         = 06f77797-b19d-494b-aa3c-ab749fca7348
+2nd report also assigned to the senior: 18485825-c349-4c25-9131-3e8efb716464
+```
+
+The senior review page copy is **already truthful** and needs no fix:
+"Your decision is a quality gate… It moves no money, and delivery of the
+finished report to the Client stays with Admin."
+
+### 2. Schema notes that cost time — do not rediscover
+
+* Live table is **`inspection_reports`**. `reports` is a DIFFERENT, empty table
+  keyed on `project_id`; querying it returns 42703 on `job_id`.
+* `report_senior_reviews` and `report_review_history` are **not** queryable by
+  `report_id` over PostgREST as tried (400/42703) — inspect their real columns
+  before using them for audit assertions.
+* Senior role value is **`senior`**.
+* Review decision radios are `name="_r_0_-decision"` with values
+  `approved` / `returned`; the comment field is `textarea[name=comments]`.
+
+### 3. Exact next action
+
+1. **Inspector resubmits** report `06f77797…` through
+   `/inspector/jobs/e2859bf6-…/submit-report` (addressing the 3 comments).
+2. **Prove stale resubmission refused** — resubmit a second time against the
+   superseded round and expect a refusal.
+3. **Senior approves** via `/inspector/reviews/06f77797…` (radio `approved`).
+4. Confirm approval neither delivers nor pays.
+5. `nx_admin_deliver_report('06f77797…')` → expect **FUNDING_REQUIRED** now that
+   the senior gate is satisfied (T2 `final` 384000c still `scheduled`).
+6. Fund T2: `nx_funding_mark_stage_funded({p_job_id, p_code:'final',
+   p_payment_intent:'manual:QA-SYNTHETIC-80PCT'})`, reconcile 96000+384000=480000.
+7. Deliver through the real Admin UI, verify client access + payout still unpaid.
+
+**Harness**: `<scratchpad>/rpc.mjs <staging.env> <email> 'fn::{json}'` runs any
+RPC as a signed-in user. `make-temp-admin2.mjs` mints temp admins.
+
+---
+
+## 000000000000. RUN 15 — 2026-08-17, previous session.
 
 **HEAD `e985db1`+. Preview `nexpec-main-platform-5t8bmlhjg-…` (anon 302→SSO,
 Staging ×1 / Prod ×0). Job `e2859bf6-…` **assigned** · Contract `5e0a123a-…`

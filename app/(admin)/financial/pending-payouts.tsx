@@ -31,7 +31,7 @@ import {
   SectionHeader,
   formatUSD,
   type RemainingPayoutItem,
-} from './_shared';
+} from '@/src/features/financial/adminFinancialShared';
 
 export default function PendingPayoutsScreen() {
   const router = useRouter();

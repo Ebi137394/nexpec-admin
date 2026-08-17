@@ -30,7 +30,7 @@ import {
   ClientBalanceRow,
   SectionHeader,
   type ClientBalanceItem,
-} from './_shared';
+} from '@/src/features/financial/adminFinancialShared';
 
 export default function ClientsScreen() {
   const router = useRouter();

@@ -30,7 +30,7 @@ import {
   InspectorLeaderRow,
   SectionHeader,
   type InspectorLeaderItem,
-} from './_shared';
+} from '@/src/features/financial/adminFinancialShared';
 
 export default function InspectorsScreen() {
   const router = useRouter();

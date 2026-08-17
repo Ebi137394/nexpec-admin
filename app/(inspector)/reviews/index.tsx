@@ -36,8 +36,8 @@ import {
   fetchAssignedReportRefs,
   fetchJobTitles,
   formatTimestamp,
-} from './reviewClient';
-import { roundState, ROUND_STATE_META, type RoundState } from './roundState';
+} from '@/src/features/reviews/mobile/reviewClient';
+import { roundState, ROUND_STATE_META, type RoundState } from '@/src/features/reviews/mobile/roundState';
 
 const C = {
   bg: '#020420', card: '#0B1138',

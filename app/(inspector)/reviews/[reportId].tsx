@@ -62,8 +62,8 @@ import {
   mintEvidenceUrls,
   type EvidenceItem,
   type ReportUnderReview,
-} from './reviewClient';
-import { roundState, ROUND_STATE_META } from './roundState';
+} from '@/src/features/reviews/mobile/reviewClient';
+import { roundState, ROUND_STATE_META } from '@/src/features/reviews/mobile/roundState';
 
 const C = {
   bg: '#020420', card: '#0B1138',

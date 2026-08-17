@@ -30,7 +30,7 @@ import {
   SectionHeader,
   formatUSD,
   type PipelineItem,
-} from './_shared';
+} from '@/src/features/financial/adminFinancialShared';
 
 export default function PipelineScreen() {
   const [items, setItems] = useState<PipelineItem[]>([]);

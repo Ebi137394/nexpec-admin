@@ -29,7 +29,7 @@ import {
   ActiveJobRow,
   SectionHeader,
   type ActiveJobItem,
-} from './_shared';
+} from '@/src/features/financial/adminFinancialShared';
 
 export default function ActiveJobsScreen() {
   const router = useRouter();

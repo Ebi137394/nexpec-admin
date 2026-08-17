@@ -57,10 +57,36 @@ const BANNED = [
     re: /(automatically|instantly) (paid|released|transferred|deposited)/i,
     why: 'no automatic inspector payout exists anywhere in the platform',
   },
+  {
+    // Added after the first pass shipped: four MORE screens said the payout
+    // "releases once both sides sign off" / "releases on final sign-off".
+    // Same lie, different wording — sign-off does not move money. Only
+    // admin_mark_payout_processed does, and only a super_admin can call it.
+    // Note "pauses payout release" (disputes) is accurate and must stay legal,
+    // hence the explicit negative lookbehind for pause/hold wording.
+    id: 'payout-releases-on-signoff',
+    // Target the CLAIM (payout releases as a consequence of sign-off/approval,
+    // or straight to Stripe), not every mention of the words. Copy that
+    // correctly attributes the action to a person — "Awaiting admin payout
+    // release" — is accurate and must stay legal, so a bare `payout release`
+    // is deliberately NOT matched.
+    re: /releases?\s+(once|on|upon|after)\b[^.]{0,40}(sign|approv)|payout\s+releases?\s+to\b/i,
+    why: 'sign-off does not release money — an admin records settlement manually',
+  },
 ];
 
-/** Only contract / signature / payout surfaces — not the whole app. */
-const SCOPE = /(contract|signature|sign|payout|wallet|finance)/i;
+/**
+ * Surfaces that talk about lifecycle state or money.
+ *
+ * The first version of this list was too narrow: it matched `contract|
+ * signature|sign|payout|wallet|finance`, which caught
+ * inspector/assignments (via the "sign" inside "assignments" — by luck, not
+ * design) but MISSED inspector/jobs/[id]/submit-report and
+ * inspector/jobs/[id], where the same false "payout releases on sign-off"
+ * copy also lived. Job, assignment and report screens quote payout terms too,
+ * so they belong in scope.
+ */
+const SCOPE = /(contract|signature|sign|payout|wallet|finance|job|assignment|report|dispatch|invoice)/i;
 
 function walk(dir) {
   let out = [];

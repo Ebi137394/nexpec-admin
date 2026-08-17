@@ -281,8 +281,8 @@ export default async function InspectorJobDetailPage({
       {qp.already_reported && (
         <Banner tone="cyan" icon={<CheckCircle2 className="h-5 w-5" />}>
           You&apos;ve already submitted a report for this inspection. Admin
-          will review it and route it back to the client. The payout
-          releases on final sign-off.
+          will review it and route it back to the client. Payout is recorded by a
+          NEXPEC admin after approval and delivery; it is not automatic.
         </Banner>
       )}
       {qp.report_submitted && (
@@ -539,7 +539,7 @@ function InspectorWorkflowPanel({
                 <span className="font-semibold text-cyan-glow">
                   {formatPayout(job.inspectorPayoutCents)}
                 </span>{' '}
-                payout releases on final sign-off.
+                payout, recorded by a NEXPEC admin after approval and delivery. Not automatic.
               </p>
             </div>
           </div>
@@ -604,8 +604,8 @@ function InspectorWorkflowPanel({
                 <span className="font-semibold text-violet-glow">
                   {formatPayout(job.inspectorPayoutCents)}
                 </span>{' '}
-                payout releases to Stripe Connect. You&apos;ll receive a
-                notification at every state change.
+                payout, recorded by a NEXPEC admin after approval and delivery. It is not
+                automatic. You&apos;ll receive a notification at every state change.
               </p>
             </div>
           </div>

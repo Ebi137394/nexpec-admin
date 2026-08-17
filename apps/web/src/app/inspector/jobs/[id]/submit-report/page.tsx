@@ -153,7 +153,8 @@ export default async function SubmitReportPage({
         <p className="mt-2 max-w-2xl text-pretty text-sm text-zinc-400">
           Submit your inspection findings + evidence. Our admin team
           reviews every report (technical + financial) before forwarding
-          it to the client. The payout releases once both sides sign off.
+          it to the client. Payout is recorded by a NEXPEC admin after approval and
+          delivery; it is not automatic.
         </p>
       </header>
 
@@ -349,8 +350,8 @@ export default async function SubmitReportPage({
         {/* Submit row */}
         <div className="flex flex-col items-stretch gap-3 border-t border-white/[0.06] pt-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-zinc-500">
-            On submit, our admin team reviews the report. The payout
-            releases once both sides sign off.
+            On submit, our admin team reviews the report. Payout is recorded by a
+            NEXPEC admin after approval and delivery; it is not automatic.
           </p>
           <div className="flex gap-2 sm:flex-row-reverse">
             <button

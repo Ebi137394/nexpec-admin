@@ -52,8 +52,9 @@ export default async function InspectorAssignmentsPage() {
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           Jobs you&apos;ve been hired on. Submit signed reports here; admin
-          reviews each one before routing to the client. The payout
-          releases once both sides sign off.
+          reviews each one before routing to the client. Payout is recorded by a
+          NEXPEC admin after the report is approved and delivered; it is not
+          automatic.
         </p>
       </header>
 

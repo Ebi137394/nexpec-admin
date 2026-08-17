@@ -166,7 +166,7 @@ export default async function NewClientJobPage({ searchParams }: PageProps) {
               max={10_000_000}
               required
               placeholder="2500"
-              hint="Whole dollars. Held for payout until you release on a signed report."
+              hint="Whole dollars. Held until the report is approved and delivered."
             />
           </div>
         </Section>

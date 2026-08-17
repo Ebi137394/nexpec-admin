@@ -6,7 +6,87 @@
 
 ---
 
-## 00000000000000000. RUN 20 — 2026-08-17, latest session. READ THIS FIRST.
+## 000000000000000000. RUN 21 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `aec45d5`+. Preview `nexpec-main-platform-i2ho1muou-…` = build-aec45d5
+(anon 302→SSO, Staging ×1 / Prod ×0). CANONICAL LIFECYCLE **46/46 COMPLETE**.**
+
+### 1. D22 CLOSED behaviourally on the deployed Preview
+
+Client release page renders the real findings: `REVISION 2` ✓ `CML-27` ✓
+`Result, pass` ✓ under accessible headings ("Delivered inspection report" /
+"Findings"); **$4,800 present, $3,750 and $1,050 absent**. RLS refusals proven
+8/8 in pgTAP (unrelated client, supplier, grant-level anon). Mobile already
+fetches the content (`app/(client)/jobs/[id]/review-report.tsx` selects
+`notes, pdf_url, final_report_doc`) — runtime check belongs to the mobile lane.
+
+### 2. D23 FIXED and behaviourally closed — admin is now a real mediator
+
+Verdict per owner rule was RELEASE-BLOCKING: admin transcript was read-only.
+Fixed (HEAD `aec45d5`, migration `20260801540000`):
+
+* Admin composer ("Send as admin") + close/reopen with audit events.
+* View labels sender_party three-valued — admin never rendered as 'buyer'.
+* **RLS gap the tests exposed: closing a room silenced NOBODY** —
+  `msg_direct_insert` had no status check and policies OR. Now requires
+  `c.status='open'`. Narrowing conjunct only.
+* "Message Inspector" renamed → "Project messages" (2 sites).
+
+**Behavioural proof on the deployed Preview** (room `3d6c4e85-…`):
+client ping → inspector reply → **admin mediation message persisted and
+labelled ADMIN** → close via real UI → **client AND inspector direct-API
+inserts both 403 at RLS, zero leakage** → admin reopen → audit trail
+`chat.direct_room.closed` + `.reopened`. pgTAP 17/17; non-vacuous (pre-fix
+fails exactly D1/D2/E2/E3). Git history: the direct-room feature predates
+qualification (9aac4bd, 2026-08-09).
+
+Identity note: direct rooms REQUIRE `identity_mode='full'` (pgTAP A1 proves a
+protected job is refused). Full-mode contact exposure on the contract page
+(name + email, no phone) is the job's explicit disclosure policy — separate
+from messaging, which is now mediated.
+
+### 3. STEP 46 COMPLETE — manual settlement, exactly once
+
+Proper order discovered and used (all earlier refusals were correct guards):
+`inspector_start_job` (assigned→in_progress, inspector) →
+`mark_job_completed` (admin, acting on the client's recorded
+`job.client_approved_report` signal — "Approve & signal admin" clicked in the
+real UI) → settle.
+
+```
+plain admin  -> 403 Only super_admin can mark payouts processed
+SETTLE       -> 200 paid_at=2026-08-17T16:24:31Z ref=manual:QA-SYNTHETIC-SETTLEMENT-R21
+retry same   -> 400 refused
+retry other  -> 400 refused        (no duplicate settlement)
+payout_marked_by = the throwaway super_admin id
+AUDIT: job.status_changed (inspector) → job.completed (admin) → job.updated payout fields (super_admin)
+```
+
+Throwaway super_admin: crypto-random secret never printed, used once, then
+role→client + banned + password rotated; sign-in refused. Sole privileged
+identity re-verified: **the owner**.
+
+### 4. Remaining (lifecycle done; qualification NOT done)
+
+Credit Release Net-15/30/60 + invoices/overdue · dispute + duplicate refusal ·
+identity matrix Protected/Professional/Full→Protected per-job isolation ·
+real media fixtures (image/PDF/voice/MIME/expiry/byte-integrity) · all-role UI
+sweep · **Android/iOS runtime + TFLite** (D8 patch proven, runtime unproven) ·
+OAuth provider branding · Resend delivery · full final gates (pgTAP all,
+Vitest, typechecks, Deno 2.1.4, builds, migration parity, secret scan) ·
+cleanup + **bypass key rotation** (still active).
+
+### 5. Exact next action
+
+1. Run full pgTAP suite (now 69 suites) + Vitest + typechecks as a regression
+   anchor at `aec45d5`.
+2. Credit Release lane on a second job (Net-15/30/60).
+3. Dispute + payout-duplicate refusals are already covered for THIS job;
+   dispute lane needs its own synthetic job.
+
+---
+
+## 00000000000000000. RUN 20 — 2026-08-17, previous session.
 
 **HEAD `4a5243b`. Lifecycle 45/46 (step 46 deliberately NOT run yet).**
 

@@ -14,9 +14,12 @@ import {
 import { bpsToPercentString } from '@nexpec/shared-core';
 import {
   setFeeSchedule,
+} from '@/lib/actions/settings';
+// Values live outside the 'use server' module — see lib/actions/dispatchState.ts.
+import {
   setFeeScheduleInitialState,
   type SetFeeScheduleActionState,
-} from '@/lib/actions/settings';
+} from '@/lib/actions/settingsState';
 import type { FeeSchedule } from '@/lib/data/settings.types';
 import { cn } from '@/lib/cn';
 

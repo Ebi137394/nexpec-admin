@@ -7,24 +7,12 @@ import {
 } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface SetFeeScheduleActionState {
-  ok: boolean;
-  error: string | null;
-  saved?: {
-    correlation_id: string;
-    after: {
-      client_commission_bps: number;
-      stripe_application_fee_bps: number;
-      dispute_fee_cents: number;
-      payout_fee_bps: number;
-    };
-  };
-}
+// A 'use server' module may export ONLY async functions, so the state VALUE
+// lives in settingsState and only the TYPE is re-exported here.
+// Exporting the value made this whole module throw on load — see dispatchState.ts.
+import type { SetFeeScheduleActionState } from './settingsState';
 
-export const setFeeScheduleInitialState: SetFeeScheduleActionState = {
-  ok: false,
-  error: null,
-};
+export type { SetFeeScheduleActionState };
 
 export async function setFeeSchedule(
   _prev: SetFeeScheduleActionState,

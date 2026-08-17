@@ -31,9 +31,12 @@ function fmtCents(v: number | null | undefined): string {
 }
 import {
   reviewJob,
+} from '@/lib/actions/jobModeration';
+// Values live outside the 'use server' module — see lib/actions/dispatchState.ts.
+import {
   reviewJobInitialState,
   type ReviewJobActionState,
-} from '@/lib/actions/jobModeration';
+} from '@/lib/actions/jobModerationState';
 import type {
   ModerationJobDetail,
   ModerationTimelineEvent,

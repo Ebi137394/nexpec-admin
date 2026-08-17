@@ -8,23 +8,14 @@ import {
 } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
+// A 'use server' module may export ONLY async functions, so the state VALUE
+// lives in organizationsState and only the TYPE is re-exported here.
+// Exporting the value made this whole module throw on load — see dispatchState.ts.
+import type { InviteMemberActionState, UpdateRoleActionState, RemoveMemberActionState } from './organizationsState';
+
+export type { InviteMemberActionState, UpdateRoleActionState, RemoveMemberActionState };
+
 /* ─── inviteOrgMember ──────────────────────────────────────────────── */
-
-export interface InviteMemberActionState {
-  ok: boolean;
-  error: string | null;
-  invited?: {
-    invitation_id: string;
-    email: string;
-    role: string;
-    correlation_id: string;
-  };
-}
-
-export const inviteMemberInitialState: InviteMemberActionState = {
-  ok: false,
-  error: null,
-};
 
 export async function inviteOrgMember(
   _prev: InviteMemberActionState,
@@ -73,22 +64,6 @@ export async function inviteOrgMember(
 
 /* ─── updateOrgMemberRole ──────────────────────────────────────────── */
 
-export interface UpdateRoleActionState {
-  ok: boolean;
-  error: string | null;
-  updated?: {
-    member_id: string;
-    from_role: string;
-    to_role: string;
-    correlation_id: string;
-  };
-}
-
-export const updateRoleInitialState: UpdateRoleActionState = {
-  ok: false,
-  error: null,
-};
-
 export async function updateOrgMemberRole(
   _prev: UpdateRoleActionState,
   formData: FormData,
@@ -134,17 +109,6 @@ export async function updateOrgMemberRole(
 }
 
 /* ─── removeOrgMember ──────────────────────────────────────────────── */
-
-export interface RemoveMemberActionState {
-  ok: boolean;
-  error: string | null;
-  removed?: { member_id: string; correlation_id: string };
-}
-
-export const removeMemberInitialState: RemoveMemberActionState = {
-  ok: false,
-  error: null,
-};
 
 export async function removeOrgMember(
   _prev: RemoveMemberActionState,

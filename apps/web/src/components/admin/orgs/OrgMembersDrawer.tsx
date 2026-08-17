@@ -21,15 +21,18 @@ import {
 } from '@nexpec/shared-core';
 import {
   inviteOrgMember,
-  inviteMemberInitialState,
   updateOrgMemberRole,
-  updateRoleInitialState,
   removeOrgMember,
+} from '@/lib/actions/organizations';
+// Values live outside the 'use server' module — see lib/actions/dispatchState.ts.
+import {
+  inviteMemberInitialState,
+  updateRoleInitialState,
   removeMemberInitialState,
   type InviteMemberActionState,
   type UpdateRoleActionState,
   type RemoveMemberActionState,
-} from '@/lib/actions/organizations';
+} from '@/lib/actions/organizationsState';
 // ★ Import from the types-only modules — keeps the Client bundle free of
 //   next/headers (the server.ts import chain) which would otherwise break
 //   the build with "module needs next/headers" on `yarn build`.

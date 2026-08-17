@@ -17,9 +17,12 @@ import {
 import type { CredentialDecision } from '@nexpec/shared-core';
 import {
   reviewCredential,
+} from '@/lib/actions/credentials';
+// Values live outside the 'use server' module — see lib/actions/dispatchState.ts.
+import {
   reviewCredentialInitialState,
   type ReviewCredentialActionState,
-} from '@/lib/actions/credentials';
+} from '@/lib/actions/credentialsState';
 import type { ComplianceCredential } from '@/lib/data/compliance.types';
 import { cn } from '@/lib/cn';
 

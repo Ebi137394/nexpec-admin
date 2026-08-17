@@ -4,21 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { adminReviewJobInput } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface ReviewJobActionState {
-  ok: boolean;
-  error: string | null;
-  reviewed?: {
-    job_id: string;
-    moderation_status: string;
-    job_status: string;
-    correlation_id: string;
-  };
-}
+// A 'use server' module may export ONLY async functions, so the state VALUE
+// lives in jobModerationState and only the TYPE is re-exported here.
+// Exporting the value made this whole module throw on load — see dispatchState.ts.
+import type { ReviewJobActionState } from './jobModerationState';
 
-export const reviewJobInitialState: ReviewJobActionState = {
-  ok: false,
-  error: null,
-};
+export type { ReviewJobActionState };
 
 export async function reviewJob(
   _prev: ReviewJobActionState,

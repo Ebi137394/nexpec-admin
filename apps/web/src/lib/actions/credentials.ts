@@ -4,21 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { adminReviewCredentialInput } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface ReviewCredentialActionState {
-  ok: boolean;
-  error: string | null;
-  reviewed?: {
-    credential_id: string;
-    from_status: string;
-    to_status: string;
-    correlation_id: string;
-  };
-}
+// A 'use server' module may export ONLY async functions, so the state VALUE
+// lives in credentialsState and only the TYPE is re-exported here.
+// Exporting the value made this whole module throw on load — see dispatchState.ts.
+import type { ReviewCredentialActionState } from './credentialsState';
 
-export const reviewCredentialInitialState: ReviewCredentialActionState = {
-  ok: false,
-  error: null,
-};
+export type { ReviewCredentialActionState };
 
 export async function reviewCredential(
   _prev: ReviewCredentialActionState,

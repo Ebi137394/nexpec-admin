@@ -11,6 +11,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { resolveOAuthOrigin } from './oauthOrigin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
@@ -205,15 +206,14 @@ export async function signInWithOAuth(formData: FormData) {
   const supabase = await createSupabaseServerClient();
 
   // ── Origin resolution for the OAuth `redirectTo` ─────────────────
-  // Precedence:
-  //   1. NEXT_PUBLIC_SITE_URL (explicit production / preview override)
-  //   2. VERCEL_URL (auto-injected on Vercel deploys, no protocol)
-  //   3. localhost fallback for `yarn dev:web`
-  // The provider needs an absolute https URL it can route back to.
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
-    'http://localhost:3000';
+  // D27: previews must return to THEIR OWN host, production to the canonical
+  // domain. The old unconditional NEXT_PUBLIC_SITE_URL-first order sent
+  // Preview OAuth users back to production. See lib/auth/oauthOrigin.ts.
+  const origin = resolveOAuthOrigin({
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_URL: process.env.VERCEL_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  });
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider as 'google' | 'apple' | 'linkedin_oidc',
@@ -229,6 +229,30 @@ export async function signInWithOAuth(formData: FormData) {
         error?.message ?? 'OAuth provider unavailable.',
       ),
     );
+  }
+
+  // D26: with the SSR client, signInWithOAuth BUILDS the authorize URL locally
+  // and never talks to the network, so `error` above only fires for malformed
+  // input — a provider that is simply not enabled sails through and the user
+  // lands on GoTrue's RAW JSON error page ("Unsupported provider: provider is
+  // not enabled"). Pre-flight the authorize URL: a healthy provider answers
+  // with a 3xx redirect into the provider's own consent screen; anything else
+  // gets the friendly inline message instead of a JSON dead end.
+  try {
+    const probe = await fetch(data.url, { redirect: 'manual' });
+    if (probe.status >= 400) {
+      redirect(
+        buildErrorRedirect(
+          '/sign-in',
+          'This sign-in provider is not available right now. Use your email and password, or try another provider.',
+        ),
+      );
+    }
+  } catch (e) {
+    // redirect() throws NEXT_REDIRECT — let it through; only swallow genuine
+    // network failures of the probe itself, where proceeding is still better
+    // than blocking sign-in outright.
+    if ((e as { digest?: string })?.digest?.startsWith('NEXT_REDIRECT')) throw e;
   }
 
   redirect(data.url);

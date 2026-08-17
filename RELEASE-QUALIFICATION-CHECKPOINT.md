@@ -6,7 +6,126 @@
 
 ---
 
-## 00. RUN 5 — 2026-08-16, current session
+## 000. RUN 6 — 2026-08-16, latest session. READ THIS FIRST.
+
+**HEAD `46cd258`, branch `release/identity-replacement`, clean tree,
+origin SYNCHRONIZED (0/0).** Run 5's four commits are now pushed.
+
+### 000.1 Recovery tasks — all DONE
+
+| Task | Result |
+|---|---|
+| Push run 5's 4 unpushed commits | **DONE** — `6840a1d..46cd258`, origin 0/0 |
+| Free disk to ≥20 GB | **DONE** — 16 GB → **28 GB**. Deleted only reproducible caches (Yarn cache 10 GB — this project uses npm, `.next`, `android/app/build`, `.cxx`, npm cache). Source, 205 migrations, `patches/`, credentials all verified intact. |
+| Preview from current HEAD, Staging-targeted | **DONE** — see 000.2 |
+| **D8 patch survives clean install** | **DONE — PROVEN** — see 000.3 |
+
+### 000.2 Preview at HEAD — verified four ways
+
+`https://nexpec-main-platform-g9ynbggha-ebi137394s-projects.vercel.app`
+(auto-deployed by the push; target `preview`, status Ready)
+
+1. **Anonymous is SSO-protected** — `GET /sign-in` → **302**, 15 bytes,
+   **0** NEXPEC markers.
+2. **Staging-only** — 13 served `_next/static` chunks + HTML:
+   `zmzvmgaeovleuvbvwxei` **×1**, `sxqpjxhslzzcdrdctatm` **×0**; the only
+   `*.supabase.co` host in the whole bundle is the Staging one.
+3. **Built from HEAD** — the app's own footer renders **`build-46cd258`**
+   (read out of the live DOM after signing in, not inferred from the API).
+4. **D13 fix is live** — `/talent/*` and `/agency/*` return **404**, not the
+   500 they returned before the fix. `/discover`, `/inspectors`, `/feed.xml`
+   still 200; `/inspections/[slug]` still 404.
+
+### 000.3 D8 — the patch survives a true clean install
+
+`npm ci` (wipes `node_modules`, installs from lock):
+
+```
+> nexpec@1.0.0 postinstall
+> patch-package
+patch-package 8.0.1
+Applying patches...
+react-native-nitro-modules@0.35.9 ✔
+added 1314 packages ... NPM_CI_EXIT=0
+```
+
+Re-read from disk afterwards: the positional-argument form is present and
+**`canOverrideExistingModule = ` (the named form) occurs 0 times**. The fix is
+durable across a dependency wipe.
+
+### 000.4 Canonical lifecycle — steps 1 and 2 PASS through the real UI
+
+**Job `e2859bf6-9cdb-4861-99cb-ee31d99b9ba3`**, title
+`QA5-LIFECYCLE-A Ultrasonic thickness survey, 12 inch process line`.
+
+Created by signing in as `qa.client@nexpec.test` with **real clicks and real
+keyboard input** on the deployed Preview (`/client/jobs/new`), then submitting
+the actual form. Verified by **database read-back**, not by the UI's own claim:
+
+| Field | Value | Meaning |
+|---|---|---|
+| `client_id` | `0d06d2ba…` | the signed-in QA client |
+| `budget_cents` | **480000** | the `4800` typed into BUDGET (USD) |
+| `location_city` | **"Calgary, Alberta"** | typed into CITY |
+| `specialty_slugs` | **`["ndt-ut"]`** | set by a real click on the checkbox |
+| `moderation_status` | **`pending_review`** | **step 2: not auto-approved** |
+| `public_listable` | **`false`** | **step 2: not auto-published** |
+| `contractor_id` | **`null`** | **step 2: not auto-dispatched** |
+| `payout_status` / `escrow_status` | `unpaid` / `pending` | no money moved |
+| `client_price_cents` / `platform_spread_cents` | `0` / `0` | admin has not priced it yet |
+
+The submit button is labelled **"Post for moderation"**, which matches the
+guard behaviour rather than contradicting it.
+
+### 000.5 Environment problems that cost this run, and how to avoid them
+
+* **The Browser pane hides itself intermittently.** When hidden, every
+  `computer` action (click/scroll/key) times out after 30 s, while
+  `read_page` / `javascript_tool` keep working. Coordinate clicks are also
+  scaled: the click frame is **800×505** while CSS is **1440×900**, so
+  `frame = css × 0.5556`. Reliable pattern that worked:
+  **focus the element via JS, then type with the real keyboard**; for the final
+  submit use `form.requestSubmit(button)` (the browser's real submission path,
+  including validation and submitter) when a click cannot be landed.
+* **Docker was wedged.** The VM had been up 11 h with a ~10 h-stale console log
+  and the daemon refused connections. A quit + `pkill` + relaunch did **not**
+  bring the VM back within ~15 min. **Local Supabase is therefore DOWN**, so
+  pgTAP, clean `db reset` and local migration-parity could not run this session.
+  Fix Docker Desktop first on resume.
+
+### 000.6 EXACT RESUME COMMANDS
+
+```bash
+cd ~/Desktop/nexpec
+export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>            # qa-lib.mjs, staging.env, make-temp-admin.mjs live here
+
+# 1. privileged QA identities (they were REVOKED at the end of run 6)
+cd $S && node make-temp-admin.mjs && node set-temp-password.mjs
+
+# 2. browser access (bypass secret is at ~/.nexpec-preview-bypass, 0600)
+node $S/redirector.mjs &        # 127.0.0.1:8791 -> Preview, secret never printed
+
+# 3. resume the lifecycle at STEP 3 (admin moderation) on this job
+#    e2859bf6-9cdb-4861-99cb-ee31d99b9ba3   (moderation_status = pending_review)
+
+# 4. fix Docker, then the local-only gates
+open -a Docker && supabase start && node scripts/qa/run-pgtap.mjs
+```
+
+### 000.7 What run 6 did NOT do — the honest list
+
+Everything in the brief beyond the above is still outstanding: lifecycle
+**steps 3–46**; exhaustive per-role clicking of every button/form/modal/filter/
+table/pagination/chart/notification; the file/media/link matrix; messaging and
+notifications; Resend email delivery; **all** mobile QA (no Android or iOS build
+or run this session, no TFLite inference); the five Expo Router helper-file
+warnings and their regression check; and the full final gate set (pgTAP, Deno
+2.1.4, ML/replay, db reset, migration parity, guards, secret scan, orphan scan).
+
+---
+
+## 00. RUN 5 — 2026-08-16, previous session
 
 **HEAD at start: `6840a1d`, branch `release/identity-replacement`, clean, synced.**
 

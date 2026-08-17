@@ -6,7 +6,75 @@
 
 ---
 
-## 000000000000000000. RUN 21 — 2026-08-17, latest session. READ THIS FIRST.
+## 0000000000000000000. RUN 22 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `f0bb3e0`. FULL REGRESSION ANCHOR GREEN. Lifecycle 46/46 stands.**
+
+### 1. Regression anchor at this tree — every number verified this run
+
+| Gate | Result |
+|---|---|
+| **pgTAP** | **70 suites · 70 PASS · 0 FAIL** (real node exit 0) |
+| **Vitest** | 13 files · **173/173** |
+| **typecheck:all** | 0 errors |
+| **typecheck:app** (mobile) | 0 errors |
+| **Deno 2.1.4 edge checks** | **37/37** |
+| Guards | use-server, truthful-copy, price-blindness ×2, role-routing, db-refs, rls-admin-coverage — all PASS |
+| **Migration parity** | ledger local=remote 1:1 through `20260801542000` |
+
+**The anchor caught two real breaks from the new guards, both fixed:**
+
+* `direct_chat_role_parity` t40: 540000's identity-based `sender_party` labelled
+  agency/enterprise ORG-MEMBER senders as 'admin' (their jobs own via
+  `agency_id`; senders ≠ `conversations.user_id`). **`20260801542000`**
+  reclassifies by ROLE (contractor→inspector, admin/super_admin→admin,
+  else→buyer). Applied to Staging.
+* `marketplace_lifecycle` aborted on **PAYOUT_BINDING_VIOLATION** — its fixture
+  countered 72000/accepted then contracted+dispatched at 70000, the exact drift
+  D16 refuses. Fixture now uses the accepted 72000. 29/29.
+
+**Harness note:** earlier "PGTAP_EXIT=0 with failures" readings were MY wrapper
+capturing `tail`'s exit in a pipeline. `run-pgtap.mjs` exits 1 on failure and
+always did. Capture with `> file; echo EXIT=$?` not `| tail; echo $?`.
+
+### 2. Credit Release policy lane — RPC layer PROVEN
+
+Via temp admin (revoked after):
+
+```
+Net-45              -> 400 INVALID_NET_TERM: 45 (allowed: 15, 30, 60)
+Net-15 / 30 / 60    -> 200 each (CREDIT_RELEASE)
+restore             -> 200 STRICT_PREPAY (policy left at default)
+client self-grant   -> 403 NOT_AUTHORIZED: only admin or super_admin
+```
+
+`funding_policy_audit` rows carry the FULL required shape: scope, client_id,
+job_id, actor_id, actor_role, **previous_policy, new_policy**, net_term_days,
+invoice_due_at, reason, created_at.
+
+**NOT yet proven on this lane:** a second job flowing under CREDIT_RELEASE
+(delivery unblocked without the 80%, exact due dates on a real invoice, overdue
+never removing report access), and the invoice/finance UI surfaces.
+
+### 3. Cleanup state
+
+Temp admins revoked (`r8gt4ip` pair refused sign-in); **sole privileged
+identity: the owner**. Policy restored to STRICT_PREPAY. Preview bypass still
+active (rotate at final cleanup). No QA processes.
+
+### 4. Exact next action
+
+1. Credit Release END-TO-END on a fresh synthetic job: set client policy
+   CREDIT_RELEASE Net-15 → run to delivery WITHOUT funding T2 → verify
+   `nx_funding_issue_delivery_invoice` due date = delivery+15d → report access
+   under open/overdue → repeat Net-30/60 → restore STRICT_PREPAY.
+2. Dispute lane (own synthetic job).
+3. Identity matrix; media fixtures; role sweep; Android/iOS + TFLite; OAuth;
+   Resend; final gates; bypass rotation.
+
+---
+
+## 000000000000000000. RUN 21 — 2026-08-17, previous session.
 
 **HEAD `aec45d5`+. Preview `nexpec-main-platform-i2ho1muou-…` = build-aec45d5
 (anon 302→SSO, Staging ×1 / Prod ×0). CANONICAL LIFECYCLE **46/46 COMPLETE**.**

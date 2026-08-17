@@ -269,3 +269,72 @@ export async function softDeleteMessage(formData: FormData): Promise<void> {
   revalidatePath(returnTo);
   redirect(returnTo);
 }
+
+const ModerateSchema = z.object({
+  conversationId: z.string().uuid(),
+  nextStatus: z.enum(['open', 'closed']),
+  returnTo: z.string().min(1),
+});
+
+/**
+ * D23 — admin moderation of a Full-mode Buyer↔Inspector direct room.
+ *
+ * Closing flips conversations.status to 'closed'. `msg_insert_party`'s
+ * participant branch requires status='open', so both parties are locked out
+ * the moment the room closes; its admin branch has no status check, so a
+ * mediator can still write into a frozen room. Reopening restores the parties.
+ *
+ * Authorisation is the database's, not ours: conv_update_admin_or_user_status
+ * limits this UPDATE to nx_is_admin() (or the room owner). The role check here
+ * is early UX feedback only. Every change writes an audit_events row so the
+ * freeze/unfreeze itself is on the record.
+ */
+export async function moderateDirectRoom(formData: FormData): Promise<void> {
+  const parsed = ModerateSchema.safeParse({
+    conversationId: formData.get('conversationId'),
+    nextStatus: formData.get('nextStatus'),
+    returnTo: formData.get('returnTo'),
+  });
+  if (!parsed.success) {
+    redirect(withQuery('/admin/communications/direct', { error: 'Invalid moderation request.' }));
+  }
+  const { conversationId, nextStatus, returnTo } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/sign-in?next=' + encodeURIComponent(returnTo));
+
+  const { error } = await supabase
+    .from('conversations')
+    .update({ status: nextStatus })
+    .eq('id', conversationId)
+    .eq('kind', 'job_client_inspector');
+
+  if (error) {
+    redirect(withQuery(returnTo, { error: 'Moderation failed: ' + error.message }));
+  }
+
+  // audit — moderation of a party channel must itself be auditable
+  const { data: conv } = await supabase
+    .from('conversations')
+    .select('job_id')
+    .eq('id', conversationId)
+    .maybeSingle();
+  await supabase.from('audit_events').insert({
+    event_type: nextStatus === 'closed' ? 'chat.direct_room.closed' : 'chat.direct_room.reopened',
+    severity: 'info',
+    actor_id: user.id,
+    subject_table: 'conversations',
+    subject_id: conversationId,
+    job_id: (conv as { job_id: string | null } | null)?.job_id ?? null,
+    summary:
+      nextStatus === 'closed'
+        ? 'Admin closed a Buyer↔Inspector direct room (parties can no longer post; history preserved).'
+        : 'Admin reopened a Buyer↔Inspector direct room.',
+  });
+
+  revalidatePath(returnTo);
+  redirect(returnTo);
+}

@@ -118,7 +118,7 @@ export default async function SupplierChatHubPage({
                 <input type="hidden" name="supplierId" value={r.supplier_id} />
                 <input type="hidden" name="returnTo" value="/chat/buyers" />
                 <button type="submit" className={BTN}>
-                  <MessageSquare className="h-4 w-4" aria-hidden /> Message Inspector
+                  <MessageSquare className="h-4 w-4" aria-hidden /> Project messages
                 </button>
               </form>
             </li>

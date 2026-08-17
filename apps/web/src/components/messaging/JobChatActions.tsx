@@ -72,7 +72,10 @@ export default async function JobChatActions({
             <input type="hidden" name="inspectorId" value={cp.inspector_id ?? ''} />
             <input type="hidden" name="returnTo" value={returnTo} />
             <button type="submit" className={BTN}>
-              <MessageSquare className="h-4 w-4" aria-hidden /> Message Inspector
+              {/* D23: renamed from "Message Inspector" — this room is
+                  admin-monitored and admin-mediated, so the label must not
+                  suggest a private 1:1 line. */}
+              <MessageSquare className="h-4 w-4" aria-hidden /> Project messages
             </button>
           </form>
         )}

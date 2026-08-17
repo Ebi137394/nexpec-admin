@@ -6,7 +6,94 @@
 
 ---
 
-## 0000. RUN 7 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000. RUN 8 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `74520ea`, branch `release/identity-replacement`, clean, origin 0/0.
+Disk 28 GB. Docker UP. Preview `nexpec-main-platform-gidxw25ow-…` verified:
+anonymous 302 → SSO with 0 NEXPEC bytes, Staging ×1 / Production ×0, and the
+app footer renders `build-74520ea` = current HEAD.**
+
+Job **`e2859bf6-9cdb-4861-99cb-ee31d99b9ba3`** — re-verified intact before any
+action. No duplicate created.
+
+### 00000.1 THE INSTRUCTION TO "SET CLIENT PRICE IN SPREAD EDITOR NOW" IS NOT EXECUTABLE YET
+
+This is the single most important correction in this run. It is **not a defect**
+and must not be filed as one.
+
+The Spread Editor (`/admin/dispatch`) states its own scope on screen:
+
+> *"Every job in **open** status **with at least one CLIENT_SELECTED applicant**.
+> Pick an inspector, set the client charge and inspector payout, and fire the
+> atomic dispatch RPC."* — and it showed **QUEUE IS CLEAR**.
+
+Confirmed in the schema: `client_price_cents` is writable by exactly three RPCs,
+and **two of them require `p_application_id`**:
+
+* `admin_dispatch_job(p_job_id, **p_application_id**, p_client_price_cents, p_payout_cents, …)`
+* `admin_generate_job_contract(**p_application_id**, p_client_price_cents, …)`
+* `admin_present_quote(p_quote_id, …)` — the supplier/RFQ lane, not this one
+
+**So the client price is set at contract-generation / dispatch, AFTER an
+inspector applies and the client selects them — never before.** Forcing it now
+would require a raw SQL write, i.e. faking a lifecycle step, which the brief
+forbids. The negative generated spread (D14) therefore persists legitimately
+until dispatch, and **that is where it must be re-checked for +120000**.
+
+### 00000.2 Lifecycle steps advanced this run — all through the real UI
+
+| # | Step | Evidence |
+|---|---|---|
+| — | New uniquely-named temp admin | `qa.tmpadmin.r8mp6z9@` (the run-7 pair is banned, emails permanently taken) |
+| 8/9 | **Inspector Marketplace shows the job, price-blind** | `/inspector/jobs` renders "Available, 6" incl. QA5-LIFECYCLE-A showing **`INSPECTOR PAYOUT $3,600`**. Rendered-text assertions: `$4,800` **absent**, `$1,200` **absent**. |
+| 10/11 | **Inspector applies with a real cover note** | 470 chars typed with the real keyboard into `coverNote` |
+| 12 | **Counter-bid submitted** | `bidDollars` = 3950 typed, form submitted |
+| — | DB read-back | application **`f8d0024a-ce47-48c6-b2d9-e31e10e699f4`**: `applicant_id=a7556734`, `bid_amount_cents=**395000**`, `cover_note` = the typed text, `status=pending`, **`forwarded_to_client_at=null`** |
+| 15 | **Client sees NOTHING before forwarding** | as QA Client, `/client/jobs/<id>/applications` renders **"0 applications"**; inspector name, cover-note text, `3,950` and `3,600` are **all absent from the rendered page** |
+
+The client-side empty state is **truthful, not a disguised error**: *"No vetted
+applications available yet. NEXPEC reviews every applicant — credentials,
+specialty fit, experience and availability — before sharing a candidate with
+you."* That is the required behaviour, not a swallowed failure.
+
+### 00000.3 Browser-pane rule confirmed again (do not re-diagnose)
+
+Soft (client-side) navigation inside the admin area frequently leaves the
+Suspense boundary unresolved — `main.innerText.length === 0` with a spinner —
+even at a valid viewport. **A FRESH TAB loading the URL directly always renders.**
+Both `/admin/dispatch` and `/inspector/jobs` reproduced this exactly.
+**Always: new tab per surface, assert `window.innerWidth > 0`, then judge.**
+
+### 00000.4 Resume point — Admin forwarding
+
+Next: sign in as `qa.tmpadmin.r8mp6z9@nexpec.test`, open the job's moderation /
+applications surface, review the inspector's qualifications, exchange a
+counter-offer, then **forward the application to the client** and re-run the
+client-visibility check (it must flip from 0 to 1). Then identity-disclosure
+modes, client acceptance, contract, signatures, funding, dispatch — and at
+dispatch verify `client_price_cents=480000`, `inspector_payout_cents=360000`,
+`platform_spread_cents=+120000`.
+
+```bash
+cd ~/Desktop/nexpec && export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>
+cd $S && node make-temp-admin2.mjs     # unique-stamped admin+super
+node $S/redirector.mjs &               # 127.0.0.1:8791, secret never printed
+# JOB e2859bf6-9cdb-4861-99cb-ee31d99b9ba3   APPLICATION f8d0024a-ce47-48c6-b2d9-e31e10e699f4
+```
+
+### 00000.5 Cleanup obligations (cumulative)
+
+* Job `e2859bf6-…` + application `f8d0024a-…` and everything downstream.
+* Temp identities `qa.tmpadmin.r8mp6z9@` / `qa.tmpsuper.r8mp6z9@` — revoke via
+  `cleanup-temp-admin.mjs` (it now bans when the delete is FK-refused).
+* Run-7's `qa.tmpadmin@` is already stripped+banned; it cannot be deleted
+  (audit FK) and that is correct.
+* Preview bypass key — still active, needs **rotation** at the very end.
+
+---
+
+## 0000. RUN 7 — 2026-08-17, previous session.
 
 **HEAD `27eeea4`, branch `release/identity-replacement`, clean tree, origin 0/0.**
 Run 6's checkpoint commit did complete and push. Disk 28 GB free.

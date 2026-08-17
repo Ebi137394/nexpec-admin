@@ -6,7 +6,66 @@
 
 ---
 
-## 000000000000000. RUN 18 — 2026-08-17, latest session. READ THIS FIRST.
+## 0000000000000000. RUN 19 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `2ba2edb`+. Report `06f77797-…` = `delivered`. Lifecycle **45/46**.
+Money 480000 / 375000 / **+105000**, payout **unpaid**.**
+
+### 1. Client delivery surfaces — price blindness PASSES
+
+| Surface | Evidence |
+|---|---|
+| `/client/reports` | job listed, handed-off timestamp, **$4,800 visible**, **$3,750 ABSENT**, **$1,050 ABSENT** |
+| `/client/jobs/{id}` | same — only the client's own price |
+| `/client/jobs/{id}/release` | "Report approval" with **Approve & signal admin** / **Submit revision request**; copy correctly says approving *signals* the team to release payment (it does not pay) |
+
+### 2. OPEN DEFECT D22 (P1) — the Client approves a report they cannot read
+
+`/client/jobs/{id}/release` asks the client to approve the deliverable, but the
+**report content is never shown**:
+
+* page text contains **no** `REVISION 2`, **no** `CML-27` — the findings the
+  inspector wrote are absent from the whole 1356-char body;
+* `inspection_reports.pdf_url` is **NULL** and `photos_urls` is `[]`, so there is
+  no rendered document to open either;
+* the page source does **not** reference `final_report_doc`, which is where the
+  delivered content actually lives (verified by grep — no match);
+* the only client report routes are `/client/reports` and
+  `/client/jobs/[id]/release`, and neither renders the findings.
+
+So the delivered report exists in the database and the client is asked to sign
+off on it, but no client-facing surface displays it. **Reproduce**: sign in as
+`qa.client@nexpec.test`, open the release page for job `e2859bf6-…`, search the
+rendered text for `CML-27`.
+
+**NOT yet fixed** — needs a rendering surface for `final_report_doc` (and/or a
+generated PDF) plus a regression test asserting the delivered summary is
+present on the client surface. Do not close this by adding a link alone; assert
+the CONTENT renders.
+
+### 3. Honest scope note on attachments
+
+The canonical report carries **no binary attachments** — the submit form's
+`photos` input was left empty, so `photos_urls=[]` and `pdf_url=NULL`. Only the
+external `signed_docs_url` (a public HTTPS API 570 link) exists. The
+image/PDF/voice/MIME/expiry/byte-integrity matrix therefore still needs its own
+fixtures and was **not** covered by this job.
+
+### 4. Exact next action
+
+1. Fix **D22**, deploy Preview, re-verify the client can read the delivered
+   findings.
+2. Then step 46: create a temporary Staging `super_admin` (random secret, never
+   printed), call `admin_mark_payout_processed` with an explicit synthetic
+   reference, assert `payout_status='paid'` + `marked_by` + timestamp +
+   reference, prove the retry is refused (`Job payout is already marked paid`)
+   and a different reference is also refused, then revoke and re-read the
+   sole-owner invariant.
+3. Then the remaining areas already listed in run 18 §4.
+
+---
+
+## 000000000000000. RUN 18 — 2026-08-17, previous session.
 
 **HEAD `b9acf2c`+. Job `e2859bf6-…` · Report `06f77797-…` = **`delivered`**.
 Lifecycle **44/46**. Money: 480000 / 375000 / **+105000**, payout **unpaid**.**

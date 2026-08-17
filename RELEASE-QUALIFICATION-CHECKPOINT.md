@@ -6,7 +6,61 @@
 
 ---
 
-## 000000. RUN 9 — 2026-08-17, latest session. READ THIS FIRST.
+## 0000000. RUN 10 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `fb0055e`, clean, origin 0/0. Preview `…-gidxw25ow-…` (build-74520ea).
+Job `e2859bf6-9cdb-4861-99cb-ee31d99b9ba3` · Application
+`f8d0024a-ce47-48c6-b2d9-e31e10e699f4`. Lifecycle now 17/46.**
+
+### 0000000.1 THE BROWSER-PANE FIX — use this, it works
+
+When `<main>` will not paint (spinner, `main.innerText.length === 0`) the cure is
+**restart the pane**, not a new tab and not a reload:
+
+```
+preview_list  ->  preview_stop <serverId>  ->  preview_start { url: <target> }
+```
+
+By run 10 the pane had degraded so far that **every** authenticated route showed
+an unresolved Suspense boundary — new tabs, `resize_window` and
+`location.reload()` all failed. A `preview_stop` + `preview_start` **directly at
+the target URL** restored it instantly, every time. Do this after each sign-in,
+because signing in soft-navigates and re-contaminates the pane.
+
+### 0000000.2 Steps 15–17 PASS this run (real clicks, DB read-back)
+
+| # | Step | Evidence |
+|---|---|---|
+| 15 | **Inspector responds to the counter** | `/inspector/negotiations` rendered *"Waiting on you (1)"*, **YOUR BID $3,950.00 · ADMIN COUNTER $3,750.00** + the admin's comment. Real click into "Optional note for admin", 110 chars typed, real click on **Accept counter**. DB: `negotiation_status=counter_accepted`, `inspector_decision=accepted`, note + `inspector_decision_at` persisted, and **`bid_amount_cents` moved 395000 → 375000** (the agreed price). |
+| 16 | **Admin forwards to Client** | "Forward to client" submitted from the moderation drawer (which by then showed **INSPECTOR BID $3,750.00**). DB: `forwarded_to_client_at=2026-08-17T03:23:51Z`, `forwarded_to_client_by=a58a23d2` (temp admin). |
+| 16b | **Client visibility flips 0 → 1** | the same client page that previously read *"0 applications"* now reads **"1 application"**. |
+| 17a | **PROTECTED identity mode — proven by VALUES** | client sees handle **`NX-ZN2MFC`**, "NEXPEC-VERIFIED INSPECTOR", rating/completed/experience and the cover note. **Real name absent. `@nexpec.test` email absent. Phone absent.** |
+| — | **Client price-blindness** | the client page shows **no** `3,750` (inspector's payout), no `4,800`, no `1,200`. |
+
+### 0000000.3 Exact resume point — step 17b
+
+Identity modes **Professional** and **Full**, then **Full → Protected must strip
+PII on the very next read**. The control is the `<select>` (current value
+`protected`) in the Admin moderation drawer at
+`/admin/jobs?inspect=<jobId>`, next to the "Save policy" button. Note the
+counter-offer form there lives inside a **closed `<details>`** — open its
+`<summary>` first; the same pattern likely applies to other collapsibles.
+
+Then: Client acceptance → contract → both signatures → **dispatch, where
+`client_price_cents` is finally set** and where D14 must resolve to
+`client_price_cents=480000`, `inspector_payout_cents=360000`,
+`platform_spread_cents=+120000`.
+
+```bash
+cd ~/Desktop/nexpec && export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>
+cd $S && node make-temp-admin2.mjs   # fresh unique-stamped admin+super
+node $S/redirector.mjs &             # 127.0.0.1:8791
+```
+
+---
+
+## 000000. RUN 9 — 2026-08-17, previous session.
 
 **HEAD `75caece`, branch `release/identity-replacement`, clean, origin 0/0.
 Disk 28 GB. Docker UP. Preview `nexpec-main-platform-gidxw25ow-…` (build-74520ea).**

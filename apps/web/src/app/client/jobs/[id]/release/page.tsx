@@ -114,6 +114,37 @@ export default async function ClientReleasePage({
         </Banner>
       )}
 
+      {/* D22: the delivered findings. Without this the client was asked to
+          approve a report whose content was never shown, and there is no PDF.
+          Rendered as TEXT inside <p>/whitespace-pre-wrap — never
+          dangerouslySetInnerHTML — so report prose cannot inject markup.
+          `reportSummary` is only populated for a DELIVERED report, and carries
+          no payout or spread figures. */}
+      {state.reportSummary && (
+        <section
+          aria-labelledby="delivered-report-heading"
+          className="rounded-3xl border border-accent-green/30 bg-accent-green/[0.04] p-6 sm:p-8"
+        >
+          <h2
+            id="delivered-report-heading"
+            className="font-display text-lg font-semibold tracking-tight text-white"
+          >
+            Delivered inspection report
+          </h2>
+          {state.reportResult && (
+            <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-industrial text-accent-green">
+              Result, {state.reportResult}
+            </p>
+          )}
+          <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Findings
+          </h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">
+            {state.reportSummary}
+          </p>
+        </section>
+      )}
+
       {/* Job summary tile */}
       <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <SummaryTile

@@ -21,10 +21,28 @@ export interface ClientReportState {
   /**
    * The job's report of record, for surfaces that want to show WHAT is being
    * approved (per-visit record, contributor attribution). NULL when the
-   * inspector has not filed one yet. An id only — no report content, and no
-   * inspector identity, is carried here.
+   * inspector has not filed one yet. No inspector identity is carried here.
    */
   reportId: string | null;
+  /**
+   * The DELIVERED report's findings, so the client can actually read what they
+   * are approving.
+   *
+   * This used to be omitted deliberately ("an id only — no report content"),
+   * which produced D22: the release page asked the client to approve a report
+   * whose findings were never fetched and never rendered, with no PDF either.
+   *
+   * Populated ONLY when `inspection_reports.status = 'delivered'`, so a draft
+   * or a report still in senior review cannot leak through a guessed URL. The
+   * read itself is scoped by RLS to the owning client.
+   *
+   * Plain text — render it as text, never as HTML.
+   */
+  reportSummary: string | null;
+  /** Delivered outcome ('pass' | 'partial' | 'fail'), same delivery gate. */
+  reportResult: string | null;
+  /** Report lifecycle status, so surfaces can explain WHY content is absent. */
+  reportStatus: string | null;
   /** When admin handed the report off to the client. NULL if not yet. */
   adminConfirmedAt: string | null;
   /** Client-side final price (admin-set). NEVER the inspector's payout. */

@@ -147,22 +147,62 @@ export async function fetchClientJobReport(
     //    the whole job, so the oldest row is used as the job's report of
     //    record — the same row the admin queue lists first.
     let reportId: string | null = null;
+    let reportSummary: string | null = null;
+    let reportResult: string | null = null;
+    let reportStatus: string | null = null;
     {
+      // D22: this used to select ONLY `id`, so the client was asked to approve a
+      // report whose findings were never fetched, let alone rendered. The
+      // delivered content lives in `final_report_doc`. RLS already scopes this
+      // read to the owning client ("Buyers and inspectors can view reports":
+      // auth.uid() = j.client_id), so authorisation is enforced by the database
+      // and this select cannot widen it.
       const { data: rep } = await supabase
         .from('inspection_reports')
-        .select('id')
+        .select('id, status, final_report_doc, notes')
         .eq('job_id', jobId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
-      reportId = ((rep as Record<string, unknown> | null)?.id as string) ?? null;
+      const r = rep as Record<string, unknown> | null;
+      reportId = (r?.id as string) ?? null;
+      reportStatus = (r?.status as string | null) ?? null;
+
+      // Only a DELIVERED report is readable by the client. Without this an
+      // in-flight draft or a report still in senior review would be exposed to
+      // anyone who guessed the release URL.
+      if (reportStatus === 'delivered') {
+        // `final_report_doc` is a TEXT column holding JSON, not jsonb — casting
+        // it straight to an object yields undefined for every field and the
+        // page silently renders nothing, which is the very failure D22 is about.
+        // Parse defensively and fall back to `notes` so a malformed document
+        // degrades to the raw findings rather than to a blank page.
+        let doc: Record<string, unknown> | null = null;
+        const raw = r?.final_report_doc;
+        if (typeof raw === 'string') {
+          try {
+            doc = JSON.parse(raw) as Record<string, unknown>;
+          } catch {
+            doc = null;
+          }
+        } else if (raw && typeof raw === 'object') {
+          doc = raw as Record<string, unknown>;
+        }
+        const summary =
+          (doc?.summary as string | undefined) ?? (r?.notes as string | undefined);
+        reportSummary = summary ? String(summary) : null;
+        reportResult = doc?.result ? String(doc.result) : null;
+      }
     }
 
     return {
       jobId: String(j.id),
       jobTitle: String(j.title ?? '(untitled)'),
       reportId,
+      reportSummary,
+      reportResult,
+      reportStatus,
       adminConfirmedAt: (j.admin_confirmed_at as string | null) ?? null,
       clientPriceCents:
         typeof j.client_price_cents === 'string'

@@ -6,7 +6,88 @@
 
 ---
 
-## 00000000000. RUN 14 — 2026-08-17, latest session. READ THIS FIRST.
+## 000000000000. RUN 15 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `e985db1`+. Preview `nexpec-main-platform-5t8bmlhjg-…` (anon 302→SSO,
+Staging ×1 / Prod ×0). Job `e2859bf6-…` **assigned** · Contract `5e0a123a-…`
+fully_executed · **REPORT `06f77797-b19d-494b-aa3c-ab749fca7348` submitted**.
+Lifecycle **34/46**.**
+
+### 1. D20 (P1, money) FIXED — SIX more screens promised payout on sign-off
+
+D18 fixed one string. It was not the only one. Six more, including two
+client-facing and **the invoice PDF**:
+
+```
+inspector/assignments/page.tsx        "The payout releases once both sides sign off"
+inspector/jobs/[id]/submit-report x2  same sentence
+inspector/jobs/[id]/page.tsx      x3  "releases on final sign-off",
+                                      "payout releases to Stripe Connect"
+client/jobs/new/page.tsx              "Held for payout until you release on a signed report"
+lib/pdf/renderInvoice.ts              same claim, PRINTED ON THE INVOICE
+```
+
+The two client-facing ones were worse than inaccurate — they told the **client**
+they release the payout, which they never do. All rewritten to state that a
+NEXPEC admin records settlement after approval and delivery, and that it is not
+automatic.
+
+**The D18 gate missed every one, so the GATE was the real defect.** Fixed:
+
+* `SCOPE` was too narrow (`contract|signature|sign|payout|wallet|finance`). It
+  caught `inspector/assignments` only **by luck** — the "sign" inside
+  "assignments" — and missed submit-report, the job detail page, the client job
+  form and the invoice renderer. Now also matches
+  `job|assignment|report|dispatch|invoice`: **133 → 324 files scanned**.
+* Added a `payout-releases-on-signoff` pattern targeting the CLAIM, not the
+  words. Verified both directions: `"Awaiting admin payout release"`
+  (clientReport.ts) is **not** flagged and `"pauses payout release"` (disputes)
+  stays legal, while all 8 false claims are caught.
+
+Non-vacuous: 8 occurrences across 6 files on the pre-fix tree; passes on the fix.
+`apps/web` tsc 0, `next build` exit 0.
+
+**Lesson: a gate that passes proves nothing until you check its SCOPE.** This one
+reported PASS while five live lies sat outside its file filter.
+
+### 2. Steps 32–34 PASS
+
+| Step | Evidence |
+|---|---|
+| Active Assignments | job listed, `CONTRACT SIGNED, BEGIN WORK`, **$3,750** shown, **$4,800 absent** — blindness holds |
+| Report submitted through the real UI | form: result radio (Pass/Partial/Fail) + 462-char summary + external HTTPS link + attestation name + checkbox → `inspection_reports.06f77797…`, `job_id` and `inspector_id` correct |
+| **No automatic payout on submission** | `jobs.payout_status` = **unpaid** after submit |
+
+### 3. Delivery guard ordering — discovered, and it is SENIOR FIRST
+
+```
+nx_admin_deliver_report(06f77797…) -> 400
+  SENIOR_APPROVAL_REQUIRED: the latest review round has not been
+  approved by a Senior Inspector
+```
+
+So the chain is **senior approval → then funding**, not funding first. Strict
+Prepay's `FUNDING_REQUIRED` cannot be observed on delivery until a Senior has
+approved. Plan the remaining delivery tests in that order.
+
+Note `inspection_reports` is the live table — **not** `reports` (which has
+`project_id`, not `job_id`, and is empty). Do not query `reports` for this lane.
+
+### 4. Exact next action
+
+1. Assign a Senior reviewer: `nx_admin_assign_senior_reviewer(p_report_id,
+   p_reviewer_id)` with report `06f77797…`.
+2. Senior returns with comments → inspector resubmits → prove stale resubmission
+   refused → Senior approves.
+3. THEN retry `nx_admin_deliver_report` and expect the **funding** refusal
+   (T2 `final` 384000c still `scheduled`).
+4. Fund T2 via `nx_funding_mark_stage_funded(p_code:'final', p_payment_intent:
+   'manual:QA-SYNTHETIC-80PCT')`, deliver, verify client access + payout still
+   unpaid until `admin_mark_payout_processed`.
+
+---
+
+## 00000000000. RUN 14 — 2026-08-17, previous session.
 
 **HEAD `1c566ce`+. Preview `nexpec-main-platform-5t8bmlhjg-…` (anon 302→SSO,
 Staging ×1 / Prod ×0). Job `e2859bf6-…` **DISPATCHED**. Contract `5e0a123a-…`

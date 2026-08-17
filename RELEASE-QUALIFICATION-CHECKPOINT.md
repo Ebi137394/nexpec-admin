@@ -6,7 +6,88 @@
 
 ---
 
-## 0000000. RUN 10 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000000. RUN 11 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `a588b98`. Job `e2859bf6-…` · Application `f8d0024a-…`. Lifecycle 20/46.**
+
+### 1. The $3,600 vs $3,750 question is RESOLVED — by product behaviour
+
+**Canonical payout is $3,750.** Not inferred — the product itself decided:
+
+* on Client acceptance the system moved `jobs.inspector_payout_cents`
+  **360000 → 375000** on its own;
+* the Spread Editor's dispatch form **pre-fills `payoutDollars = "3750.00"`**.
+
+$3,600 was the admin's provisional pre-negotiation figure; $3,750 is the
+mutually accepted counter. Contract figures: client **$4,800** / payout
+**$3,750** / spread **+$1,050**.
+
+**Integrity gap worth recording (P2, not fixed):** nothing enforces
+payout == accepted bid. `admin_generate_job_contract` takes both amounts as free
+parameters; the only guard is `inspectorPayout > clientPrice` (app layer) and
+non-negativity (RPC). An admin could silently contract below the agreed bid.
+
+### 2. Steps 18–20 PASS
+
+| # | Step | Evidence |
+|---|---|---|
+| 18 | **Client accepts the inspector** | real "Accept inspector" submission → `applications.status = **CLIENT_SELECTED**`, `jobs.inspector_payout_cents` 360000→**375000**, `contractor_id` still null, 0 contracts |
+| 19 | **Job enters the Spread Editor queue** | "1 JOB AWAITING DISPATCH", `JOB POSTED PAYOUT $3,750.00`, `INSPECTOR BID $3,750.00`; Admin correctly sees full inspector identity (broker role) |
+| 20 | **Dispatch is REFUSED pre-contract/pre-funding** | after entering client price 4800 and submitting, `status` stayed `open`, `contractor_id` stayed **null**, 0 contracts — nothing moved |
+
+### 3. DEFECT D15 (P0) — FIXED: Admin dispatch was dead
+
+`Confirm & Dispatch` did nothing **and showed no error**. Server log:
+
+```
+POST /admin/dispatch -> Error: A "use server" file can only export async
+functions, found object.   digest: 3819197431
+```
+
+`lib/actions/dispatch.ts` exported `INITIAL_STATE` (a plain object) from a
+`'use server'` module, which makes the entire module invalid — Next.js throws
+while loading it, before any of our code runs.
+
+Fixed by moving the value to `lib/actions/dispatchState.ts` and re-exporting
+only the **type**. `apps/web` tsc: 0 errors.
+
+**Note:** step 20 above therefore proves only that dispatch did not mutate
+state. Whether the *contract/funding guards* actually fire must be re-tested
+now that the action can run at all.
+
+### 4. NEW GATE + the bug is WIDER than dispatch
+
+`scripts/qa/check-use-server-exports.mjs` refuses any non-async, non-type export
+from a `"use server"` module. Proven non-vacuous (fails on the pre-fix tree).
+It found **6 more violations in 4 modules, all still BROKEN**:
+
+```
+apps/web/src/lib/actions/credentials.ts:18    reviewCredentialInitialState
+apps/web/src/lib/actions/jobModeration.ts:18  reviewJobInitialState
+apps/web/src/lib/actions/organizations.ts:24  inviteMemberInitialState
+apps/web/src/lib/actions/organizations.ts:87  updateRoleInitialState
+apps/web/src/lib/actions/organizations.ts:144 removeMemberInitialState
+apps/web/src/lib/actions/settings.ts:24       setFeeScheduleInitialState
+```
+
+So credential review, the `useActionState` job-moderation path, organization
+invite / role-change / member-removal, and the fee schedule are very likely
+**dead at runtime in exactly the same way**. Fix each with the dispatchState
+pattern, then re-run the gate until it passes.
+
+Nothing catches this class: tsc passes, `next build` passes, the route renders.
+It only detonates on a real POST — and it fails **silently**.
+
+### 5. Exact next action
+
+1. Fix the 6 remaining `"use server"` value exports; `node scripts/qa/check-use-server-exports.mjs` must exit 0.
+2. Redeploy Preview, retry **Confirm & Dispatch**, and confirm it is refused with a *visible* reason (contract/funding), not silently.
+3. Generate the contract (`/admin/contracts`, needs the application UUID; no prefill) at 4800 / 3750, then verify `platform_spread_cents = +105000`.
+4. Identity modes Protected/Professional/Full/Full→Protected **on the contract surface** (`identity_mode` currently left at `full`).
+
+---
+
+## 0000000. RUN 10 — 2026-08-17, previous session.
 
 **HEAD `fb0055e`, clean, origin 0/0. Preview `…-gidxw25ow-…` (build-74520ea).
 Job `e2859bf6-9cdb-4861-99cb-ee31d99b9ba3` · Application

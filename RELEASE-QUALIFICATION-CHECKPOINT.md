@@ -6,7 +6,72 @@
 
 ---
 
-## 0000000000000000. RUN 19 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000000000000000. RUN 20 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `4a5243b`. Lifecycle 45/46 (step 46 deliberately NOT run yet).**
+
+### 1. D22 FIXED — the Client can now read the delivered report
+
+Root cause was one line: `lib/data/clientJobReport.ts` did
+`.from('inspection_reports').select('id')` — **id only**. The type even
+documented it ("An id only — no report content"). With `pdf_url` NULL and
+`photos_urls` empty there was nothing to open either.
+
+Fixed by selecting `status, final_report_doc, notes` and rendering the findings,
+gated on `status='delivered'`; authorisation stays with RLS (unchanged), the
+text is rendered as TEXT (no `dangerouslySetInnerHTML`), and no payout/spread is
+carried.
+
+**A bug the test caught in my own fix:** `final_report_doc` is a **TEXT** column
+holding JSON, **not jsonb**. Casting it to an object yields `undefined` for every
+field and renders a blank panel — the very failure being fixed. Now `JSON.parse`d
+defensively with a `notes` fallback.
+
+Regression **8/8**, by value, with a non-vacuity anchor (the authoring inspector
+still reads the row, so the refusals mean the policy fired). Anon is refused at
+the **GRANT** level — the policy's EXISTS touches `jobs`, which anon cannot read
+— asserted as the error rather than a zero count. Fixture reaches `delivered`
+the real way (approved senior round + funded stages); no guard bypassed.
+
+`apps/web` tsc 0 · `next build` exit 0.
+
+### 2. Brokered communication invariant — RESOLVED, NOT a blocker
+
+`Message Inspector` → `openDirectRoom` → `open_direct_conversation`. Structure:
+
+* The room is **job-scoped**: `job_id` + `kind='job_client_inspector'`, titled
+  "Direct — job {title}". It is not a free-form private DM.
+* **Admins are explicitly barred from JOINING**, by design and by name:
+  `RAISE EXCEPTION 'admins observe direct rooms via the monitoring view, not by joining'`
+* Those views **exist and are readable**: `admin_direct_conversations_view` and
+  `admin_direct_messages_view` (SELECT granted).
+* Opening one requires
+  **`nx_job_effective_identity_mode(p_job_id) = 'full'`** — a direct room is only
+  possible once the job is in **Full** disclosure, which is an explicit
+  admin-authorised state. Our job is `full`, which is why the button appeared.
+
+So: job-scoped, admin-observable, and gated on Full disclosure. That satisfies
+the owner rule; there is **no unmoderated private DM**. Admins are kept out of
+the room membership so they cannot pose as a party, while retaining full read
+visibility — a defensible separation, not a gap.
+
+**Still outstanding on this lane** (structural proof done, behavioural not):
+send a Client message, reply as Inspector, and confirm both appear in
+`admin_direct_messages_view`; attempt a direct-room create/read as an unrelated
+user and as anon; repeat on Mobile; and enumerate the exact fields returned by
+`View inspector details & contact` under Protected / Professional / Full.
+
+### 3. Exact next action
+
+1. Deploy Preview at `4a5243b`, re-verify the client release page **renders
+   REVISION 2 / CML-27** through the real UI.
+2. Finish the messaging behavioural proof in §2.
+3. Then step 46 (temp super_admin → `admin_mark_payout_processed` with a
+   synthetic reference → idempotency refusal → revoke → sole-owner invariant).
+
+---
+
+## 0000000000000000. RUN 19 — 2026-08-17, previous session.
 
 **HEAD `2ba2edb`+. Report `06f77797-…` = `delivered`. Lifecycle **45/46**.
 Money 480000 / 375000 / **+105000**, payout **unpaid**.**

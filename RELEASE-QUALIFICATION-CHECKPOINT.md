@@ -136,6 +136,64 @@ is proven; the end-to-end inference render is the one uncaptured step.
 
 ---
 
+## ## RUN 27 — 2026-08-17, FINAL. READ THIS FIRST.
+
+**FINAL HEAD `2043c63`. Final Preview `nexpec-main-platform-mjqhpktjf-…` at that
+exact sha, anon 302→SSO 0 bytes, Staging×1/Prod×0. Fixtures PRESERVED for owner
+review per instruction — see QA-OWNER-REVIEW-INVENTORY.md. Cleanup deferred
+until the owner replies `OWNER REVIEW COMPLETE — CLEAN QA FIXTURES`.**
+
+### Final gates at 2043c63 (real exit codes)
+pgTAP **74/74 exit 0** after a clean `supabase db reset` replaying **214=214**
+migration files · Vitest 173/173 (+4 oauthOrigin unit tests) · typecheck:all 0 ·
+Deno 2.1.4 37/37 · all guards PASS · migration parity local=ledger=Staging.
+
+### Defects this session
+* **D26 (P2, fixed)** disabled OAuth provider dead-ended users on GoTrue's raw
+  JSON; action now pre-flights the authorize URL and surfaces a friendly inline
+  message.
+* **D27 (P2, fixed)** Preview OAuth redirect_to pointed at PRODUCTION
+  (www.nexpecapp.com) — NEXT_PUBLIC_SITE_URL-first precedence; new
+  resolveOAuthOrigin (preview→own VERCEL_URL), 4 unit tests.
+* **D28 (P2, fixed)** public contact form dead — the anon-grant lockdown had
+  revoked INSERT under the surviving policy. Column-scoped grants restored
+  (`20260801550000` + `552000` for the server-derived ip_address, which the
+  first behavioural retest caught). Verified live: /contact?sent=1 + rows.
+  pgTAP suite; A2 asserts the true posture (anon reads ZERO RLS-filtered rows).
+* **QA-harness artifact (not product)**: proxying the Preview through
+  127.0.0.1 broke Next Server Actions' origin CSRF check with a 500 — harness
+  restored to 302-redirect design.
+
+### Owner-review fixtures (Staging, PRESERVED)
+9 jobs (STRICT delivered · NET15 overdue-invoice · NET30/60 open invoices ·
+DISPUTE resolved-completed · IDENTITY protected/professional/full ·
+COMPLIANCE dispatched+started for qa.talent) + mediated 3-message room +
+real media objects. IDs: qa-artifacts/owner-fixture-ids.json + inventory doc.
+Client release page verified live on NET15: findings render, $1,000 visible,
+$800/$200 absent.
+
+### Genuinely owner-only residuals
+1. **TFLite UI inference run** — the host could not sustain an interactive
+   emulator this session (CPU saturation → ANR loops even with hardware GPU and
+   Docker stopped; documented attempts on both platforms). Native stack is
+   proven (built, loaded, registered, instantiated on Android; compiled on
+   iOS). One-command rerun: qa-artifacts/rerun-tflite-leg.sh on an idle host —
+   OR grant the Claude app Accessibility+Screen Recording and ask Claude to
+   drive the iOS Simulator, OR run
+   `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` to enable
+   the native simulator MCP.
+2. **OAuth provider enablement + branding** — no provider is enabled on
+   Staging Supabase; Google consent screen (seen via the separate production
+   config) shows the raw Supabase host. Provider consoles are owner-only.
+3. **Resend inbox confirmation** — the deployed dispatch path executes with the
+   runtime key (Sensitive-type); submissions persist and the form confirms.
+   Inbox/Resend-dashboard delivery confirmation is owner-side.
+4. **Preview bypass key deletion** — Dashboard-only on this token; SSO stays ON.
+5. **apps/web/.env.local on this machine points local web dev at PRODUCTION
+   Supabase** — gitignored local config, flagged for the owner to repoint.
+
+---
+
 ## RUN 25 — 2026-08-17, MAX-EFFORT (cont). READ THIS FIRST.
 
 **HEAD `9f55a3e`. FINAL ANCHOR GREEN. Preview `ary5vmebk` at HEAD, Staging-only.**

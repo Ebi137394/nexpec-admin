@@ -6,7 +6,72 @@
 
 ---
 
-## 0000000000000000000. RUN 22 — 2026-08-17, latest session. READ THIS FIRST.
+## 00000000000000000000. RUN 23 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `afa75c9`+. CREDIT RELEASE LANE FULLY GREEN — Net-15/30/60 end-to-end.**
+
+### 1. Credit Release end-to-end — 3 fresh synthetic jobs, real RPC lifecycle
+
+Per term (15/30/60), a fresh job ran the REAL path: seeded job+application →
+`admin_generate_job_contract` → `client_sign_job_contract` +
+`inspector_sign_job_contract` → `nx_funding_ensure_schedule` → fund initial
+(`manual:QA-CREDIT-20PCT-N{T}`) → `admin_dispatch_job` → `inspector_start_job`
+→ report (web-form insert path) → `nx_admin_assign_senior_reviewer` →
+`nx_senior_review_decide(approved)` → then, in order:
+
+| Assertion | 15 | 30 | 60 |
+|---|---|---|---|
+| delivery BLOCKED pre-credit (FUNDING_REQUIRED) | ✓ | ✓ | ✓ |
+| `nx_admin_release_job_on_credit` grants (reason required) | ✓ | ✓ | ✓ |
+| final tranche non-gating yet **NOT funded** | ✓ | ✓ | ✓ |
+| delivery SUCCEEDS on credit | ✓ | ✓ | ✓ |
+| invoice exactly once; **due = invoiced + T days exactly** | ✓ | ✓ | ✓ |
+| amount = unfunded final 80% (80000c) | ✓ | ✓ | ✓ |
+| re-issue idempotent (timestamps unchanged) | ✓ | ✓ | ✓ |
+| payout stays `unpaid`; overdue triggers no payout | ✓ | ✓ | ✓ |
+| client reads report under OPEN **and OVERDUE** invoice | ✓ | ✓ | ✓ |
+
+Refusals proven on the lane: **client 403**, **inspector 403** on the grant RPC;
+**Net-45 → INVALID_NET_TERM (allowed: 15, 30, 60)**. `funding_policy_audit`
+rows: `scope='job'`, actor_role, reason, and `previous_policy` carrying the full
+prior stage snapshot.
+
+**Overdue disclosure:** overdue state was manufactured by service-role
+backdating `invoice_due_at` on the ISOLATED synthetic jobs only (no guard
+protects that column; canonical job untouched).
+
+**Lane fixtures to clean at final cleanup** (jobs + apps + contracts + stages +
+reports): `12b2d876-…` (NET15) · `fa753d46-…` (NET30) · `ee1cf1c1-…` (NET60).
+
+### 2. NEW DEFECT D24 (P3, dead surface) — `submit_inspection_report` can never succeed
+
+The legacy RPC writes `jobs.status='under_review'` — a state
+`guard_jobs_status_transition` does not have (allowed from in_progress:
+completed/disputed/cancelled). **Zero callers** in web or mobile (the web form
+inserts into `inspection_reports` directly; that is the real path). Not a
+blocker; fix-or-revoke at leisure. Found because the lane first tried the RPC
+and got the canonical-state-machine refusal.
+
+### 3. Still owed on this lane
+
+Durable pgTAP suite for the credit class (the .mjs lane is evidence, not a
+regression gate) · Client/Admin invoice UI + invoice PDF behavioural check on
+Preview.
+
+### 4. Exact next action
+
+1. pgTAP suite `credit_release_class_test.sql` mirroring §1's assertions
+   (non-vacuous: revert-check against a pre-`nx_admin_release_job_on_credit`
+   stub is impractical — instead assert refusal paths AND the grant paths so a
+   policy regression flips at least one).
+2. Invoice/finance UI reconciliation on Preview (client outstanding amount +
+   due date on the NET-15 job before cleanup).
+3. Then: dispute lane, identity matrix, media fixtures, role sweep,
+   Android/iOS + TFLite, OAuth, Resend, final gates, bypass rotation.
+
+---
+
+## 0000000000000000000. RUN 22 — 2026-08-17, previous session.
 
 **HEAD `f0bb3e0`. FULL REGRESSION ANCHOR GREEN. Lifecycle 46/46 stands.**
 

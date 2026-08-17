@@ -6,6 +6,77 @@
 
 ---
 
+## ## RUN 24 — 2026-08-17, MAX-EFFORT PUSH (owner lifted usage cap). READ THIS FIRST.
+
+**HEAD moving. Docker UP, arm64 emulator UP, Android arm64-v8a build in flight.**
+
+### Defects found & fixed this run (all applied to Staging + pgTAP)
+
+* **D24 (P1 security+dead)** `submit_inspection_report` wrote `jobs.status='under_review'`
+  (nonexistent state → always rolled back) AND was SECURITY DEFINER with **no
+  authorization** — any authed user could upsert a report onto any job; only the
+  accidental rollback hid it. `20260801544000` rebuilds to web-path parity
+  (contractor-only, pending, no jobs.status write). Suite 9/9, non-vacuous (7/9
+  fail on old body).
+* **D25 (P1 money)** `admin_resolve_dispute` wrote `jobs.completed_at` — no such
+  column → **every** resolution 42703 after passing gates. Run 4's 32/32 proved
+  only refusals; the positive path had never executed. `20260801546000` drops the
+  phantom write.
+* **D25b (P1 audit)** resolution left `job_disputes` **open** with
+  resolved_by/at/notes NULL. `20260801548000` closes the record
+  (completed→resolved_paid, cancelled→resolved_refunded, actor+ts+reason).
+  Combined suite `admin_resolve_dispute_executes_test` 13/13, non-vacuous (8/9
+  fail on pre-fix body, A1 dies on 42703).
+
+### Lanes proven green this run (behavioural, Staging)
+
+* **Credit Release pgTAP** `credit_release_class_test` **16/16** — durable gate
+  for the Net-15/30/60 lane (role/term gates, final-only flip, no fake funding,
+  delivery satisfied unfunded, due=+N days, idempotent, audit, no-final refused).
+* **Dispute lane** — file (`flag_job_dispute`), duplicate refused, supplier/client
+  refused, plain-admin refused (super_admin only), **temp super_admin resolves**
+  (after D25 fix), double-resolution refused, no money moved.
+* **Identity disclosure matrix (by field value)** — PROTECTED name/email/phone
+  NULL · PROFESSIONAL name+resume+certs present, email/phone NULL · FULL all
+  present (verified with a synthetic phone) · **FULL→PROTECTED PII gone next
+  read** · UNFORWARDED invisible even in FULL · unrelated client & anon refused.
+  The `job_applicant_identity_view` WHERE clause enforces
+  `forwarded_to_client_at IS NOT NULL` (admins bypass).
+* **Media/storage matrix (real bytes) 14/14** — PNG upload, truthful metadata
+  (size+mime), byte-identical signed download (sha256), expired-URL 400, anon
+  400, cross-user read 400, ownership isolation (path≠ownership), MIME 415,
+  oversize 400 (26MB cap), PDF cert + voice upload, delete+absence.
+* **Messaging** — client/inspector post into the job room; **admin sees both**
+  via `admin_direct_messages_view` labelled buyer/inspector; **admin mediates**
+  via composer RLS insert (party RPC refuses admins by design — D23); unrelated
+  supplier sees 0, anon refused, unrelated cannot post.
+
+### Native build — the honest state
+
+D8 (Kotlin nitro) patch holds through a clean prebuild. A SEPARATE native issue
+surfaced: **x86_64** ABI CMake configure fails on this Apple-Silicon host at the
+compiler-ABI-detection tmp step (`unable to open output file … CMakeCCompilerABI`),
+a CMake/ninja tmp-dir issue, NOT fast-tflite source. The `nexpec_qa` emulator and
+all modern phones are **arm64-v8a**; building `-PreactNativeArchitectures=arm64-v8a`
+is the standard target config (documented in gradle.properties). arm64-v8a build
+is compiling past the x86_64 failure point (Skia packaged, `:app:buildCMakeDebug[arm64-v8a]`).
+x86_64 is release-relevant only for emulators/Chromebooks; record as a
+device-matrix note, not an arm64 blocker.
+
+### Fixtures still live (clean at final cleanup)
+Credit jobs `12b2d876`(N15,also identity fixture) `fa753d46`(N30,dispute→completed)
+`ee1cf1c1`(N60). Temp `r8itzdp` pair. Storage QA objects under
+`a7556734-…/qa-media/` (evidence.png deleted; cert.pdf, voice.wav remain).
+
+### Exact next action
+1. Finish arm64 APK → install on nexpec_qa → launch → real TFLite inference → logcat.
+2. iOS cold build + runtime + TFLite.
+3. Web all-role UI sweep; finance/invoice UI; OAuth branding; Resend.
+4. Final full gates (pgTAP now ~74 suites), secret scan, orphan scan, clean reset,
+   Preview redeploy+smoke, cleanup + bypass rotation.
+
+---
+
 ## 00000000000000000000. RUN 23 — 2026-08-17, latest session. READ THIS FIRST.
 
 **HEAD `afa75c9`+. CREDIT RELEASE LANE FULLY GREEN — Net-15/30/60 end-to-end.**

@@ -6,7 +6,96 @@
 
 ---
 
-## 000000000. RUN 12 — 2026-08-17, latest session. READ THIS FIRST.
+## 0000000000. RUN 13 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `4f5f08c`+. Preview `nexpec-main-platform-j7qwf41u7-…` (anon 302→SSO,
+Staging ×1 / Prod ×0). Job `e2859bf6-…` · Application `f8d0024a-…` ·
+**LIVE CONTRACT `5e0a123a-c036-4326-847d-4c210304fdf5`** (60a87929 is VOIDED).
+Lifecycle **26/46**.**
+
+### 1. D14 IS CLOSED — and it resolves at contract execution, not dispatch
+
+The previous run predicted the job-level spread would correct at dispatch. Wrong
+— it corrects the moment the contract becomes `fully_executed`:
+
+```
+jobs.client_price_cents     = 480000   ($4,800)
+jobs.inspector_payout_cents = 375000   ($3,750)
+jobs.platform_spread_cents  = 105000   ($1,050)   POSITIVE, exact
+```
+
+The earlier −375000 was an intermediate state while `client_price_cents` was 0.
+**No dispatch was needed to fix it. D14 is not a defect.**
+
+### 2. D16 (P1, money) FIXED — an accepted counter now BINDS the contract payout
+
+An admin could counter at X, have the inspector accept X, then generate the
+contract at anything else. Only non-negativity and `payout <= price` were
+checked. The inspector could sign a number nobody showed them.
+
+The rule was **derived, not invented** — `inspector_respond_to_counter` already
+says in its own comment that the accepted counter is copied into
+`bid_amount_cents` so "the rest of the platform (dispatch table, payouts) sees a
+single canonical price". Migration `20260801536000` enforces that promise.
+
+Scope is deliberately narrow: fires ONLY on `negotiation_status =
+'counter_accepted'`. NULL / `none` / `counter_rejected` keep full admin pricing
+discretion; a NULL bid is skipped. **No override flag** — changing an agreed
+payout requires renewed consent, and `admin_counter_offer` →
+`inspector_respond_to_counter` already is that workflow. Also adds the
+`contract.generated` audit row this money step never wrote.
+
+Verified: local pgTAP **12/12**; **non-vacuous** — against the pre-guard
+definition the 4 binding tests and 2 audit tests FAIL while the 6
+"discretion preserved" tests still PASS; applied to Staging and probed with a
+real admin JWT:
+
+```
+underpay 360000 -> 400 PAYOUT_BINDING_VIOLATION
+overpay  390000 -> 400 PAYOUT_BINDING_VIOLATION
+exact    375000 -> 200
+```
+
+Rollback: `supabase/rollback/20260801536000_rollback.sql`.
+
+### 3. Signatures — steps 22–24 PASS through the real UI
+
+| Step | Evidence |
+|---|---|
+| Client signs | typed name + terms checkbox + **real click** → `status=pending_inspector_signature`, `client_signed_at` set, inspector still null |
+| Inspector signs | same, real click → **`status=fully_executed`**, both timestamps set |
+| Signatures do NOT dispatch | after BOTH signatures: `jobs.status=open`, **`contractor_id=null`** |
+| No automatic payout | `payout_status=unpaid` throughout |
+
+### 4. Price blindness on the contract surfaces — measured by value
+
+* **Client** `/client/contracts/job/…`: `$4,800` present · **`$3,750` ABSENT** ·
+  **`$1,050` ABSENT** · no phone digits.
+* **Inspector** `/inspector/contracts` and the contract page: `$3,750` present ·
+  **`$4,800` ABSENT** · **`$1,050` ABSENT**.
+
+Full identity IS active on the client contract surface — inspector name **and**
+`qa.inspector@nexpec.test` are shown. Professional / Protected / Full→Protected
+transitions are still UNTESTED.
+
+### 5. Observation, not yet filed as a defect
+
+`/inspector/contracts` lists **both** contracts including the **voided**
+`60a87929`, and it is still linkable. Signing a voided contract should be
+impossible — worth probing before release.
+
+### 6. Exact next action
+
+1. Retry dispatch — expect a **funding** refusal now that the contract is
+   executed (the contract guard is satisfied), with a visible reason.
+2. Fund 20% (Staging test tooling only), dispatch, confirm `contractor_id` =
+   inspector and assignment active, payout still unpaid.
+3. Identity modes Professional / Protected / Full→Protected + per-job isolation.
+4. Probe the voided-contract signing path in §5.
+
+---
+
+## 000000000. RUN 12 — 2026-08-17, previous session.
 
 **HEAD `90527f6` (+ this commit). Preview `nexpec-main-platform-j7qwf41u7-…`
 (anon 302→SSO, Staging ×1 / Prod ×0). Job `e2859bf6-…` · Application

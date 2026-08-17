@@ -13,11 +13,13 @@ import {
   Link2,
 } from 'lucide-react';
 import { formatCents, dollarsToCents } from '@nexpec/shared-core';
+import { dispatchJob } from '@/lib/actions/dispatch';
+// The initial state is a VALUE and must not come from the 'use server' module —
+// see lib/actions/dispatchState.ts for why that broke dispatch entirely.
 import {
-  dispatchJob,
   dispatchInitialState,
   type DispatchActionState,
-} from '@/lib/actions/dispatch';
+} from '@/lib/actions/dispatchState';
 import type { DispatchJob, DispatchApplication } from '@/lib/data/dispatchQueue.types';
 import { SpreadVisualization } from './SpreadVisualization';
 

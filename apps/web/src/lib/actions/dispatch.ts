@@ -17,22 +17,15 @@ import { revalidatePath } from 'next/cache';
 import { adminDispatchJobInput, dollarsToCents } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface DispatchActionState {
-  ok: boolean;
-  error: string | null;
-  /** Returned on success — drives the toast + queue reload. */
-  dispatched?: {
-    job_id: string;
-    application_id: string;
-    contractor_id: string | null;
-    rejected_siblings: number;
-    correlation_id: string;
-  };
-}
+// A "use server" module may export ONLY async functions. `dispatchInitialState`
+// is a VALUE, so exporting it from here made the entire module invalid at
+// runtime ("A \"use server\" file can only export async functions, found
+// object") and every dispatch POST threw before reaching any of our code.
+// It now lives in ./dispatchState. Re-exporting a type is safe — types are
+// erased at compile time — but re-exporting the value would reintroduce the bug.
+import type { DispatchActionState } from './dispatchState';
 
-const INITIAL_STATE: DispatchActionState = { ok: false, error: null };
-
-export { INITIAL_STATE as dispatchInitialState };
+export type { DispatchActionState };
 
 /**
  * Server Action signature compatible with `useActionState(action, initial)`:

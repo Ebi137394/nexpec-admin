@@ -6,7 +6,149 @@
 
 ---
 
-## 000. RUN 6 — 2026-08-16, latest session. READ THIS FIRST.
+## 0000. RUN 7 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `27eeea4`, branch `release/identity-replacement`, clean tree, origin 0/0.**
+Run 6's checkpoint commit did complete and push. Disk 28 GB free.
+**Docker recovered on its own — local Supabase is UP again** (run 6 said it was
+wedged; physical state overrode the note).
+
+### 0000.1 State re-verified before touching anything
+
+QA Job **`e2859bf6-9cdb-4861-99cb-ee31d99b9ba3`** still exists, **6/6 expected
+values intact** (`pending_review`, `public_listable=false`, `contractor_id=null`,
+480000 cents, `Calgary, Alberta`, `["ndt-ut"]`). No duplicate was created.
+
+Preview at HEAD: `nexpec-main-platform-3sraaphi2-…` — anonymous **302 → SSO,
+0 NEXPEC bytes**; Staging **×1** / Production **×0**; and the app footer renders
+**`build-27eeea4`**, read out of the live DOM after sign-in.
+
+### 0000.2 Canonical lifecycle — steps 3–10 now PASS through the real UI
+
+| # | Step | Evidence |
+|---|---|---|
+| 3 | Sign in as temporary Staging Admin | real typed credentials → `/admin/dashboard`, header "QA Temp Admin" |
+| 4 | Open the moderation queue | `/admin/jobs` renders "Jobs Moderation", 9 rows; QA job row shows `OPEN · QA Client · — · $4,800.00 BUDGET · payout —` |
+| 5 | Review the submitted Job | **real click on the row** opened the moderation drawer: `OPEN` + `MODERATION, PENDING_REVIEW`, the exact description typed in run 6, `Client budget (not yet priced) $4,800.00`, `INSPECTOR APPLICATIONS, 0` |
+| 6 | Pricing | inspector payout **3600** typed with the real keyboard, plus a 152-char moderation note |
+| 7 | Approve | `Confirm approval` submitted → db read-back: `moderation_status=approved`, `moderation_reviewed_by=8a649186` (the temp admin), `moderation_reviewed_at`, `moderation_notes` all persisted |
+| 8 | Public only after approval | job now visible to the Inspector; **see the caveat below** |
+| 10 | Inspector sees NO client price / spread | **column-level proof**, below |
+
+**Step 10, proven by value not by column name** — everything money-ish the
+inspector can read through `jobs_inspector_secure_view`:
+
+```
+client_price_cents      = null      platform_spread_cents  = null
+price_cents             = null      budget_min/max_cents   = null
+inspector_payout_cents  = 360000    payout_amount_cents    = 360000
+payout_status           = "unpaid"  budget_type            = "fixed"  (a label, not money)
+```
+
+`budget_cents` is not even present in the view. **Price blindness holds.**
+
+> **Caveat on step 8, stated rather than glossed:** the inspector was only
+> queried *after* approval. The "only after" half — that the same inspector
+> could NOT see it while `pending_review` — was never captured as a
+> before/after control. Redo that on the next job.
+
+### 0000.3 TWO false alarms this run — both nearly became fabricated P0s
+
+**1. "Every admin page renders blank."** `/admin/jobs` and `/admin/dashboard`
+showed nothing: `main.innerText.length = 0`, stuck on a Suspense spinner
+(`<template id="B:2">`), across reloads. The cause was **`window.innerWidth ===
+0 && innerHeight === 0`** — the Browser pane had collapsed to zero size, so
+React bootstrapped into a viewport with no layout and its Suspense boundary
+never painted. The same URL fetched **122,190 bytes containing the QA job**.
+**Opening a FRESH TAB fixed it completely** (a resize on the broken tab did
+not — the React root was already poisoned).
+**Rule: assert `window.innerWidth > 0` before trusting any "page is empty".**
+
+**2. "The Inspector cannot see the approved job."** True of
+`jobs_secure_view` — but that is **not the marketplace surface**. `fetchOpenJobs`
+(`apps/web/src/lib/data/openJobs.ts:83`) reads **`jobs_inspector_secure_view`**.
+Against the correct view the job is visible immediately. A specialty-gating
+hypothesis was raised and **disproved** first (granting the inspector `ndt-ut`
+changed nothing), which is what forced the search for the real surface.
+**Rule: find the query the page actually runs before calling a view a defect.**
+
+### 0000.4 Finding D14 (P2) — `platform_spread_cents` can be stored NEGATIVE
+
+After admin approval the job holds:
+
+```
+budget_cents           = 480000
+client_price_cents     = 0          ← never set by the moderation flow
+inspector_payout_cents = 360000
+platform_spread_cents  = -360000    ← GENERATED ALWAYS AS (client_price - payout)
+```
+
+`platform_spread_cents` is a **stored generated column**
+(`00000000000000_remote_baseline.sql:3685`) and is **indexed**
+(`idx_jobs_platform_spread`).
+
+**Not a broken flow** — `JobModerationPanel.tsx:155` documents that
+`client_price_cents` is the admin's marked-up price, set later in the **Spread
+Editor** (`/admin/dispatch`), while the client's posted figure lives in
+`budget_cents`. So payout-before-price is a legitimate intermediate state.
+
+**Still a real gap:** nothing forces the Spread Editor step, and any admin money
+view that SUMs `platform_spread_cents` will read a negative platform margin for
+every approved-but-unpriced job. **Do not "fix" this by clamping the generated
+column** — decide instead whether approval should require a client price, or
+whether spread should be NULL (not negative) until priced.
+**Verify against the Spread Editor first**: set the client price to 4800 and
+confirm the spread becomes **+120000**, before filing this as a defect to fix.
+
+`public_listable=false` is **NOT** a defect and must not be filed as one: it is
+only ever *read*, by the anonymous public SEO teaser feeds. Marketplace
+visibility is `status='open'` + `moderation_status='approved'`.
+
+### 0000.5 Cleanup obligations added by this run
+
+* Synthetic job `e2859bf6-…` (now approved + priced) — delete at the end.
+* `qa.inspector@nexpec.test` had `profiles.specialty_slugs` set to `["ndt-ut"]`
+  by the disproved hypothesis test. It was empty before — **restore to `[]`**.
+* Temporary `qa.tmpadmin@` / `qa.tmpsuper@` — revoke (script exists).
+* Preview bypass key — still active, still needs **rotation**, not just deletion.
+
+### 0000.55 Cleanup defect found IN THE CLEANUP ITSELF — fixed
+
+Revoking the temp identities reported the invariant as OK **while
+`qa.tmpadmin@nexpec.test` could still sign in (HTTP 200)**. The script's own
+non-vacuous "does the credential still authenticate?" check is what caught it —
+the invariant check alone would have passed and lied.
+
+Cause: once that admin approved the QA job it became the actor in
+`jobs.moderation_reviewed_by`, so `DELETE` fails with **23503 foreign-key
+violation**. That guard is **correct** — an audit trail must keep its actor —
+so deleting an audited QA identity is impossible by design.
+
+Remediation applied and re-verified: password rotated to a secret nobody holds
++ `ban_duration` to **2126**, leaving the audit row intact. The known QA
+password now returns **400**. `cleanup-temp-admin.mjs` now does this
+automatically whenever the delete is refused, instead of only logging it.
+
+**Lesson: "privilege stripped" is not "credential revoked". Always assert the
+credential cannot authenticate, not just that the role is gone.**
+
+### 0000.6 Resume at lifecycle step 6/11
+
+Next actions, in order: price the job in the **Spread Editor** and re-check the
+spread sign (resolves D14); capture the step-8 before/after control on a second
+job; then step 11 onward — Inspector applies with a cover note.
+
+```bash
+cd ~/Desktop/nexpec && export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>
+cd $S && node make-temp-admin.mjs && node set-temp-password.mjs
+node $S/redirector.mjs &     # 127.0.0.1:8791, secret never printed
+# ALWAYS open a fresh tab and confirm window.innerWidth > 0 before judging a page
+```
+
+---
+
+## 000. RUN 6 — 2026-08-16, previous session.
 
 **HEAD `46cd258`, branch `release/identity-replacement`, clean tree,
 origin SYNCHRONIZED (0/0).** Run 5's four commits are now pushed.

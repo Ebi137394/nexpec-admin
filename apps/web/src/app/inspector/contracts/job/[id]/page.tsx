@@ -111,7 +111,13 @@ export default async function InspectorJobContractPage({
 
       {sp.signed && (
         <div className="rounded-2xl border border-accent-green/30 bg-accent-green/10 p-4 text-sm text-accent-green">
-          ✅ Signed. The job is now in progress, open your assignments page.
+          {/* Signing does NOT dispatch. inspector_sign_job_contract had its
+              status promotion removed in 20260801506000, so the job stays
+              'open' until an admin funds and dispatches it. Saying "in
+              progress" here told the inspector to start work that had not
+              been dispatched. */}
+          ✅ Signed. Contract fully executed — awaiting initial funding and
+          admin dispatch. You will get an assignment when the job is dispatched.
         </div>
       )}
       {sp.error && (
@@ -146,7 +152,8 @@ export default async function InspectorJobContractPage({
         </div>
         {isFullyExecuted && (
           <div className="mt-4 rounded-xl border border-accent-green/30 bg-accent-green/10 p-3 text-sm text-accent-green">
-            ✅ Fully executed. The job is in progress.
+            ✅ Fully executed. Awaiting initial funding and admin dispatch —
+            work has not started yet.
           </div>
         )}
         {isVoided && (
@@ -165,9 +172,14 @@ export default async function InspectorJobContractPage({
         <p className="mt-2 font-mono text-3xl font-semibold text-cyan-glow">
           {fmtCents(contract.inspectorPayoutCents)}
         </p>
+        {/* Settlement is NOT automatic. admin_mark_payout_processed is
+            super_admin-only, requires the job to be 'completed', and requires
+            an explicit reference (a Stripe transfer id, or "manual:<context>").
+            Nothing in the platform transfers money to the inspector on report
+            approval, so promising an automatic release was false. */}
         <p className="mt-1 text-xs text-zinc-400">
-          Released to your Stripe Connect account after you and admin sign
-          off on the final report.
+          Released after the final report is approved and delivered, when a
+          NEXPEC admin records the settlement. Payouts are not automatic.
         </p>
       </section>
 

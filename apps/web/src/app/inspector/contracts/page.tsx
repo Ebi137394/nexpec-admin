@@ -69,14 +69,18 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
         </div>
       )}
 
-      {/* JOB CONTRACTS — inspector view, blind to client price */}
-      {jobContracts.length > 0 && (
+      {/* JOB CONTRACTS — inspector view, blind to client price.
+          Voided contracts are split out below. A voided contract is dead: the
+          server refuses to sign it (inspector_sign_job_contract requires
+          status = 'pending_inspector_signature'), so listing it beside live
+          contracts with an "Open contract" button only invited a dead end. */}
+      {jobContracts.filter((c) => c.status !== 'voided').length > 0 && (
         <section>
           <h2 className="mb-4 font-display text-xl font-semibold tracking-tight text-white">
-            Job contracts ({jobContracts.length})
+            Job contracts ({jobContracts.filter((c) => c.status !== 'voided').length})
           </h2>
           <ul className="space-y-3">
-            {jobContracts.map((c) => {
+            {jobContracts.filter((c) => c.status !== 'voided').map((c) => {
               const needsYou = c.status === 'pending_inspector_signature';
               const fullyExecuted = c.status === 'fully_executed';
               return (
@@ -123,6 +127,36 @@ export default async function InspectorContractsPage({ searchParams }: PageProps
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+
+      {/* CONTRACT HISTORY — voided only. Kept for the record, clearly labelled
+          as superseded, and never presented as actionable. */}
+      {jobContracts.filter((c) => c.status === 'voided').length > 0 && (
+        <section>
+          <h2 className="mb-4 font-display text-sm font-semibold uppercase tracking-industrial text-zinc-500">
+            Contract history ({jobContracts.filter((c) => c.status === 'voided').length})
+          </h2>
+          <ul className="space-y-2">
+            {jobContracts.filter((c) => c.status === 'voided').map((c) => (
+              <li
+                key={c.id}
+                className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-4 opacity-60"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-zinc-400">
+                    {c.jobTitle ?? 'Inspection contract'}
+                  </p>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+                    voided, superseded
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-zinc-600">
+                  Replaced by a newer contract. It cannot be signed.
+                </p>
+              </li>
+            ))}
           </ul>
         </section>
       )}

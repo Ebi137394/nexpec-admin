@@ -208,7 +208,8 @@ export default async function ClientJobContractPage({
         </div>
         {isFullyExecuted && (
           <div className="mt-4 rounded-xl border border-accent-green/30 bg-accent-green/10 p-3 text-sm text-accent-green">
-            ✅ Fully executed. The job is now in progress.
+            ✅ Fully executed. Awaiting initial funding and admin dispatch —
+            work has not started yet.
           </div>
         )}
         {isVoided && (

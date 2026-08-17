@@ -240,7 +240,12 @@ select nx_fx_execute_contract('e2000000-0000-4000-8000-000000000001',
                               'e1000000-0000-4000-8000-000000000001',
                               'e1000000-0000-4000-8000-000000000002',
                               'e1000000-0000-4000-8000-000000000003',
-                              100000, 70000);
+                              -- 72000 = the counter the inspector ACCEPTED. The
+                              -- fixture used to contract at the pre-negotiation
+                              -- 70000, which 20260801536000 now correctly refuses
+                              -- (PAYOUT_BINDING_VIOLATION): an accepted counter is
+                              -- binding.
+                              100000, 72000);
 
 -- ════════════════════════════════════════════════════════════════════════════
 --  12/13. Signatures are genuine and fully_executed follows them
@@ -286,7 +291,7 @@ select lives_ok(
   $$ select public.admin_dispatch_job(
        'e2000000-0000-4000-8000-000000000001',
        'e3000000-0000-4000-8000-000000000001',
-       100000::bigint, 70000::bigint) $$,
+       100000::bigint, 72000::bigint) $$,
   'R16 the Admin dispatches once selection, executed contract and initial funding are all satisfied');
 
 -- ════════════════════════════════════════════════════════════════════════════

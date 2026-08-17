@@ -6,7 +6,83 @@
 
 ---
 
-## 00000. RUN 8 — 2026-08-17, latest session. READ THIS FIRST.
+## 000000. RUN 9 — 2026-08-17, latest session. READ THIS FIRST.
+
+**HEAD `75caece`, branch `release/identity-replacement`, clean, origin 0/0.
+Disk 28 GB. Docker UP. Preview `nexpec-main-platform-gidxw25ow-…` (build-74520ea).**
+
+Job **`e2859bf6-9cdb-4861-99cb-ee31d99b9ba3`**
+Application **`f8d0024a-ce47-48c6-b2d9-e31e10e699f4`**
+
+### 000000.1 Lifecycle advanced: steps 13 and 14 PASS, step 15 partially
+
+| # | Step | Evidence |
+|---|---|---|
+| 13 | **Admin reviews the application** | moderation drawer renders **`INSPECTOR APPLICATIONS, 1 · QA Inspector · PENDING · INSPECTOR BID $3,950.00`** plus the full 470-char cover note |
+| 14 | **Admin sends a counter-offer** | `counterDollars` **3750** + a 148-char comment typed on the real keyboard, "Send counter" submitted. DB read-back: **`admin_counter_cents = 375000`**, `negotiation_status = "admin_countered"`, `admin_countered_by = 722cb115` (the temp admin), `admin_countered_at` set |
+| 15 | Inspector sees the counter | **server-rendered only** — see the caveat |
+| 15b | **Client still sees nothing** | `forwarded_to_client_at` remains **null** throughout |
+
+**Step 15 caveat, stated plainly:** `/inspector/negotiations` returns **66,139
+bytes containing the $3,750 counter, the QA job, and accept/decline controls**
+(fetched from inside the authenticated page), but **the Browser pane would not
+paint it**, so the Inspector's accept/counter click was NOT performed. Step 15
+is therefore **NOT** behaviourally complete — do not mark it PASS on the
+strength of the server payload alone.
+
+### 000000.2 The Browser pane has degraded — read before resuming UI work
+
+Three distinct failure modes, all environmental, none a product defect:
+
+1. **`window.innerWidth === 0`** on tabs that are not fronted, and sometimes even
+   after `tabs_select`. A 0-width viewport silently produces "empty page".
+2. **Soft (client-side) navigation** inside the app very often leaves the
+   Suspense boundary unresolved (`main.innerText.length === 0` + spinner), even
+   at a valid viewport, and `location.reload()` does **not** always clear it.
+   A brand-new tab used to fix this reliably; by the end of run 9 it no longer
+   did for `/inspector/negotiations`.
+3. **`computer` actions time out (30 s)** whenever the pane is hidden, while
+   `read_page` / `javascript_tool` keep working.
+
+**Working pattern that survived all of it:** new tab → `resize_window` to
+1280×800 → hard `navigate` → assert `window.innerWidth > 0` **and**
+`main.innerText.length > 0` → focus the field with JS → type with the real
+keyboard → submit with `form.requestSubmit(button)`.
+**Always distinguish pane-vs-product by fetching the same URL from inside the
+page**: if the server returns the content, the pane is at fault.
+
+Also: collapsible controls are inside **closed `<details>`** elements — the
+counter-offer form is one. Open the `<summary>` before the field can be focused.
+
+### 000000.3 Exact resume point
+
+Sign in as inspector, respond to the counter on the application above, then:
+Admin **Forward to client** (the button exists in the moderation drawer, form
+fields `applicationId` + `jobId`) → re-run the client-visibility check, which
+must flip from **"0 applications"** to 1 → identity modes → acceptance →
+contract → signatures → funding → dispatch. **At dispatch verify
+`client_price_cents=480000`, `inspector_payout_cents=360000`,
+`platform_spread_cents=+120000`** (this is where D14's negative spread must
+resolve; it cannot be set earlier — see run 8, section 00000.1).
+
+```bash
+cd ~/Desktop/nexpec && export PATH=$HOME/.nvm/versions/node/v22.15.0/bin:$PATH
+S=<scratchpad>
+cd $S && node make-temp-admin2.mjs      # fresh unique-stamped admin+super
+node $S/redirector.mjs &                # 127.0.0.1:8791
+```
+
+### 000000.4 Still outstanding (unchanged, nothing below was started)
+
+Steps 16–46; per-role exhaustive UI interaction; file/media/link matrix;
+messaging & notifications; Resend email; **all** Android and iOS runtime QA and
+TFLite inference; the Expo Router helper-file warnings + regression guard; and
+the full final gate set (pgTAP, Vitest, typechecks, Deno 2.1.4, ML/replay,
+guards, db reset, migration parity, secret scan, orphan scan, native builds).
+
+---
+
+## 00000. RUN 8 — 2026-08-17, previous session.
 
 **HEAD `74520ea`, branch `release/identity-replacement`, clean, origin 0/0.
 Disk 28 GB. Docker UP. Preview `nexpec-main-platform-gidxw25ow-…` verified:

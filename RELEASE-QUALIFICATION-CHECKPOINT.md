@@ -85,8 +85,10 @@ node $S/redirector.mjs &               # 127.0.0.1:8791, secret never printed
 ### 00000.5 Cleanup obligations (cumulative)
 
 * Job `e2859bf6-…` + application `f8d0024a-…` and everything downstream.
-* Temp identities `qa.tmpadmin.r8mp6z9@` / `qa.tmpsuper.r8mp6z9@` — revoke via
-  `cleanup-temp-admin.mjs` (it now bans when the delete is FK-refused).
+* Temp identities `qa.tmpadmin.r8mp6z9@` / `qa.tmpsuper.r8mp6z9@` — **already
+  revoked at the end of run 8**; both refuse authentication (400) and exactly
+  one privileged identity remains (the owner). Recreate on resume with
+  `node make-temp-admin2.mjs`, which stamps a fresh unique pair.
 * Run-7's `qa.tmpadmin@` is already stripped+banned; it cannot be deleted
   (audit FK) and that is correct.
 * Preview bypass key — still active, needs **rotation** at the very end.

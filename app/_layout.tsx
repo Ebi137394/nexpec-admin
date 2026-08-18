@@ -3,6 +3,7 @@ import 'react-native-gesture-handler';
 import React, { useEffect, useState, useRef } from 'react';
 import { Slot, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { View, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initializeOfflineSync } from '@/lib/offline';
 // ★ Phase 5 / Hour 3 — root ErrorBoundary. Catches every render-time
 //   exception in the tree below and shows a recoverable fallback instead
@@ -341,6 +342,12 @@ function AuthGate() {
   }
 
   return (
+    // D29: react-native-gesture-handler requires GestureHandlerRootView at the
+    // app root. It existed only in the LEGACY src/App.tsx entry, which
+    // expo-router never mounts — so every GestureDetector in the app (the AI
+    // Co-Inspector's SegOverlay refinement gestures) threw in dev and would
+    // silently not work in release.
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Slot />
       {/* Dev-only offline-outbox inspector overlay was removed from the render
@@ -348,6 +355,7 @@ function AuthGate() {
           for manual chaos-testing. Background sync is unaffected — the sync /
           outbox modules are independent of this overlay. */}
     </View>
+    </GestureHandlerRootView>
   );
 }
 

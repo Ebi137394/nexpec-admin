@@ -55,6 +55,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { SegModelManager, modeSlug, type SegMode } from '@/src/core/ml/vision/segModelManager';
 import { SegOverlay, type SegOverlayDetection } from '@/src/core/ml/vision/SegOverlay';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Location from 'expo-location';
 import {
   Camera as CameraIcon,
@@ -472,9 +473,19 @@ export default function ComplianceCaptureWizard() {
               : null;
         setSegMode(detectedMode);
         if (detectedMode && SegModelManager.available()) {
+          const segT0 = Date.now();
           SegModelManager.analyze(capturedUri, detectedMode)
-            .then((r) => setSegDetections(r.detections))
-            .catch(() => { /* seg optional — the findings card still renders */ });
+            .then((r) => {
+              // Dev-observability: the literal on-device inference outcome.
+              // Without this line a swallowed failure and "ran with zero
+              // detections" were indistinguishable in QA.
+              if (__DEV__) console.log('[seg]', detectedMode, 'ran in', Date.now() - segT0, 'ms —', r.detections.length, 'detections', r.detections.slice(0, 3).map((d) => `${d.label ?? d.classId}@${(d.score ?? 0).toFixed(2)}`).join(','));
+              setSegDetections(r.detections);
+            })
+            .catch((e) => {
+              if (__DEV__) console.warn('[seg] analyze failed:', (e as Error)?.message ?? e);
+              /* seg optional — the findings card still renders */
+            });
         }
       }
     } catch (e: any) {
@@ -1014,6 +1025,10 @@ export default function ComplianceCaptureWizard() {
 
       {/* ─── Camera modal ─────────────────────────────────────── */}
       <Modal visible={camOpen} animationType="slide" onRequestClose={() => setCamOpen(false)}>
+        {/* D29: an RN Modal mounts a SEPARATE native host, so the root-level
+            GestureHandlerRootView does not reach it. SegOverlay's tap/long-press
+            refinement gestures need their own root inside the modal. */}
+        <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={s.camBg}>
           {!preview ? (
             <>
@@ -1069,6 +1084,7 @@ export default function ComplianceCaptureWizard() {
             </>
           )}
         </View>
+        </GestureHandlerRootView>
       </Modal>
     </SafeAreaView>
   );

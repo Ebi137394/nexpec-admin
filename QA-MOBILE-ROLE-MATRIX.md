@@ -74,6 +74,7 @@ erase/reinstall between roles.
 |---|---|---|---|---|---|---|---|---|
 | client | qa.client@nexpec.test | iOS sim (18.2) | sign-out → sign-in (char-by-char pw) → 5-tab sweep | signed-in client dashboard + tabs render | out=0 in=0 explore=0 | PASS | ios-client.png, ios-client-tabs.png | db: client/terms-set (expect client) ROLE-OK |
 | inspector | qa.inspector@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance(\) → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-inspector.png, ios-inspector-tabs.png | db: inspector/terms-set (expect inspector) |
+| talent | qa.talent@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-talent.png, ios-talent-tabs.png | db: inspector/terms-set (expect inspector) |
 
 ## 3. Compliance capture chain + literal TFLite inference (Android)
 

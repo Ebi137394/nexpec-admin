@@ -16,6 +16,7 @@
 
 import { InteractionManager } from 'react-native';
 import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system';
 import { ML_RUNTIME_ENABLED } from '../flags';
 import {
   decodeYoloSeg, inferSegLayout, decodeYoloSegE2E, getModel,
@@ -136,6 +137,12 @@ class SegModelManagerImpl {
       const asset = Asset.fromModule(SEG_ASSETS[mode]);
       if (!asset.localUri) await asset.downloadAsync();
       const modelUrl = asset.localUri ?? asset.uri;
+      try {
+        const info = await FileSystem.getInfoAsync(modelUrl, { size: true });
+        console.warn('[seg-qa-load]', JSON.stringify({ modelUrl: modelUrl?.slice(0, 120), exists: info.exists, size: (info as { size?: number }).size ?? null }));
+      } catch (ie) {
+        console.warn('[seg-qa-load]', 'info-failed', modelUrl?.slice(0, 120), String(ie));
+      }
       const model = await _tflite.loadTensorflowModel({ url: modelUrl });
       if (gen !== this.generation) return null; // flipped mid-load → discard the stale load
       this.resident = { mode, model };

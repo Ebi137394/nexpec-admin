@@ -61,9 +61,10 @@ export const tfliteVisionBackend: InferenceBackend = {
         const { imageUri } = input as { imageUri: string };
         const { data } = await imageUriToTensor(imageUri, p);
         const t0 = Date.now();
-        const outputs = await model.run([data]);
+        // raw ArrayBuffers in/out per the nitro spec (see segModelManager)
+        const outputBuffers = await model.run([(data as Float32Array).buffer as ArrayBuffer]);
         const inferenceMs = Date.now() - t0;
-        const logits = (outputs?.[0] ?? new Float32Array()) as ArrayLike<number>;
+        const logits = (outputBuffers?.[0] ? new Float32Array(outputBuffers[0]) : new Float32Array()) as ArrayLike<number>;
         const top5 = topK(logits, 5);
         // Universal defect mapping — taxonomy-driven, present whenever the
         // model's params declare a defect class map. Swapping in a better

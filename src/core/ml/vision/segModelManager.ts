@@ -182,8 +182,13 @@ class SegModelManagerImpl {
     const { data } = await imageUriToTensor(imageUri, segInput(size));
     console.warn('[seg-qa-input]', JSON.stringify({ regSize: size, dtype: data?.constructor?.name, length: (data as { length?: number })?.length ?? null }));
     const t0 = Date.now();
-    const outputs = await model.run([data]); // native, off the JS thread
+    // fast-tflite 3.x run() takes/returns RAW ArrayBuffers (nitro spec) — a
+    // TypedArray is rejected by marshalling in ~3ms with an opaque native
+    // exception, and raw output buffers must be re-viewed as Float32Array
+    // before the decoders index into them.
+    const outputBuffers = await model.run([(data as Float32Array).buffer as ArrayBuffer]); // native, off the JS thread
     const inferenceMs = Date.now() - t0;
+    const outputs = (outputBuffers ?? []).map((b: ArrayBuffer) => new Float32Array(b));
 
     const a = outputs?.[0] as ArrayLike<number> | undefined;
     const b = outputs?.[1] as ArrayLike<number> | undefined;

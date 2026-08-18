@@ -136,6 +136,68 @@ is proven; the end-to-end inference render is the one uncaptured step.
 
 ---
 
+## ## RUN 28 — 2026-08-18 session, FINAL ADDENDUM EXECUTION. READ THIS FIRST.
+
+**HEAD `261dcd5`+. Release APK built + installed. Role matrix in flight.**
+
+### Environment repaired (the addendum's explicit order)
+The emulator ANRs were the **swiftshader software GPU eating 493% CPU** plus the
+Docker VM. `-gpu auto` (hardware) dropped it to ~33%; Docker stopped for mobile
+testing. Maestro installed (`~/.maestro`, needs `JAVA_HOME=~/.nexpec-android/jdk/...`)
+as the deterministic driver.
+
+### TFLite lane — three real defects found on the way to the literal run
+* **stale-cache false alarm resolved**: the "Not a compliance job" rejection was
+  client cache; a fresh session accepts the compliance fixture.
+* **Requirements catalog was EMPTY on Staging for every template** — seeded
+  photo requirements (API 510 + weld + new RT template `radiographic_weld_review_rt`,
+  `214ec98f`). The wizard then renders fully (Req cards, Live Camera, chain-hash
+  captures, "requirement satisfied ✓", "All requirements satisfied").
+* **D29 (P1, FIXED, commit 261dcd5)**: SegOverlay's GestureDetector crashed —
+  GestureHandlerRootView only existed in legacy src/App.tsx (never mounted by
+  expo-router) AND the capture Modal needs its own wrapper (separate native
+  host). Both wrapped; gestures now work; dev-only seg observability added
+  (was an empty catch masking failures).
+* **D30 (OPEN, dev-client only)**: with ML runtime on, `loadTensorflowModel`
+  resolves the Metro-HTTP asset then fails — 40MB models: 24s→JSI error (2.5GB
+  AVD memory); 8MB yolov9t: fast resolve→**JniException** in the Kotlin
+  AssetLoader on the `http://10.0.2.2:8081/assets/...` dev path. The AI panel
+  itself works: "**On-device model: Welding / WDA defects (wda-fissure-detector
+  v1)**" renders; `[ml] unavailable: no_artifact` is the SEPARATE registry-model
+  path (no artifact provisioned on Staging — expected).
+  **Discriminator built**: RELEASE APK (177MB) embeds all three .tflite in res/
+  and reads them locally — no Metro path. ML flag inlined at build.
+  `SENTRY_DISABLE_AUTO_UPLOAD=true` was required (sentry-cli has no auth here).
+
+### Release APK facts (app-release.apk, 177MB, installed on nexpec_qa)
+* Hermes bundle via strings: **Staging ×1 / Prod ×0**
+* Models embedded: corrosion 40MB, wda 40MB, yolov9t 8MB
+* Sign-in renders cleanly; sessions persist across `install -r`
+
+### Role matrix (in flight, Maestro `role.yaml` on the RELEASE app)
+Authoritative DB roles (profiles_role_allowed): inspector, client, agency,
+enterprise, supplier, senior, admin, super_admin. Talent/RFQ-Buyer are personas.
+Runner: `<scratchpad>/run-matrix.sh role:email …` → per-role png+txt in
+qa-artifacts/mobile-matrix/. client ✓ captured; 9 more queued (incl. temp
+admin/super pair `r8wkc8y` — revoke after).
+
+### Other addendum items closed this session
+* **apps/web/.env.local pointed local dev at PRODUCTION** — backed up to
+  ~/.nexpec-env-backups/ (0600, outside repo), repointed to Staging: prod refs
+  0, staging 1. Never committed (gitignored).
+* **Resend**: `vercel env pull` returns `[SENSITIVE]` for RESEND_API_KEY and
+  RESEND_FROM_EMAIL — sensitive-type vars are non-decryptable by CLI/API.
+  ALL safe retrieval paths exhausted (pull, REST, edge secrets). Owner-only:
+  reveal in Vercel dashboard or mint a restricted key in Resend.
+
+### Traps for the next session
+* uiautomator dump can fail silently → ALWAYS `rm /sdcard/ui.xml` first or you
+  read a STALE tree (cost two false "Finance screen" readings).
+* Background-runner exit codes: `… | tail; echo $?` reads tail's exit.
+* The harness kills nohup'd process GROUPS on timeout — use run_in_background.
+
+---
+
 ## ## RUN 27 — 2026-08-17, FINAL. READ THIS FIRST.
 
 **FINAL HEAD `2043c63`. Final Preview `nexpec-main-platform-mjqhpktjf-…` at that

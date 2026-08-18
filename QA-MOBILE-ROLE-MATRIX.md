@@ -88,6 +88,26 @@ erase/reinstall between roles.
 | talent | qa.talent@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-talent.png, ios-talent-identity.png, ios-talent-tabs.png | uuid=6682e107-4231-427a-a207-842070fe951b fresh-session + role=inspector terms=set |
 | rfqbuyer | qa.rfqbuyer@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=1 explore=0 | FAIL | ios-rfqbuyer.png, ios-rfqbuyer-identity.png, ios-rfqbuyer-tabs.png | uuid=0bfbd7cb-41b8-4aec-8d43-5a12e1bbfc24 fresh-session + role=client terms=NULL |
 | rfqbuyer | qa.rfqbuyer@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-rfqbuyer.png, ios-rfqbuyer-identity.png, ios-rfqbuyer-tabs.png | uuid=0bfbd7cb-41b8-4aec-8d43-5a12e1bbfc24 fresh-session + role=client terms=NULL |
+| rfqbuyer | qa.rfqbuyer@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-rfqbuyer.png, ios-rfqbuyer-identity.png, ios-rfqbuyer-tabs.png | uuid=0bfbd7cb-41b8-4aec-8d43-5a12e1bbfc24 fresh-session + role=client terms=set |
+
+### iOS terms-gate / consent-path proof (2026-08-18)
+
+The stance-chooser consent flow was proven **through the real UI once,
+end-to-end** (qa.rfqbuyer): chooser → Client card → "Continue as Client" →
+`apply_onboarding_role` → landed on rfqbuyer's own client dashboard;
+`terms_accepted_at` stamped 06:38:06Z **and** both per-document ledger rows
+written (TOS-001 1.1, PRIV-001 1.1). Evidence: `ios-rfqbuyer-consent.png` +
+Staging readback. Driven by HID-level taps — Maestro/XCTest synthesized taps
+do not reach this animated carousel's buttons (documented automation-
+environment limitation, NOT a product defect: human/HID taps work, and D32
+fixed the real product bug on this screen).
+
+For matrix-run reliability, the remaining terms-NULL fixtures (qa.enterprise,
+qa.supplier — and earlier qa.agency during D33 investigation) had their ToS
+acceptance recorded via the SAME RPC the button calls, each authenticated as
+its own account (identical server path; visible in `terms_version`
+v1-2026-07). Their matrix rows therefore exercise sign-in/identity/tab
+navigation without re-traversing the flaky-under-XCTest carousel.
 
 ## 3. Compliance capture chain + literal TFLite inference (Android)
 

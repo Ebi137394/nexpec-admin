@@ -221,7 +221,9 @@ export function setOpWatchdogMs(ms: number): void {
 
 class OpWatchdogTimeout extends Error {
   constructor(kind: string, ms: number) {
-    super(`outbox op '${kind}' still running after ${ms}ms — abandoned for retry`);
+    // ASCII-only on purpose: Hermes stores non-ASCII strings as UTF-16 in the
+    // bytecode string table, which hides them from byte-level grep evidence.
+    super(`outbox op '${kind}' still running after ${ms}ms - abandoned for retry`);
     this.name = 'OpWatchdogTimeout';
   }
 }

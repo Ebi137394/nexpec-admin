@@ -74,13 +74,25 @@ export default function MlDiag() {
   // file:// URIs of the downloaded assets — .jpgbin is not a drawable, so the
   // preview <Image> renders from the same local file the model reads.
   const [uris, setUris] = useState<Record<string, string>>({});
+  // Re-entrancy guard by REF — the state variable is a stale closure inside
+  // event listeners (AppState fired mid-run and started an overlapping loop,
+  // which is what exposed the model-lifecycle race).
+  const runningRef = useRef(false);
+  // Unmount cancellation: stop submitting new work; the in-flight leased run
+  // completes inside the manager and disposes correctly on its own.
+  const cancelledRef = useRef(false);
+  useEffect(() => () => {
+    cancelledRef.current = true;
+  }, []);
 
   const runAll = useCallback(async () => {
-    if (!ML_RUNTIME_ENABLED || running) return;
+    if (!ML_RUNTIME_ENABLED || runningRef.current) return;
+    runningRef.current = true;
     setRunning(true);
     setDone(false);
     setRows([]);
     for (const img of TEST_IMAGES) {
+      if (cancelledRef.current) break;
       let localUri = '';
       let sha = '';
       try {
@@ -96,6 +108,7 @@ export default function MlDiag() {
         continue;
       }
       for (const mode of img.modes) {
+        if (cancelledRef.current) break;
         try {
           // THE production path — identical call to capture.tsx.
           const res = await SegModelManager.analyze(localUri, mode);
@@ -116,10 +129,13 @@ export default function MlDiag() {
         }
       }
     }
+    runningRef.current = false;
     setRunning(false);
-    setDone(true);
-    console.warn('[seg-qa-diag]', JSON.stringify({ done: true }));
-  }, [running]);
+    if (!cancelledRef.current) {
+      setDone(true);
+      console.warn('[seg-qa-diag]', JSON.stringify({ done: true }));
+    }
+  }, []);
 
   // Persist every completed pass to the app container so the evidence is
   // readable OFFLINE via `simctl get_app_container` — the dev-client's Metro

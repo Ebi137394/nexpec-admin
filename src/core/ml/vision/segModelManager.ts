@@ -3,10 +3,10 @@
 //
 //  Three bundled models (Corrosion seg / WDA weld seg / yolov9t weld detect) are
 //  used mutually-exclusively per capture and can't all sit in RAM on low-end
-//  devices. So this keeps a SINGLE resident slot: acquiring a mode evicts the
-//  others. Toggles are serialized
-//  and guarded by a monotonic generation token so a slow load that resolves AFTER
-//  the inspector flipped modes is discarded (last-write-wins → no OOM, no race).
+//  devices. So this keeps a SINGLE resident slot behind modelLease.ts: every
+//  operation (load, swap, run+decode, dispose) is TOTALLY SERIALIZED, an
+//  inference holds a lease until post-processing completes, and a superseded
+//  model is disposed exactly once, only when its active-run count is zero.
 //
 //  Bundled via require() (Metro `assetExts` now includes 'tflite') → fully offline,
 //  no registry/network. Inference (fast-tflite) is native/async; the pure-TS
@@ -24,6 +24,7 @@ import {
   type SegDetection, type SegOptions,
 } from '@nexpec/shared-core';
 import { imageUriToTensor, isVisionPreprocessAvailable, type VisionParams } from './preprocess';
+import { SingleSlotLease } from './modelLease';
 
 // Mode → shared-registry slug. The registry is the single source of truth for
 // labels + input size + the output-decode recipe (identical to web).
@@ -103,10 +104,11 @@ export interface SegResult {
 }
 
 class SegModelManagerImpl {
+  // Single-slot lifecycle engine: total serialization, run leases, deferred
+  // dispose (see modelLease.ts — the D37 eager dispose exposed a race where a
+  // swap requested mid-inference disposed the model under the live run).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private resident: { mode: SegMode; model: any } | null = null;
-  private chain: Promise<unknown> = Promise.resolve();
-  private generation = 0;
+  private lease = new SingleSlotLease<any>((mode) => this.loadModel(mode as SegMode));
 
   /** Both native deps (fast-tflite + Skia preprocess) present. */
   available(): boolean {
@@ -115,80 +117,61 @@ class SegModelManagerImpl {
 
   /** Which mode's model is currently resident (for diagnostics). */
   residentMode(): SegMode | null {
-    return this.resident?.mode ?? null;
+    return (this.lease.residentKey() as SegMode | null) ?? null;
   }
 
-  // Acquire the model for `mode` in the single slot, evicting the other. Serialized;
-  // superseded loads are discarded via the generation token.
+  // The single-slot loader (runs ONLY on the lease's serialized chain).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private acquire(mode: SegMode): Promise<any> {
-    if (!_tflite) return Promise.reject(new Error('react-native-fast-tflite unavailable (dev build required)'));
-    const gen = ++this.generation;
-    const next = this.chain.then(async () => {
-      if (gen !== this.generation) return this.resident?.model ?? null; // superseded before we ran
-      if (this.resident?.mode === mode) return this.resident.model; // already hot
-      // D37: EAGERLY dispose the evicted model. Dropping the JS ref alone
-      // leaves the interpreter + model buffers retained until the Hermes GC
-      // happens to run — it feels no ART-heap pressure, so ~4 large-model
-      // swaps OOM a 192MB-heap device (observed live: OutOfMemoryError
-      // allocating 42004707 B with the heap at 179/192MB while blocking GCs
-      // freed only KBs). Nitro HybridObjects expose dispose() for exactly
-      // this eager native release; a double-dispose or dispose-after-drop is
-      // tolerated (already-released → no-op/throw swallowed).
-      const evicted = this.resident?.model as { dispose?: () => void } | undefined;
-      this.resident = null;
-      if (evicted && typeof evicted.dispose === 'function') {
-        try {
-          evicted.dispose();
-        } catch {
-          /* already released */
-        }
-      }
-      // D30 FIX: in release builds Metro packages .tflite assets as MANGLED
-      // res/ resources (e.g. res/9H.tflite) that fast-tflite's native asset
-      // loader cannot open by module id — facebook::jni::JniException. Resolve
-      // through expo-asset (which owns the module→resource mapping) to a real
-      // file:// URI first. Offline-safe: downloadAsync() on a bundled asset is
-      // a local copy out of the APK, no network.
-      const asset = Asset.fromModule(SEG_ASSETS[mode]);
-      if (!asset.localUri) await asset.downloadAsync();
-      const modelUrl = asset.localUri ?? asset.uri;
-      try {
-        const info = await FileSystem.getInfoAsync(modelUrl, { size: true });
-        console.warn('[seg-qa-load]', JSON.stringify({ modelUrl: modelUrl?.slice(0, 120), exists: info.exists, size: (info as { size?: number }).size ?? null }));
-      } catch (ie) {
-        console.warn('[seg-qa-load]', 'info-failed', modelUrl?.slice(0, 120), String(ie));
-      }
-      // delegates has NO default in fast-tflite 3.x — omitting it makes nitro
-      // marshal `undefined` into std::vector<Delegate> and throw an opaque
-      // jsi::JSError. Pass the explicit empty list (CPU only).
-      const model = await _tflite.loadTensorflowModel({ url: modelUrl }, []);
-      try {
-        console.warn('[seg-qa-model]', JSON.stringify({
-          inputs: model.inputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
-          outputs: model.outputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
-        }));
-      } catch { /* metadata best-effort */ }
-      if (gen !== this.generation) return null; // flipped mid-load → discard the stale load
-      this.resident = { mode, model };
-      return model;
-    });
-    this.chain = next.catch(() => undefined); // keep the chain alive on error
-    return next;
+  private async loadModel(mode: SegMode): Promise<any> {
+    if (!_tflite) throw new Error('react-native-fast-tflite unavailable (dev build required)');
+    // D30 FIX: in release builds Metro packages .tflite assets as MANGLED
+    // res/ resources (e.g. res/9H.tflite) that fast-tflite's native asset
+    // loader cannot open by module id — facebook::jni::JniException. Resolve
+    // through expo-asset (which owns the module→resource mapping) to a real
+    // file:// URI first. Offline-safe: downloadAsync() on a bundled asset is
+    // a local copy out of the APK, no network.
+    const asset = Asset.fromModule(SEG_ASSETS[mode]);
+    if (!asset.localUri) await asset.downloadAsync();
+    const modelUrl = asset.localUri ?? asset.uri;
+    try {
+      const info = await FileSystem.getInfoAsync(modelUrl, { size: true });
+      console.warn('[seg-qa-load]', JSON.stringify({ modelUrl: modelUrl?.slice(0, 120), exists: info.exists, size: (info as { size?: number }).size ?? null }));
+    } catch (ie) {
+      console.warn('[seg-qa-load]', 'info-failed', modelUrl?.slice(0, 120), String(ie));
+    }
+    // delegates has NO default in fast-tflite 3.x — omitting it makes nitro
+    // marshal `undefined` into std::vector<Delegate> and throw an opaque
+    // jsi::JSError. Pass the explicit empty list (CPU only).
+    const model = await _tflite.loadTensorflowModel({ url: modelUrl }, []);
+    try {
+      console.warn('[seg-qa-model]', JSON.stringify({
+        inputs: model.inputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
+        outputs: model.outputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
+      }));
+    } catch { /* metadata best-effort */ }
+    return model;
   }
 
   /** Preload a mode (e.g. when the job domain is known) without inferring. */
   async warm(mode: SegMode): Promise<void> {
-    await this.acquire(mode);
+    if (!_tflite) throw new Error('react-native-fast-tflite unavailable (dev build required)');
+    await this.lease.warm(mode);
   }
 
   /** Run inference on a captured still. Returns normalized boxes + polygons
    *  (detection models expose each box as a 4-corner polygon so the SAME
-   *  SegOverlay + HITL flywheel apply unchanged). */
+   *  SegOverlay + HITL flywheel apply unchanged).
+   *
+   *  The ENTIRE analysis — load/swap, run(), decode — executes under a model
+   *  lease on the serialized chain: overlapping calls queue instead of
+   *  interleaving, and a swap can never dispose a model under a live run. */
   async analyze(imageUri: string, mode: SegMode, opts?: SegOptions): Promise<SegResult> {
-    const model = await this.acquire(mode);
-    if (!model) throw new Error('model not resident (mode superseded)');
+    if (!_tflite) throw new Error('react-native-fast-tflite unavailable (dev build required)');
+    return this.lease.withModel(mode, (model) => this.runAnalysis(model, imageUri, mode, opts));
+  }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async runAnalysis(model: any, imageUri: string, mode: SegMode, opts?: SegOptions): Promise<SegResult> {
     // Registry entry drives input size, labels, and the decode recipe — the SAME
     // dispatch as web (visionModel.ts), so results match exactly.
     const reg = getModel(MODE_SLUG[mode]);
@@ -268,10 +251,11 @@ class SegModelManagerImpl {
     };
   }
 
-  /** Free the resident slot (e.g. on screen unmount / memory pressure). */
+  /** Free the resident slot (e.g. on screen unmount / memory pressure).
+   *  Never disposes under a live lease — an in-flight run completes and the
+   *  deferred dispose fires at its release. */
   evict(): void {
-    this.resident = null;
-    this.generation++;
+    this.lease.evict();
   }
 }
 

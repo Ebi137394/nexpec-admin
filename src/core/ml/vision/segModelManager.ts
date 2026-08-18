@@ -143,7 +143,10 @@ class SegModelManagerImpl {
       } catch (ie) {
         console.warn('[seg-qa-load]', 'info-failed', modelUrl?.slice(0, 120), String(ie));
       }
-      const model = await _tflite.loadTensorflowModel({ url: modelUrl });
+      // delegates has NO default in fast-tflite 3.x — omitting it makes nitro
+      // marshal `undefined` into std::vector<Delegate> and throw an opaque
+      // jsi::JSError. Pass the explicit empty list (CPU only).
+      const model = await _tflite.loadTensorflowModel({ url: modelUrl }, []);
       if (gen !== this.generation) return null; // flipped mid-load → discard the stale load
       this.resident = { mode, model };
       return model;

@@ -52,7 +52,7 @@ export const tfliteVisionBackend: InferenceBackend = {
     if (!_tflite) {
       throw new Error('react-native-fast-tflite unavailable, run a dev build with it installed');
     }
-    const model = await _tflite.loadTensorflowModel({ url: localUri });
+    const model = await _tflite.loadTensorflowModel({ url: localUri }, []);
     const p = (params ?? {}) as VisionParams & DefectModelParams;
     const modelSlug = slug ?? 'unknown';
     const modelVersion = version ?? 0;

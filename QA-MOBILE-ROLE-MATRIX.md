@@ -56,6 +56,10 @@ arm64 AVD (see §1). This is an environment finding, not a product failure.
 ## 1. Android — Role × Feature rows
 
 <!-- ROWS FILLED FROM batch bj8jf1ewr -->
+| Role | Account | Platform | Actions | Expected | rc | Verdict | Evidence | DB readback |
+|---|---|---|---|---|---|---|---|---|
+| client | qa.client@nexpec.test | Android (API 31 fresh AVD, release APK) | sign-out → sign-in → in-app email visible → tab sweep | identity-proved session | out=1 in=1 ident=1 explore=1 | FAIL | and-client.png, and-client-identity.png, and-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
+
 
 ## 2. iOS — Role rows
 

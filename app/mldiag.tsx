@@ -19,8 +19,8 @@
 //  itself ties the image to the manifest row.
 // ─────────────────────────────────────────────────────────────────
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
@@ -120,6 +120,38 @@ export default function MlDiag() {
     setDone(true);
     console.warn('[seg-qa-diag]', JSON.stringify({ done: true }));
   }, [running]);
+
+  // Persist every completed pass to the app container so the evidence is
+  // readable OFFLINE via `simctl get_app_container` — the dev-client's Metro
+  // log socket rides the LAN and dies with the host's Wi-Fi, so console
+  // evidence is lost exactly when the offline proof needs it.
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  useEffect(() => {
+    if (!done || rowsRef.current.length === 0) return;
+    const entry = { finishedAt: new Date().toISOString(), runs: rowsRef.current };
+    const path = `${FileSystem.documentDirectory}mldiag-results.json`;
+    void (async () => {
+      let prior: unknown[] = [];
+      try {
+        prior = JSON.parse(await FileSystem.readAsStringAsync(path));
+      } catch {
+        /* first pass */
+      }
+      await FileSystem.writeAsStringAsync(path, JSON.stringify([...(prior as unknown[]), entry]));
+    })();
+  }, [done]);
+
+  // QA affordance: deep-linking the SAME route never remounts, so an offline
+  // driver cannot retrigger a pass. Re-run automatically when the app returns
+  // to the foreground (background/foreground via simctl is a purely local
+  // operation, so it works with the host network down).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active') void runAll();
+    });
+    return () => sub.remove();
+  }, [runAll]);
 
   useEffect(() => {
     void runAll();

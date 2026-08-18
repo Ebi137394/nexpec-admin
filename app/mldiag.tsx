@@ -37,14 +37,17 @@ type TestImage = {
 };
 
 // The controlled set — provenance, licenses and SHA-256s in
-// qa-artifacts/tflite-test-set/MANIFEST.md.
+// qa-artifacts/tflite-test-set/MANIFEST.md. The .jpgbin copies are
+// BYTE-IDENTICAL to the manifest .jpg files (same SHA-256); the extension
+// makes Metro ship them as verbatim file assets instead of res/ drawables,
+// so a real file:// URI exists in release (see metro.config.js).
 const TEST_IMAGES: TestImage[] = [
-  { name: 'weld-defect-crack-1.jpg', asset: require('../qa-artifacts/tflite-test-set/weld-defect-crack-1.jpg'), expected: 'weld defect (crack)', modes: ['weld', 'weld-detect'] },
-  { name: 'weld-defect-crack-2.jpg', asset: require('../qa-artifacts/tflite-test-set/weld-defect-crack-2.jpg'), expected: 'weld defect (crack)', modes: ['weld', 'weld-detect'] },
-  { name: 'corrosion-1.jpg', asset: require('../qa-artifacts/tflite-test-set/corrosion-1.jpg'), expected: 'corrosion', modes: ['corrosion'] },
-  { name: 'corrosion-2.jpg', asset: require('../qa-artifacts/tflite-test-set/corrosion-2.jpg'), expected: 'corrosion', modes: ['corrosion'] },
-  { name: 'clean-weld.jpg', asset: require('../qa-artifacts/tflite-test-set/clean-weld.jpg'), expected: 'clean weld (no/low findings)', modes: ['weld', 'weld-detect'] },
-  { name: 'negative-control-cat.jpg', asset: require('../qa-artifacts/tflite-test-set/negative-control-cat.jpg'), expected: 'negative control (no findings)', modes: ['weld', 'corrosion'] },
+  { name: 'weld-defect-crack-1.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/weld-defect-crack-1.jpgbin'), expected: 'weld defect (crack)', modes: ['weld', 'weld-detect'] },
+  { name: 'weld-defect-crack-2.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/weld-defect-crack-2.jpgbin'), expected: 'weld defect (crack)', modes: ['weld', 'weld-detect'] },
+  { name: 'corrosion-1.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/corrosion-1.jpgbin'), expected: 'corrosion', modes: ['corrosion'] },
+  { name: 'corrosion-2.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/corrosion-2.jpgbin'), expected: 'corrosion', modes: ['corrosion'] },
+  { name: 'clean-weld.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/clean-weld.jpgbin'), expected: 'clean weld (no/low findings)', modes: ['weld', 'weld-detect'] },
+  { name: 'negative-control-cat.jpg', asset: require('../qa-artifacts/tflite-test-set/bundled/negative-control-cat.jpgbin'), expected: 'negative control (no findings)', modes: ['weld', 'corrosion'] },
 ];
 
 type RunRow = {
@@ -68,6 +71,9 @@ export default function MlDiag() {
   const [rows, setRows] = useState<RunRow[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  // file:// URIs of the downloaded assets — .jpgbin is not a drawable, so the
+  // preview <Image> renders from the same local file the model reads.
+  const [uris, setUris] = useState<Record<string, string>>({});
 
   const runAll = useCallback(async () => {
     if (!ML_RUNTIME_ENABLED || running) return;
@@ -81,9 +87,11 @@ export default function MlDiag() {
         const asset = Asset.fromModule(img.asset);
         if (!asset.localUri) await asset.downloadAsync();
         localUri = asset.localUri ?? asset.uri;
+        setUris((u) => ({ ...u, [img.name]: localUri }));
         sha = await sha256OfAsset(localUri);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
+        console.warn('[seg-qa-diag]', JSON.stringify({ file: img.name, assetError: msg }));
         setRows((r) => [...r, { file: img.name, sha12: 'asset-error', mode: img.modes[0], model: '-', inferenceMs: 0, detections: [], error: msg }]);
         continue;
       }
@@ -136,7 +144,9 @@ export default function MlDiag() {
       {done ? <Text testID="mldiag-done" style={{ fontWeight: '700' }}>ALL RUNS COMPLETE ({rows.length} runs)</Text> : null}
       {TEST_IMAGES.map((img) => (
         <View key={img.name} style={{ borderWidth: 1, borderColor: '#8884', borderRadius: 8, padding: 10, gap: 6 }}>
-          <Image source={img.asset} style={{ width: '100%', height: 140, borderRadius: 6 }} resizeMode="cover" />
+          {uris[img.name] ? (
+            <Image source={{ uri: uris[img.name] }} style={{ width: '100%', height: 140, borderRadius: 6 }} resizeMode="cover" />
+          ) : null}
           <Text style={{ fontWeight: '700' }}>{img.name}</Text>
           <Text style={{ fontSize: 12 }}>expected: {img.expected}</Text>
           {rows.filter((r) => r.file === img.name).map((r) => (

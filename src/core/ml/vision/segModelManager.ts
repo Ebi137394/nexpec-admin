@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { InteractionManager } from 'react-native';
+import { ML_RUNTIME_ENABLED } from '../flags';
 import {
   decodeYoloSeg, inferSegLayout, decodeYoloSegE2E, getModel,
   decodeYoloDet, detLayoutChannelsFirst,
@@ -159,6 +160,18 @@ class SegModelManagerImpl {
 
     const a = outputs?.[0] as ArrayLike<number> | undefined;
     const b = outputs?.[1] as ArrayLike<number> | undefined;
+    // QA evidence log — console.warn survives the release console-strip (only
+    // log/info/debug are removed). ML_RUNTIME builds are QA-only (LAW 1: the
+    // flag is OFF by default), so this never ships to real users.
+    if (ML_RUNTIME_ENABLED) {
+      console.warn('[seg-qa]', JSON.stringify({
+        mode,
+        model: reg?.slug ?? MODE_SLUG[mode],
+        input: { layout: 'NCHW', shape: [1, 3, size, size], dtype: data?.constructor?.name ?? 'unknown', normalize: '1/255' },
+        outputs: (outputs ?? []).map((o: ArrayLike<number>) => ({ dtype: (o as object)?.constructor?.name ?? 'unknown', length: o?.length ?? 0 })),
+        inferenceMs,
+      }));
+    }
     if (!a) throw new Error('model returned no outputs');
 
     const detections = await new Promise<SegDetection[]>((resolve, reject) => {

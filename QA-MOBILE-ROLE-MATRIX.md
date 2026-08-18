@@ -81,6 +81,7 @@ erase/reinstall between roles.
 | agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=1 explore=0 | FAIL | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=NULL |
 | agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=NULL |
 | agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=NULL |
+| agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=NULL |
 
 ## 3. Compliance capture chain + literal TFLite inference (Android)
 
@@ -106,7 +107,9 @@ Dev-client evidence chain (run 28, `qa-artifacts/mobile-matrix/tflite-01…13.pn
 |---|---|---|---|
 | D29 | P1 (mobile crash) | AI Co-Inspector gestures crashed: no `GestureHandlerRootView` at expo-router root; second instance required INSIDE the camera `Modal` (separate native host) | **Fixed** 261dcd5 + regression comment; verified on device |
 | D30 | P2 (dev-only) | Bundled TFLite models unloadable in dev-client (Metro asset path); release APK embeds models in APK | <!-- D30 STATUS --> |
-| — | product data | Staging `inspection_evidence_requirements` empty for every template → wizard dead-ended "No requirements to capture." | Seeded API 510 (2 reqs), weld (1), RT (1) on Staging |
+| — | product data | Staging `inspection_evidence_requirements` empty for every template → wizard dead-ended "No requirements to capture." | Seeded API 510 (2 reqs), weld (1), RT (1) on Staging; durable idempotent seed committed (`scripts/qa/seed-evidence-requirements.mjs`, 2nd run creates 0 rows) |
+| D31 | P1 (privilege loss + legal gate) | (a) `senior` missing from `apply_onboarding_role`'s protected-role guard — confirming any stance card silently DEMOTED a senior reviewer; (b) refusal path returned before stamping ToS acceptance, so protected roles could never record consent via mobile | Migration `20260801548000` + pgTAP `apply_onboarding_role_guard_test.sql` written; local proof + Staging apply pending (gates phase) |
+| D32 | P1 (dead-end) | Signing out on the stance chooser stranded the user on a dead screen: chooser is in `(auth)`, and the signed-out gate only navigated users outside `(auth)` — session cleared, router stayed | **Fixed** a38ef87 (explicit route after signOut + gate handles parked choose-role); found by iOS matrix when the escape hatch produced no transition in 60 s |
 
 ## 5. Unsupported-role decisions (intentional, truthful refusal required)
 

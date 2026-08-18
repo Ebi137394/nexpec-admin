@@ -100,6 +100,7 @@ erase/reinstall between roles.
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=1 ident=0 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=1 ident=0 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
+| admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 
 ### iOS terms-gate / consent-path proof (2026-08-18)
 

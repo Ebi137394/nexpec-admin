@@ -147,6 +147,12 @@ class SegModelManagerImpl {
       // marshal `undefined` into std::vector<Delegate> and throw an opaque
       // jsi::JSError. Pass the explicit empty list (CPU only).
       const model = await _tflite.loadTensorflowModel({ url: modelUrl }, []);
+      try {
+        console.warn('[seg-qa-model]', JSON.stringify({
+          inputs: model.inputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
+          outputs: model.outputs?.map((t: { name: string; dataType: string; shape: number[] }) => ({ name: t.name, dataType: t.dataType, shape: t.shape })),
+        }));
+      } catch { /* metadata best-effort */ }
       if (gen !== this.generation) return null; // flipped mid-load → discard the stale load
       this.resident = { mode, model };
       return model;
@@ -174,6 +180,7 @@ class SegModelManagerImpl {
     const size = reg?.inputSize ?? 1024;
 
     const { data } = await imageUriToTensor(imageUri, segInput(size));
+    console.warn('[seg-qa-input]', JSON.stringify({ regSize: size, dtype: data?.constructor?.name, length: (data as { length?: number })?.length ?? null }));
     const t0 = Date.now();
     const outputs = await model.run([data]); // native, off the JS thread
     const inferenceMs = Date.now() - t0;

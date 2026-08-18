@@ -85,6 +85,7 @@ erase/reinstall between roles.
 | agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=1 explore=0 | FAIL | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=NULL |
 | agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-agency.png, ios-agency-identity.png, ios-agency-tabs.png | uuid=3b0b0d85-5718-4195-b20d-a2d14b95a36a fresh-session + role=agency terms=set |
 | inspector | qa.inspector@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-inspector.png, ios-inspector-identity.png, ios-inspector-tabs.png | uuid=a7556734-3754-4bdd-8aaf-9fc6288c7464 fresh-session + role=inspector terms=set |
+| talent | qa.talent@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-talent.png, ios-talent-identity.png, ios-talent-tabs.png | uuid=6682e107-4231-427a-a207-842070fe951b fresh-session + role=inspector terms=set |
 
 ## 3. Compliance capture chain + literal TFLite inference (Android)
 

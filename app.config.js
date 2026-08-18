@@ -147,6 +147,11 @@ module.exports = {
 
     // ── Android ────────────────────────────────────────────────────────
     android: {
+      // D33: Android Maps key — owner-provisioned Google Cloud credential.
+      // Absent => SafeMap gate renders a fallback instead of crashing.
+      config: {
+        googleMaps: { apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY },
+      },
       package: 'com.nexpec.app',
       // ★ NX-CLEAR-001 closure — plaintext disallowed. The
       //   networkSecurityConfig XML stays in place as a defense-in-depth

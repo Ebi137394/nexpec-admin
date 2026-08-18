@@ -34,6 +34,7 @@ import MapView, {
   MapStyleElement,
 } from 'react-native-maps';
 import ClusteredMapView from 'react-native-map-clustering';
+import { mapsAvailable, MapUnavailable } from '@/src/core/maps/SafeMap';
 import * as Location from 'expo-location';
 import { useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -915,6 +916,7 @@ export default function InteractiveMapScreen() {
         )}
 
         {/* ── Map ─────────────────────────────────────────── */}
+        {!mapsAvailable() ? <MapUnavailable note="Map display is not configured on this build." /> : (
         <ClusteredMapView
           ref={mapRef}
           style={styles.map}
@@ -972,6 +974,7 @@ export default function InteractiveMapScreen() {
             </Marker>
           ))}
         </ClusteredMapView>
+        )}
 
         {/* ── Header Bar ──────────────────────────────────── */}
         <MapHeader

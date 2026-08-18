@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView from 'react-native-map-clustering';
 import { Marker, Region } from 'react-native-maps';
+import { mapsAvailable, MapUnavailable } from '@/src/core/maps/SafeMap';
 import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS, INSPECTOR_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -503,7 +504,7 @@ export default function JobsScreen() {
       {!isClientSide && activeTab === 0 && (
         <View style={st.discoverContainer}>
           <View style={st.mapContainer}>
-            {discoverLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : (
+            {discoverLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : !mapsAvailable() ? <MapUnavailable /> : (
               <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={DEFAULT_REGION} clusterColor={COLORS.primary} clusterTextColor="#FFF">
                 {discoverMapJobs.map((job) => ( <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude as number, longitude: job.longitude as number }} onPress={() => setSelectedJobId(job.id)}><PriceMarker amount={(job.payout_amount_cents || 0) / 100} selected={selectedJobId === job.id} /></Marker> ))}
               </MapView>
@@ -547,7 +548,7 @@ export default function JobsScreen() {
         <View style={isClientSide ? st.discoverContainer : { flex: 1 }}>
           {isClientSide && (
             <View style={st.mapContainer}>
-              {myWorkLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : (
+              {myWorkLoading ? <ActivityIndicator size="large" color={COLORS.primary} style={{marginTop: 50}}/> : !mapsAvailable() ? <MapUnavailable /> : (
                 <MapView ref={mapRef} style={StyleSheet.absoluteFill} initialRegion={DEFAULT_REGION} clusterColor={COLORS.primary} clusterTextColor="#FFF">
                   {myMapJobs.map((job) => ( 
                     <Marker key={job.id} identifier={job.id} coordinate={{ latitude: job.latitude as number, longitude: job.longitude as number }} onPress={() => setSelectedJobId(job.id)}>

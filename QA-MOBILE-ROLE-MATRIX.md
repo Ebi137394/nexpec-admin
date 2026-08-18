@@ -224,3 +224,78 @@ Dev-client evidence chain (run 28, `qa-artifacts/mobile-matrix/tflite-01…13.pn
 - **Wizard CTA taps**: OCR cannot see white-on-purple button text and list
   growth shifts layout; `adbui.py tappurple` finds the primary CTA by pixel
   band (RGB 124,58,236) instead of fixed coordinates.
+
+## 7. D36/D37 on-device proofs + controlled-image evidence (2026-08-18)
+
+**Build under test** (all rows below): hermetic arm64 release APK, verified
+before every install — Staging×1 / Prod×0 in the Hermes bundle,
+`expo.modules.updates.ENABLED=0x0`, `[seg-qa]`/`[outbox-qa]`/`OpWatchdogTimeout`
+markers present, device-pulled bundle re-verified after install. Sole signed-in
+identity per lane proven three ways (visible email screenshot, fresh
+`last_sign_in_at` by UUID, profile role by that UUID).
+
+### 7.1 Warm-offline camera capture + automatic no-restart drain (D36 proof)
+
+| Step | Evidence |
+|---|---|
+| Wizard loaded ONLINE (Structural Weld, "Weld bead close-up") | `tflite-and-offlinewarm-1-wizard.png` |
+| Network cut BEFORE capture (`Lost default Internet network` in logcat) | `tflite-and-offlinewarm-1b-network-cut.png` |
+| Real camera → shutter → Use & Save, all offline | `…-2-camera/3-preview/4-overlay.png` |
+| Literal offline `model.run()`: wda-fissure-detector, in `[1,3,1024,1024]` f32 (3,145,728 floats), out **881,664 + 2,097,152**, **1947 ms**, model from local `file://` (41,995,363 B) | `[seg-qa-gate/load/model/input]` + `[seg-qa]` lines, `tflite-and-offlinewarm-logcat.txt` |
+| Reconnect — NO app restart → automatic drain in 24.7 s, zero `[outbox-qa]` failures | row `4d7a60bc` created 18:08:21.701Z vs captured 18:07:57.044Z |
+| UI shows the capture with its hash `5c938fa48c32…` = row `capture_sha256` | `…-5-saved.png`, `…-6-ai-result.png` |
+| Value verification: object 18,321 B downloaded → `file_sha256` recomputed → canonical metadata → `capture_sha256` **bit-for-bit match**; chain `4d7a60bc → c295c78e → 1f049583 → 4b91accb` verified by value (chain is per-JOB: links across requirements) | `staging-capture-4d7a60bc.jpg` + verify transcript |
+
+Pre-fix control (same day): capture `1f049583` taken offline 14:29:11 stayed
+queued until an app RESTART drained it 14:35:51 — the D36 wedge, observed live,
+then eliminated (watchdogReplay.test.mjs + the no-restart drain above).
+
+### 7.2 Controlled-image inference — production `analyze()` on release APK (/mldiag)
+
+Camera-content limitation documented in §6 (virtualscene black under
+SwiftShader; iOS Simulator has no camera) — content proof runs through the
+owner-sanctioned `/mldiag` screen calling the EXACT production entry point
+(`SegModelManager.analyze`, same call as capture.tsx). Images bundled
+byte-identical to `qa-artifacts/tflite-test-set/MANIFEST.md` (SHA-256
+recomputed ON DEVICE each run and shown in the UI + logs).
+
+| Image (sha256, device-recomputed) | Model | ms | Detections (label:score) | Expected | Read |
+|---|---|---|---|---|---|
+| weld-defect-crack-1 (`58e087f6d0a4…`) | wda-fissure | 2034 | none | weld defect | miss (diagram-style image) |
+| weld-defect-crack-1 | yolov9t | 266 | inclusion:0.58, inclusion:0.301 | weld defect | **defect detected** |
+| weld-defect-crack-2 (`38e1c6b97a17…`) | wda-fissure | 2227 | none | weld defect | miss |
+| weld-defect-crack-2 | yolov9t | 156 | none | weld defect | miss (recall limit, truthful) |
+| corrosion-1 (`aab2161f503c…`) | corrosion | 2210 | rust:0.325, rust:0.257 | corrosion | **corrosion detected** |
+| corrosion-2 (`d8197ec0f27b…`) | corrosion | 1739 | none | corrosion | miss (recall limit, truthful) |
+| clean-weld (`e746213353c1…`) | wda-fissure | 1713 | Welding line:0.694 | clean | structural class only — correct |
+| clean-weld | yolov9t | 304 | none | clean | **correct (no findings)** |
+| negative-control-cat (`f91f1e37a233…`) | wda-fissure | 2101 | none | negative | **correct (no false positive)** |
+| negative-control-cat | corrosion | 1809 | none | negative | **correct (no false positive)** |
+
+Run-completed ≠ accuracy-PASS: detection hits/misses recorded separately above.
+Evidence: `mldiag-online-top.png` + scrolls, `[seg-qa-diag]` JSON lines
+(`mldiag-online-logcat.txt`) — every line carries the full device-side SHA-256.
+
+### 7.3 D37 gates (post-fix build)
+
+- **Gate A (functional)**: full set ONLINE (10 runs) + full set OFFLINE
+  (10 runs, `Lost default Internet` ×2) = 22/22 `[seg-qa-diag]` lines,
+  0 errors, 0 `OutOfMemoryError`, 0 JSI/JNI exceptions. Concurrency=1 by
+  construction (screen awaits each run; manager serializes swap+dispose).
+- **Gate B (bounded memory)**: 20 sequential inferences, **18 model loads**
+  (≥8 swaps required); native heap sampled every 3 s (`d37-mem.log`, 462
+  samples): peak 312 MB during pass 1 → settles to a **flat 265 MB plateau
+  for 23 idle minutes (+0.3 % drift)** → peaks 527 MB in-flight during pass 2
+  → 0 OOM. Pre-fix control: identical 10th run (corrosion re-acquire) threw
+  `OutOfMemoryError: Failed to allocate 42004707 bytes … 179MB/192MB` after
+  blocking GCs freed only KBs (`mldiag-offline-logcat.txt`).
+- Identity for the gate lane: fresh qa.talent sign-in 19:19:20Z, UUID
+  `6682e107…`, role=inspector, SESSION-ASSERT PASS (`d37-2-identity.png`).
+
+### 7.4 Defects raised
+
+| ID | Severity | Summary | Status |
+|---|---|---|---|
+| D36 | P1 (field data loss) | Hung upload fetch (reconnect flap) wedged the singleton outbox worker for the process lifetime — offline captures never synced until app restart; drain failures also fully silent in release | **Fixed** e643e1e (per-op 180 s watchdog, timeout=transient by construction) + 2fb11c3; regression `watchdogReplay.test.mjs` (hung op abandoned <5 s, bounced not lost, completes on retry) + on-device no-restart drain proof §7.1 |
+| D37 | P1 (AI dead after use) | Evicted TFLite models retained until Hermes GC (which feels no ART pressure) — ~4 swaps of 42 MB models OOM a 192 MB-heap device; surfaced as opaque `JniException` | **Fixed** 31b28a6 (eager Nitro `dispose()` on eviction); gates §7.3 |
+| — | observation | Offline COLD start of the app lands on the stance chooser (profile fetch fails → treated as no-stance) instead of a cached-role landing; stance save then fails truthfully offline ("Could not save role — Network request failed", no server write). Recovered by reconnect. | Recorded for owner triage (routing hardening candidate; no data corruption — D31 guard + failed network write both held) |

@@ -131,6 +131,10 @@ function AuthGate() {
       // Mobile Sprint 1 · Lane 4 — dev-only pre-flight diagnostic at
       // /diagnostics. Read-only schema probe, safe to ship.
       'diagnostics',
+      // QA-only ML self-test on the controlled image set (owner-sanctioned:
+      // emulator/simulator cameras cannot present controlled content). Renders
+      // a static notice unless ML_RUNTIME_ENABLED. app/mldiag.tsx.
+      'mldiag',
       // Buyer-facing inspector directory (2026-05-20). Reachable from
       // client + agency dashboards. Allows verified-inspector discovery
       // and invitation-to-job via invite_inspector_to_job RPC.

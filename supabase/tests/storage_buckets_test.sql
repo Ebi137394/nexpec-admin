@@ -51,7 +51,8 @@ insert into _expected_buckets values
   ('flash-report-attachments', false),
   ('chat_attachments', false),
   ('branding_assets', false),
-  ('ai-dataset', false);
+  ('ai-dataset', false),
+  ('compliance', false);   -- 20260801556000 (D35): missed by the 532000 sweep
 
 -- 1 — nothing the code names is missing
 select is(

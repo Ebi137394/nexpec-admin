@@ -472,6 +472,12 @@ export default function ComplianceCaptureWizard() {
               ? 'corrosion'
               : null;
         setSegMode(detectedMode);
+        // release-safe QA gate evidence (warn survives console-strip)
+        console.warn('[seg-qa-gate]', JSON.stringify({
+          detectedMode,
+          available: SegModelManager.available(),
+          segHay: segHay.slice(0, 100),
+        }));
         if (detectedMode && SegModelManager.available()) {
           const segT0 = Date.now();
           SegModelManager.analyze(capturedUri, detectedMode)
@@ -483,7 +489,8 @@ export default function ComplianceCaptureWizard() {
               setSegDetections(r.detections);
             })
             .catch((e) => {
-              if (__DEV__) console.warn('[seg] analyze failed:', (e as Error)?.message ?? e);
+              // release-safe QA evidence of the literal failure (D30 class)
+              console.warn('[seg-qa-error]', (e as Error)?.message ?? String(e), (e as Error)?.stack?.slice(0, 400) ?? '');
               /* seg optional — the findings card still renders */
             });
         }

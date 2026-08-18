@@ -60,6 +60,10 @@ arm64 AVD (see §1). This is an environment finding, not a product failure.
 ## 2. iOS — Role rows
 
 Driver: Maestro iOS (XCUITest) with **text selectors + verified point-taps**.
+**Maestro text matching is case-insensitive**: the admin dashboard's
+"Welcome back" header satisfies a "Welcome Back" (login screen) selector, which
+made one sign-out run a silent no-op. Goal-state checks therefore use the
+unambiguous login subtitle "Sign in to continue your inspections".
 RN `testID`s do not surface as accessibilityIdentifier on this Fabric build
 (only react-navigation's `tabBarButtonTestID` does — hierarchy-dump proof,
 run 29); text full-match selectors are the reliable primitive. Secure password
@@ -95,6 +99,7 @@ erase/reinstall between roles.
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=1 ident=0 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=1 ident=0 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 | admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=1 ident=0 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
+| admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=1 in=1 ident=1 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 
 ### iOS terms-gate / consent-path proof (2026-08-18)
 

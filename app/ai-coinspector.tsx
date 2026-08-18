@@ -18,6 +18,7 @@ import { ML_RUNTIME_ENABLED } from '@/src/core/ml';
 import { SegModelManager, type SegMode } from '@/src/core/ml/vision/segModelManager';
 import { SegOverlay, type SegOverlayDetection } from '@/src/core/ml/vision/SegOverlay';
 import { enabledModels } from '@nexpec/shared-core';
+import { AiBetaDisclaimer, AiBetaFirstUseNotice } from '@/src/shared-ui/ai/AiBetaDisclaimer';
 
 const COLORS = {
   bg: '#0B1020', card: '#161C36', border: '#2A3354', primary: '#8B5CF6',
@@ -70,7 +71,12 @@ export default function AiCoInspectorScreen() {
             (jobId ? '. Tap a polygon to refine, long-press to remove.' : '.')
           : 'No regions above the confidence threshold.',
       );
-    } catch (e) { setNote((e as Error)?.message ?? 'analysis failed'); }
+    } catch (e) {
+      // Owner release order: failure surfaces as "AI unavailable" — never as
+      // an implied clean result.
+      setSegDetections([]);
+      setNote(`AI unavailable — ${(e as Error)?.message ?? 'analysis failed'}. Inspect manually.`);
+    }
     finally { setAnalyzing(false); }
   }, [imageUri, mode, activeModel, jobId]);
 
@@ -92,6 +98,8 @@ export default function AiCoInspectorScreen() {
           </View>
         ) : (
           <>
+            <AiBetaFirstUseNotice />
+            <AiBetaDisclaimer />
             <Text style={styles.subtitle}>
               {jobId ? `Job ${String(jobId).slice(0, 8)}…, edits are sealed` : 'Demo mode, no job linked (overlay is read-only)'}
             </Text>

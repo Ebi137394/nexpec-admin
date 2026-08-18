@@ -94,6 +94,7 @@ import { enqueueCaptureSave, enqueueAiFeedback } from '@/lib/offline';
 // published AND the app runs with the native ML runtime enabled.
 import { useDefectAnalysis, ML_RUNTIME_ENABLED } from '@/src/core/ml';
 import { DefectFindingsCard } from '@/src/shared-ui/ai/DefectFindingsCard';
+import { AiBetaFirstUseNotice } from '@/src/shared-ui/ai/AiBetaDisclaimer';
 import { buildAiAssist, aiFeedbackToRpcArgs, getDefectMeta, getModel, DEFECT_TAXONOMY, type DefectDetection } from '@nexpec/shared-core';
 import * as Haptics from 'expo-haptics';
 
@@ -206,6 +207,9 @@ export default function ComplianceCaptureWizard() {
   // Instance-seg overlay detections (normalized geometry). HITL-editable in place.
   const [segDetections, setSegDetections] = useState<SegOverlayDetection[]>([]);
   const [segMode, setSegMode] = useState<SegMode | null>(null);
+  // Owner release order: an inference FAILURE must surface as "AI unavailable" —
+  // never be indistinguishable from "no defect detected".
+  const [segError, setSegError] = useState<string | null>(null);
   // Active seg model (shared registry identity) for the auto-selected mode —
   // shown in the UI so the inspector sees exactly which model is running.
   const activeSegModel = useMemo(
@@ -478,6 +482,7 @@ export default function ComplianceCaptureWizard() {
           available: SegModelManager.available(),
           segHay: segHay.slice(0, 100),
         }));
+        setSegError(null);
         if (detectedMode && SegModelManager.available()) {
           const segT0 = Date.now();
           SegModelManager.analyze(capturedUri, detectedMode)
@@ -491,7 +496,10 @@ export default function ComplianceCaptureWizard() {
             .catch((e) => {
               // release-safe QA evidence of the literal failure (D30 class)
               console.warn('[seg-qa-error]', (e as Error)?.message ?? String(e), (e as Error)?.stack?.slice(0, 400) ?? '');
-              /* seg optional — the findings card still renders */
+              // Surface as "AI unavailable" — a failure must never read as
+              // "no defect detected" (owner release order).
+              setSegError('AI unavailable');
+              setSegDetections([]);
             });
         }
       }
@@ -947,8 +955,9 @@ export default function ComplianceCaptureWizard() {
           <View style={s.aiWrap}>
             <View style={s.aiHead}>
               <ShieldCheck size={14} color={C.primarySoft} />
-              <Text style={s.aiHeadText}>AI Co-Inspector, review &amp; accept</Text>
+              <Text style={s.aiHeadText}>AI Co-Inspector (Beta), review &amp; accept</Text>
             </View>
+            <AiBetaFirstUseNotice />
             {activeSegModel && (
               <Text style={s.aiNote}>
                 On-device model: {activeSegModel.displayName} ({activeSegModel.slug} v{activeSegModel.version})
@@ -963,9 +972,10 @@ export default function ComplianceCaptureWizard() {
             />
             {da.status === 'unavailable' && (
               <Text style={s.aiNote}>
-                {da.error ?? 'On-device analysis needs a dev build with the ML runtime (fast-tflite + Skia) enabled.'}
+                AI unavailable{da.error ? ` — ${da.error}` : ''}
               </Text>
             )}
+            {!!segError && <Text style={s.aiNote}>{segError} — inspect manually; the capture is saved.</Text>}
             {!!aiRecorded.length && (
               <Text style={s.aiRecorded}>{aiRecorded.length} AI finding(s) recorded ✓, sealed with this inspection.</Text>
             )}

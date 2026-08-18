@@ -14,6 +14,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DefectAnalysis, DefectDetection } from '@nexpec/shared-core';
+import { AI_BETA_WARNING } from './AiBetaDisclaimer';
 
 const COLORS = {
   card: '#161C36',
@@ -52,6 +53,7 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss,
         <Header />
         <Text style={styles.empty}>No defects detected above threshold.</Text>
         <Attribution analysis={analysis} />
+        <Text style={styles.betaWarning}>{AI_BETA_WARNING}</Text>
       </View>
     );
   }
@@ -102,6 +104,9 @@ export function DefectFindingsCard({ analysis, loading, onAddFinding, onDismiss,
         </Pressable>
       ))}
       {analysis && <Attribution analysis={analysis} />}
+      {/* Owner release order: the Beta/advisory warning rides BESIDE every AI
+          result — inside the universal card so no consumer can omit it. */}
+      <Text style={styles.betaWarning}>{AI_BETA_WARNING}</Text>
     </View>
   );
 }
@@ -149,4 +154,13 @@ const styles = StyleSheet.create({
   btnPrimaryText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   btnText: { color: COLORS.muted, fontSize: 13, fontWeight: '600' },
   attribution: { color: COLORS.dim, fontSize: 10, marginTop: 12, fontFamily: 'Courier' },
+  betaWarning: {
+    color: '#E6D9B8',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(251,191,36,0.35)',
+  },
 });

@@ -201,6 +201,52 @@ export async function resumeSync(): Promise<void> {
 }
 
 /**
+ * D36 — per-op watchdog. A handler awaiting a fetch that never settles
+ * (observed live: a capture upload whose socket opened during a Wi-Fi
+ * reconnect flap) left `draining` true for the rest of the process, so every
+ * later trigger — reconnect, foreground, the 60s poll — silently no-oped and
+ * offline captures stopped syncing until an app restart. The singleton worker
+ * must never wedge on one op: race each handler against a deadline, and treat
+ * the timeout as transient (bounce to pending + backoff; the pass ends and
+ * `draining` is released). Handlers are idempotent by contract (client
+ * PKs / upserts), so a raced-out op that later completes is harmless.
+ * Generous default: a 50 MB chat attachment on a slow field link.
+ */
+let opWatchdogMs = 180_000;
+
+/** Config/test seam for the per-op watchdog deadline. */
+export function setOpWatchdogMs(ms: number): void {
+  opWatchdogMs = ms;
+}
+
+class OpWatchdogTimeout extends Error {
+  constructor(kind: string, ms: number) {
+    super(`outbox op '${kind}' still running after ${ms}ms — abandoned for retry`);
+    this.name = 'OpWatchdogTimeout';
+  }
+}
+
+function withOpWatchdog<T>(p: Promise<T>, kind: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const ms = opWatchdogMs;
+    const timer = setTimeout(() => reject(new OpWatchdogTimeout(kind, ms)), ms);
+    // Both callbacks attach to `p`, so a late settle of a raced-out handler is
+    // consumed here (no unhandled-rejection noise) and ignored by the
+    // already-settled outer promise.
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/**
  * Manually trigger a drain. Useful for a "retry now" affordance. No-ops while
  * draining or auth-paused.
  */
@@ -231,12 +277,14 @@ export async function flushQueue(): Promise<void> {
       }
 
       try {
-        await handler(row);
+        await withOpWatchdog(handler(row), row.kind);
         await markSuccess(row.id);
         notifyChanged();
       } catch (err: any) {
         const msg = errorMessage(err);
-        const klass = classifySyncError(err);
+        // A watchdog timeout is transient BY CONSTRUCTION (the op was
+        // abandoned, not refused) — don't let the classifier guess.
+        const klass = err instanceof OpWatchdogTimeout ? 'transient' : classifySyncError(err);
         // release-safe QA evidence: drain failures were fully silent in release
         console.warn('[outbox-qa]', JSON.stringify({ kind: row.kind, klass, attempts: row.attempts, msg: msg?.slice(0, 200) }));
 

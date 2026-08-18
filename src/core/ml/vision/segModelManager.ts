@@ -127,7 +127,23 @@ class SegModelManagerImpl {
     const next = this.chain.then(async () => {
       if (gen !== this.generation) return this.resident?.model ?? null; // superseded before we ran
       if (this.resident?.mode === mode) return this.resident.model; // already hot
-      this.resident = null; // evict → drop ref so the native buffer is GC'd (no dispose in fast-tflite)
+      // D37: EAGERLY dispose the evicted model. Dropping the JS ref alone
+      // leaves the interpreter + model buffers retained until the Hermes GC
+      // happens to run — it feels no ART-heap pressure, so ~4 large-model
+      // swaps OOM a 192MB-heap device (observed live: OutOfMemoryError
+      // allocating 42004707 B with the heap at 179/192MB while blocking GCs
+      // freed only KBs). Nitro HybridObjects expose dispose() for exactly
+      // this eager native release; a double-dispose or dispose-after-drop is
+      // tolerated (already-released → no-op/throw swallowed).
+      const evicted = this.resident?.model as { dispose?: () => void } | undefined;
+      this.resident = null;
+      if (evicted && typeof evicted.dispose === 'function') {
+        try {
+          evicted.dispose();
+        } catch {
+          /* already released */
+        }
+      }
       // D30 FIX: in release builds Metro packages .tflite assets as MANGLED
       // res/ resources (e.g. res/9H.tflite) that fast-tflite's native asset
       // loader cannot open by module id — facebook::jni::JniException. Resolve

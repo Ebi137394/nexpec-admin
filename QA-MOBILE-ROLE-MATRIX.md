@@ -299,3 +299,24 @@ Evidence: `mldiag-online-top.png` + scrolls, `[seg-qa-diag]` JSON lines
 | D36 | P1 (field data loss) | Hung upload fetch (reconnect flap) wedged the singleton outbox worker for the process lifetime — offline captures never synced until app restart; drain failures also fully silent in release | **Fixed** e643e1e (per-op 180 s watchdog, timeout=transient by construction) + 2fb11c3; regression `watchdogReplay.test.mjs` (hung op abandoned <5 s, bounced not lost, completes on retry) + on-device no-restart drain proof §7.1 |
 | D37 | P1 (AI dead after use) | Evicted TFLite models retained until Hermes GC (which feels no ART pressure) — ~4 swaps of 42 MB models OOM a 192 MB-heap device; surfaced as opaque `JniException` | **Fixed** 31b28a6 (eager Nitro `dispose()` on eviction); gates §7.3 |
 | — | observation | Offline COLD start of the app lands on the stance chooser (profile fetch fails → treated as no-stance) instead of a cached-role landing; stance save then fails truthfully offline ("Could not save role — Network request failed", no server write). Recovered by reconnect. | Recorded for owner triage (routing hardening candidate; no data corruption — D31 guard + failed network write both held) |
+
+## 8. Final TFLite evidence table (2026-08-18, post D36/D37 + lifecycle fix fb0c81a)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| Android D37 gates: 20 sequential runs, 18 model swaps, 0 err/OOM/JSI | **PASS** | §7.3; `d37-gate-logcat.txt`, `d37-mem.log` |
+| Android memory: flat 265 MB plateau 23 min post-run (+0.3 %), peak 527 MB in-flight | **PASS** | §7.3 |
+| Android warm-offline camera → offline `model.run()` → NO-restart drain (25.9 s) → Staging row `73427205` + object + bit-for-bit `capture_sha256` + 5-deep chain | **PASS** | §7.1; `staging-capture-73427205.jpg` |
+| iOS online controlled set 10/10, 0 errors (native TFLite, dev-client, Metro-served Staging+ML env) | **PASS** | `mldiag-ios-final-*`/scroll screenshots, Metro `[seg-qa-diag]` lines, container `mldiag-results.json` |
+| iOS offline controlled set | **NOT COMPLETED — environment** | Dev-client instability (packager-URL loss, queued deep-link permission dialogs, Metro LAN-socket death, 12-min auth-gate spinner). No product failure observed; iOS models load from local `file://` (`[seg-qa-load]`), and hard-offline inference is proven on Android with radios off. Labeled truthfully; not counted as PASS |
+| iOS warm-offline camera capture + reconnect sync | **N/A — iOS Simulator has no camera** | Camera-only compliance flow cannot execute; D36 outbox is platform-shared JS proven by `watchdogReplay`/`visitReplay` suites + Android device proof §7.1 |
+| Model-lifecycle race ("model not resident (mode superseded)" / dispose-under-use) | **FIXED + unit-proven** | fb0c81a `modelLease.ts` (total serialization, run leases, dispose exactly once at zero active runs); `modelLease.test.mjs` 2/2 asserting the exact owner scenario incl. global ordering |
+| Exact errors across all COMPLETED passes | **0** | zero `[seg-qa-diag]` errors, zero OOM, zero JSI in every counted pass |
+
+**Accuracy, expected vs actual** (production thresholds; run-completed ≠ accuracy-PASS):
+Android and iOS agree except where noted — crack-1: yolov9t detects `inclusion` 0.58–0.60 (wda: none — diagram-style image); crack-2: iOS wda detects `Crack` 0.325/0.286, Android wda none (platform kernel/fp differences), yolov9t none on both; corrosion-1: `rust` 0.325–0.366 both platforms; corrosion-2: none (recall limit, truthful); clean-weld: only structural `Welding line` 0.69 (correct, not a defect); negative-control cat: **zero detections on all models, both platforms** (no false positives).
+
+**Production posture**: ML remains OFF in production by construction (LAW 1 —
+`ML_RUNTIME_ENABLED` requires `EXPO_PUBLIC_ML_RUNTIME=1`, set only in QA
+builds). The owner-prescribed fallback is therefore already in force; the
+lifecycle fix rides the release either way.

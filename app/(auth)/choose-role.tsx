@@ -338,7 +338,13 @@ export default function ChooseRoleScreen() {
             signOut() clears the session; the AuthGate then routes to sign-in. */}
         <Pressable
           testID="stance-signout"
-          onPress={() => signOut()}
+          onPress={async () => {
+            // D32: this screen lives in (auth), so the !isAuthenticated gate
+            // never navigates away from it — route explicitly or the user is
+            // stranded on a dead chooser after the session clears.
+            await signOut();
+            router.replace('/(auth)/sign-in');
+          }}
           disabled={submitting}
           hitSlop={12}
           style={s.signOutBtn}

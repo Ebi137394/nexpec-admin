@@ -311,8 +311,15 @@ function AuthGate() {
     }
 
     // 1. USER NOT LOGGED IN -> Force Login
+    //  D32: a session-less user PARKED INSIDE (auth) must not be stranded on a
+    //  stateful screen. choose-role needs a session for everything it does, so
+    //  route it to sign-in too. oauth-callback is deliberately excluded — it
+    //  legitimately runs unauthenticated while exchanging the deep-link code.
     if (!isAuthenticated) {
-      if (!inAuthGroup) safeNavigate('/(auth)/sign-in'); 
+      const strandedAuthScreens = ['choose-role'];
+      if (!inAuthGroup || strandedAuthScreens.includes((segments as string[])[1] ?? '')) {
+        safeNavigate('/(auth)/sign-in');
+      }
       return;
     }
 

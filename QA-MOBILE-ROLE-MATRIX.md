@@ -73,10 +73,11 @@ erase/reinstall between roles.
 | Role | Account | Platform | Actions | Expected | rc | Verdict | Evidence | DB readback |
 |---|---|---|---|---|---|---|---|---|
 | client | qa.client@nexpec.test | iOS sim (18.2) | sign-out → sign-in (char-by-char pw) → 5-tab sweep | signed-in client dashboard + tabs render | out=0 in=0 explore=0 | PASS | ios-client.png, ios-client-tabs.png | db: client/terms-set (expect client) ROLE-OK |
-| inspector | qa.inspector@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance(\) → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-inspector.png, ios-inspector-tabs.png | db: inspector/terms-set (expect inspector) |
-| talent | qa.talent@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-talent.png, ios-talent-tabs.png | db: inspector/terms-set (expect inspector) |
-| rfqbuyer | qa.rfqbuyer@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-rfqbuyer.png, ios-rfqbuyer-tabs.png | db: client/terms-NULL (expect client) |
-| agency | qa.agency@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Agency' → 5-tab sweep | signed-in landing + tabs render | out=0 in=0 explore=0 | PASS | ios-agency.png, ios-agency-tabs.png | db: agency/terms-NULL (expect agency) |
+| inspector | (see rerun below) | iOS sim (18.2) | — | — | — | **INVALID — WRONG SESSION** (harness typed default client email; caught by owner live screenshot; superseded by identity-proof rerun) | ios-inspector.png shows qa.client | — |
+| talent | (see rerun below) | iOS sim (18.2) | — | — | — | **INVALID — WRONG SESSION** (harness typed default client email; caught by owner live screenshot; superseded by identity-proof rerun) | ios-talent.png shows qa.client | — |
+| rfqbuyer | (see rerun below) | iOS sim (18.2) | — | — | — | **INVALID — WRONG SESSION** (harness typed default client email; caught by owner live screenshot; superseded by identity-proof rerun) | ios-rfqbuyer.png shows qa.client | — |
+| agency | (see rerun below) | iOS sim (18.2) | — | — | — | **INVALID — WRONG SESSION** (harness typed default client email; caught by owner live screenshot; superseded by identity-proof rerun) | ios-agency.png shows qa.client | — |
+| client | qa.client@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-client.png, ios-client-identity.png, ios-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
 
 ## 3. Compliance capture chain + literal TFLite inference (Android)
 

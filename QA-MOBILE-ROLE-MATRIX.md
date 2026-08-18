@@ -193,3 +193,34 @@ Dev-client evidence chain (run 28, `qa-artifacts/mobile-matrix/tflite-01…13.pn
 - `qa.client@nexpec.test` | iOS | rc=124 | landing: NEXPEC PEC The Future of Inspection  | evidence: `qa-artifacts/mobile-matrix/ios-client.png` | 22:55:51
 - `qa.client@nexpec.test` | iOS | rc=124 | landing: NEXPEC MONDAY, AUG 17 Good evening, QA OPS qa.client@nexpec.test MONDA | evidence: `qa-artifacts/mobile-matrix/ios-client.png` | 23:01:39
 - `qa.client@nexpec.test` | iOS | out=1 in=1 | landing: NEXPEC MONDAY, AUG 17 Good evening, QA OPS qa.client@nexpec.test MONDA | `qa-artifacts/mobile-matrix/ios-client.png` | 23:10:42
+
+## 6. Environment / harness records (2026-08-18, D35–D36 phase)
+
+- **Hermeticity near-miss, caught by mandatory verification**: one rebuild lane
+  (post-compaction) omitted the Staging `EXPO_PUBLIC_*` exports; Expo's dotenv
+  chain (`.env`/`.env.local` → Production ref) filled the bundle env. The
+  verify step reported `staging-refs: 0, prod-refs: 1` and the lane was stopped
+  before install. Rule made structural: `build-verify-install.sh` now aborts
+  unless the exported bundle env is Staging, and NEVER installs an APK that
+  fails size / staging=1 / prod=0 / seg-qa / D36-watchdog / outbox-qa /
+  updates-disabled checks (verified again on the device-pulled bundle).
+- **Gradle env is not a task input**: changing `EXPO_PUBLIC_*` does NOT
+  invalidate `createBundleReleaseJsAndAssets`; the generated bundle outputs
+  must be deleted to force a re-bundle. (This is how a stale-env bundle can
+  silently survive a "successful" rebuild.)
+- **Disk incident**: host hit 0 bytes free mid-qualification (shell execution
+  itself failed). Recovered 2.0Gi → 16Gi by deleting only regenerable build
+  artifacts (app/build, .cxx trees, gradle transforms, ~/.expo, uv/pip download
+  caches, pulled-APK copies). All fixtures/evidence preserved. Release builds
+  now require ≥15Gi free before launch.
+- **Build OOM**: `:app:collectReleaseDependencies` (AGP dependency-metadata
+  task) OOMs at the CNG default 2G heap on a full dependency graph re-run;
+  `android/gradle.properties` (gitignored) bumped to `-Xmx4096m`. Excluding
+  the task instead breaks `:app:sdkReleaseDependencyData` — don't.
+- **Offline cold-start**: the compliance wizard requires network to load the
+  requirement catalog; a cold offline launch lands on the error boundary
+  (graceful, screenshot `tflite-and-offline-coldstart.png`). Warm-offline is
+  the truthful field scenario and is the one proven.
+- **Wizard CTA taps**: OCR cannot see white-on-purple button text and list
+  growth shifts layout; `adbui.py tappurple` finds the primary CTA by pixel
+  band (RGB 124,58,236) instead of fixed coordinates.

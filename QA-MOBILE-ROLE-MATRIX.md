@@ -91,6 +91,7 @@ erase/reinstall between roles.
 | rfqbuyer | qa.rfqbuyer@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Client' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-rfqbuyer.png, ios-rfqbuyer-identity.png, ios-rfqbuyer-tabs.png | uuid=0bfbd7cb-41b8-4aec-8d43-5a12e1bbfc24 fresh-session + role=client terms=set |
 | enterprise | qa.enterprise@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Enterprise' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-enterprise.png, ios-enterprise-identity.png, ios-enterprise-tabs.png | uuid=1852da2d-f7d2-4f0c-8ffb-48a2a761975f fresh-session + role=enterprise terms=set |
 | supplier | qa.supplier@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Vendor' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=0 ident=0 explore=0 | PASS | ios-supplier.png, ios-supplier-identity.png, ios-supplier-tabs.png | uuid=6d10ec5b-5858-45be-9671-5cbd0ded1b50 fresh-session + role=supplier terms=set |
+| admin | qa.tmpadmin.r8wkc8y@nexpec.test | iOS sim (18.2) | sign-out → sign-in → stance 'Inspector' → in-app email visible → 5-tab sweep | identity-proved session | out=0 in=124 ident=1 explore=0 | FAIL | ios-admin.png, ios-admin-identity.png, ios-admin-tabs.png | uuid=acbda408-c2de-4b7d-a8c2-7a99c6514413 fresh-session + role=admin terms=NULL |
 
 ### iOS terms-gate / consent-path proof (2026-08-18)
 

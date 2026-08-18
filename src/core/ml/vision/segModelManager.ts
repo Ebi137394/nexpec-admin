@@ -15,6 +15,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { InteractionManager } from 'react-native';
+import { Asset } from 'expo-asset';
 import { ML_RUNTIME_ENABLED } from '../flags';
 import {
   decodeYoloSeg, inferSegLayout, decodeYoloSegE2E, getModel,
@@ -126,7 +127,16 @@ class SegModelManagerImpl {
       if (gen !== this.generation) return this.resident?.model ?? null; // superseded before we ran
       if (this.resident?.mode === mode) return this.resident.model; // already hot
       this.resident = null; // evict → drop ref so the native buffer is GC'd (no dispose in fast-tflite)
-      const model = await _tflite.loadTensorflowModel(SEG_ASSETS[mode]);
+      // D30 FIX: in release builds Metro packages .tflite assets as MANGLED
+      // res/ resources (e.g. res/9H.tflite) that fast-tflite's native asset
+      // loader cannot open by module id — facebook::jni::JniException. Resolve
+      // through expo-asset (which owns the module→resource mapping) to a real
+      // file:// URI first. Offline-safe: downloadAsync() on a bundled asset is
+      // a local copy out of the APK, no network.
+      const asset = Asset.fromModule(SEG_ASSETS[mode]);
+      if (!asset.localUri) await asset.downloadAsync();
+      const modelUrl = asset.localUri ?? asset.uri;
+      const model = await _tflite.loadTensorflowModel({ url: modelUrl });
       if (gen !== this.generation) return null; // flipped mid-load → discard the stale load
       this.resident = { mode, model };
       return model;

@@ -62,6 +62,7 @@ arm64 AVD (see §1). This is an environment finding, not a product failure.
 | client | qa.client@nexpec.test | Android (API 31 fresh AVD, release APK) | sign-out → sign-in → in-app email visible → tab sweep | identity-proved session | out=127 in=381 ident=127 explore=127 | FAIL | and-client.png, and-client-identity.png, and-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
 | client | qa.client@nexpec.test | Android (API 31 fresh AVD, release APK) | sign-out → sign-in → in-app email visible → tab sweep | identity-proved session | out=0 in=3 ident=1 explore=1 | FAIL | and-client.png, and-client-identity.png, and-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
 | client | qa.client@nexpec.test | Android (API 31 fresh AVD, release APK, adb/uiautomator driver) | sign-out → sign-in → in-app email visible → tab sweep | identity-proved session | out=0 in=1 ident=1 explore=1 | FAIL | and-client.png, and-client-identity.png, and-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
+| client | qa.client@nexpec.test | Android (API 31 fresh AVD, release APK, adb/uiautomator driver) | sign-out → sign-in → in-app email visible → tab sweep | identity-proved session | out=1 in=1 ident=1 explore=1 | FAIL | and-client.png, and-client-identity.png, and-client-tabs.png | uuid=0d06d2ba-5651-4265-9143-06ee82a3d6a4 fresh-session + role=client terms=set |
 
 
 ## 2. iOS — Role rows

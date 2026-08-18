@@ -237,6 +237,8 @@ export async function flushQueue(): Promise<void> {
       } catch (err: any) {
         const msg = errorMessage(err);
         const klass = classifySyncError(err);
+        // release-safe QA evidence: drain failures were fully silent in release
+        console.warn('[outbox-qa]', JSON.stringify({ kind: row.kind, klass, attempts: row.attempts, msg: msg?.slice(0, 200) }));
 
         if (klass === 'auth') {
           // Innocent op — do NOT burn an attempt. Bounce to pending and try to

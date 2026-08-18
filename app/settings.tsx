@@ -163,6 +163,7 @@ export default function SettingsScreen() {
       entering={FadeInDown.delay((sectionIndex * 100) + (index * 50)).duration(400)}
     >
       <TouchableOpacity
+        testID={`settings-item-${item.id}`}
         style={[
           styles.settingItem,
           item.destructive && styles.destructiveItem,

@@ -60,6 +60,10 @@ module.exports = {
     //  inert (url undefined) — store builds still work, they just won't pull OTA.
     runtimeVersion: { policy: 'appVersion' },
     updates: {
+      // D34: release-QA builds must be hermetic — a cached EAS update silently
+      // replaced the embedded bundle during qualification. QA_DISABLE_UPDATES=1
+      // pins the build to its embedded JS.
+      enabled: process.env.QA_DISABLE_UPDATES === '1' ? false : undefined,
       url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID || 'a8faa2b1-c912-4c5e-9ef3-620425d67272'}`,
       // Don't block first paint on a network update check; apply on next launch.
       fallbackToCacheTimeout: 0,

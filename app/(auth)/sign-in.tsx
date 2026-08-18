@@ -59,7 +59,7 @@ const LOCAL_COLORS = {
 // ============================================
 // CUSTOM INPUT COMPONENT
 // ============================================
-const InputField = ({ icon, placeholder, value, onChangeText, secureTextEntry = false, keyboardType = 'default', autoCapitalize = 'none', rightIcon, onRightIconPress }: any) => {
+const InputField = ({ icon, placeholder, value, onChangeText, secureTextEntry = false, keyboardType = 'default', autoCapitalize = 'none', rightIcon, onRightIconPress, testID }: any) => {
   const animatedBorderColor = useRef(new Animated.Value(0)).current;
 
   const handleFocus = () => {
@@ -90,6 +90,7 @@ const InputField = ({ icon, placeholder, value, onChangeText, secureTextEntry = 
         onFocus={handleFocus}
         onBlur={handleBlur}
         selectionColor={LOCAL_COLORS.primary}
+        testID={testID}
       />
       {rightIcon && (
         <TouchableOpacity style={styles.rightIconContainer} onPress={onRightIconPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -126,13 +127,13 @@ const BiometricButton = ({ capability, onPress, loading = false }: any) => {
 // ============================================
 // GLOW BUTTON (Purple Neon)
 // ============================================
-const GlowButton = ({ title, onPress, loading = false }: any) => {
+const GlowButton = ({ title, onPress, loading = false, testID }: any) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true }).start();
   const handlePressOut = () => Animated.spring(scaleAnim, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }).start();
 
   return (
-    <TouchableOpacity activeOpacity={0.9} onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} disabled={loading}>
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} disabled={loading} testID={testID}>
       <Animated.View style={[styles.glowButtonContainer, { transform: [{ scale: scaleAnim }] }]}>
         <View style={styles.glowEffect} />
         <View style={styles.buttonContent}>
@@ -481,8 +482,8 @@ export default function SignInScreen() {
                 <Text style={styles.welcomeText}>Welcome Back</Text>
                 <Text style={styles.instructionText}>Sign in to continue your inspections</Text>
 
-                <InputField icon={<Mail size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" />
-                <InputField icon={<Lock size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} rightIcon={showPassword ? <EyeOff size={20} color={LOCAL_COLORS.textMuted} /> : <Eye size={20} color={LOCAL_COLORS.textMuted} />} onRightIconPress={() => setShowPassword(!showPassword)} />
+                <InputField testID="signin-email" icon={<Mail size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" />
+                <InputField testID="signin-password" icon={<Lock size={20} color={LOCAL_COLORS.textMuted} />} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry={!showPassword} rightIcon={showPassword ? <EyeOff size={20} color={LOCAL_COLORS.textMuted} /> : <Eye size={20} color={LOCAL_COLORS.textMuted} />} onRightIconPress={() => setShowPassword(!showPassword)} />
 
                 <TouchableOpacity style={styles.forgotPasswordContainer} onPress={async () => {
                   const addr = email.trim();
@@ -501,7 +502,7 @@ export default function SignInScreen() {
                   <BiometricButton capability={biometric} onPress={handleBiometricLogin} loading={biometricLoading} />
                 )}
 
-                <GlowButton title="Sign In" onPress={handleSignIn} loading={isLoading} />
+                <GlowButton testID="signin-submit" title="Sign In" onPress={handleSignIn} loading={isLoading} />
 
                 <View style={styles.dividerContainer}>
                   <View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} />

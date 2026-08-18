@@ -61,6 +61,9 @@ export interface LucentButtonProps {
   fullWidth?: boolean;
 
   style?: StyleProp<ViewStyle>;
+
+  /** Stable automation/a11y identifier (Maestro / XCUITest / Detox). */
+  testID?: string;
 }
 
 export const LucentButton: React.FC<LucentButtonProps> = ({
@@ -75,6 +78,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
   haptic,
   fullWidth   = true,
   style,
+  testID,
 }) => {
   const isDisabled = disabled || loading;
 
@@ -99,6 +103,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
 
     return (
       <Pressable
+        testID={testID}
         onPress={handlePress}
         disabled={isDisabled}
         style={({ pressed }) => [
@@ -135,6 +140,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
   if (variant === 'secondary') {
     return (
       <Pressable
+        testID={testID}
         onPress={handlePress}
         disabled={isDisabled}
         style={({ pressed }) => [
@@ -164,6 +170,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
   if (variant === 'destructive') {
     return (
       <Pressable
+        testID={testID}
         onPress={handlePress}
         disabled={isDisabled}
         style={({ pressed }) => [
@@ -190,6 +197,7 @@ export const LucentButton: React.FC<LucentButtonProps> = ({
   // ─── QUIET ───────────────────────────────────────────────
   return (
     <Pressable
+      testID={testID}
       onPress={handlePress}
       disabled={isDisabled}
       hitSlop={6}

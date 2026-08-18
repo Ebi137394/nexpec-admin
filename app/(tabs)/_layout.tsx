@@ -42,20 +42,20 @@ export default function TabLayout() {
 
   return (
     <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: COLORS.primary, tabBarInactiveTintColor: COLORS.textMuted, tabBarStyle: { backgroundColor: COLORS.surface, borderTopColor: COLORS.border, borderTopWidth: 1, height: Platform.OS === 'ios' ? 88 : 68, paddingBottom: Platform.OS === 'ios' ? 28 : 8, paddingTop: 8, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 }, tabBarIconStyle: { marginBottom: -2 } }}>
-      <Tabs.Screen name="index" options={{ title: t('Dashboard'), href: role === 'inspector' ? '/' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="client-dashboard" options={{ title: t('Dashboard'), href: role === 'client' ? '/client-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="agency-dashboard" options={{ title: t('Dashboard'), href: role === 'agency' ? '/agency-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="enterprise-dashboard" options={{ title: t('Dashboard'), href: role === 'enterprise' ? '/enterprise-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="supplier-dashboard" options={{ title: t('Dashboard'), href: role === 'supplier' ? '/supplier-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="index" options={{ tabBarButtonTestID: 'tab-dashboard', title: t('Dashboard'), href: role === 'inspector' ? '/' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="client-dashboard" options={{ tabBarButtonTestID: 'tab-dashboard', title: t('Dashboard'), href: role === 'client' ? '/client-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="agency-dashboard" options={{ tabBarButtonTestID: 'tab-dashboard', title: t('Dashboard'), href: role === 'agency' ? '/agency-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="enterprise-dashboard" options={{ tabBarButtonTestID: 'tab-dashboard', title: t('Dashboard'), href: role === 'enterprise' ? '/enterprise-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="supplier-dashboard" options={{ tabBarButtonTestID: 'tab-dashboard', title: t('Dashboard'), href: role === 'supplier' ? '/supplier-dashboard' : null, tabBarIcon: ({ color, focused }) => <TabIcon name="grid" nameOutline="grid-outline" color={color} focused={focused} /> }} />
       
       {/* Suppliers (vendors) have a focused workspace — Dashboard + Profile only.
          Jobs / Finance / Docs are inspector/buyer surfaces; hidden for suppliers. */}
-      <Tabs.Screen name="jobs" options={{ href: role === 'supplier' ? null : undefined, title: t('Jobs'), tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="finance" options={{ href: role === 'supplier' ? null : undefined, title: t('Finance'), tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
-      <Tabs.Screen name="resources" options={{ href: role === 'supplier' ? null : undefined, title: t('Docs'), tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="jobs" options={{ tabBarButtonTestID: 'tab-jobs', href: role === 'supplier' ? null : undefined, title: t('Jobs'), tabBarIcon: ({ color, focused }) => <TabIcon name="briefcase" nameOutline="briefcase-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="finance" options={{ tabBarButtonTestID: 'tab-finance', href: role === 'supplier' ? null : undefined, title: t('Finance'), tabBarIcon: ({ color, focused }) => <TabIcon name="wallet" nameOutline="wallet-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="resources" options={{ tabBarButtonTestID: 'tab-docs', href: role === 'supplier' ? null : undefined, title: t('Docs'), tabBarIcon: ({ color, focused }) => <TabIcon name="folder-open" nameOutline="folder-open-outline" color={color} focused={focused} /> }} />
       
       {/* 👇 این خط رو درست کردم. فقط نوشته profile 👇 */}
-      <Tabs.Screen name="profile" options={{ title: t('Profile'), tabBarIcon: ({ color, focused }) => <TabIcon name="person" nameOutline="person-outline" color={color} focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ tabBarButtonTestID: 'tab-profile', title: t('Profile'), tabBarIcon: ({ color, focused }) => <TabIcon name="person" nameOutline="person-outline" color={color} focused={focused} /> }} />
       
       {/* Hidden Routes */}
       <Tabs.Screen name="dashboard" options={{ href: null }} />

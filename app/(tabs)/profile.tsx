@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, Link } from 'expo-router';
-import { supabase } from '@/lib/supabase'; 
+import { supabase } from '@/lib/supabase';
+import { withDeadline } from '@nexpec/shared-core';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeIn,
@@ -108,10 +109,12 @@ export default function ProfileScreen() {
 
     try {
       setLoading(true);
-      
-      // 2. Fetch using user.id directly. 
+
+      // 2. Fetch using user.id directly.
       // Removed the unstable supabase.auth.getUser() call that was causing the crash.
-      const { data: profileData, error: profileError } = await supabase
+      // D32: bounded — a request wedged behind a hung token refresh would
+      // otherwise hold the full-screen spinner forever (finally never runs).
+      const { data: profileData, error: profileError } = await withDeadline(supabase
         .from('profiles')
         .select(`
           id,
@@ -133,7 +136,7 @@ export default function ProfileScreen() {
           travel_radius_km
         `)
         .eq('id', user.id)
-        .maybeSingle();
+        .maybeSingle(), 12_000, 'profile:fetch');
 
       if (profileError && profileError.code !== 'PGRST116') {
         throw profileError;
@@ -159,14 +162,15 @@ export default function ProfileScreen() {
         created_at: new Date().toISOString(),
       });
 
-      await fetchStats(user.id);
+      await withDeadline(fetchStats(user.id), 12_000, 'profile:stats');
 
       // Resolve org membership for buyer roles (drives the Team menu gate).
       // Canonical source = org_members via fetch_my_org_memberships RPC.
       const r = profileData?.role;
       if (r === 'client' || r === 'agency' || r === 'enterprise') {
         try {
-          const { data: orgs } = await supabase.rpc('fetch_my_org_memberships' as never);
+          const { data: orgs } = await withDeadline(
+            supabase.rpc('fetch_my_org_memberships' as never), 8_000, 'profile:orgs');
           setHasOrg(Array.isArray(orgs) && orgs.length > 0);
         } catch {
           setHasOrg(false);
@@ -386,9 +390,11 @@ export default function ProfileScreen() {
     label: string,
     onPress: () => void,
     rightElement?: React.ReactNode,
-    color?: string
+    color?: string,
+    testID?: string
   ) => (
-    <TouchableOpacity 
+    <TouchableOpacity
+      testID={testID}
       style={[
         styles.menuItem, 
         { 
@@ -964,7 +970,7 @@ export default function ProfileScreen() {
           style={styles.section}
         >
           <View style={[styles.menuContainer, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }]}>
-            {renderMenuItem('log-out-outline', t('Sign Out'), handleSignOut, undefined, '#EF4444')}
+            {renderMenuItem('log-out-outline', t('Sign Out'), handleSignOut, undefined, '#EF4444', 'profile-signout')}
           </View>
         </Animated.View>
 

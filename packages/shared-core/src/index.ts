@@ -88,3 +88,6 @@ export * from './observability/scrub';
 // Drives the drain loop's "never abandon good field data on a token blip"
 // behavior. Pure, unit-tested; consumed by mobile src/core/offline.
 export * from './offline/syncErrors';
+
+// D32 — bounded awaits for loading-gated screens (run 29)
+export * from './net/deadline';

@@ -278,6 +278,7 @@ export default function ChooseRoleScreen() {
           const on = index === selectedIdx;
           return (
             <Pressable
+              testID={`stance-${item.key}`}
               onPress={() => {
                 select();
                 setSelectedIdx(index);
@@ -326,6 +327,7 @@ export default function ChooseRoleScreen() {
 
       <View style={s.cta}>
         <LucentButton
+          testID="stance-continue"
           variant="primary"
           label={`Continue as ${ROLES[selectedIdx].title}`}
           trailingIcon={<ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />}
@@ -335,6 +337,7 @@ export default function ChooseRoleScreen() {
         {/* Escape hatch — never trap the user here if role-save fails.
             signOut() clears the session; the AuthGate then routes to sign-in. */}
         <Pressable
+          testID="stance-signout"
           onPress={() => signOut()}
           disabled={submitting}
           hitSlop={12}

@@ -1,0 +1,6 @@
+ios
+android
+qa-artifacts
+graphify-out
+assets/*.tflite
+*.log

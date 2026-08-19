@@ -22,6 +22,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { toArrayBuffer } from '../_shared/bytes.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -58,7 +59,7 @@ function pemPublicToDer(pem: string): Uint8Array {
 }
 
 async function importPublicKey(pem: string): Promise<CryptoKey> {
-  return await crypto.subtle.importKey('spki', pemPublicToDer(pem), { name: 'Ed25519' }, false, ['verify']);
+  return await crypto.subtle.importKey('spki', toArrayBuffer(pemPublicToDer(pem)), { name: 'Ed25519' }, false, ['verify']);
 }
 
 function b64ToBytes(b64: string): Uint8Array {
@@ -160,8 +161,8 @@ Deno.serve(async (req) => {
       signatureValid = await crypto.subtle.verify(
         { name: 'Ed25519' },
         publicKey,
-        b64ToBytes(signature),
-        enc.encode(recomputedSha),
+        toArrayBuffer(b64ToBytes(signature)),
+        toArrayBuffer(enc.encode(recomputedSha)),
       );
     } catch (e) {
       console.warn('[verify-affidavit] verify failed:', e);

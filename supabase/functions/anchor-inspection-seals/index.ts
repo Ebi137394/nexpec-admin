@@ -23,6 +23,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { fetchWithTimeout } from '../_shared/http.ts';
+import { toArrayBuffer } from '../_shared/bytes.ts';
 
 const CALENDAR = 'https://a.pool.opentimestamps.org';
 const BATCH = 50;
@@ -76,7 +77,7 @@ Deno.serve(async (req: Request) => {
       const res = await fetchWithTimeout(`${CALENDAR}/digest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream', Accept: 'application/octet-stream' },
-        body: hexToBytes(seal.root_sha256),
+        body: toArrayBuffer(hexToBytes(seal.root_sha256)),
       }, CALENDAR_TIMEOUT_MS);
       if (!res.ok) throw new Error(`calendar ${res.status}`);
       const proof = new Uint8Array(await res.arrayBuffer());

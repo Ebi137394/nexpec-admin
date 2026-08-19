@@ -42,6 +42,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import Handlebars from 'https://esm.sh/handlebars@4.7.8';
 import { VCA_HTML_TEMPLATE } from './template.ts';
+import { toArrayBuffer } from '../_shared/bytes.ts';
 
 // ─────────────────────────────────────────────────────────────
 //  CORS preamble for app-side fetches
@@ -79,16 +80,16 @@ function canonicalJsonStringify(value: unknown): string {
 const enc = new TextEncoder();
 
 async function sha256Hex(input: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', enc.encode(input));
+  const buf = await crypto.subtle.digest('SHA-256', toArrayBuffer(enc.encode(input)));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function sha256HashOfBytes(bytes: Uint8Array): Promise<ArrayBuffer> {
-  return crypto.subtle.digest('SHA-256', bytes);
+  return crypto.subtle.digest('SHA-256', toArrayBuffer(bytes));
 }
 
 async function sha256HexOfBytes(bytes: Uint8Array): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', bytes);
+  const buf = await crypto.subtle.digest('SHA-256', toArrayBuffer(bytes));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -143,7 +144,7 @@ async function importSigningKey(pemPrivate: string): Promise<CryptoKey> {
   const der = pemToDer(pemPrivate);
   return await crypto.subtle.importKey(
     'pkcs8',
-    der,
+    toArrayBuffer(der),
     { name: 'Ed25519' },
     false,
     ['sign']
@@ -833,7 +834,7 @@ Deno.serve(async (req: Request) => {
         const pdfBytes = await renderPdfViaBrowserless(html, BROWSERLESS_KEY);
         pdfSha256 = await sha256HexOfBytes(pdfBytes);
         pdfStoragePath = `affidavits/${jobId}/${affidavitId}.pdf`;
-        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const pdfBlob = new Blob([toArrayBuffer(pdfBytes)], { type: 'application/pdf' });
         const { error: pdfUpErr } = await admin.storage
           .from('compliance')
           .upload(pdfStoragePath, pdfBlob, { contentType: 'application/pdf', upsert: true });

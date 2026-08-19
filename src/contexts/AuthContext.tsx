@@ -96,6 +96,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // reports 'none' so the gate shows the offline screen instead of the
   // stance chooser. This path never writes to the profiles table.
   const fetchProfileOutcome = useCallback(async (userId: string): Promise<ProfileFetchOutcome> => {
+    // QA-only deterministic transport mock (bundle-time flag, off by default —
+    // same mechanism as ML_RUNTIME): simulators share the host network, so the
+    // D38 offline-cold-start behavior is proven by injecting 'unavailable'
+    // deterministically instead of toggling host Wi-Fi. Never set in release.
+    if (process.env.EXPO_PUBLIC_QA_PROFILE_OFFLINE === '1') {
+      return { status: 'unavailable', reason: 'qa-injected-offline' };
+    }
     let lastReason = 'unknown';
     for (let attempt = 0; attempt < 3; attempt++) {
       try {

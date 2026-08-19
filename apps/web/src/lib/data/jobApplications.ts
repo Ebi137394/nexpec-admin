@@ -94,6 +94,17 @@ export async function fetchClientJob(
       .eq('status', 'CLIENT_SELECTED')
       .maybeSingle();
 
+    // COUNT CONSISTENCY: the "Review N applications" figure must equal what
+    // the Applications page actually lists — admin-forwarded applications
+    // only. The denormalized jobs.applications_count column counts EVERY
+    // application (un-forwarded ones included), which produced "Review 1
+    // application" against an Applications page truthfully showing 0.
+    const { count: reviewableCount } = await supabase
+      .from('applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_id', jobId)
+      .not('forwarded_to_client_at', 'is', null);
+
     const r = data as unknown as Record<string, unknown>;
     return {
       id: String(r.id),
@@ -113,10 +124,7 @@ export async function fetchClientJob(
       specialtySlugs: Array.isArray(r.specialty_slugs)
         ? (r.specialty_slugs as string[])
         : [],
-      applicationsCount:
-        typeof r.applications_count === 'number'
-          ? r.applications_count
-          : 0,
+      applicationsCount: reviewableCount ?? 0,
       contractorId: (r.contractor_id as string | null) ?? null,
       clientSelectedApplicantId:
         (selected?.applicant_id as string | null) ?? null,
@@ -201,7 +209,9 @@ export async function fetchJobApplications(
     //  Which identity fields this Client may see is decided by the project
     //  policy (jobs.identity_mode) and projected server-side by
     //  job_applicant_identity_view — professional|full reveal name/résumé/
-    //  certifications, full additionally reveals email/phone.
+    //  certifications. Email/phone are NEVER disclosed to clients in any
+    //  mode (owner rule, 20260801558000): contact stays in the monitored
+    //  Project Messages room.
     //
     //  This surface previously hard-coded fullName/email/avatarUrl/locationCity
     //  to null with a comment asserting the client "never" receives PII, which
@@ -219,8 +229,12 @@ export async function fetchJobApplications(
       const { data: disc } = await supabase
         .from('job_applicant_identity_view')
         .select(
-          'application_id, identity_mode, inspector_display_name, inspector_email, ' +
-            'inspector_phone, inspector_avatar_url, inspector_headline, ' +
+          // OWNER RULE: inspector email/phone are never part of a client
+          // payload — the view resolves them NULL for non-admins and this
+          // projection does not select them at all. Contact goes through the
+          // monitored Project Messages room.
+          'application_id, identity_mode, inspector_display_name, ' +
+            'inspector_avatar_url, inspector_headline, ' +
             'inspector_resume_summary, inspector_resume_url, inspector_cv_url, ' +
             'inspector_certifications, inspector_qualifications, location_city',
         )
@@ -258,7 +272,6 @@ export async function fetchJobApplications(
               // appears; under 'full' the contact details do too. The decision
               // is the database's, never this component's.
               fullName: (disclosure?.inspector_display_name as string | null) ?? null,
-              email: (disclosure?.inspector_email as string | null) ?? null,
               avatarUrl: (disclosure?.inspector_avatar_url as string | null) ?? null,
               ratingAverage:
                 typeof insp.rating_average === 'number'

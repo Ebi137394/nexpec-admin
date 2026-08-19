@@ -54,7 +54,7 @@ const KIND_META: Record<
   job_assigned: { icon: 'person-outline', color: CYAN, label: 'Inspector assigned' },
   report_received: { icon: 'document-text-outline', color: VIOLET, label: 'Report received' },
   job_completed: { icon: 'checkmark-circle-outline', color: GREEN, label: 'Job completed' },
-  payout_released: { icon: 'cash-outline', color: GREEN, label: 'Payout released' },
+  payout_released: { icon: 'cash-outline', color: GREEN, label: 'Held funds released' },
 };
 
 function formatRelative(iso: string): string {

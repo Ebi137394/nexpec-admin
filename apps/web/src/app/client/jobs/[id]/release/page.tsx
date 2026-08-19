@@ -268,7 +268,7 @@ function ResolvedCard({
           <p className="mt-1 text-sm text-zinc-400">
             Submitted {new Date(signal.at).toLocaleString()}. Our team will
             reach out via the admin chat to coordinate next steps with the
-            inspector. The payout stays held.
+            inspector. Your funds stay on hold.
           </p>
           {signal.reason && (
             <blockquote className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-sm leading-relaxed text-zinc-300">

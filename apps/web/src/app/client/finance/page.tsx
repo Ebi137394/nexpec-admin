@@ -103,16 +103,16 @@ export default async function ClientFinancePage() {
         />
         <MetricTile
           icon={<Wallet className="h-4 w-4" strokeWidth={1.75} />}
-          label="Held for payout"
+          label="On payment hold"
           value={formatCurrency(metrics.heldInEscrowCents)}
           sub="across active jobs"
           tone="cyan"
         />
         <MetricTile
           icon={<Receipt className="h-4 w-4" strokeWidth={1.75} />}
-          label="Paid out, YTD"
+          label="Released, YTD"
           value={formatCurrency(metrics.paidOutYtdCents)}
-          sub="released to inspectors"
+          sub="released from your payment holds"
         />
         <MetricTile
           icon={<Briefcase className="h-4 w-4" strokeWidth={1.75} />}
@@ -270,7 +270,7 @@ export default async function ClientFinancePage() {
         <header className="mb-4 flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-violet-glow" strokeWidth={1.75} />
           <h2 className="font-display text-sm font-semibold uppercase tracking-industrial text-zinc-500">
-            How NEXPEC payouts work
+            How NEXPEC payment holds work
           </h2>
         </header>
         <ol className="space-y-3 text-sm text-zinc-400">
@@ -284,7 +284,7 @@ export default async function ClientFinancePage() {
           />
           <Step
             n={3}
-            text="You approve the report. That approval releases the held funds to the inspector's wallet; for net-terms jobs it issues the invoice on your agreed terms."
+            text="You approve the report. That approval releases your held funds and settles the engagement per your agreement; for net-terms jobs it issues the invoice on your agreed terms."
           />
           <Step
             n={4}
@@ -418,7 +418,7 @@ function CreditPanel({ credit }: { credit: ClientCreditProfile }) {
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-zinc-300/90">
-        Headroom you can post jobs against without funding payouts up front.
+        Headroom you can post jobs against without funding payment holds up front.
         Nothing here is locked; it&apos;s borrowed and settles on terms.
       </p>
 
@@ -448,7 +448,7 @@ function EmptyState() {
       </h2>
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
         Post your first inspection to start building the ledger. Spend
-        and payout status flow through here in real time.
+        and payment-hold status flow through here in real time.
       </p>
       <Link
         href="/client/jobs/new"
@@ -577,7 +577,9 @@ function labelForKind(kind: FinanceActivityKind): string {
     case 'job_completed':
       return 'Job completed';
     case 'payout_released':
-      return 'Inspector payout released';
+      // Client-facing label for the client's own released hold. Never imply
+      // the amount shown (the client's price) is the inspector's payout.
+      return 'Held funds released';
   }
 }
 

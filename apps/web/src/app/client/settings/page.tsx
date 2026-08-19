@@ -52,7 +52,7 @@ export default async function ClientSettingsPage({ searchParams }: PageProps) {
         </h1>
         <p className="mt-2 max-w-xl text-pretty text-sm text-zinc-400">
           What inspectors see when they consider applying to your jobs.
-          Billing details, payouts, and roles are administered separately.
+          Billing details, payments, and roles are administered separately.
         </p>
       </header>
 

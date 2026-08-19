@@ -245,14 +245,14 @@ export async function BudgetOverviewView(
         />
         <HeroTile
           icon={<CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />}
-          label="Paid out"
+          label="Released"
           value={formatBudgetCents(summary.paidOutCents)}
-          sub="Released, settled with inspector"
+          sub="Released from your payment holds"
           tone="green"
         />
         <HeroTile
           icon={<Hourglass className="h-4 w-4" strokeWidth={1.75} />}
-          label="Awaiting payout"
+          label="Awaiting release"
           value={formatBudgetCents(summary.awaitingPayoutCents)}
           sub="Completed, pending release"
           tone="amber"

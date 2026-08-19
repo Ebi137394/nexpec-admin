@@ -55,7 +55,7 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
           Disputes
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          File a dispute on any of your jobs. Filing pauses payout release on
+          File a dispute on any of your jobs. Filing pauses fund release on
           that job until admin reviews. Admin will reach out via Help &
           Support chat to gather more detail.
         </p>
@@ -197,10 +197,10 @@ export default async function ClientDisputesPage({ searchParams }: PageProps) {
               className="inline-flex items-center gap-2 rounded-full bg-accent-red px-5 py-2.5 text-xs font-semibold uppercase tracking-industrial text-white shadow-sm transition-colors hover:bg-accent-red/90"
             >
               <Send className="h-3 w-3" strokeWidth={1.75} />
-              File dispute, pauses payout release
+              File dispute, pauses fund release
             </button>
             <p className="mt-2 text-[11px] text-zinc-500">
-              Filing immediately pauses payout release on this job and pings
+              Filing immediately pauses fund release on this job and pings
               every admin. Help & Support follow-up may take ~1 business day.
             </p>
           </div>

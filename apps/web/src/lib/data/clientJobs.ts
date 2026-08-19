@@ -49,6 +49,26 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
       return [];
     }
 
+    // COUNT CONSISTENCY: show the number of admin-forwarded applications —
+    // what the Applications page actually lists — not the denormalized
+    // jobs.applications_count, which also counts un-forwarded proposals the
+    // client can never see.
+    const forwardedByJob = new Map<string, number>();
+    {
+      const ids = data.map((r) => String((r as Record<string, unknown>).id));
+      if (ids.length > 0) {
+        const { data: apps } = await supabase
+          .from('applications')
+          .select('job_id')
+          .in('job_id', ids)
+          .not('forwarded_to_client_at', 'is', null);
+        for (const a of (apps ?? []) as Array<Record<string, unknown>>) {
+          const k = String(a.job_id);
+          forwardedByJob.set(k, (forwardedByJob.get(k) ?? 0) + 1);
+        }
+      }
+    }
+
     return data.map(
       (row): ClientJobRow => ({
         id: String(row.id),
@@ -60,10 +80,7 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
           typeof row.budget_cents === 'string'
             ? Number(row.budget_cents)
             : (row.budget_cents as number | null) ?? null,
-        applicationsCount:
-          typeof row.applications_count === 'number'
-            ? row.applications_count
-            : 0,
+        applicationsCount: forwardedByJob.get(String(row.id)) ?? 0,
         locationCity: (row.location_city as string | null) ?? null,
         urgency: (row.urgency as JobUrgency | null) ?? null,
       }),

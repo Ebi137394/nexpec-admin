@@ -42,9 +42,12 @@ function buildContractTemplate(opts: {
   clientPrice: number;
   inspectorPayout: number;
 }): string {
-  // Generic, role-agnostic body. Both client- and inspector-facing UIs strip
-  // the OTHER party's price line from the rendered text via a per-role
-  // post-process. Stored once, projected differently.
+  // Generic, role-agnostic body that names NO dollar amounts — the structured
+  // price columns are the commercial record and are already role-projected.
+  // Defense-in-depth: whatever body is stored here (including admin-supplied
+  // free text) is additionally sanitized per role at read time by the DB
+  // views via nx_contract_text_for_client / nx_contract_text_for_inspector
+  // (migration 20260801558000); only admins read the raw master.
   const today = new Date().toISOString().slice(0, 10);
   return `# Inspection Services Agreement
 

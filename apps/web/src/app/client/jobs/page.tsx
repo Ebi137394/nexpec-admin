@@ -126,7 +126,7 @@ function EmptyState() {
       </h2>
       <p className="mx-auto mt-2 max-w-md text-pretty text-sm text-zinc-400">
         Post your first inspection. Define the scope, pick a budget,
-        fund payouts, vetted inspectors apply within minutes.
+        fund the payment hold, vetted inspectors apply within minutes.
       </p>
       <Link
         href="/client/jobs/new"

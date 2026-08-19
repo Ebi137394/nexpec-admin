@@ -115,13 +115,13 @@ export default async function ClientJobContractPage({
 
       {/* Disclosed inspector identity — fields are resolved (redacted) server-side
           by client_job_contracts_view per the project identity_mode. The page
-          renders only what it is given; it never decides disclosure. */}
+          renders only what it is given; it never decides disclosure. Private
+          contact details (email/phone) are never disclosed in any identity
+          mode — communication stays in the monitored Project Messages room. */}
       {(contract.inspectorDisplayName ||
         contract.inspectorResumeSummary ||
         (contract.inspectorCertifications?.length ?? 0) > 0 ||
-        (contract.inspectorQualifications?.length ?? 0) > 0 ||
-        contract.inspectorEmail ||
-        contract.inspectorPhone) && (
+        (contract.inspectorQualifications?.length ?? 0) > 0) && (
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6">
           <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
             <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} /> Inspector details
@@ -157,20 +157,19 @@ export default async function ClientJobContractPage({
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} /> Résumé
             </a>
           )}
-          {(contract.inspectorEmail || contract.inspectorPhone) && (
-            <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-300">
-              {contract.inspectorEmail && (
-                <p>
-                  <span className="font-semibold text-zinc-400">Email:</span> {contract.inspectorEmail}
-                </p>
-              )}
-              {contract.inspectorPhone && (
-                <p className="mt-1">
-                  <span className="font-semibold text-zinc-400">Phone:</span> {contract.inspectorPhone}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
+            <p>
+              All communication with your inspector happens in the job&rsquo;s
+              monitored Project Messages room.
+            </p>
+            <Link
+              href={`/client/jobs/${contract.jobId}/chat`}
+              className="mt-2 inline-flex items-center gap-1.5 font-semibold text-violet-glow hover:underline"
+            >
+              Open Project Messages
+              <ExternalLink className="h-3 w-3" strokeWidth={2} />
+            </Link>
+          </div>
         </section>
       )}
 
@@ -223,14 +222,15 @@ export default async function ClientJobContractPage({
       <section className="rounded-3xl border border-violet/25 bg-gradient-to-br from-violet/[0.10] to-transparent p-6">
         <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
           <Lock className="h-3 w-3" strokeWidth={2} />
-          Your price, held for payout
+          Total contract price
         </p>
         <p className="mt-2 font-mono text-3xl font-semibold text-violet-glow">
           {fmtCents(contract.clientPriceCents)}
         </p>
         <p className="mt-1 text-xs text-zinc-400">
-          Released to the inspector and platform only after both you and
-          admin sign off on the final report.
+          This is the total amount you pay under this agreement. Funds are
+          released according to the agreed funding schedule after the
+          required approvals.
         </p>
       </section>
 

@@ -30,6 +30,7 @@
     "qa:e2e:money": "node scripts/qa/e2e-money-flow.mjs",
     "qa:seed:roles": "node scripts/qa/seed-role-qa.mjs",
     "qa:rls-admin": "node scripts/qa/check-rls-admin-coverage.mjs",
+    "qa:client-privacy": "node scripts/qa/check-client-commercial-privacy.mjs",
     "qa:gr2": "node scripts/qa/check-price-blindness.mjs",
     "qa:gr2-inspector": "node scripts/qa/check-inspector-price-blindness.mjs",
     "qa:assignment-privacy": "node scripts/qa/check-assignment-client-invisibility.mjs",

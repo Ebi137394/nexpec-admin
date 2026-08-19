@@ -105,15 +105,20 @@ export default async function ClientJobDetailPage({
             </div>
           </div>
           <div className="flex flex-col gap-2 self-start sm:flex-row sm:items-center sm:self-auto">
-            <Link
-              href={`/client/jobs/${job.id}/applications`}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
-            >
-              <Users className="h-4 w-4" strokeWidth={2} />
-              Review {job.applicationsCount} application
-              {job.applicationsCount === 1 ? '' : 's'}
-              <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-            </Link>
+            {/* Reviewing applications is a pre-engagement act: once the job
+                is assigned / in progress / completed there is nobody left to
+                select, so the action disappears instead of dangling a count. */}
+            {job.status === 'open' && (
+              <Link
+                href={`/client/jobs/${job.id}/applications`}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+              >
+                <Users className="h-4 w-4" strokeWidth={2} />
+                Review {job.applicationsCount} application
+                {job.applicationsCount === 1 ? '' : 's'}
+                <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+            )}
             {/* Once the engagement legally permits disclosure, give the client
                 an obvious route to the inspector's details instead of leaving
                 them to discover the Contracts section. Rendered only when
@@ -127,9 +132,9 @@ export default async function ClientJobDetailPage({
                 className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-5 py-2.5 text-sm font-medium text-accent-green transition-colors hover:border-accent-green/50 hover:bg-accent-green/15"
               >
                 <ShieldCheck className="h-4 w-4" strokeWidth={2} />
-                {inspectorDisclosure.identityMode === 'full'
-                  ? 'View inspector details & contact'
-                  : 'View inspector details'}
+                {/* Contact details are never disclosed (owner rule) — the
+                    label must not promise them under any identity mode. */}
+                View inspector details
                 <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
               </Link>
             )}
@@ -137,7 +142,7 @@ export default async function ClientJobDetailPage({
               href={`/client/jobs/${job.id}/release`}
               className="btn-primary inline-flex items-center gap-2"
             >
-              Report &amp; payout
+              Report &amp; payment release
               <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
             </Link>
           </div>

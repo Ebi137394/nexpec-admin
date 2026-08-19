@@ -459,7 +459,7 @@ function FileDisputeSheet(props: {
           </View>
 
           <Text style={s.sheetExplain}>
-            Filing freezes payouts on this job and brings admin in as
+            Filing freezes fund release on this job and brings admin in as
             mediator. Be specific, admin needs context to resolve fairly.
           </Text>
 

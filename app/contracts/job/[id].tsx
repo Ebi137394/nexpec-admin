@@ -186,8 +186,8 @@ interface ClientContractRow {
   inspector_resume_url: string | null;
   inspector_certifications: string[] | null;
   inspector_qualifications: string[] | null;
-  inspector_email: string | null;
-  inspector_phone: string | null;
+  // Private contact (email/phone) is intentionally absent — never disclosed
+  // to a client in any identity mode (owner rule, 20260801558000).
 }
 
 /**
@@ -419,8 +419,10 @@ export default function JobContractSigningScreen() {
               'inspector_resume_url',
               'inspector_certifications',
               'inspector_qualifications',
-              'inspector_email',
-              'inspector_phone',
+              // OWNER RULE (20260801558000): inspector email/phone are never
+              // part of a client payload — the view resolves them NULL for
+              // non-admins and this projection no longer selects them.
+              // Communication stays in the monitored Project Messages room.
             ].join(', '),
           )
           .eq('id', id)
@@ -561,8 +563,8 @@ export default function JobContractSigningScreen() {
       { label: 'Summary', value: clientRow.inspector_resume_summary },
       { label: 'Certifications', value: joinList(clientRow.inspector_certifications) },
       { label: 'Qualifications', value: joinList(clientRow.inspector_qualifications) },
-      { label: 'Email', value: clientRow.inspector_email },
-      { label: 'Phone', value: clientRow.inspector_phone },
+      // Email/Phone rows removed on purpose: contact goes through the
+      // job-scoped, admin-monitored Project Messages room.
     ].flatMap(({ label, value }) =>
       value && String(value).trim() ? [{ label, value: String(value).trim() }] : [],
     );
@@ -792,7 +794,7 @@ export default function JobContractSigningScreen() {
                       <Sparkles size={14} color={C.cyan} />
                     )
                   }
-                  kicker={role === 'client' ? 'YOUR PRICE' : 'YOUR PAYOUT'}
+                  kicker={role === 'client' ? 'TOTAL CONTRACT PRICE' : 'YOUR PAYOUT'}
                   title={role === 'client' ? 'What you pay' : 'What you receive'}
                   tint={role === 'client' ? C.gold : C.cyan}
                 />

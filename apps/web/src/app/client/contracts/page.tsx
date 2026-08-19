@@ -99,7 +99,7 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
                         Inspector: {c.inspectorHandle}
                       </p>
                       <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[11px] font-semibold text-violet-glow">
-                        Your price, {fmtCents(c.clientPriceCents)}
+                        Total contract price, {fmtCents(c.clientPriceCents)}
                       </p>
                     </div>
                     <span
@@ -152,7 +152,7 @@ export default async function ClientContractsPage({ searchParams }: PageProps) {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-white">Supply &amp; Inspection Agreement</p>
                       <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-violet/30 bg-violet/10 px-3 py-1 font-mono text-[11px] font-semibold text-violet-glow">
-                        Your price, {fmtCents(s.amountCents)}
+                        Total contract price, {fmtCents(s.amountCents)}
                       </p>
                     </div>
                     <span

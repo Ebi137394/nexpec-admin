@@ -200,13 +200,13 @@ select is(
 
 select is(
   (select inspector_email from public.job_applicant_identity_view where application_id = :'APPP'),
-  'in.idy@test.nx',
-  'FULL: private contact email is released');
+  null,
+  'FULL: OWNER RULE — email is never released to a client; contact stays in Project Messages (20260801558000)');
 
 select is(
   (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPP'),
-  '+1-555-0134',
-  'FULL: private contact phone is released');
+  null,
+  'FULL: OWNER RULE — phone is never released to a client; contact stays in Project Messages (20260801558000)');
 
 -- ══════════════════════════════════════════════════════════════════════════
 --  GR2 — identity disclosure must never become a money channel
@@ -452,25 +452,26 @@ set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","
 
 select is(
   (select inspector_email from public.job_applicant_identity_view where application_id = :'APPP'),
-  'in.idy@test.nx',
-  'FULL CONTACT: email is released on the full-mode job');
+  null,
+  'FULL CONTACT: OWNER RULE — email is withheld even on the full-mode job (20260801558000)');
 
 select is(
   (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPP'),
-  '+1-555-0134',
-  'FULL CONTACT: phone is released on the full-mode job');
+  null,
+  'FULL CONTACT: OWNER RULE — phone is withheld even on the full-mode job (20260801558000)');
 
 -- ★ JOB ISOLATION: the SAME inspector on a protected job must stay silent
---   while job A is fully disclosed.
+--   while job A is fully disclosed. Contact is now withheld everywhere, so
+--   the scoping proof rides on the display name instead.
 select is(
-  (select inspector_email from public.job_applicant_identity_view where application_id = :'APPF'),
+  (select inspector_display_name from public.job_applicant_identity_view where application_id = :'APPF'),
   null,
-  'FULL CONTACT: an unrelated PROTECTED job discloses no email for the same inspector');
+  'FULL CONTACT: an unrelated PROTECTED job discloses no name for the same inspector');
 
 select is(
-  (select inspector_phone from public.job_applicant_identity_view where application_id = :'APPF'),
-  null,
-  'FULL CONTACT: an unrelated PROTECTED job discloses no phone for the same inspector');
+  (select inspector_display_name from public.job_applicant_identity_view where application_id = :'APPP'),
+  'Dana Okafor',
+  'FULL CONTACT: …while the full-mode job does disclose the name, so the isolation check is not vacuous');
 
 -- ★ DOWNGRADE Full -> Protected must revoke contact on the very next read.
 reset role;

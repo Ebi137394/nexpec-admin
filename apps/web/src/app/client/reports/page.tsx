@@ -170,7 +170,9 @@ function PayoutPill({ status }: { status: string | null }) {
     <span
       className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${classes}`}
     >
-      {status}
+      {/* Client-safe labels: the client's held funds are "released", never
+          described as an inspector payout. */}
+      {status === 'paid' ? 'released' : status === 'unpaid' ? 'on hold' : status}
     </span>
   );
 }

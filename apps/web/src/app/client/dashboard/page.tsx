@@ -77,7 +77,7 @@ export default async function ClientDashboardPage() {
       {/* Metric tiles */}
       <section aria-label="Your workspace" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricTile label="Active jobs" value={formatCount(metrics.activeJobs)} sub="open + assigned + in_progress" />
-        <MetricTile label="Held for payout" value={formatCurrency(metrics.escrowHeldCents)} sub="across your active jobs" tone="violet" />
+        <MetricTile label="On payment hold" value={formatCurrency(metrics.escrowHeldCents)} sub="across your active jobs" tone="violet" />
         <MetricTile label="Pending review" value={formatCount(metrics.pendingApplications)} sub="applications awaiting your decision" tone="cyan" />
         <MetricTile label="Reports, last 30d" value={formatCount(metrics.reportsLast30d)} sub="admin-approved + handed off" />
       </section>

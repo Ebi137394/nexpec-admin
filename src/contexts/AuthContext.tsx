@@ -9,14 +9,31 @@ import React, {
   useMemo,
   type ReactNode,
 } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import {
+  classifyProfileFetchError,
+  isCacheableProfile,
+  resolveProfile,
+  type ProfileFetchOutcome,
+  type ResolvedProfile,
+} from '@/src/core/auth/profileResolution';
+import { readProfileCache, writeProfileCache } from '@/src/core/auth/profileCache';
+import { onNetworkChange, startNetworkListener } from '@/src/core/offline/network';
 
 interface ProfileData {
   organization_id: string | null;
   role: string | null;
   terms_accepted_at: string | null;
 }
+
+/** D38: how the current role/terms values were obtained.
+ *  'network' — authoritative online answer;
+ *  'cache'   — last validated snapshot (offline cold start);
+ *  'none'    — no authoritative data at all → the gate shows the
+ *              profile-unavailable screen, never the stance chooser. */
+export type ProfileSource = 'network' | 'cache' | 'none';
 
 interface AuthState {
   user: User | null;
@@ -32,6 +49,8 @@ interface AuthState {
   // (nextLevel === 'aal2'), i.e. they must complete a TOTP challenge before
   // being allowed into the app. Enforced by the AuthGate (app/_layout.tsx).
   mfaRequired: boolean;
+  // D38: provenance of role/termsAccepted (see ProfileSource).
+  profileSource: ProfileSource;
 }
 
 interface AuthContextValue extends AuthState {
@@ -54,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     termsAccepted: false,
     loading: true,
     mfaRequired: false,
+    profileSource: 'none',
   });
 
   // ── 2FA: is the current session AAL1 while a verified TOTP factor exists? ──
@@ -69,33 +89,84 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const fetchOrganization = useCallback(async (userId: string) => {
-    // Retry transient failures: a single network blip returning role:null would
-    // bounce a fully-onboarded user back to /(auth)/choose-role (false logout).
+  // D38: the fetch returns an OUTCOME — an authoritative answer ('ok', which
+  // includes "the profile row does not exist") or 'unavailable' (network /
+  // timeout / Supabase failure). 'unavailable' is NEVER converted into a
+  // role-less profile: the resolver below serves the last validated cache, or
+  // reports 'none' so the gate shows the offline screen instead of the
+  // stance chooser. This path never writes to the profiles table.
+  const fetchProfileOutcome = useCallback(async (userId: string): Promise<ProfileFetchOutcome> => {
+    let lastReason = 'unknown';
     for (let attempt = 0; attempt < 3; attempt++) {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('organization_id, role, terms_accepted_at')
-        .eq('id', userId)
-        .single<ProfileData>();
-      if (!error && data) {
-        return {
-          organizationId: data.organization_id ?? null,
-          role: data.role ?? null,
-          termsAccepted: !!data.terms_accepted_at,
-        };
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('organization_id, role, terms_accepted_at')
+          .eq('id', userId)
+          .single<ProfileData>();
+        if (!error && data) {
+          return {
+            status: 'ok',
+            profile: {
+              organizationId: data.organization_id ?? null,
+              role: data.role ?? null,
+              termsAccepted: !!data.terms_accepted_at,
+            },
+          };
+        }
+        if (classifyProfileFetchError(error) === 'authoritative-missing') {
+          // A REAL answer: this user has no profile row → genuinely role-less.
+          return {
+            status: 'ok',
+            profile: { organizationId: null, role: null, termsAccepted: false },
+          };
+        }
+        lastReason = error?.message ?? 'unknown supabase error';
+      } catch (e) {
+        lastReason = (e as Error)?.message ?? 'network failure';
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }
-    console.error('[AuthContext] Failed to fetch org after retries');
-    return { organizationId: null, role: null, termsAccepted: false };
+    console.error('[AuthContext] profile fetch unavailable after retries:', lastReason);
+    return { status: 'unavailable', reason: lastReason };
   }, []);
+
+  const fetchOrganization = useCallback(async (userId: string) => {
+    const outcome = await fetchProfileOutcome(userId);
+    if (isCacheableProfile(outcome)) {
+      // Only authoritative, role-bearing snapshots are cached (D38).
+      await writeProfileCache(AsyncStorage, userId, outcome.profile);
+    }
+    const cached = outcome.status === 'ok' ? null : await readProfileCache(AsyncStorage, userId);
+    const resolved: ResolvedProfile = resolveProfile(outcome, cached);
+    if (resolved.source === 'none') {
+      return {
+        organizationId: null,
+        role: null,
+        termsAccepted: false,
+        profileSource: 'none' as const,
+      };
+    }
+    return { ...resolved.profile, profileSource: resolved.source };
+  }, [fetchProfileOutcome]);
 
   const refreshOrganization = useCallback(async () => {
     if (!state.user) return;
     const org = await fetchOrganization(state.user.id);
     setState(prev => ({ ...prev, ...org }));
   }, [state.user, fetchOrganization]);
+
+  // D38: automatic rehydration — when connectivity returns and the current
+  // values are not network-authoritative, refetch once. startNetworkListener
+  // is idempotent (shared with the offline outbox).
+  useEffect(() => {
+    if (!state.user || state.profileSource === 'network') return;
+    startNetworkListener();
+    const unsub = onNetworkChange((online) => {
+      if (online) void refreshOrganization();
+    });
+    return unsub;
+  }, [state.user, state.profileSource, refreshOrganization]);
 
   useEffect(() => {
     // Initialize with current session
@@ -140,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             termsAccepted: false,
             mfaRequired: false,
             loading: false,
+            profileSource: 'none',
           });
         }
       }

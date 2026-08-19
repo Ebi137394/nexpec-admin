@@ -39,7 +39,7 @@ import { installMlSignatureVerifier } from '@/src/core/ml/verifier.noble';
 import { roleHome, needsRole } from '@/src/core/navigation/routeMap';
 
 function AuthGate() {
-  const { session, loading, role, mfaRequired, termsAccepted } = useAuth();
+  const { session, loading, role, mfaRequired, termsAccepted, profileSource } = useAuth();
   const { isDarkMode } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -179,6 +179,8 @@ function AuthGate() {
       // — Public anon surfaces (also handled by publicAnonRoutes below) —
       'verify',
       'cert',
+      // — D38: signed-in offline screen (profile fetch unavailable, no cache)
+      'profile-unavailable',
       // — Route group for inspector role —
       '(inspector)',
       // — Route group for client/buyer org screens (team, structure, vault,
@@ -278,9 +280,25 @@ function AuthGate() {
       return;
     }
 
+    // ── D38: PROFILE UNAVAILABLE (offline cold start, no validated cache) ──
+    //  The profile fetch failed AND no last-validated snapshot exists. This is
+    //  NOT an answer about the user's stance — never show the chooser (or the
+    //  terms gate) on it. Park on the explicit offline screen; AuthContext
+    //  rehydrates automatically on reconnect and this gate then re-routes.
+    if (isAuthenticated && profileSource === 'none') {
+      if (currentSegment !== 'profile-unavailable') safeNavigate('/profile-unavailable');
+      return;
+    }
+    // Leaving the offline screen once a profile source exists is handled by
+    // the normal branches below (role home / chooser / terms as appropriate).
+
     // ── ROLE-LESS ONBOARDING GATE ──────────────────────────────────────
     //  A signed-in user who hasn't picked a role yet must finish the role
     //  wizard — never leak into the default (inspector) tabs layout.
+    //  D38: `needsRole(role)` is only ever true here on an AUTHORITATIVE
+    //  basis — profileSource is 'network' (an online answer) or 'cache'
+    //  (cache entries always carry a role, so needsRole is false for them);
+    //  the unavailable case returned above.
     if (isAuthenticated && needsRole(role) && !inAuthGroup) {
       safeNavigate('/(auth)/choose-role');
       return;

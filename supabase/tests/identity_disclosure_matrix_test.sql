@@ -183,11 +183,11 @@ select set_config('request.jwt.claims',
 select is(
   (select inspector_email from public.job_applicant_identity_view
     where application_id='d3000000-0000-4000-8000-00000000000a'),
-  null, 'U1 OWNER RULE — FULL no longer reveals the email; contact stays in Project Messages (20260801558000)');
+  'dm.insp@synthetic.invalid', 'U1 FULL reveals the authorized email (final owner policy, 20260801566000)');
 select is(
   (select inspector_phone from public.job_applicant_identity_view
     where application_id='d3000000-0000-4000-8000-00000000000a'),
-  null, 'U2 OWNER RULE — FULL no longer reveals the phone; contact stays in Project Messages (20260801558000)');
+  '+15552002', 'U2 FULL reveals the authorized phone (final owner policy, 20260801566000)');
 select is(
   (select inspector_display_name from public.job_applicant_identity_view
     where application_id='d3000000-0000-4000-8000-00000000000a'),

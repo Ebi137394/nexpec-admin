@@ -5,8 +5,8 @@
 //    fetchClientJobContract(id)    → reads client_job_contracts_view
 //                                    (NO inspector_payout_cents column; the
 //                                    view also sanitizes contract_text_md via
-//                                    nx_contract_text_for_client and never
-//                                    resolves inspector email/phone)
+//                                    nx_contract_text_for_client; email/phone
+//                                    resolve only under identity_mode 'full')
 //    fetchInspectorJobContract(id) → reads inspector_job_contracts_view
 //                                    (NO client_price_cents column; body
 //                                    sanitized via nx_contract_text_for_inspector)
@@ -36,10 +36,12 @@ export interface ClientJobContractRow {
   inspectorResumeUrl: string | null; // professional | full
   inspectorCertifications: string[] | null; // professional | full
   inspectorQualifications: string[] | null; // professional | full
-  // OWNER RULE: no identity mode discloses the inspector's email/phone to a
-  // client — communication stays in the job-scoped, admin-monitored Project
-  // Messages room. The view resolves those columns NULL for non-admins and
-  // this projection does not even select them.
+  // OWNER POLICY (final, 20260801566000): direct contact is part of FULL
+  // disclosure only. The DB view resolves these NULL under protected and
+  // professional; a non-null value here IS the server's authorization that
+  // the Admin set this job to `full`. The UI adds no policy of its own.
+  inspectorEmail: string | null; // full only
+  inspectorPhone: string | null; // full only
   clientPriceCents: number;
   status: ContractStatus;
   clientApprovalType: ClientApprovalType;
@@ -56,7 +58,7 @@ export interface ClientJobContractRow {
 // Columns appended to client_job_contracts_view by migration 20260801288000.
 // Selected explicitly (this file uses strict projections, not select('*')).
 const CLIENT_CONTRACT_COLUMNS =
-  'id, job_id, inspector_id, client_price_cents, status, client_approval_type, admin_authorized_at, identity_mode, inspector_display_name, inspector_headline, inspector_resume_summary, inspector_resume_url, inspector_certifications, inspector_qualifications, contract_text_md, custom_contract_url, client_signed_at, client_signed_name, inspector_signed_at, voided_at, created_at';
+  'id, job_id, inspector_id, client_price_cents, status, client_approval_type, admin_authorized_at, identity_mode, inspector_display_name, inspector_headline, inspector_resume_summary, inspector_resume_url, inspector_certifications, inspector_qualifications, inspector_email, inspector_phone, contract_text_md, custom_contract_url, client_signed_at, client_signed_name, inspector_signed_at, voided_at, created_at';
 
 function toStrArray(v: unknown): string[] | null {
   return Array.isArray(v) ? (v.filter((x) => typeof x === 'string') as string[]) : null;
@@ -171,6 +173,8 @@ export async function fetchMyClientJobContracts(): Promise<ClientJobContractRow[
       inspectorResumeUrl: (r.inspector_resume_url as string | null) ?? null,
       inspectorCertifications: toStrArray(r.inspector_certifications),
       inspectorQualifications: toStrArray(r.inspector_qualifications),
+      inspectorEmail: (r.inspector_email as string | null) ?? null,
+      inspectorPhone: (r.inspector_phone as string | null) ?? null,
       clientPriceCents: Number(r.client_price_cents ?? 0),
       status: r.status as ContractStatus,
       clientApprovalType: ((r.client_approval_type as string) ?? 'client_signature') as ClientApprovalType,
@@ -280,6 +284,8 @@ export async function fetchClientJobContract(
       inspectorResumeUrl: (r.inspector_resume_url as string | null) ?? null,
       inspectorCertifications: toStrArray(r.inspector_certifications),
       inspectorQualifications: toStrArray(r.inspector_qualifications),
+      inspectorEmail: (r.inspector_email as string | null) ?? null,
+      inspectorPhone: (r.inspector_phone as string | null) ?? null,
       clientPriceCents: Number(r.client_price_cents ?? 0),
       status: r.status as ContractStatus,
       clientApprovalType: ((r.client_approval_type as string) ?? 'client_signature') as ClientApprovalType,

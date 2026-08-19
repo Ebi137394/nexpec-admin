@@ -143,9 +143,9 @@ select lives_ok(
   'admin sets identity_mode=full');
 set local request.jwt.claims to '{"sub":"d1111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select is((select inspector_email from public.client_job_contracts_view where id=:'CON1'),
-  NULL, 'FULL: OWNER RULE — email withheld in every mode (20260801558000)');
+  'i1.ir@test.nx', 'FULL: email shown (final owner policy, 20260801566000)');
 select is((select inspector_phone from public.client_job_contracts_view where id=:'CON1'),
-  NULL, 'FULL: OWNER RULE — phone withheld in every mode (20260801558000)');
+  '+1-555-0101', 'FULL: phone shown (final owner policy, 20260801566000)');
 
 -- ── REPLACEMENT (client_reapproval) as ADMIN ────────────────────────────────
 set local request.jwt.claims to '{"sub":"d5555555-5555-5555-5555-555555555555","role":"authenticated"}';

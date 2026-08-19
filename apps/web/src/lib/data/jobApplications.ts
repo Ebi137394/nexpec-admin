@@ -218,9 +218,10 @@ export async function fetchJobApplications(
     //  Which identity fields this Client may see is decided by the project
     //  policy (jobs.identity_mode) and projected server-side by
     //  job_applicant_identity_view — professional|full reveal name/résumé/
-    //  certifications. Email/phone are NEVER disclosed to clients in any
-    //  mode (owner rule, 20260801558000): contact stays in the monitored
-    //  Project Messages room.
+    //  certifications; FULL additionally authorizes email/phone
+    //  (20260801566000). This applicant-card surface deliberately does not
+    //  select contact: identity + contact display live on the contract page
+    //  and inspector-detail, the policy-scoped surfaces.
     //
     //  This surface previously hard-coded fullName/email/avatarUrl/locationCity
     //  to null with a comment asserting the client "never" receives PII, which
@@ -238,10 +239,9 @@ export async function fetchJobApplications(
       const { data: disc } = await supabase
         .from('job_applicant_identity_view')
         .select(
-          // OWNER RULE: inspector email/phone are never part of a client
-          // payload — the view resolves them NULL for non-admins and this
-          // projection does not select them at all. Contact goes through the
-          // monitored Project Messages room.
+          // Contact (email/phone) is deliberately not selected here: applicant
+          // cards stay contact-free by design. FULL-mode contact display lives
+          // on the contract page and inspector-detail (20260801566000).
           'application_id, identity_mode, inspector_display_name, ' +
             'inspector_avatar_url, inspector_headline, ' +
             'inspector_resume_summary, inspector_resume_url, inspector_cv_url, ' +

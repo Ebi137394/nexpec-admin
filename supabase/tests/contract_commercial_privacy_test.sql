@@ -15,8 +15,9 @@
 --    A  CLIENT reads $1,000 total + 20/80 funding terms, and NEVER the
 --       inspector payout, $800, platform margin/spread wording — through
 --       client_job_contracts_view AND the client leg of unified_contracts_view.
---    B  CLIENT never receives inspector email/phone in ANY identity mode
---       (protected / professional / full) — contracts view AND applicant view.
+--    B  identity three-tier matrix (final owner policy, 20260801566000):
+--       FULL discloses email/phone; PROFESSIONAL and PROTECTED never do —
+--       contracts view AND applicant view.
 --    C  INSPECTOR reads their own $800 payout and NEVER the client price,
 --       $1,000, or margin/spread — inspector view AND unified inspector leg.
 --    D  ADMIN retains the full commercial breakdown: $1,000 / $800 / $200
@@ -127,14 +128,16 @@ select is(
 
 -- ─── B. CLIENT — private contact, all three identity modes ──────────────────
 select ok(
-  (select inspector_email is null and inspector_phone is null
+  (select inspector_email = 'ccp.inspector@synthetic.invalid'
+      and inspector_phone = '+15550102'
      from public.client_job_contracts_view where id = (select contract_id from _jc)),
-  'B1 FULL mode: no inspector email/phone on the contract');
+  'B1 FULL mode: contact IS disclosed on the contract (final owner policy, 20260801566000)');
 select ok(
-  (select inspector_email is null and inspector_phone is null
+  (select inspector_email = 'ccp.inspector@synthetic.invalid'
+      and inspector_phone = '+15550102'
      from public.job_applicant_identity_view
     where application_id = (select app_id from _ids)),
-  'B2 FULL mode: no inspector email/phone on the forwarded application');
+  'B2 FULL mode: contact IS disclosed on the forwarded application (same policy, same authority)');
 select is(
   (select inspector_display_name from public.job_applicant_identity_view
     where application_id = (select app_id from _ids)),
@@ -149,7 +152,7 @@ select set_config('request.jwt.claims',
 select ok(
   (select inspector_email is null and inspector_phone is null
      from public.client_job_contracts_view where id = (select contract_id from _jc)),
-  'B4 PROFESSIONAL mode: no email/phone');
+  'B4 PROFESSIONAL mode: identity without contact — email/phone stay NULL');
 
 reset role;
 update public.jobs set identity_mode = 'protected' where id = (select job_id from _ids);

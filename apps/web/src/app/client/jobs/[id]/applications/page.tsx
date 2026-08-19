@@ -128,9 +128,12 @@ export default async function ClientJobApplicationsPage({
               </p>
               <p className="mt-1 max-w-xl text-pretty text-sm text-zinc-400">
                 Applicants stay anonymous here by design. Your hired
-                inspector&rsquo;s professional details are available on the
-                contract for this job; communication happens in the monitored
-                Project Messages room.
+                inspector&rsquo;s{' '}
+                {inspectorDisclosure.identityMode === 'full'
+                  ? 'professional details and direct contact information are'
+                  : 'professional details are'}{' '}
+                available on the contract for this job; Project Messages
+                remains the monitored standard channel.
               </p>
             </div>
           </div>

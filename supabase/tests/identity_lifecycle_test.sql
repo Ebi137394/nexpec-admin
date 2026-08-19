@@ -220,8 +220,8 @@ select is(
   'ACTIVE CONTRACT: raising disclosure mid-engagement takes effect immediately');
 select is(
   (select inspector_email from public.client_job_contracts_view where id = :'CON'),
-  null,
-  'ACTIVE CONTRACT: OWNER RULE — full mode no longer releases contact; Project Messages is the channel (20260801558000)');
+  'in.lc@test.nx',
+  'ACTIVE CONTRACT: full mode releases contact on the live policy (final owner policy, 20260801566000)');
 
 reset role;
 update public.jobs set identity_mode = 'protected' where id = :'JOB';

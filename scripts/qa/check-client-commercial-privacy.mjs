@@ -2,13 +2,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  scripts/qa/check-client-commercial-privacy.mjs
 //
-//  OWNER-REVIEW guard (2026-08-19, migration 20260801558000). Client-facing
-//  surfaces — web (apps/web/src/app/client) and mobile (app/(client)) — must
-//  never name an inspector-pay / platform-margin column, select or render the
-//  inspector's private contact details, or ship payout-implying copy. The DB
-//  views enforce the wire boundary (sanitized contract bodies, NULL contact
-//  for non-admins); this static check stops a future edit from re-introducing
-//  a client-reachable reference or the misleading wording.
+//  OWNER-REVIEW guard (2026-08-19; commercial scope per 20260801558000,
+//  identity scope superseded by 20260801566000). Client-facing surfaces — web
+//  (apps/web/src/app/client) and mobile (app/(client)) — must never name an
+//  inspector-pay / platform-margin column or ship payout-implying copy. The
+//  DB views enforce the wire boundary (sanitized contract bodies); identity
+//  contact (email/phone) is governed by the three-tier disclosure matrix in
+//  the views and its SQL suites, not by this guard.
 //
 //  Checks
 //    1. Forbidden tokens on non-comment lines under the client dirs:
@@ -35,14 +35,16 @@ const flag = (msg) => {
   console.error(`  ✘ ${msg}`);
 };
 
+// Commercial-privacy tokens only. Inspector email/phone are NOT forbidden:
+// per the final owner policy (20260801566000) they are legitimately part of
+// FULL-mode identity disclosure; the DB views are the authority (NULL outside
+// `full`), and the identity SQL suites enforce that matrix.
 const FORBIDDEN = [
   /inspector_payout_cents/,
   /payout_amount_cents/,
   /platform_spread_cents/,
   /platform_margin_cents/,
   /contractor_payout_amount_cents/,
-  /inspector_email/,
-  /inspector_phone/,
   /Inspector payout/,
   /held for payout/i,
   /Your price, held/,
@@ -95,22 +97,12 @@ for (const f of files) {
   if (!m) {
     flag('jobContracts.ts: CLIENT_CONTRACT_COLUMNS constant not found');
   } else {
-    for (const bad of ['inspector_email', 'inspector_phone', 'payout', 'spread', 'margin']) {
+    for (const bad of ['payout', 'spread', 'margin']) {
       if (m[1].includes(bad)) {
         flag(`jobContracts.ts: CLIENT_CONTRACT_COLUMNS names forbidden column fragment "${bad}"`);
       }
     }
   }
-}
-{
-  const lines = stripComments(
-    readFileSync(join(ROOT, 'apps/web/src/lib/data/jobApplications.ts'), 'utf8'),
-  );
-  lines.forEach((line, i) => {
-    if (/inspector_email|inspector_phone/.test(line)) {
-      flag(`jobApplications.ts:${i + 1} selects/maps inspector contact → ${line.trim().slice(0, 90)}`);
-    }
-  });
 }
 
 // ── 3. required copy ─────────────────────────────────────────────────────────

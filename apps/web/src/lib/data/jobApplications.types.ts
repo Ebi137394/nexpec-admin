@@ -46,8 +46,9 @@ export interface JobApplicationRow {
   // inspector's price. Admin surfaces read the bid via their own fetchers.
   createdAt: string;
   /** Embedded inspector profile via applications_applicant_id_fkey. */
-  // Private contact details (email/phone) are intentionally ABSENT: no
-  // identity mode discloses them to a client (owner rule, 20260801558000).
+  // Contact (email/phone) is intentionally ABSENT from applicant cards; the
+  // FULL-mode contact display lives on the contract page and inspector-detail
+  // surfaces (20260801566000).
   inspector: {
     id: string;
     fullName: string | null;

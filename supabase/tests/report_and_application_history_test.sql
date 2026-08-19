@@ -109,7 +109,7 @@ select ok(
   (select inspector_email is null and inspector_phone is null
      from public.job_applicant_identity_view
     where application_id = (select app_hired from _ids)),
-  'C5 …but never private contact (owner rule 20260801558000)');
+  'C5 …without contact — this job is PROFESSIONAL, and contact rides FULL only (20260801566000)');
 select is(
   (select count(*)::int from public.job_applicant_identity_view
     where application_id = (select app_pending from _ids)),

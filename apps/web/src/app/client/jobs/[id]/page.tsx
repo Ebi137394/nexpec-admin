@@ -145,9 +145,11 @@ export default async function ClientJobDetailPage({
                 className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-5 py-2.5 text-sm font-medium text-accent-green transition-colors hover:border-accent-green/50 hover:bg-accent-green/15"
               >
                 <ShieldCheck className="h-4 w-4" strokeWidth={2} />
-                {/* Contact details are never disclosed (owner rule) — the
-                    label must not promise them under any identity mode. */}
-                View inspector details
+                {/* Contact rides FULL disclosure only (20260801566000) — the
+                    label promises it exactly when the policy grants it. */}
+                {inspectorDisclosure.identityMode === 'full'
+                  ? 'View inspector details & contact'
+                  : 'View inspector details'}
                 <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
               </Link>
             )}

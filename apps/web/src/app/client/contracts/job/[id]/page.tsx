@@ -115,13 +115,15 @@ export default async function ClientJobContractPage({
 
       {/* Disclosed inspector identity — fields are resolved (redacted) server-side
           by client_job_contracts_view per the project identity_mode. The page
-          renders only what it is given; it never decides disclosure. Private
-          contact details (email/phone) are never disclosed in any identity
-          mode — communication stays in the monitored Project Messages room. */}
+          renders only what it is given; it never decides disclosure. Email and
+          phone arrive non-null ONLY when the Admin set this job to `full`
+          (20260801566000); Project Messages remains the standard channel. */}
       {(contract.inspectorDisplayName ||
         contract.inspectorResumeSummary ||
         (contract.inspectorCertifications?.length ?? 0) > 0 ||
-        (contract.inspectorQualifications?.length ?? 0) > 0) && (
+        (contract.inspectorQualifications?.length ?? 0) > 0 ||
+        contract.inspectorEmail ||
+        contract.inspectorPhone) && (
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6">
           <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
             <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} /> Inspector details
@@ -157,10 +159,39 @@ export default async function ClientJobContractPage({
               <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} /> Résumé
             </a>
           )}
+          {(contract.inspectorEmail || contract.inspectorPhone) && (
+            <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-300">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+                Direct contact, authorized by Full disclosure for this job
+              </p>
+              {contract.inspectorEmail && (
+                <p>
+                  <span className="font-semibold text-zinc-400">Email:</span>{' '}
+                  <a
+                    href={`mailto:${contract.inspectorEmail}`}
+                    className="text-violet-glow hover:underline"
+                  >
+                    {contract.inspectorEmail}
+                  </a>
+                </p>
+              )}
+              {contract.inspectorPhone && (
+                <p className="mt-1">
+                  <span className="font-semibold text-zinc-400">Phone:</span>{' '}
+                  <a
+                    href={`tel:${contract.inspectorPhone}`}
+                    className="text-violet-glow hover:underline"
+                  >
+                    {contract.inspectorPhone}
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
           <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
             <p>
-              All communication with your inspector happens in the job&rsquo;s
-              monitored Project Messages room.
+              Project Messages is the job&rsquo;s monitored communication room
+              and the standard channel for this engagement.
             </p>
             <Link
               href={`/client/jobs/${contract.jobId}/chat`}

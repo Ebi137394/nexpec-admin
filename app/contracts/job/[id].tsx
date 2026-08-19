@@ -186,8 +186,9 @@ interface ClientContractRow {
   inspector_resume_url: string | null;
   inspector_certifications: string[] | null;
   inspector_qualifications: string[] | null;
-  // Private contact (email/phone) is intentionally absent — never disclosed
-  // to a client in any identity mode (owner rule, 20260801558000).
+  // FULL disclosure only (20260801566000): NULL under protected/professional.
+  inspector_email: string | null;
+  inspector_phone: string | null;
 }
 
 /**
@@ -419,10 +420,11 @@ export default function JobContractSigningScreen() {
               'inspector_resume_url',
               'inspector_certifications',
               'inspector_qualifications',
-              // OWNER RULE (20260801558000): inspector email/phone are never
-              // part of a client payload — the view resolves them NULL for
-              // non-admins and this projection no longer selects them.
-              // Communication stays in the monitored Project Messages room.
+              // OWNER POLICY (final, 20260801566000): contact is part of FULL
+              // disclosure. The view resolves these NULL under protected and
+              // professional; non-null here IS the server's authorization.
+              'inspector_email',
+              'inspector_phone',
             ].join(', '),
           )
           .eq('id', id)
@@ -563,8 +565,11 @@ export default function JobContractSigningScreen() {
       { label: 'Summary', value: clientRow.inspector_resume_summary },
       { label: 'Certifications', value: joinList(clientRow.inspector_certifications) },
       { label: 'Qualifications', value: joinList(clientRow.inspector_qualifications) },
-      // Email/Phone rows removed on purpose: contact goes through the
-      // job-scoped, admin-monitored Project Messages room.
+      // FULL disclosure only: the view returns these NULL outside `full`, so
+      // the rows below self-hide under protected/professional. Non-null IS
+      // the Admin's per-job authorization (20260801566000).
+      { label: 'Email', value: clientRow.inspector_email },
+      { label: 'Phone', value: clientRow.inspector_phone },
     ].flatMap(({ label, value }) =>
       value && String(value).trim() ? [{ label, value: String(value).trim() }] : [],
     );

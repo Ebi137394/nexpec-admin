@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -97,6 +98,10 @@ interface ApplicantProfile {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  // Merged from job_applicant_identity_view — NULL under `protected`,
+  // populated under `professional`/`full` (owner policy, 20260801566000).
+  disclosed_name?: string | null;
+  disclosed_avatar_url?: string | null;
   avatar_url: string | null;
   title: string | null;
   bio: string | null;
@@ -223,17 +228,23 @@ const forceClientSelection = async (
   }
 };
 
-// ANTI-POACHING: the client never sees an inspector's real name pre-hire.
-// They see the pseudonymous NX- handle (identical to /p/[userId] on web and the
-// public directory). Real identity is released through NEXPEC only after
-// report-confirm / VIP disclosure. Derived from the opaque id, never PII.
+// IDENTITY IS MODE-GOVERNED (owner policy, 20260801566000). disclosed_name is
+// merged from job_applicant_identity_view, where the DATABASE resolves the
+// per-job identity_mode: NULL under `protected` (the NX- handle renders, same
+// as the public directory), the real name under `professional`/`full`. This
+// helper decides nothing — it renders what the server released.
 const getApplicantName = (applicant: ApplicantProfile): string => {
-  return nxHandle(applicant.id);
+  return applicant.disclosed_name?.trim() || nxHandle(applicant.id);
 };
 
-const getApplicantInitials = (_applicant: ApplicantProfile): string => {
-  // Neutral, identity-free glyph for the pseudonymous avatar sigil.
-  return 'NX';
+const getApplicantInitials = (applicant: ApplicantProfile): string => {
+  const n = applicant.disclosed_name?.trim();
+  if (!n) return 'NX'; // pseudonymous sigil under `protected`
+  return n
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
 };
 
 const formatTimeAgo = (dateString: string): string => {
@@ -610,13 +621,21 @@ const ApplicantCard: React.FC<ApplicantCardProps> = ({
         )}
 
         <View style={styles.applicantHeader}>
-          {/* ANTI-POACHING: never render the inspector's real photo to the
-              client — always the pseudonymous NX sigil. */}
-          <View style={styles.applicantAvatarPlaceholder}>
-            <Text style={styles.applicantAvatarText}>
-              {getApplicantInitials(applicant)}
-            </Text>
-          </View>
+          {/* Mode-governed photo: the disclosed avatar renders only when the
+              view released it (professional/full); protected keeps the
+              pseudonymous NX sigil. */}
+          {applicant.disclosed_avatar_url ? (
+            <Image
+              source={{ uri: applicant.disclosed_avatar_url }}
+              style={[styles.applicantAvatarPlaceholder, { overflow: 'hidden' }]}
+            />
+          ) : (
+            <View style={styles.applicantAvatarPlaceholder}>
+              <Text style={styles.applicantAvatarText}>
+                {getApplicantInitials(applicant)}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.applicantInfo}>
             <View style={styles.applicantNameRow}>
@@ -730,6 +749,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
   onRequestOffer,
   updating,
 }) => {
+  const router = useRouter();
   if (!application || !job) return null;
 
   const { applicant, status } = application;
@@ -886,6 +906,34 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
               <Text style={styles.reviewStatLabel}>Certs</Text>
             </View>
           </View>
+
+          {/* JOB-SCOPED inspector detail — the authorized disclosure surface.
+              Carries jobId so (client)/inspector/[id] reads
+              job_applicant_identity_view under THIS job's identity_mode:
+              professional → profile/CV, full → + email/phone contact. */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              borderWidth: 1,
+              borderColor: '#7C3AED',
+              borderRadius: 10,
+              paddingVertical: 12,
+              marginBottom: 16,
+            }}
+            onPress={() =>
+              router.push(
+                `/(client)/inspector/${application.applicant_id}?jobId=${application.job_id}` as never,
+              )
+            }
+          >
+            <Shield size={16} color="#7C3AED" />
+            <Text style={{ color: '#7C3AED', fontWeight: '600' }}>
+              View inspector details for this job
+            </Text>
+          </TouchableOpacity>
 
           <View style={styles.reviewSection}>
             <Text style={styles.reviewSectionTitle}>Cover Note</Text>
@@ -1146,9 +1194,61 @@ export default function ApplicantsScreen(): React.JSX.Element {
 
       if (appsError) throw appsError;
 
+      // IDENTITY IS MODE-GOVERNED (owner policy, 20260801566000). The raw
+      // profiles embed above deliberately carries no disclosed identity; the
+      // per-job disclosure comes from job_applicant_identity_view, where the
+      // DATABASE resolves nx_job_effective_identity_mode:
+      //   protected     → every field NULL  → cards stay NX-pseudonymous
+      //   professional  → name/photo released
+      //   full          → same here; contact renders on the job-scoped
+      //                   inspector detail screen ((client)/inspector/[id]?jobId=)
+      const { data: disc } = await supabase
+        .from('job_applicant_identity_view')
+        .select('applicant_id, identity_mode, inspector_display_name, inspector_avatar_url')
+        .eq('job_id', id);
+      const discMap = new Map<string, { name: string | null; avatar: string | null }>();
+      for (const d of (disc ?? []) as Array<Record<string, unknown>>) {
+        discMap.set(String(d.applicant_id), {
+          name: (d.inspector_display_name as string | null) ?? null,
+          avatar: (d.inspector_avatar_url as string | null) ?? null,
+        });
+      }
+
       // PostgREST returns the to-one `applicant` embed as an object at runtime;
       // the template-literal type inference disagrees, hence via-unknown.
-      setApplications(appsData as unknown as ApplicationWithProfile[]);
+      //
+      // ROBUSTNESS: the raw `profiles` embed is itself RLS-gated (readable
+      // only when the job's identity_mode is `full`), so under protected /
+      // professional it arrives NULL. The applicant object is therefore
+      // synthesized from the always-present top-level applicant_id and the
+      // disclosure view — never assumed from the embed.
+      const merged = (appsData as unknown as Array<
+        ApplicationWithProfile & { applicant_id: string }
+      >).map((a) => {
+        const applicantId = String(a.applicant_id ?? a.applicant?.id ?? '');
+        const d = discMap.get(applicantId);
+        const base: ApplicantProfile =
+          a.applicant ??
+          ({
+            id: applicantId,
+            first_name: null,
+            last_name: null,
+            email: null,
+            avatar_url: null,
+            title: null,
+            bio: null,
+            years_experience: null,
+          } as unknown as ApplicantProfile);
+        return {
+          ...a,
+          applicant: {
+            ...base,
+            disclosed_name: d?.name ?? null,
+            disclosed_avatar_url: d?.avatar ?? null,
+          },
+        };
+      });
+      setApplications(merged);
 
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load data';

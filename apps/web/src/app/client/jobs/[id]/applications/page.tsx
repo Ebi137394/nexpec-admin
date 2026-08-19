@@ -108,13 +108,11 @@ export default async function ClientJobApplicationsPage({
         </div>
       </header>
 
-      {/* Once the engagement legally permits disclosure, explain WHY the cards
-          below are still anonymous and route the client to the one authorized
-          surface. The NX handles on this page are deliberately left untouched:
-          applicants who were not hired never become identifiable, and the
-          hired inspector's details stay on the contract page where the
-          policy-scoped read already lives. Hidden entirely when the fetcher
-          returns null — pre-engagement, protected policy, or voided contract. */}
+      {/* Contract banner — shown once a fully executed contract exists whose
+          policy is professional/full. Card identity itself is mode-governed
+          (owner policy): under `protected` every card stays pseudonymous;
+          under `professional`/`full` the DB releases name/photo and each card
+          links to the job-scoped inspector detail page. */}
       {inspectorDisclosure && (
         <div className="flex flex-col gap-3 rounded-2xl border border-accent-green/25 bg-accent-green/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -127,8 +125,7 @@ export default async function ClientJobApplicationsPage({
                 This job has a fully executed contract
               </p>
               <p className="mt-1 max-w-xl text-pretty text-sm text-zinc-400">
-                Applicants stay anonymous here by design. Your hired
-                inspector&rsquo;s{' '}
+                Your hired inspector&rsquo;s{' '}
                 {inspectorDisclosure.identityMode === 'full'
                   ? 'professional details and direct contact information are'
                   : 'professional details are'}{' '}
@@ -281,10 +278,13 @@ function Card({
   jobId: string;
 }) {
   const insp = app.inspector;
-  // ANTI-POACHING: clients see the pseudonymous NX- handle pre-hire, never the
-  // inspector's real name/photo — identical to /p/[userId]. The real identity
-  // is released through NEXPEC only after report-confirm / VIP disclosure.
+  // IDENTITY IS MODE-GOVERNED (owner policy, 20260801566000). fullName /
+  // avatarUrl arrive from job_applicant_identity_view: NULL under `protected`
+  // (the card stays pseudonymous), populated under `professional`/`full`. The
+  // card renders what the DB released — it decides nothing itself. The NX
+  // handle remains visible as the stable platform identity in every mode.
   const handle = inspectorHandle(app.applicantId);
+  const disclosedName = insp?.fullName?.trim() || null;
   // An application is ACTIONABLE only while it is genuinely awaiting the
   // client's decision — 'pending', or 'CLIENT_SELECTED' (already picked, so
   // only Reject remains). Everything else is history.
@@ -302,29 +302,41 @@ function Card({
   return (
     <article className="overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-ink-800/70 to-ink-900/40 p-5">
       <header className="flex items-start gap-3">
-        {/* Inspector identity links to the public profile page so the client
-            can review certificates, CV, past work before accepting. GR2: the
-            /p/[userId] page strictly filters sensitive fields. */}
+        {/* JOB-SCOPED detail route — NOT the public /p/[userId] Trust Card.
+            /p/ is anonymized by construction and must stay that way; this
+            link carries the job context so the disclosure the Admin granted
+            on THIS job (professional/full) actually renders. */}
         <Link
-          href={`/p/${app.applicantId}`}
-          aria-label={`View ${handle}'s verified profile`}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-cyan-glow text-white transition-transform hover:scale-105"
+          href={`/client/jobs/${jobId}/inspector/${app.id}`}
+          aria-label={`View ${disclosedName ?? handle}'s details for this job`}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-cyan-glow text-white transition-transform hover:scale-105"
         >
-          <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+          {insp?.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- user-content avatar; next/image cannot optimize dynamic storage URLs
+            <img src={insp.avatarUrl} alt="" className="h-10 w-10 object-cover" />
+          ) : (
+            <ShieldCheck className="h-5 w-5" strokeWidth={1.75} />
+          )}
         </Link>
         <div className="min-w-0 flex-1">
           <Link
-            href={`/p/${app.applicantId}`}
-            className="group/name inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-white hover:text-violet-glow"
+            href={`/client/jobs/${jobId}/inspector/${app.id}`}
+            className="group/name inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-violet-glow"
           >
-            <span className="truncate">{handle}</span>
+            <span className={`truncate ${disclosedName ? '' : 'font-mono'}`}>
+              {disclosedName ?? handle}
+            </span>
             <ExternalLink
               className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100"
               strokeWidth={2}
             />
           </Link>
           <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow/70">
-            NEXPEC-Verified inspector
+            {disclosedName ? (
+              <span className="font-mono">{handle} · NEXPEC-Verified</span>
+            ) : (
+              'NEXPEC-Verified inspector'
+            )}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
             {insp?.ratingAverage !== null && insp?.ratingAverage !== undefined && (

@@ -245,7 +245,8 @@ export async function fetchJobApplications(
           'application_id, identity_mode, inspector_display_name, ' +
             'inspector_avatar_url, inspector_headline, ' +
             'inspector_resume_summary, inspector_resume_url, inspector_cv_url, ' +
-            'inspector_certifications, inspector_qualifications, location_city',
+            'inspector_certifications, inspector_qualifications, location_city, ' +
+            'rating_average, completed_jobs_count, experience_years',
         )
         .eq('job_id', jobId);
       for (const d of (disc ?? []) as unknown as Record<string, unknown>[]) {
@@ -270,33 +271,40 @@ export async function fetchJobApplications(
         status: r.status as ApplicationStatus,
         coverNote: (r.cover_note as string | null) ?? null,
         createdAt: String(r.created_at),
-        inspector: insp
-          ? {
-              id: String(insp.id),
-              // ANTI-POACHING: whatever the active project policy does NOT
-              // authorise comes back NULL from the view, so the card falls back
-              // to the pseudonymous NX- handle exactly as before. Under
-              // 'protected' every one of these is NULL and the rendering is
-              // byte-for-byte what it was; under 'professional' the name
-              // appears; under 'full' the contact details do too. The decision
-              // is the database's, never this component's.
-              fullName: (disclosure?.inspector_display_name as string | null) ?? null,
-              avatarUrl: (disclosure?.inspector_avatar_url as string | null) ?? null,
-              ratingAverage:
-                typeof insp.rating_average === 'number'
-                  ? (insp.rating_average as number)
-                  : insp.rating_average
-                    ? Number(insp.rating_average)
-                    : null,
-              completedJobsCount:
-                typeof insp.completed_jobs_count === 'number'
-                  ? (insp.completed_jobs_count as number)
-                  : null,
-              locationCity: (disclosure?.location_city as string | null) ?? null,
-              yearsOfExperience:
-                (insp.years_of_experience as string | null) ?? null,
-            }
-          : null,
+        // OWNER-REVIEW ROOT CAUSE (identity rendering): this object used to be
+        // built ONLY when the raw `profiles` embed returned a row — and
+        // profiles RLS is itself mode-aware, blocking clients from the raw row
+        // in every mode except `full`. Under `protected`/`professional` the
+        // embed came back null, the whole inspector object was discarded, and
+        // the card rendered the pseudonymous fallback even when the disclosure
+        // view had released the name. The inspector object is now built
+        // unconditionally from the applicant id + the DISCLOSURE VIEW (the
+        // policy authority); the embed only overlays reputation numbers when
+        // RLS happens to allow it. What the policy does not authorize still
+        // arrives NULL from the view — the decision remains the database's.
+        inspector: {
+          id: String(r.applicant_id),
+          fullName: (disclosure?.inspector_display_name as string | null) ?? null,
+          avatarUrl: (disclosure?.inspector_avatar_url as string | null) ?? null,
+          ratingAverage:
+            insp && insp.rating_average != null
+              ? Number(insp.rating_average)
+              : disclosure?.rating_average != null
+                ? Number(disclosure.rating_average)
+                : null,
+          completedJobsCount:
+            insp && typeof insp.completed_jobs_count === 'number'
+              ? (insp.completed_jobs_count as number)
+              : disclosure?.completed_jobs_count != null
+                ? Number(disclosure.completed_jobs_count)
+                : null,
+          locationCity: (disclosure?.location_city as string | null) ?? null,
+          yearsOfExperience:
+            (insp?.years_of_experience as string | null) ??
+            (disclosure?.experience_years != null
+              ? String(disclosure.experience_years)
+              : null),
+        },
       };
     });
   } catch (e) {

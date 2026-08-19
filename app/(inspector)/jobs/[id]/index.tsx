@@ -145,6 +145,7 @@ export default function InspectorJobDetailScreen() {
   const [isInspectionModalVisible, setIsInspectionModalVisible] = useState(false);
   const [reportData, setReportData] = useState<{
     id: string;
+    inspector_id?: string | null;
     is_published: boolean;
     is_client_approved: boolean;
     photo_url?: string | null;
@@ -155,6 +156,15 @@ export default function InspectorJobDetailScreen() {
     signed_by?: string | null;
     created_at?: string | null;
   } | null>(null);
+  // Senior-review round history for the report above. Author-readable by RLS
+  // (report_senior_reviews_author_read); empty for reports never routed to a
+  // senior reviewer.
+  const [reviewRounds, setReviewRounds] = useState<Array<{
+    round: number;
+    decision: string | null;
+    decided_at: string | null;
+    comments: string | null;
+  }>>([]);
   // photo_url stores a PRIVATE inspection-photos storage path — render the
   // minted signed URL, never the raw path (which shows a broken image).
   const [reportPhotoUrl, setReportPhotoUrl] = useState<string | null>(null);
@@ -359,6 +369,15 @@ const fetchApplication = async (uid: string) => {
         } else {
           setReportPhotoUrl(null);
         }
+        // Revision history — the senior-review rounds on this report. RLS
+        // scopes rows to admin/reviewer/author; for everyone else this
+        // simply returns nothing and the section stays hidden.
+        const { data: rounds } = await supabase
+          .from('report_senior_reviews')
+          .select('round, decision, decided_at, comments')
+          .eq('inspection_report_id', (data as any).id)
+          .order('round', { ascending: true });
+        setReviewRounds((rounds as any[]) ?? []);
       }
     } catch (error) {
       console.error('Error fetching report status:', error);
@@ -857,6 +876,25 @@ const fetchApplication = async (uid: string) => {
         {reportData && !reportData.is_published && (userRole === 'client' || userRole === 'agency') && (
           <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#1A1D3C' }}>
             <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center' }}>{t('Report is currently under Admin review.')}</Text>
+          </View>
+        )}
+
+        {/* AUTHOR CARD — the inspector who wrote the report keeps a persistent
+            "open my report" action from the moment of submission. Before this
+            card, a submitted-but-unpublished report had NO surface for its
+            author. The row is RLS-gated (inspector_id = auth.uid()), so this
+            renders only for the author; the published card below covers the
+            approved/delivered/completed states for everyone else. */}
+        {reportData && !reportData.is_published && userId === reportData.inspector_id && (
+          <View style={{ backgroundColor: 'rgba(124, 58, 237, 0.1)', borderColor: '#7C3AED', borderWidth: 1, padding: 16, borderRadius: 12, marginBottom: 24 }}>
+            <Text style={{ color: '#7C3AED', fontSize: 16, fontWeight: 'bold', marginBottom: 4 }}>{t('Report submitted')}</Text>
+            <Text style={{ color: '#94A3B8', fontSize: 13, marginBottom: 12 }}>{t('Awaiting admin review. Your submission stays available here as part of the permanent inspection record.')}</Text>
+            <TouchableOpacity
+              style={{ paddingVertical: 12, borderWidth: 1, borderColor: '#7C3AED', borderRadius: 8, alignItems: 'center' }}
+              onPress={() => setReportViewerVisible(true)}
+            >
+              <Text style={{ color: '#7C3AED', fontWeight: '600' }}>{t('View Submitted Report')}</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1649,6 +1687,38 @@ const fetchApplication = async (uid: string) => {
                 <Text style={{ color: '#64748B', fontSize: 12 }}>
                   {t('Submitted:')} {new Date(reportData.created_at).toLocaleString()}
                 </Text>
+              ) : null}
+
+              {/* Revision history — one entry per senior-review round. Only
+                  rendered when rounds exist (RLS: admin/reviewer/author). */}
+              {reviewRounds.length > 0 ? (
+                <>
+                  <Text style={{ color: '#7C3AED', fontSize: 12, fontWeight: 'bold', marginTop: 16, marginBottom: 8, textTransform: 'uppercase' }}>
+                    {t('Revision history')}
+                  </Text>
+                  {reviewRounds.map((r) => (
+                    <View key={r.round} style={{ borderWidth: 1, borderColor: '#1A1D3C', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: '#E2E8F0', fontSize: 13, fontWeight: '700' }}>
+                          {t('Round')} {r.round}
+                        </Text>
+                        <Text style={{ color: r.decision === 'approved' ? '#10B981' : r.decision ? '#F59E0B' : '#64748B', fontSize: 12, fontWeight: '600', textTransform: 'capitalize' }}>
+                          {r.decision ? r.decision.replace(/_/g, ' ') : t('in review')}
+                        </Text>
+                      </View>
+                      {r.decided_at ? (
+                        <Text style={{ color: '#64748B', fontSize: 11, marginTop: 2 }}>
+                          {new Date(r.decided_at).toLocaleString()}
+                        </Text>
+                      ) : null}
+                      {r.comments ? (
+                        <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 6 }} selectable>
+                          {r.comments}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
+                </>
               ) : null}
             </ScrollView>
 

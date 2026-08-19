@@ -440,27 +440,50 @@ function PrimaryAction({
     );
   }
 
-  // Hired + completed = inspection done; review CTA is on the
-  // PendingReviewCallout below the header.
+  // Hired + completed = inspection done. The submitted report is part of the
+  // permanent inspection record — the "open it" action never disappears.
   if (isHired && job.status === 'completed') {
     return (
-      <div className="inline-flex items-center gap-2 self-start rounded-full border border-accent-green/30 bg-accent-green/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-industrial text-accent-green sm:self-auto">
-        <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
-        Inspection complete
+      <div className="flex flex-col gap-2 self-start sm:flex-row sm:items-center sm:self-auto">
+        <div className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-industrial text-accent-green">
+          <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+          Inspection complete
+        </div>
+        {report && (
+          <Link
+            href={`/inspector/jobs/${job.id}/submit-report`}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-cyan-glow/40 hover:text-white"
+          >
+            <Eye className="h-4 w-4" strokeWidth={2} />
+            View submitted report
+          </Link>
+        )}
       </div>
     );
   }
 
-  // Hired + disputed = escalation. Link to the disputes board.
+  // Hired + disputed = escalation. Link to the disputes board — and keep the
+  // author's access to the report they submitted.
   if (isHired && job.status === 'disputed') {
     return (
-      <Link
-        href="/inspector/disputes"
-        className="inline-flex items-center gap-2 self-start rounded-xl border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red transition hover:bg-accent-red/15 sm:self-auto"
-      >
-        <ShieldAlert className="h-4 w-4" strokeWidth={2} />
-        Dispute open, view
-      </Link>
+      <div className="flex flex-col gap-2 self-start sm:flex-row sm:items-center sm:self-auto">
+        <Link
+          href="/inspector/disputes"
+          className="inline-flex items-center gap-2 rounded-xl border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red transition hover:bg-accent-red/15"
+        >
+          <ShieldAlert className="h-4 w-4" strokeWidth={2} />
+          Dispute open, view
+        </Link>
+        {report && (
+          <Link
+            href={`/inspector/jobs/${job.id}/submit-report`}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-cyan-glow/40 hover:text-white"
+          >
+            <Eye className="h-4 w-4" strokeWidth={2} />
+            View submitted report
+          </Link>
+        )}
+      </div>
     );
   }
 
@@ -632,24 +655,60 @@ function InspectorWorkflowPanel({
     );
   }
 
-  // ── State 3: completed — quiet success line. The PendingReviewCallout
-  // handles the next action (leave review for the client).
+  // ── State 3: completed — success line + PERMANENT access to the submitted
+  // report. The report is part of the permanent inspection record; the open
+  // action must survive approval, delivery and completion.
   if (job.status === 'completed') {
     return (
       <section className="rounded-3xl border border-accent-green/30 bg-gradient-to-b from-accent-green/[0.08] to-accent-green/[0.02] p-5 sm:p-6">
-        <div className="flex items-start gap-3">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-green/40 bg-accent-green/10 text-accent-green">
-            <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-          </span>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
-              Inspection complete
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-300">
-              Report approved and delivered to the client. Payout is on
-              track. Leave a review below to close the loop.
-            </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-green/40 bg-accent-green/10 text-accent-green">
+              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+            </span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+                Inspection complete
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-zinc-300">
+                Report approved and delivered to the client. Payout is on
+                track. Leave a review below to close the loop. Your submitted
+                report stays available here as part of the permanent
+                inspection record.
+              </p>
+            </div>
           </div>
+          {report && (
+            <Link
+              href={`/inspector/jobs/${job.id}/submit-report`}
+              className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-accent-green/50 hover:text-white"
+            >
+              <Eye className="h-4 w-4" strokeWidth={2} />
+              View submitted report
+            </Link>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  // ── State 4: any other post-active state (cancelled, …) — the author keeps
+  // read access to the report they wrote, whatever happened to the job.
+  if (report) {
+    return (
+      <section className="rounded-3xl border border-white/[0.08] bg-white/[0.01] p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-zinc-300">
+            Your submitted report remains available as part of the permanent
+            inspection record.
+          </p>
+          <Link
+            href={`/inspector/jobs/${job.id}/submit-report`}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:border-cyan-glow/40 hover:text-white"
+          >
+            <Eye className="h-4 w-4" strokeWidth={2} />
+            View submitted report
+          </Link>
         </div>
       </section>
     );

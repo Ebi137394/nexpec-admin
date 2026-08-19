@@ -94,16 +94,19 @@ export async function fetchClientJob(
       .eq('status', 'CLIENT_SELECTED')
       .maybeSingle();
 
-    // COUNT CONSISTENCY: the "Review N applications" figure must equal what
-    // the Applications page actually lists — admin-forwarded applications
-    // only. The denormalized jobs.applications_count column counts EVERY
-    // application (un-forwarded ones included), which produced "Review 1
-    // application" against an Applications page truthfully showing 0.
+    // COUNT CONSISTENCY: the applications figure must equal what the
+    // Applications page actually lists — the SAME predicate (forwarded OR
+    // engaged; see fetchJobApplications). The denormalized
+    // jobs.applications_count column counts EVERY application (un-forwarded
+    // ones included), which produced "Review 1 application" against an
+    // Applications page truthfully showing 0.
     const { count: reviewableCount } = await supabase
       .from('applications')
       .select('id', { count: 'exact', head: true })
       .eq('job_id', jobId)
-      .not('forwarded_to_client_at', 'is', null);
+      .or(
+        'forwarded_to_client_at.not.is.null,status.in.(CLIENT_SELECTED,hired,accepted)',
+      );
 
     const r = data as unknown as Record<string, unknown>;
     return {
@@ -191,11 +194,17 @@ export async function fetchJobApplications(
         `,
       )
       .eq('job_id', jobId)
-      // Anti-bypass gate (migration 272000): clients only ever see applications
-      // an admin has forwarded. RLS enforces this server-side; this explicit
-      // filter is defense-in-depth so the client surface never shows un-forwarded
-      // proposals even if RLS is ever loosened.
-      .not('forwarded_to_client_at', 'is', null)
+      // LIFECYCLE VISIBILITY (matches RLS, migration 20260801562000):
+      //   • pre-engagement proposals — only after an admin has vetted and
+      //     forwarded them (anti-poaching gate, 272000), AND
+      //   • the ENGAGED record (CLIENT_SELECTED / hired / accepted) — always.
+      // A hired application is permanent job history: it must not disappear
+      // after hiring or completion, even when the forwarding timestamp was
+      // never stamped (e.g. admin direct assignment). This explicit filter is
+      // defense-in-depth mirroring the RLS predicate.
+      .or(
+        'forwarded_to_client_at.not.is.null,status.in.(CLIENT_SELECTED,hired,accepted)',
+      )
       .order('created_at', { ascending: false });
 
     if (error || !data) {

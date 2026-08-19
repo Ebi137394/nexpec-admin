@@ -105,10 +105,14 @@ export default async function ClientJobDetailPage({
             </div>
           </div>
           <div className="flex flex-col gap-2 self-start sm:flex-row sm:items-center sm:self-auto">
-            {/* Reviewing applications is a pre-engagement act: once the job
-                is assigned / in progress / completed there is nobody left to
-                select, so the action disappears instead of dangling a count. */}
-            {job.status === 'open' && (
+            {/* Lifecycle-aware action. While the job is OPEN this is a
+                decision surface ("Review N applications"). After hiring /
+                completion it becomes the HISTORY surface — the engagement
+                record never disappears (RLS 20260801562000 keeps the hired
+                application readable for life). The count and the destination
+                page share one predicate, so the number always matches what
+                the page renders. */}
+            {job.status === 'open' ? (
               <Link
                 href={`/client/jobs/${job.id}/applications`}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
@@ -118,7 +122,16 @@ export default async function ClientJobDetailPage({
                 {job.applicationsCount === 1 ? '' : 's'}
                 <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
               </Link>
-            )}
+            ) : job.applicationsCount > 0 ? (
+              <Link
+                href={`/client/jobs/${job.id}/applications`}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-violet/40 hover:bg-white/[0.04] hover:text-white"
+              >
+                <Users className="h-4 w-4" strokeWidth={2} />
+                View application{job.applicationsCount === 1 ? '' : 's'}
+                <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+            ) : null}
             {/* Once the engagement legally permits disclosure, give the client
                 an obvious route to the inspector's details instead of leaving
                 them to discover the Contracts section. Rendered only when

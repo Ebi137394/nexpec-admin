@@ -49,8 +49,9 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
       return [];
     }
 
-    // COUNT CONSISTENCY: show the number of admin-forwarded applications —
-    // what the Applications page actually lists — not the denormalized
+    // COUNT CONSISTENCY: show what the Applications page actually lists —
+    // forwarded proposals plus the engaged record (CLIENT_SELECTED / hired /
+    // accepted; RLS 20260801562000) — not the denormalized
     // jobs.applications_count, which also counts un-forwarded proposals the
     // client can never see.
     const forwardedByJob = new Map<string, number>();
@@ -61,7 +62,9 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
           .from('applications')
           .select('job_id')
           .in('job_id', ids)
-          .not('forwarded_to_client_at', 'is', null);
+          .or(
+            'forwarded_to_client_at.not.is.null,status.in.(CLIENT_SELECTED,hired,accepted)',
+          );
         for (const a of (apps ?? []) as Array<Record<string, unknown>>) {
           const k = String(a.job_id);
           forwardedByJob.set(k, (forwardedByJob.get(k) ?? 0) + 1);

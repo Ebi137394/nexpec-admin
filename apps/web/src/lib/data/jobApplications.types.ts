@@ -26,7 +26,10 @@ import type {
  */
 export type ApplicationStatus =
   | 'pending'
+  | 'shortlisted'
+  | 'offered'
   | 'CLIENT_SELECTED'
+  | 'hired'
   | 'accepted'
   | 'rejected'
   | 'withdrawn';

@@ -64,6 +64,7 @@ import {
   fetchInspectorReport,
   type InspectorReport,
 } from '@/lib/data/inspectorReport';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { submitInspectionReport } from '@/lib/actions/submitReport';
 import { resubmitInspectionReport } from './actions';
 import { ReviewRoundsPanel } from './ReviewRoundsPanel';
@@ -115,12 +116,33 @@ export default async function SubmitReportPage({
     const isActiveInspector =
       job.status === 'assigned' || job.status === 'in_progress';
 
+    // Evidence photos live in the PRIVATE inspection-photos bucket as storage
+    // paths; the author mints short-lived signed URLs to re-view their own
+    // upload (storage RLS: owner/admin). Failures degrade to a path label.
+    const evidence =
+      existing.finalReportDoc?.evidence ??
+      (existing.photoUrl
+        ? [{ path: existing.photoUrl, caption: null, sizeBytes: 0 }]
+        : []);
+    const photoUrls: Array<{ url: string | null; caption: string | null }> = [];
+    if (evidence.length > 0) {
+      const supabase = await createSupabaseServerClient();
+      for (const ev of evidence.slice(0, 12)) {
+        const { data: signed } = await supabase.storage
+          .from('inspection-photos')
+          .createSignedUrl(ev.path, 3600);
+        photoUrls.push({ url: signed?.signedUrl ?? null, caption: ev.caption });
+      }
+    }
+
     return (
       <ReportReviewMode
         jobId={jobId}
         jobTitle={job.title}
+        jobStatus={job.status}
         report={existing}
         isActiveInspector={isActiveInspector}
+        photoUrls={photoUrls}
       />
     );
   }
@@ -513,13 +535,17 @@ function formatPayout(cents: number | null): string {
 function ReportReviewMode({
   jobId,
   jobTitle,
+  jobStatus,
   report,
   isActiveInspector,
+  photoUrls,
 }: {
   jobId: string;
   jobTitle: string;
+  jobStatus: string;
   report: InspectorReport;
   isActiveInspector: boolean;
+  photoUrls: Array<{ url: string | null; caption: string | null }>;
 }) {
   // `returned_to_inspector` is the one state in which the author may write
   // again. Every other state is read-only for them: an approved or delivered
@@ -527,6 +553,18 @@ function ReportReviewMode({
   // edit. The server enforces this too.
   const isReturned = report.status === 'returned_to_inspector';
   const canResubmit = isReturned && isActiveInspector;
+
+  // Status-aware framing. The submitted report is part of the permanent
+  // inspection record — this page stays reachable after approval, delivery
+  // and job completion, and must not describe a finished report as "in
+  // review".
+  const headerLine = isReturned
+    ? 'Your report was returned with change requests. Correct and resubmit it below.'
+    : report.isClientApproved || jobStatus === 'completed'
+      ? 'This inspection is complete. Your submitted report is preserved below as part of the permanent inspection record.'
+      : report.isPublished
+        ? 'Your report was approved and delivered to the client. It is preserved below as part of the permanent inspection record.'
+        : 'Your report is submitted and under review. You will be able to correct and resubmit it only if a reviewer returns it to you.';
 
   return (
     <div className="space-y-8">
@@ -541,11 +579,10 @@ function ReportReviewMode({
         <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           {jobTitle}
         </h1>
-        <p className="mt-1.5 text-sm text-zinc-400">
-          Your report is in Senior Inspector review. You will be able to correct
-          and resubmit it if the reviewer returns it to you.
-        </p>
+        <p className="mt-1.5 text-sm text-zinc-400">{headerLine}</p>
       </header>
+
+      <SubmittedReportPanel report={report} photoUrls={photoUrls} />
 
       <ReviewRoundsPanel
         reportId={report.id}
@@ -632,5 +669,145 @@ function ReportReviewMode({
         </p>
       )}
     </div>
+  );
+}
+
+/* ─── SubmittedReportPanel — the author's read-only copy of their report ────
+   Renders the exact submission: result, summary, evidence photos (signed
+   URLs from the private bucket), attestation and the admin review states.
+   This is the "reopen the report I submitted" surface — it stays available
+   after approval, client delivery and job completion. */
+
+function SubmittedReportPanel({
+  report,
+  photoUrls,
+}: {
+  report: InspectorReport;
+  photoUrls: Array<{ url: string | null; caption: string | null }>;
+}) {
+  const doc = report.finalReportDoc;
+  const summary = doc?.summary ?? report.notes;
+  const resultTone =
+    doc?.result === 'pass'
+      ? 'border-accent-green/40 bg-accent-green/10 text-accent-green'
+      : doc?.result === 'fail'
+        ? 'border-accent-red/40 bg-accent-red/10 text-accent-red'
+        : 'border-accent-amber/40 bg-accent-amber/10 text-accent-amber';
+
+  return (
+    <section
+      aria-labelledby="submitted-report-heading"
+      className="rounded-3xl border border-white/[0.08] bg-white/[0.01] p-6 sm:p-8"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2
+            id="submitted-report-heading"
+            className="font-display text-lg font-semibold tracking-tight text-white"
+          >
+            Your submitted report
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Submitted {new Date(report.createdAt).toLocaleString()}
+            {report.updatedAt !== report.createdAt && (
+              <> · last updated {new Date(report.updatedAt).toLocaleString()}</>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {doc?.result && (
+            <span
+              className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-industrial ${resultTone}`}
+            >
+              {doc.result}
+            </span>
+          )}
+          <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-zinc-300">
+            {String(report.status).replace(/_/g, ' ')}
+          </span>
+          {report.technicalApproved && (
+            <span className="inline-flex rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
+              technical ✓
+            </span>
+          )}
+          {report.financialApproved && (
+            <span className="inline-flex rounded-full border border-cyan-glow/30 bg-cyan-glow/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-cyan-glow">
+              financial ✓
+            </span>
+          )}
+          {report.isPublished && (
+            <span className="inline-flex rounded-full border border-violet/30 bg-violet/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+              delivered to client
+            </span>
+          )}
+          {report.isClientApproved && (
+            <span className="inline-flex rounded-full border border-accent-green/30 bg-accent-green/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+              client approved
+            </span>
+          )}
+        </div>
+      </div>
+
+      {summary && (
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Executive summary
+          </p>
+          <p className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/[0.06] bg-ink-900/40 p-4 text-sm leading-relaxed text-zinc-200">
+            {summary}
+          </p>
+        </div>
+      )}
+
+      {photoUrls.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Evidence photos, {photoUrls.length}
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {photoUrls.map((p, i) =>
+              p.url ? (
+                <a
+                  key={i}
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group overflow-hidden rounded-xl border border-white/[0.08]"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL from a private bucket; next/image cannot optimize it */}
+                  <img
+                    src={p.url}
+                    alt={p.caption ?? `Evidence photo ${i + 1}`}
+                    className="h-32 w-full object-cover transition group-hover:opacity-90"
+                  />
+                  {p.caption && (
+                    <p className="truncate bg-ink-900/70 px-2 py-1 text-[11px] text-zinc-400">
+                      {p.caption}
+                    </p>
+                  )}
+                </a>
+              ) : (
+                <div
+                  key={i}
+                  className="flex h-32 items-center justify-center rounded-xl border border-dashed border-white/[0.08] p-2 text-center text-[11px] text-zinc-500"
+                >
+                  Photo unavailable{p.caption ? ` — ${p.caption}` : ''}
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
+      {doc?.attestation && (
+        <p className="mt-5 text-xs text-zinc-500">
+          Attested by{' '}
+          <span className="font-semibold text-zinc-300">
+            {doc.attestation.inspectorName}
+          </span>{' '}
+          on {new Date(doc.attestation.attestedAt).toLocaleString()}.
+        </p>
+      )}
+    </section>
   );
 }

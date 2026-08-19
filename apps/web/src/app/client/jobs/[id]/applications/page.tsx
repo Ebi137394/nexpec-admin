@@ -128,11 +128,9 @@ export default async function ClientJobApplicationsPage({
               </p>
               <p className="mt-1 max-w-xl text-pretty text-sm text-zinc-400">
                 Applicants stay anonymous here by design. Your hired
-                inspector&rsquo;s{' '}
-                {inspectorDisclosure.identityMode === 'full'
-                  ? 'professional details and contact information are'
-                  : 'professional details are'}{' '}
-                available on the contract for this job.
+                inspector&rsquo;s professional details are available on the
+                contract for this job; communication happens in the monitored
+                Project Messages room.
               </p>
             </div>
           </div>
@@ -187,6 +185,25 @@ export default async function ClientJobApplicationsPage({
       )}
 
       {/* Grouped lists */}
+      {grouped.hired.length > 0 && (
+        <Group
+          title="Hired inspector"
+          subtitle="The engagement record for this job. It stays here permanently — through the inspection and after completion."
+        >
+          {grouped.hired.map((app) => (
+            <Card key={app.id} app={app} jobId={jobId} />
+          ))}
+          {inspectorDisclosure && (
+            <Link
+              href={`/client/contracts/job/${inspectorDisclosure.contractId}`}
+              className="inline-flex items-center gap-2 rounded-full border border-accent-green/30 bg-accent-green/10 px-4 py-2 text-xs font-semibold text-accent-green transition-colors hover:bg-accent-green/15"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} />
+              View inspector details &amp; contract
+            </Link>
+          )}
+        </Group>
+      )}
       {grouped.selected.length > 0 && (
         <Group
           title="Your pick, pending admin dispatch"
@@ -210,7 +227,7 @@ export default async function ClientJobApplicationsPage({
       {grouped.closed.length > 0 && (
         <Group
           title={`Closed, ${grouped.closed.length}`}
-          subtitle="Already rejected, withdrawn, or accepted."
+          subtitle="Rejected or withdrawn."
           collapsible
         >
           {grouped.closed.map((app) => (
@@ -456,7 +473,7 @@ function StatusChip({ status }: { status: ApplicationStatus }) {
   const tone =
     status === 'CLIENT_SELECTED'
       ? 'cyan'
-      : status === 'accepted'
+      : status === 'accepted' || status === 'hired'
         ? 'green'
         : status === 'rejected'
           ? 'red'
@@ -485,15 +502,19 @@ function StatusChip({ status }: { status: ApplicationStatus }) {
 /* ─── helpers ────────────────────────────────────────────────────────── */
 
 function bucket(apps: JobApplicationRow[]) {
+  const hired: JobApplicationRow[] = [];
   const selected: JobApplicationRow[] = [];
   const pending: JobApplicationRow[] = [];
   const closed: JobApplicationRow[] = [];
   for (const a of apps) {
-    if (a.status === 'CLIENT_SELECTED') selected.push(a);
-    else if (a.status === 'pending') pending.push(a);
-    else closed.push(a);
+    // The engagement record — permanent job history, shown first and kept
+    // after completion (RLS 20260801562000 keeps it readable for life).
+    if (a.status === 'hired' || a.status === 'accepted') hired.push(a);
+    else if (a.status === 'CLIENT_SELECTED') selected.push(a);
+    else if (a.status === 'rejected' || a.status === 'withdrawn') closed.push(a);
+    else pending.push(a);
   }
-  return { selected, pending, closed };
+  return { hired, selected, pending, closed };
 }
 
 function ProfileSignal({ label, value }: { label: string; value: string }) {

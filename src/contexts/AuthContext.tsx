@@ -105,11 +105,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     let lastReason = 'unknown';
     for (let attempt = 0; attempt < 3; attempt++) {
+      // Per-attempt deadline: with radios off some stacks (Android emulator
+      // included) silently DROP packets instead of refusing connections, so an
+      // un-timed fetch hangs on TCP timeouts and the offline cold start sat on
+      // the gate spinner for ~100s before the cache could serve. 6s bounds
+      // each attempt; an abort classifies as 'unavailable' like any network
+      // failure.
+      const ctl = new AbortController();
+      const deadline = setTimeout(() => ctl.abort(), 6000);
       try {
         const { data, error } = await supabase
           .from('profiles')
           .select('organization_id, role, terms_accepted_at')
           .eq('id', userId)
+          .abortSignal(ctl.signal)
           .single<ProfileData>();
         if (!error && data) {
           return {
@@ -131,6 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastReason = error?.message ?? 'unknown supabase error';
       } catch (e) {
         lastReason = (e as Error)?.message ?? 'network failure';
+      } finally {
+        clearTimeout(deadline);
       }
       if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
     }

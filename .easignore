@@ -19,12 +19,38 @@ qa-artifacts/*
 qa-artifacts/tflite-test-set/*
 !qa-artifacts/tflite-test-set/bundled
 
+# ── Mirror of .gitignore ────────────────────────────────────────────────────
+#  A .easignore REPLACES .gitignore for the upload, so everything .gitignore
+#  used to keep out must be repeated here. Critically that includes the
+#  generated native projects: android/ and ios/ are produced by prebuild, and
+#  uploading them flips EAS from the managed workflow into the BARE workflow,
+#  where the app config's runtimeVersion policy is unsupported and the build
+#  aborts before it starts.
+node_modules/
+.expo/
+web-build/
+.next/
+out/
+.turbo/
+coverage/
+.env
+.env.local
+.env.*.local
+supabase/.temp/
+.DS_Store
+android/
+ios/
+**/xcuserdata/
+*.xcuserstate
+.vercel
+*.pem
+*.key
+*.p8
+*.p12
+*.tsbuildinfo
+
 # Knowledge graph, local build trees and release artifacts.
 graphify-out
-ios/build-release
-ios/build
-android/build
-android/app/build
 dist
 dist-*
 *.apk

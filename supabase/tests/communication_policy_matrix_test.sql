@@ -48,6 +48,12 @@ select u,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',
        'cm.'||u::text||'@synthetic.invalid', now(), now()
   from _c, unnest(array[client_id, inspector_id, senior_id, admin_id]) u;
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 insert into public.profiles (id, role, full_name, email, is_verified)
 select client_id,    'client',      'CM Client',    'cm.c@synthetic.invalid', true from _c
 union all select inspector_id, 'inspector', 'CM Inspector', 'cm.i@synthetic.invalid', true from _c

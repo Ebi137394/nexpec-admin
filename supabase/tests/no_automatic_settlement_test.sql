@@ -59,6 +59,12 @@ VALUES
   ('f2222222-2222-2222-2222-222222222222','00000000-0000-0000-0000-000000000000','authenticated','authenticated','ns.insp@test.nx',  now(),now()),
   ('f3333333-3333-3333-3333-333333333333','00000000-0000-0000-0000-000000000000','authenticated','authenticated','ns.admin@test.nx', now(),now());
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
   ('f1111111-1111-1111-1111-111111111111','client',   'NS Client',   'ns.client@test.nx',true),
   ('f2222222-2222-2222-2222-222222222222','inspector','NS Inspector','ns.insp@test.nx',  true),

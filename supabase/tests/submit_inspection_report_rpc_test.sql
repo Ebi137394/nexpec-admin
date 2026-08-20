@@ -30,6 +30,12 @@ INSERT INTO auth.users (id, email) VALUES
   ('d24a0000-0000-4000-8000-000000000003','d24.stranger@nexpec.test')
 ON CONFLICT (id) DO NOTHING;
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 INSERT INTO public.profiles (id, email, role, full_name) VALUES
   ('d24a0000-0000-4000-8000-000000000001','d24.client@nexpec.test','client','D24 Client'),
   ('d24a0000-0000-4000-8000-000000000002','d24.insp@nexpec.test','inspector','D24 Inspector'),

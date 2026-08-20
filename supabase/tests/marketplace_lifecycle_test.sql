@@ -42,6 +42,12 @@ select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticate
                     'e1000000-0000-4000-8000-000000000005'::uuid]) u -- other inspector
 on conflict (id) do nothing;
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 insert into public.profiles (id, role, full_name, email, is_verified, phone) values
   ('e1000000-0000-4000-8000-000000000001','client','ML Client','ml.client@synthetic.invalid',true,'+15550001'),
   ('e1000000-0000-4000-8000-000000000002','inspector','Dana Weld','ml.insp@synthetic.invalid',true,'+15550002'),

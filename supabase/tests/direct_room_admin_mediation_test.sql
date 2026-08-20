@@ -46,6 +46,12 @@ INSERT INTO public.profiles (id, email, role, full_name) VALUES
   ('d2310000-0000-4000-8000-000000000004','d23.stranger@nexpec.test','client','D23 Stranger')
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Two jobs with a hired inspector, differing ONLY in identity_mode, so A1/A2
 -- isolate the Full-mode gate. Setting contractor_id trips the real dispatch
 -- guards (contract + funding), which are satisfied properly, never weakened:

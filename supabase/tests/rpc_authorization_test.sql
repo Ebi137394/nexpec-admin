@@ -65,6 +65,12 @@ INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
   (:'ADM',  'admin',    'Auth Test Admin',    'ra.admin@test.nx',     true),
   (:'RANDO','inspector','Random Rita',        'ra.random@test.nx',    true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Canonical dispatch → status='assigned', contractor_id = INSP, funded.
 SELECT nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'RPC AUTH TEST') AS "JOB" \gset
 UPDATE public.jobs SET description = 'suite' WHERE id = :'JOB';

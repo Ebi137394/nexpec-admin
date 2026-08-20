@@ -58,6 +58,12 @@ BEGIN
     (v_insp,  'inspector','RR Inspector','rr.insp@test.nx',true),
     (v_admin, 'admin','RR Admin','rr.admin@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- Canonical: create UNASSIGNED, fund through the platform path, then
   -- attach the inspector. Production never inserts contractor_id, and the
   -- dispatch gate refuses an unfunded job.

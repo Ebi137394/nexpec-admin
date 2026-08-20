@@ -95,6 +95,12 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
     (v_weld,  'inspector','TE Welder','te.weld@test.nx',true),
     (v_rando, 'inspector','TE Outsider','te.rando@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- Canonical dispatch of the lead, then the legal assigned → in_progress step.
   v_job := nx_fx_dispatched_job(v_client, v_lead, v_admin, 'TEAM EVIDENCE TEST');
   UPDATE public.jobs SET description = 'suite' WHERE id = v_job;

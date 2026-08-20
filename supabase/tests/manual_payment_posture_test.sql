@@ -36,6 +36,12 @@ union all select inspector_id,'inspector','MPP Inspector','mpp.i@synthetic.inval
 union all select admin_id,'super_admin','MPP Admin','mpp.a@synthetic.invalid',true from _p
 on conflict (id) do update set role = excluded.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.jobs (id,title,client_id,status,moderation_status,payment_mode,
                          client_price_cents,inspector_payout_cents,identity_mode)
 select job_id,'mpp posture',client_id,'open','approved','prepay',100000,80000,'protected' from _p;

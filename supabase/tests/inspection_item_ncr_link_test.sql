@@ -54,6 +54,12 @@ insert into public.profiles (id, role, full_name, email, is_verified) values
   (:'INSP', 'inspector','NL Inspector','nl.insp@test.nx',  true),
   (:'RANDO','inspector','NL Rando',    'nl.rando@test.nx', true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- The inspector is put on the job the only way production does it: apply →
 -- fund via the platform path → admin_dispatch_job. The suite needs an admin
 -- profile for that broker step, so RANDO doubles as nothing here — a dedicated
@@ -69,6 +75,12 @@ insert into auth.users (id, instance_id, aud, role, email, created_at, updated_a
 update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
 insert into public.profiles (id, role, full_name, email, is_verified) values
   (:'ADM','admin','NL Admin','nl.admin@test.nx',true);
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 
 select nx_fx_dispatched_job(:'CL', :'INSP', :'ADM', 'NCR LINK TEST',
                             100000, 70000, 'prepay') as "JOB" \gset

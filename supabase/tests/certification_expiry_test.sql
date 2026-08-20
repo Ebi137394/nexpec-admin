@@ -75,6 +75,12 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
     -- service_role bypass, which would prove nothing about the admin rule.
     (v_admin, 'admin',   'CE Admin',    'ce.admin@test.nx', true,false,'{}');
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.certifications (user_id, name, issuing_organization, status, expiry_date)
   VALUES (v_insp,'API-570','API','verified', current_date + 30) RETURNING id INTO v_c30;
   INSERT INTO public.certifications (user_id, name, issuing_organization, status, expiry_date)

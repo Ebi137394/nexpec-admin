@@ -70,6 +70,12 @@ insert into public.profiles (id, email, role, full_name, specialty_slugs) values
   (:'ADMIN', 'ad.sc@test.nx','super_admin','Ada Admin',       '{}'::text[])
 on conflict (id) do update set role = excluded.role, full_name = excluded.full_name;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.organizations (id, name, slug, kind, is_active, owner_id)
 values (:'ORG','Buyer Corp','buyer-corp-sc','enterprise',true,:'BUYER')
 on conflict (id) do nothing;

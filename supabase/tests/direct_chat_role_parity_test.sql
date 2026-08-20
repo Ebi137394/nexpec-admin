@@ -86,6 +86,12 @@ insert into public.profiles (id, email, role, full_name, specialty_slugs) values
   (:'ADMIN',     'ad.rp@test.nx','super_admin', 'Ada Admin',         '{}'::text[])
 on conflict (id) do update set role = excluded.role, full_name = excluded.full_name;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- name/slug are NOT NULL without a default, and kind is CHECK-constrained to
 -- enterprise|agency. Matches the shape rls_audit_events_test.sql already uses.
 insert into public.organizations (id, name, slug, kind, is_active, owner_id) values

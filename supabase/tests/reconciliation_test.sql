@@ -23,6 +23,12 @@ insert into public.profiles (id, email, role) values
   (:'ADM','adm.rec@test.nx','admin'),
   (:'B',  'b.rec@test.nx','inspector');
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── Baseline snapshot as ADMIN (pre-insert) ──────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';

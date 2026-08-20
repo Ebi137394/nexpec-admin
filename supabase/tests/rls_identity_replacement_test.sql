@@ -60,6 +60,12 @@ insert into public.profiles (id, email, role, full_name, headline, bio, resume_u
   (:'I3', 'i3.ir@test.nx','inspector','Tia Third',    null,null,null,null,null,'{}'::text[]),
   (:'ADM','adm.ir@test.nx','admin',   'Ada Admin', null,null,null,null,null,'{}'::text[]);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- A REAL supplier RFQ (only client_id + title are NOT NULL; no insert triggers,
 -- no job is spawned by a bare RFQ). Needed so the brokered-job fixture below
 -- satisfies jobs_source_rfq_id_fkey WITHOUT weakening the FK. This is legitimate

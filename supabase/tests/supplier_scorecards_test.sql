@@ -74,6 +74,12 @@ insert into public.profiles (id, email, role, full_name, specialty_slugs) values
   (:'INSP',  'in.sk@test.nx','inspector',  'Ivy Inspector','{}'::text[])
 on conflict (id) do update set role = excluded.role, full_name = excluded.full_name;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.supplier_profiles (id, legal_name, country_code) values
   (:'SUP1','Acme Forge','CA'), (:'SUP2','Rival Forge','CA')
 on conflict (id) do nothing;

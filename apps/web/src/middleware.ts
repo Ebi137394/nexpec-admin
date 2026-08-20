@@ -189,7 +189,7 @@ export async function middleware(request: NextRequest) {
     // Robust profile fetch — error captured, not swallowed.
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, marketplace_activated')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -228,6 +228,57 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       url.search = '?error=forbidden';
+      return NextResponse.redirect(url);
+    }
+
+    // ── Pending-verification gate ──────────────────────────────────────────
+    //  A self-selected inspector / agency / supplier arrives PENDING
+    //  (20260801584000). The database refuses their commercial writes outright;
+    //  this redirect means they meet an explanation instead of a wall of
+    //  buttons that error when pressed. Profile completion and document upload
+    //  live on /pending-verification, so that route is never gated.
+    //
+    //  Fails OPEN on a missing column: `marketplace_activated` is only present
+    //  once 20260801584000 is applied, and a middleware that locked every
+    //  inspector out of the product because a migration had not landed yet
+    //  would be far worse than one that admits them for a deploy or two. The
+    //  database is the real boundary either way.
+    //  The policy is "profile and documents only", not "nothing at all", so the
+    //  surfaces that serve those two things stay reachable while pending.
+    //  Without this the redirect below would bounce a pending user off the very
+    //  pages they are being asked to complete, and /pending-verification would
+    //  link into a loop. Agencies live in the Client Portal, hence /client/*.
+    const PENDING_ALLOWED_PATHS = [
+      '/inspector/settings',
+      '/inspector/experience',
+      '/inspector/compliance',
+      '/suppliers/profile',
+      '/suppliers/documents',
+      '/suppliers/settings',
+      '/suppliers/onboard',
+      '/client/settings',
+      '/client/documents',
+    ];
+
+    const gatedRoles = ['inspector', 'agency', 'supplier'];
+    const activation = (profile as { marketplace_activated?: boolean } | null)
+      ?.marketplace_activated;
+    const isPending = gatedRoles.includes(normalisedRole) && activation === false;
+
+    const pendingMayVisit =
+      pathname.startsWith('/pending-verification') ||
+      PENDING_ALLOWED_PATHS.some((allowed) => pathname.startsWith(allowed));
+
+    if (isPending && !pendingMayVisit) {
+      logMiddleware('info', 'pending gate: account awaiting activation, redirecting', {
+        pathname,
+        portalPrefix,
+        userId: user.id,
+        normalisedRole,
+      });
+      const url = request.nextUrl.clone();
+      url.pathname = '/pending-verification';
+      url.search = '';
       return NextResponse.redirect(url);
     }
 

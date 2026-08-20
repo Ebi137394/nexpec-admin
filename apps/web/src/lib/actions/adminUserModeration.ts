@@ -200,3 +200,58 @@ export async function adminSendPasswordReset(formData: FormData): Promise<void> 
   revalidatePath(returnTo);
   redirect(withQuery(returnTo, { saved: 'password-reset-sent' }));
 }
+
+/* ─── Marketplace activation ─────────────────────────────────────── */
+//  Distinct from adminVerifyUser above. `verification_status` records whether
+//  someone's DOCUMENTS have been checked; `marketplace_activated` records
+//  whether the account may TRADE. Migration 20260801584000 keeps them separate
+//  deliberately: 3 inspectors, 1 agency and 1 supplier on Production are still
+//  'unverified' while trading normally, so collapsing the two would have
+//  locked live users out the moment the pending-verification policy shipped.
+//
+//  Verify the documents first, then activate. The RPC re-checks nx_is_admin()
+//  server-side and writes an audit_events row either way, so this action is a
+//  thin, auditable wrapper and never the security boundary itself.
+
+const ActivationSchema = z.object({
+  userId: z.string().uuid(),
+  activated: z.enum(['true', 'false']),
+  reason: z.string().trim().max(1000).optional().or(z.literal('')),
+  returnTo: ReturnToSchema,
+});
+
+export async function adminSetMarketplaceActivation(formData: FormData): Promise<void> {
+  const parsed = ActivationSchema.safeParse({
+    userId: formData.get('userId'),
+    activated: formData.get('activated'),
+    reason: formData.get('reason') ?? '',
+    returnTo: formData.get('returnTo'),
+  });
+  const fallback = safeReturnTo(formData.get('returnTo'));
+  if (!parsed.success) {
+    redirect(
+      withQuery(fallback, {
+        error: parsed.error.issues[0]?.message ?? 'Invalid input.',
+      }),
+    );
+  }
+  const { userId, activated, reason, returnTo } = parsed.data;
+  const activate = activated === 'true';
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('admin_set_marketplace_activation', {
+    p_user: userId,
+    p_activated: activate,
+    p_reason: reason || null,
+  });
+  if (error) {
+    redirect(
+      withQuery(returnTo, {
+        error: `${activate ? 'Activation' : 'Deactivation'} failed: ${error.message}`,
+      }),
+    );
+  }
+
+  revalidatePath(returnTo);
+  redirect(withQuery(returnTo, { saved: activate ? 'account-activated' : 'account-deactivated' }));
+}

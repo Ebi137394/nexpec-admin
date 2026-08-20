@@ -49,6 +49,12 @@ insert into public.profiles (id, email, role) values
   (:'SU2','su2.q@test.nx','supplier'),
   (:'CLI','cli.q@test.nx','client'),
   (:'ADM','adm.q@test.nx','admin');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 insert into public.supplier_profiles (id, legal_name, country_code, is_active) values
   (:'SUP','Quote Test Supplier','CA',true),
   (:'SU2','Quote Test Supplier Two','CA',true);

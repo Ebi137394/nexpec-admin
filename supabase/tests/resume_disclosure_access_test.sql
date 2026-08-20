@@ -49,6 +49,12 @@ insert into public.profiles (id, email, role, full_name, resume_url, cv_url, pho
   (:'ADM', 'ad.res@test.nx','admin',    'Platform Admin', null, null, null, '{}'::text[]),
   (:'OTHR','ot.res@test.nx','client',   'Unrelated Buyer', null, null, null, '{}'::text[]);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.jobs (id, title, client_id, status, moderation_status, identity_mode) values
   (:'JOBPRO', 'professional forwarded', :'B1','open','approved','professional'),
   (:'JOBPROT','protected forwarded',    :'B1','open','approved','protected'),

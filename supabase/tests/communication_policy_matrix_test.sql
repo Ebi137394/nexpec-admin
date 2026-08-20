@@ -55,6 +55,12 @@ union all select senior_id,    'inspector', 'CM Senior',    'cm.s@synthetic.inva
 union all select admin_id,     'super_admin','CM Admin',    'cm.a@synthetic.invalid', true from _c
 on conflict (id) do update set role = excluded.role, email = excluded.email;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- identity_mode='full' but NO hired inspector: proves the gate keys on the
 -- ENGAGEMENT (active contract inspector), not on the disclosure mode alone.
 insert into public.jobs (id,title,client_id,status,moderation_status,payment_mode,

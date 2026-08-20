@@ -39,6 +39,12 @@ INSERT INTO public.profiles (id, email, role, full_name) VALUES
   ('cbcb0000-0000-4000-8000-000000000003','cr.admin@nexpec.test','admin','CR Admin')
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 INSERT INTO public.jobs (id, client_id, title, description, status, client_price_cents, inspector_payout_cents)
 VALUES
   ('cbcb1111-0000-4000-8000-000000000001','cbcb0000-0000-4000-8000-000000000001',

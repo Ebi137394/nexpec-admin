@@ -21,6 +21,12 @@ insert into public.profiles (id, email, role) values
   (:'P',  'p.vault@test.nx','inspector'),
   (:'ADM','adm.vault@test.nx','admin');
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── Payee stores their TIN (encrypted) ───────────────────────────────────────
 set local request.jwt.claims to '{"sub":"99999999-9999-9999-9999-999999999999","role":"authenticated"}';
 select public.vault_store_tax_id('w9', 'US', '123-45-6789', 'unit-test-key-0123456789');

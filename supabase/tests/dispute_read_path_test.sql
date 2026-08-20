@@ -61,6 +61,12 @@ BEGIN
     (v_insp,  'inspector','DR Inspector','dr.insp@test.nx',true),
     (v_rando, 'client','DR Rando','dr.rando@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- Unassigned, unfunded job. Nothing here needs a dispatch.
   v_job := nx_fx_unfunded_job(v_client, 'DISPUTE READ PATH');
 

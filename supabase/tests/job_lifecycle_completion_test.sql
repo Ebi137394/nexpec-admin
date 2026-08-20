@@ -59,6 +59,12 @@ insert into public.profiles (id, role, full_name, email, is_verified) values
   (:'INSP','inspector','LC Inspector','lc.insp@test.nx',  true),
   (:'ADM', 'admin',    'LC Admin',    'lc.admin@test.nx', true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- A job mid-flight. Dispatched through the canonical broker sequence, then
 -- started: assigned → in_progress is the real state machine (inspector_start_job
 -- walks the same edge), and mark_job_completed only accepts in_progress|disputed.

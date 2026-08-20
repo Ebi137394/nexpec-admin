@@ -5,7 +5,7 @@ import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 export default function Index() {
-  const { session, role, loading } = useAuth();
+  const { session, role, loading, marketplaceActivated } = useAuth();
   const router = useRouter();
   const navigationState = useRootNavigationState();
 
@@ -40,7 +40,25 @@ export default function Index() {
 
     // Logged in? Route by exactly your role logic
     console.log('Current user role:', role);
-    
+
+    // A self-selected inspector / agency / supplier arrives PENDING NEXPEC
+    // activation (migration 20260801584000). The database refuses their
+    // applications, job posts, contracts, reports and commercial messages
+    // outright, so routing them onto a dashboard would show a screen whose
+    // every action errors. Send them somewhere that explains instead.
+    // Admins are never gated, and marketplaceActivated fails OPEN (see
+    // ProfileSnapshot) so a stale cache or an un-migrated backend cannot
+    // strand a working professional here.
+    const PENDING_ROLES = ['inspector', 'agency', 'supplier'];
+    if (
+      role &&
+      PENDING_ROLES.includes(role) &&
+      marketplaceActivated === false
+    ) {
+      router.replace('/pending-verification');
+      return;
+    }
+
     if (role === 'admin' || role === 'super_admin') {
       router.replace('/(admin)/dashboard');
     } else if (role === 'client') {
@@ -60,7 +78,7 @@ export default function Index() {
       router.replace('/(tabs)');
     }
 
-  }, [loading, session, role, navigationState?.key]);
+  }, [loading, session, role, marketplaceActivated, navigationState?.key]);
 
   // While it calculates, show your exact loading screen
   return (

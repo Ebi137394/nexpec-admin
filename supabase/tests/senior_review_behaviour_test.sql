@@ -88,6 +88,12 @@ on conflict (id) do update set role = excluded.role,
                                status = excluded.status,
                                client_credit_limit_cents = excluded.client_credit_limit_cents;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── the job, dispatched CANONICALLY ─────────────────────────────────────────
 --  It used to be INSERTed with contractor_id already populated and
 --  status='in_progress'. Populating contractor_id IS a dispatch as far as

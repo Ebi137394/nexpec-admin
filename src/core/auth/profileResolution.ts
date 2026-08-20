@@ -27,6 +27,14 @@ export interface ProfileSnapshot {
   organizationId: string | null;
   role: string | null;
   termsAccepted: boolean;
+  /** Admin has activated this account for marketplace participation
+   *  (migration 20260801584000). Inspectors, agencies and suppliers arrive
+   *  false and stay there until a NEXPEC administrator approves them.
+   *  Defaults to TRUE on absence so that a client running against a database
+   *  where the migration has not landed — or an offline cold start from a
+   *  cache written before this field existed — does not strand every
+   *  professional on the pending screen. The database is the real boundary. */
+  marketplaceActivated: boolean;
 }
 
 export type ProfileFetchOutcome =

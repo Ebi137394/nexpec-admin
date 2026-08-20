@@ -51,6 +51,12 @@ insert into public.profiles (id, email, role, full_name, specialty_slugs) values
   (:'INSP2','in2.dc@test.nx','inspector',   'Sam Rivera',    '{}'::text[]),
   (:'ADM',  'adm.dc@test.nx','super_admin', 'Platform Admin','{}'::text[]);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ★ TERMINAL-STATE FIXTURES. guard_jobs_status_transition_trigger is
 --   BEFORE UPDATE OF status and treats completed/cancelled as terminal, with
 --   no legal path into 'paid' at all — so marching ONE job through

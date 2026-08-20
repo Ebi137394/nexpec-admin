@@ -26,6 +26,7 @@ interface ProfileData {
   organization_id: string | null;
   role: string | null;
   terms_accepted_at: string | null;
+  marketplace_activated: boolean | null;
 }
 
 /** D38: how the current role/terms values were obtained.
@@ -40,6 +41,9 @@ interface AuthState {
   session: Session | null;
   organizationId: string | null;
   role: string | null;
+  /** False only for an inspector / agency / supplier that NEXPEC has not yet
+   *  activated. Drives the pending-verification routing in app/index.tsx. */
+  marketplaceActivated: boolean;
   // Legal gateway: false until the user has accepted the Master ToS + Privacy
   // Policy (profiles.terms_accepted_at). The AuthGate blocks app entry until
   // this is true. Enforced in app/_layout.tsx.
@@ -71,6 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     organizationId: null,
     role: null,
     termsAccepted: false,
+    // Signed-out default: not pending. Routing only consults this once a role
+    // is known, and a signed-out user has none.
+    marketplaceActivated: true,
     loading: true,
     mfaRequired: false,
     profileSource: 'none',
@@ -116,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('organization_id, role, terms_accepted_at')
+          .select('organization_id, role, terms_accepted_at, marketplace_activated')
           .eq('id', userId)
           .abortSignal(ctl.signal)
           .single<ProfileData>();
@@ -127,6 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               organizationId: data.organization_id ?? null,
               role: data.role ?? null,
               termsAccepted: !!data.terms_accepted_at,
+              // null === column not present yet → not pending. See
+              // ProfileSnapshot.marketplaceActivated for why this fails open.
+              marketplaceActivated: data.marketplace_activated !== false,
             },
           };
         }
@@ -134,7 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // A REAL answer: this user has no profile row → genuinely role-less.
           return {
             status: 'ok',
-            profile: { organizationId: null, role: null, termsAccepted: false },
+            profile: {
+              organizationId: null,
+              role: null,
+              termsAccepted: false,
+              marketplaceActivated: true,
+            },
           };
         }
         lastReason = error?.message ?? 'unknown supabase error';
@@ -162,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         organizationId: null,
         role: null,
         termsAccepted: false,
+        marketplaceActivated: true,
         profileSource: 'none' as const,
       };
     }
@@ -227,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             organizationId: null,
             role: null,
             termsAccepted: false,
+            marketplaceActivated: true,
             mfaRequired: false,
             loading: false,
             profileSource: 'none',

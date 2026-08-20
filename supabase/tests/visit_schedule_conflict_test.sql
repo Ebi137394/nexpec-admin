@@ -63,6 +63,12 @@ BEGIN
     (v_free,  'inspector','VC Free','vc.free@test.nx',true),
     (v_rando, 'inspector','VC Outsider','vc.rando@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- Jobs A and B carry visits; C is a plain job-level clash for W12.
   -- Canonical: create UNASSIGNED, fund through the platform path, then
   -- attach the inspector. Production never inserts contractor_id, and the

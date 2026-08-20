@@ -53,6 +53,12 @@ BEGIN
     (v_insp,  'inspector','SC Busy','sc.busy@test.nx',true),
     (v_free,  'inspector','SC Free','sc.free@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, scheduled_date)
   VALUES (gen_random_uuid(), v_client,'JOB A','suite','open','approved', v_day) RETURNING id INTO v_jobA;
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status, scheduled_date)

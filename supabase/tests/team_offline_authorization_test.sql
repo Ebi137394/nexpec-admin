@@ -87,6 +87,12 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
     (v_a,     'inspector','OF Inspector A','of.a@test.nx',true),
     (v_sub,   'inspector','OF Substitute','of.sub@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- A compliance job with one evidence requirement — the real capture path.
   INSERT INTO public.inspection_scope_templates (slug, name, category)
   VALUES ('offline_auth_suite', 'Offline Auth Suite', 'general')

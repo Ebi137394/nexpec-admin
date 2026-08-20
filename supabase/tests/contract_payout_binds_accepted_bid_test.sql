@@ -48,6 +48,12 @@ INSERT INTO public.profiles (id, email, role, full_name) VALUES
   ('aaaa0000-0000-4000-8000-000000000003', 'bindtest.insp@nexpec.test',   'inspector', 'Bind Inspector')
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- One job per application. `unique_job_application` allows only one application
 -- per (job, inspector), and admin_generate_job_contract voids any prior contract
 -- on the SAME job — separate jobs keep the four cases independent.

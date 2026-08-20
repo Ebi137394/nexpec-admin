@@ -112,6 +112,12 @@ BEGIN
     (v_rando,    'inspector',  'QD Outsider', 'qd.rando@test.nx',    true)
   ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, role = EXCLUDED.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.organizations (name, slug, kind, owner_id)
   VALUES ('QD Owning Org', 'qd-owning-'||substr(v_admin::text,1,8), 'enterprise', v_buyer)
   RETURNING id INTO v_org;

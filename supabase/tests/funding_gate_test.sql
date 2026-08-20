@@ -89,6 +89,12 @@ insert into public.profiles (id, email, role) values
 on conflict (id) do update
   set email = excluded.email, role = excluded.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Credit authority: only client_credit is authorised for net_terms.
 update public.profiles set client_credit_limit_cents = 500000 where id = _fx('client_credit');
 update public.profiles set client_credit_limit_cents = 0      where id = _fx('client_nocred');

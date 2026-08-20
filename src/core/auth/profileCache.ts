@@ -36,6 +36,10 @@ export async function readProfileCache(
       organizationId: parsed.organizationId ?? null,
       role: typeof parsed.role === 'string' ? parsed.role : null,
       termsAccepted: parsed.termsAccepted === true,
+      // Absent in snapshots written before 20260801584000 — treat as activated
+      // rather than pending, so an app upgrade cannot lock a working inspector
+      // out of their own dashboard while offline.
+      marketplaceActivated: parsed.marketplaceActivated !== false,
     };
   } catch {
     return null; // malformed cache is the same as no cache

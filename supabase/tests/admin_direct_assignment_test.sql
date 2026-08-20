@@ -90,6 +90,12 @@ BEGIN
     (v_insp_new, 'inspector', 'Unverified Uma',   'da.uma@test.nx',      false),
     (v_outsider, 'inspector', 'Outsider Otto',    'da.otto@test.nx',     true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.jobs (id, client_id, title, description, status, moderation_status)
   VALUES (gen_random_uuid(), v_client, 'TEST direct assignment', 'suite', 'open', 'approved')
   RETURNING id INTO v_job;

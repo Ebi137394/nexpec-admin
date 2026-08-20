@@ -80,6 +80,12 @@ BEGIN
     (v_weld,   'inspector','MV Welder','mv.weld@test.nx',true),
     (v_rando,  'inspector','MV Outsider','mv.rando@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.inspection_scope_templates (slug, name, category)
   VALUES ('multi_visit_suite','Multi Visit Suite','general') RETURNING id INTO v_tmpl;
   INSERT INTO public.inspection_evidence_requirements (template_id, sort_order, kind, label)

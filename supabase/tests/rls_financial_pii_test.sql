@@ -29,6 +29,12 @@ insert into public.profiles (id, email, role) values
   (:'A','a.fpii@test.nx','inspector'),
   (:'B','b.fpii@test.nx','inspector'),
   (:'ADM','adm.fpii@test.nx','admin');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 insert into public.payment_methods (user_id, label, last_four) values (:'A', 'Visa', '4242');
 -- NB: work_orders.status DEFAULT 'open' is NOT in work_orders_status_check
 -- (active/pending/in_progress/completed/cancelled) — set an allowed value.

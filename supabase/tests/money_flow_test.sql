@@ -66,6 +66,12 @@ values
   -- so the client principal must hold a positive authorised limit.
   (:'cli',  'cli.money@test.nx',  'client',    1000000);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Two dispatched jobs for the same inspector, built the ONLY way production
 -- builds them (see _fixtures/canonical_job.sql). admin_dispatch_job stamps
 -- admin_confirmed_at itself, which is what credit_inspector_earning_on_approval

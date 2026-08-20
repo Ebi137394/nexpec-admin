@@ -64,6 +64,12 @@ INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
   ('f2222222-2222-2222-2222-222222222222','inspector','NS Inspector','ns.insp@test.nx',  true),
   ('f3333333-3333-3333-3333-333333333333','admin',    'NS Admin',    'ns.admin@test.nx', true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── S1 — no automatic-settlement trigger exists ─────────────────────────────
 SELECT lives_ok($$
 do $s1$

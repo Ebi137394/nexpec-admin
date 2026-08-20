@@ -60,6 +60,12 @@ insert into public.profiles (id, email, role, full_name, headline, bio, resume_u
   (:'OTHR','ot.idy@test.nx','client',   'Other Buyer', null, null, null, '{}'::text[], '{}'::text[], null, null, 0, 0),
   (:'ADM', 'ad.idy@test.nx','admin',    'Platform Admin', null, null, null, '{}'::text[], '{}'::text[], null, null, 0, 0);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Two independent jobs owned by the SAME buyer, applied to by the SAME
 -- inspector. JOBP starts protected; JOBF stays protected throughout and is the
 -- isolation control.

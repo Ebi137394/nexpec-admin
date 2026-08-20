@@ -34,6 +34,12 @@ insert into public.profiles (id, email, role) values
   (:'A','a.rls@test.nx','inspector'),
   (:'B','b.rls@test.nx','inspector'),
   (:'ADM','adm.rls@test.nx','admin');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 insert into public.jobs (id, title, client_id) values (:'JOB','rls matrix job', :'A');  -- jobs_owner_xor: exactly one owner
 insert into public.wallets (user_id, available_balance) values (:'A', 100), (:'B', 200);
 insert into public.withdrawal_requests (requester_id, requester_role, amount_cents, status)

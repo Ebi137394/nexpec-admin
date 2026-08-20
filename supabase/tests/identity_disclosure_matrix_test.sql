@@ -51,6 +51,12 @@ insert into public.profiles (id, role, full_name, email, phone, is_verified,
    null,null,null,null,null,ARRAY[]::text[],null)
 on conflict (id) do nothing;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── two jobs, so per-job scoping is provable ────────────────────────────────
 insert into public.jobs (id,title,client_id,status,moderation_status,payment_mode,
                          client_price_cents,inspector_payout_cents,identity_mode) values

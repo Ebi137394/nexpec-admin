@@ -39,6 +39,12 @@ select pending_id, 'inspector', 'RAH Pending Inspector', 'rah.p@synthetic.invali
 on conflict (id) do update set email = excluded.email, role = excluded.role,
   full_name = excluded.full_name;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Completed job whose inspector was hired without a forwarding stamp (the
 -- admin direct-assignment shape that used to erase the history).
 insert into public.jobs (id, title, client_id, contractor_id, status, moderation_status,

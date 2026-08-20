@@ -105,6 +105,12 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
     (v_d,'inspector','BC Assigned','bc.d@test.nx',true,true,
        ARRAY['ndt','welding'],ARRAY['US'],40.05,-74.02,100);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.certifications (user_id, name, issuing_organization, status, expiry_date)
   VALUES (v_a,'API-510','API','verified', current_date + 365);
 

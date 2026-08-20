@@ -47,6 +47,12 @@ insert into public.profiles (id, email, role) values
   (:'B','b.msg@test.nx','inspector'),
   (:'C','c.msg@test.nx','client'),
   (:'ADM','adm.msg@test.nx','admin');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 -- Canonical dispatch: unassigned job → B applies → funded via the platform path
 -- → admin_dispatch_job as ADM. Yields B as contractor_id without presetting it.
 select nx_fx_dispatched_job(:'A', :'B', :'ADM', 'messages silo rls job') as "JOB" \gset

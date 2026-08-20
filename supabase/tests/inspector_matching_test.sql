@@ -78,6 +78,12 @@ BEGIN
     (v_c,'inspector','Cara Coat','mm.c@test.nx',false,true,
        ARRAY['coating'], '{}', 40.05, -74.02, 100, 3.0, 1);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- A holds a valid, verified, unexpired API-510
   INSERT INTO public.certifications (id, user_id, name, issuing_organization, status, expiry_date)
   VALUES (gen_random_uuid(), v_a, 'API-510', 'API', 'verified', current_date + 365);

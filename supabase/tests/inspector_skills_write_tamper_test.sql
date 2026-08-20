@@ -48,6 +48,12 @@ insert into public.profiles (id, email, role) values
   (:'OTH','oth.skills@test.nx','client'),
   (:'ADM','adm.skills@test.nx','admin');
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Seeded as superuser so the fixture itself is not what is under test.
 insert into public.inspector_skills (id, user_id, category, brand_name, model, years_experience)
 values (:'ROW1', :'OWN', 'UT', 'Olympus', 'EPOCH 650', 7);

@@ -41,6 +41,12 @@ insert into public.profiles (id, email, role) values
   (:'VW','vw.tw@test.nx','client'),
   (:'OUTS','out.tw@test.nx','client'),
   (:'INSP','insp.tw@test.nx','inspector');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 insert into public.organizations (id, name, slug, kind) values
   (:'ORG','Test Agency RLS','test-agency-rls','agency');
 insert into public.org_members (org_id, user_id, role) values

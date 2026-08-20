@@ -47,6 +47,12 @@ insert into public.profiles (id, email, role, full_name, headline, resume_url, p
      'https://x.supabase.co/storage/v1/object/sign/resumes/' || :'RESPATH', '+1-555-0134','{}'::text[]),
   (:'ADM', 'ad.lc@test.nx','super_admin','Platform Admin', null, null, null, '{}'::text[]);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.jobs (id, title, client_id, status, moderation_status, identity_mode, replacement_mode) values
   (:'JOB', 'lifecycle job',  :'CL','open','approved','protected','client_reapproval'),
   (:'JOB2','second job',     :'CL','open','approved','protected','client_reapproval');

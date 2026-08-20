@@ -117,6 +117,12 @@ insert into public.profiles (id, email, role, full_name, is_verified) values
   (:'u_sup2'::uuid,  'qcp.sup2@test.nx',  'supplier',    'Other Supplier', true)
 on conflict (id) do update set email = excluded.email, role = excluded.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.organizations (id, name, slug, kind) values
   (:'o_a'::uuid, 'QCP Org A', 'qcp-org-a-' || left(:'o_a', 8), 'enterprise'),
   (:'o_b'::uuid, 'QCP Org B', 'qcp-org-b-' || left(:'o_b', 8), 'enterprise');

@@ -74,6 +74,12 @@ INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
   -- admin_dispatch_job authenticates via auth.uid() and refuses non-admins.
   (:'ADM',  'admin',     'SR Admin',    'sr.admin@test.nx', true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Cross-assertion state. The section bodies are dollar-quoted, so they cannot
 -- share plpgsql variables the way the old single DO block did.
 CREATE TEMP TABLE sr_fx (k text PRIMARY KEY, v text);

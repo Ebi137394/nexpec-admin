@@ -67,11 +67,23 @@ async function destinationForUser(supabase: Awaited<ReturnType<typeof createSupa
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, marketplace_activated')
     .eq('id', user.id)
     .single();
 
   const normalisedRole = (profile?.role ?? '').toString().trim().toLowerCase();
+
+  // A self-selected inspector / agency / supplier starts pending Admin
+  // activation (20260801584000). Sending them to a dashboard whose every
+  // action the database will refuse is a worse experience than telling them
+  // where they stand. `=== false` so a missing column (migration not yet
+  // applied) reads as "not pending" rather than locking everyone out.
+  const pendingRoles = ['inspector', 'agency', 'supplier'];
+  const activation = (profile as { marketplace_activated?: boolean } | null)
+    ?.marketplace_activated;
+  if (pendingRoles.includes(normalisedRole) && activation === false) {
+    return '/pending-verification';
+  }
   if (normalisedRole === 'super_admin' || normalisedRole === 'admin') return '/admin/dashboard';
   if (normalisedRole === 'inspector') return '/inspector/dashboard';
   // 'senior' is a Senior Inspector. Middleware admits the role to /inspector/*

@@ -46,6 +46,12 @@ insert into public.profiles (id, email, role, full_name, is_verified) values
   ('c0000000-0000-0000-0000-000000000003','dp-admin@x.test','super_admin','DP Admin',true)
 on conflict (id) do nothing;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 \set CL '''c0000000-0000-0000-0000-000000000001'''
 \set IN '''c0000000-0000-0000-0000-000000000002'''
 \set AD '''c0000000-0000-0000-0000-000000000003'''

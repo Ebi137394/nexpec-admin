@@ -32,6 +32,12 @@ INSERT INTO public.profiles (id, email, role, full_name) VALUES
   ('d31a0000-0000-4000-8000-000000000004','d31.super@nexpec.test','super_admin','D31 Super')
 ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, terms_accepted_at = NULL, terms_version = NULL;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 SET LOCAL role TO authenticated;
 
 -- ── A. senior survives a stance confirm ─────────────────────────────────────

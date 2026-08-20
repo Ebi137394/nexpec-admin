@@ -50,6 +50,12 @@ union all select supplier,'supplier','AP Supplier','ap.sp@synthetic.invalid',tru
 union all select admin,'super_admin','AP Admin','ap.adm@synthetic.invalid',true from _a
 on conflict (id) do update set role = excluded.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 insert into public.organizations (id,name,slug)
 select org,'AP Org','ap-org-'||substr(org::text,1,8) from _a
 union all select org2,'AP Other','ap-other-'||substr(org2::text,1,8) from _a;

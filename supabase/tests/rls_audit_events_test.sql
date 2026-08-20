@@ -39,6 +39,12 @@ insert into public.profiles (id, email, role) values
   ('cccccccc-cccc-cccc-cccc-cccccccccccc','uc.ae@test.nx','client'),
   ('dddddddd-dddd-dddd-dddd-dddddddddddd','ud.ae@test.nx','client'),
   ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','ue.ae@test.nx','client');
+
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
 insert into public.jobs (id, title, client_id) values
   ('f0000000-0000-0000-0000-0000000000aa','audit party job','cccccccc-cccc-cccc-cccc-cccccccccccc');
 insert into public.organizations (id, name, slug, kind) values

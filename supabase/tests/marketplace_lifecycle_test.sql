@@ -50,6 +50,12 @@ insert into public.profiles (id, role, full_name, email, is_verified, phone) val
   ('e1000000-0000-4000-8000-000000000005','inspector','Other Insp','ml.oinsp@synthetic.invalid',true,'+15550005')
 on conflict (id) do nothing;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- ── the job, created UNASSIGNED exactly as production does ───────────────────
 insert into public.jobs (id, title, client_id, status, moderation_status,
                          payment_mode, client_price_cents, inspector_payout_cents)

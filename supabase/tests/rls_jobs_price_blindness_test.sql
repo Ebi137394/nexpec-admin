@@ -46,6 +46,12 @@ insert into public.profiles (id, email, role, specialty_slugs) values
   (:'OTHR','ot.gr2@test.nx','client',   '{}'::text[]),
   (:'ADM', 'ad.gr2@test.nx','admin',    '{}'::text[]);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
 -- Client CL owns the job; INSP is the assigned inspector.
 -- client pays 250000; inspector receives 155500 ⇒ margin 94500.
 -- Dispatched canonically: created unassigned → INSP applies → funded through the

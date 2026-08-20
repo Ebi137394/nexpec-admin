@@ -86,6 +86,12 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email, role = EXCLUDED.role;
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   INSERT INTO public.inspection_scope_templates (slug, name, category)
   VALUES ('visit_reporting_suite','Visit Reporting Suite','general')
   RETURNING id INTO v_tmpl;

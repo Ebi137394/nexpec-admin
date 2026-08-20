@@ -79,6 +79,12 @@ update auth.users set email_confirmed_at = now() where email_confirmed_at is nul
     (v_sub,   'inspector','MI Substitute','mi.sub@test.nx',true),
     (v_rando, 'inspector','MI Outsider','mi.rando@test.nx',true);
 
+-- Fixture accounts are ACTIVATED accounts. 20260801584000 starts inspectors,
+-- agencies and suppliers pending Admin approval, so a fixture that skips
+-- activation is modelling an applicant, not a working professional.
+-- Scoped to false so it can never alter an already-activated row.
+update public.profiles set marketplace_activated = true where marketplace_activated = false;
+
   -- A classic single-inspector job — nothing about it changes.
   -- Canonical: create UNASSIGNED, fund through the platform path, then
   -- attach the inspector. Production never inserts contractor_id, and the

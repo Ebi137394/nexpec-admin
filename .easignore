@@ -1,0 +1,35 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  .easignore — what is EXCLUDED FROM THE EAS BUILD UPLOAD.
+#
+#  Nothing here is deleted: every path stays on disk and in git. This file only
+#  keeps ~880 MB of QA evidence and tooling out of the archive shipped to the
+#  build worker. Uploading it caused the "Bundle JavaScript" phase to fail with
+#  an unknown error on every production build attempt (2026-06-06, 06-07 and
+#  08-20 / 4e3ef541); the same bundle succeeds locally with identical
+#  production env, which is what pointed at the archive rather than the code.
+#
+#  DELIBERATE EXCEPTION: app/mldiag.tsx require()s the bundled TFLite test
+#  images, so qa-artifacts/tflite-test-set/bundled MUST stay in the upload or
+#  the bundle cannot resolve those modules.
+# ════════════════════════════════════════════════════════════════════════════
+
+# QA evidence — keep only the bundled test set the app actually imports.
+qa-artifacts/*
+!qa-artifacts/tflite-test-set
+qa-artifacts/tflite-test-set/*
+!qa-artifacts/tflite-test-set/bundled
+
+# Knowledge graph, local build trees and release artifacts.
+graphify-out
+ios/build-release
+ios/build
+android/build
+android/app/build
+dist
+dist-*
+*.apk
+*.aab
+*.ipa
+
+# Local logs and scratch output.
+*.log

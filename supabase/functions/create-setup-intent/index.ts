@@ -11,6 +11,7 @@
 
 import Stripe from 'npm:stripe@17.7.0';
 import { requireUser } from '../_shared/auth.ts';
+import { assertOnlinePaymentsEnabled } from '../_shared/paymentMode.ts';
 
 // ── CORS Headers ────────────────────────────────────────────
 // Applied to EVERY response (preflight, success, and error).
@@ -65,6 +66,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       headers: CORS_HEADERS,
     });
   }
+
+  // RELEASE POSTURE (manual payment only): refuse before any Stripe call.
+  const paymentModeBlock = await assertOnlinePaymentsEnabled(CORS_HEADERS);
+  if (paymentModeBlock) return paymentModeBlock;
 
   // ── 2. Reject non-POST methods ─────────────────────────
   if (req.method !== 'POST') {

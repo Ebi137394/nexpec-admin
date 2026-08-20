@@ -32,6 +32,7 @@ import {
 import { fetchClientFinance } from '@/lib/data/clientFinance';
 import { fetchFundingRailJobs } from './fundingRailData';
 import { FundingRail } from './FundingRail';
+import { PaymentOptions } from '@/components/payments/PaymentOptions';
 import type {
   ClientCreditProfile,
   FinanceActivityKind,
@@ -121,6 +122,9 @@ export default async function ClientFinancePage() {
           sub={`${formatCount(metrics.activeJobsCount)} currently active`}
         />
       </section>
+
+      {/* How this engagement is settled in the current release. */}
+      <PaymentOptions />
 
       {/* Payment hold vs Credit — the crux: locked cash vs borrowed headroom */}
       <section aria-label="Payment hold versus credit" className="grid grid-cols-1 gap-4 lg:grid-cols-2">

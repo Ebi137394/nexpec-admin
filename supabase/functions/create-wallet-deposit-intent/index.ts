@@ -39,6 +39,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import Stripe from 'https://esm.sh/stripe@14.21.0?target=denonext';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { assertOnlinePaymentsEnabled } from '../_shared/paymentMode.ts';
 
 // ─── Stripe client ─────────────────────────────────────────────────────────
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
@@ -73,6 +74,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // RELEASE POSTURE (manual payment only): refuse before any Stripe call.
+  const paymentModeBlock = await assertOnlinePaymentsEnabled(corsHeaders);
+  if (paymentModeBlock) return paymentModeBlock;
   if (req.method !== 'POST') {
     return jsonResponse(
       { error: 'Method not allowed', code: 'METHOD_NOT_ALLOWED' },

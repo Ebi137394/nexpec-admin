@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { fetchClientJobReport } from '@/lib/data/clientJobReport';
 import ReportVisitLog from '@/components/reports/ReportVisitLog';
+import { PaymentOptions } from '@/components/payments/PaymentOptions';
 import {
   clientApproveReport,
   clientRequestRevision,
@@ -182,6 +183,10 @@ export default async function ClientReleasePage({
           tone="violet"
         />
       </section>
+
+      {/* RELEASE POSTURE: approving records the client's decision only — it
+          never moves money. Settlement is manual in this release. */}
+      <PaymentOptions />
 
       {/* What the decision is about. Withheld until admin has forwarded the
           report — GOLDEN_RULE_6 — so the buyer never previews a report that is

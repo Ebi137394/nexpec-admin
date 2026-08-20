@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { signedUrl } from '@/src/core/storage/signedUrls';
+import { PaymentOptions } from '@/src/shared-ui/payments/PaymentOptions';
 
 // ============================================
 // Color Constants - Dark Theme
@@ -230,6 +231,8 @@ export default function ApproveScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Release posture: manual settlement after approvals. */}
+        <PaymentOptions />
 
         {/* 1. Job Details Card */}
         <View style={styles.card}>

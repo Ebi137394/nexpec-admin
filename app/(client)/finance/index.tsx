@@ -23,6 +23,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { getColors } from '@/src/constants/theme';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { formatUsd } from '@/src/core/utils/money';
+import { PaymentOptions } from '@/src/shared-ui/payments/PaymentOptions';
 import {
   useClientFinance,
   type ClientEscrowCredit,
@@ -144,6 +145,8 @@ export default function FinanceHubScreen() {
           <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={VIOLET} />
         }
       >
+        {/* Release posture: manual settlement after approvals. */}
+        <PaymentOptions />
         {/* Header */}
         <Animated.View entering={FadeInDown} style={styles.header}>
           <LinearGradient

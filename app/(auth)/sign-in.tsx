@@ -531,22 +531,37 @@ export default function SignInScreen() {
                   disabled={socialBusy !== null && socialBusy !== 'linkedin_oidc'}
                 />
 
-                {/* ★ ENTERPRISE — SSO + Enterprise side-by-side, kept from the
-                    original layout. These route through Supabase signInWithSSO
-                    and the lookup_sso_for_email RPC. */}
+                {/* ★ ENTERPRISE — SSO + Enterprise sign-in.
+                    NOT ADVERTISED AS ACTIVE: no SAML/OIDC provider is
+                    configured (auth.sso_providers is empty), so
+                    signInWithSSO() could only ever end in "No SSO configured".
+                    Offering a live-looking button for a capability that cannot
+                    succeed is a false claim, so both entries render as plain,
+                    non-interactive Views labelled "Coming soon" — exactly the
+                    treatment used for Online card payment. handleSsoLogin is
+                    retained, unreferenced by the UI, so re-enabling is a
+                    one-line change once a provider exists. */}
                 <View style={styles.socialContainer}>
-                  <TouchableOpacity
-                    style={styles.socialButton}
-                    onPress={() => handleSsoLogin('sso')}
+                  <View
+                    style={[styles.socialButton, styles.comingSoonButton]}
+                    accessibilityState={{ disabled: true }}
+                    testID="sso-coming-soon"
+                    pointerEvents="none"
                   >
-                    <Text style={styles.socialButtonText}>🔐 SSO</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.socialButton}
-                    onPress={() => handleSsoLogin('enterprise')}
+                    <Text style={[styles.socialButtonText, styles.comingSoonText]}>
+                      🔐 SSO · Coming soon
+                    </Text>
+                  </View>
+                  <View
+                    style={[styles.socialButton, styles.comingSoonButton]}
+                    accessibilityState={{ disabled: true }}
+                    testID="enterprise-sso-coming-soon"
+                    pointerEvents="none"
                   >
-                    <Text style={styles.socialButtonText}>🏢 Enterprise</Text>
-                  </TouchableOpacity>
+                    <Text style={[styles.socialButtonText, styles.comingSoonText]}>
+                      🏢 Enterprise · Coming soon
+                    </Text>
+                  </View>
                 </View>
               </View>
             )}
@@ -685,6 +700,8 @@ const styles = StyleSheet.create({
   socialContainer: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 4 },
   socialButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: LOCAL_COLORS.inputBg, borderRadius: 10, paddingVertical: 9, borderWidth: 1, borderColor: LOCAL_COLORS.border },
   socialButtonText: { fontSize: 13, color: LOCAL_COLORS.text, fontWeight: '600' },
+  comingSoonButton: { opacity: 0.45 },
+  comingSoonText: { fontSize: 12 },
 
   footerSection: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 14, paddingBottom: 10 },
   footerText: { fontSize: 13, color: LOCAL_COLORS.textMuted },

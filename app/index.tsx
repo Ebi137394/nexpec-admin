@@ -49,6 +49,12 @@ export default function Index() {
       router.replace('/(tabs)');
     } else if (role === 'agency') {
       router.replace('/(tabs)/agency-dashboard');
+    } else if (role === 'enterprise') {
+      // Enterprise is an organization BUYER. It previously fell through to the
+      // else branch and was routed to the inspector dashboard with an "Unknown
+      // role" warning, so an enterprise buyer could not reach its own finance
+      // surfaces on mobile at all. enterprise-dashboard.tsx already existed.
+      router.replace('/(tabs)/enterprise-dashboard');
     } else {
       console.warn('Unknown role detected:', role, 'Routing to inspector dashboard');
       router.replace('/(tabs)');

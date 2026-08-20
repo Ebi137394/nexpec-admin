@@ -99,6 +99,7 @@ import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscrip
 import { PipelineSection } from '@/src/components/jobs/PipelineSection';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { PaymentOptions } from '@/src/shared-ui/payments/PaymentOptions';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  BRAND — Enterprise tier
@@ -640,6 +641,8 @@ export default function EnterpriseDashboard() {
             />
           }
         >
+          {/* Release posture: manual settlement after approvals. */}
+          <PaymentOptions />
           {/* ── 1) HERO STRIP — VIP identity ───────────────────────────── */}
           <Animated.View entering={FadeInDown.duration(360)} style={s.hero}>
             <LinearGradient

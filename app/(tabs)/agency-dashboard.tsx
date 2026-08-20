@@ -96,6 +96,7 @@ import {
   type AgencyActivityItem,
 } from '@/src/roles/agency/components/AgencyActivityTimeline';
 import { AgencyEmptyState } from '@/src/roles/agency/components/AgencyEmptyState';
+import { PaymentOptions } from '@/src/shared-ui/payments/PaymentOptions';
 
 // ── Brand palette ─────────────────────────────────────────────
 const C = {
@@ -883,6 +884,8 @@ export default function AgencyDashboard() {
           <View style={s.bgOrb} />
         </View>
         <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+          {/* Release posture: manual settlement after approvals. */}
+          <PaymentOptions />
           <Shimmer style={{ height: 144, marginTop: 8, borderRadius: 26 }} />
           <Shimmer style={{ height: 110, marginTop: 18, borderRadius: 18 }} />
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>

@@ -24,6 +24,22 @@ const ok = (m) => console.log(`  ✓ ${m}`);
 const WEB = 'apps/web/src/components/payments/PaymentOptions.tsx';
 const MOB = 'src/shared-ui/payments/PaymentOptions.tsx';
 
+// Every buyer surface that must state the posture. Web's /client/* portal is
+// shared by client, agency and enterprise (middleware CLIENT_PREFIX), so those
+// two files cover all three roles there. Mobile routes each buyer role to its
+// own dashboard, so each one needs it.
+const POSTURE_SURFACES = [
+  'apps/web/src/app/client/finance/page.tsx',
+  'apps/web/src/app/client/jobs/[id]/release/page.tsx',
+  'app/(client)/finance/index.tsx',
+  'app/(client)/approve.tsx',
+  'app/(tabs)/agency-dashboard.tsx',
+  'app/(tabs)/enterprise-dashboard.tsx',
+];
+
+// SSO must not be advertised as active while no provider is configured.
+const SSO_SIGNIN = 'app/(auth)/sign-in.tsx';
+
 // Functions that could move money inbound. The payout/transfer family is
 // disabled separately (NX-STRIPE-004).
 const GUARDED_FNS = [
@@ -101,6 +117,31 @@ else {
   if (!/catch\s*\{\s*\n?\s*return false/.test(mod) && !mod.includes('return false')) {
     fail('paymentMode guard does not fail closed on error');
   } else ok('payment-mode guard fails closed');
+}
+
+// ── 4. Every buyer surface states the posture ──────────────────────────────
+for (const p of POSTURE_SURFACES) {
+  if (!existsSync(p)) { flag(`posture surface missing: ${p}`); continue; }
+  if (!readFileSync(p, 'utf8').includes('PaymentOptions')) {
+    flag(`${p} does not render PaymentOptions — a buyer surface without the posture`);
+  } else ok(`${p} states the payment posture`);
+}
+
+// ── 5. SSO is not advertised as active ─────────────────────────────────────
+{
+  if (!existsSync(SSO_SIGNIN)) flag(`sign-in screen missing: ${SSO_SIGNIN}`);
+  else {
+    const src = readFileSync(SSO_SIGNIN, 'utf8');
+    const i = src.indexOf('sso-coming-soon');
+    if (i === -1) {
+      flag('mobile sign-in does not mark the SSO entry as coming soon');
+    } else {
+      const block = src.slice(Math.max(0, i - 700), i + 1200);
+      if (/onPress=\{\s*\(\)\s*=>\s*handleSsoLogin/.test(block)) {
+        flag('mobile sign-in still wires an ACTIVE SSO handler — no provider is configured');
+      } else ok('SSO entries are inert and labelled coming soon');
+    }
+  }
 }
 
 if (failures) {

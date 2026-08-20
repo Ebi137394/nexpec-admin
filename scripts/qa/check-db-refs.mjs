@@ -57,7 +57,7 @@ const ALLOWLIST_PATH = join(__dirname, 'db-refs-allowlist.json');
 const CODE_DIRS = ['app', 'src', join('apps', 'web', 'src'), join('supabase', 'functions')];
 const MIGRATIONS_DIR = join('supabase', 'migrations');
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs']);
-const SKIP_DIR = new Set(['node_modules', '.next', 'dist', 'build', '.git', '.expo']);
+const SKIP_DIR = new Set(['node_modules', '.claude', '.next', 'dist', 'build', '.git', '.expo']);
 
 // JS built-ins / known query-builder hosts whose `.from(` is NOT a Supabase table.
 const FROM_HOST_EXCLUDE = /(?:storage|Array|Object|Buffer|Set|Map|Promise|Number|String|JSON|Date|Int8Array|Uint8Array|Uint8ClampedArray|Int16Array|Uint16Array|Int32Array|Uint32Array|Float32Array|Float64Array|BigInt64Array|BigUint64Array)$/;

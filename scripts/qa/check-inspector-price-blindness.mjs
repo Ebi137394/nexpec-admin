@@ -84,7 +84,7 @@ function walk(dir, out = []) {
   let entries;
   try { entries = readdirSync(dir); } catch { return out; }
   for (const e of entries) {
-    if (['node_modules', '.git', '.expo', 'dist', 'build', '.next'].includes(e)) continue;
+    if (['node_modules', '.git', '.claude', '.expo', 'dist', 'build', '.next'].includes(e)) continue;
     const p = join(dir, e);
     let st;
     try { st = statSync(p); } catch { continue; }

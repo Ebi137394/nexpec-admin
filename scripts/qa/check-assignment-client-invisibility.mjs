@@ -49,7 +49,7 @@ if (hasRls && selPol && !writePol) pass.push('B. annex has RLS, admin-only SELEC
 function walk(dir, out = []) {
   let e; try { e = readdirSync(dir); } catch { return out; }
   for (const n of e) {
-    if (['node_modules', '.git', '.expo', 'dist', 'build', '.next', 'migrations', 'migrations_archive'].includes(n)) continue;
+    if (['node_modules', '.git', '.claude', '.expo', 'dist', 'build', '.next', 'migrations', 'migrations_archive'].includes(n)) continue;
     const p = join(dir, n);
     let st; try { st = statSync(p); } catch { continue; }
     if (st.isDirectory()) walk(p, out);

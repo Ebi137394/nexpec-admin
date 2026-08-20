@@ -112,7 +112,7 @@ const SURFACES = [
   ['web',    ['apps/web/src'],          /\.(ts|tsx)$/],
 ];
 
-const SKIP_DIRS = new Set(['node_modules', '.git', '.expo', 'dist', 'build', '.next', 'coverage', 'ios', 'android']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.claude', '.expo', 'dist', 'build', '.next', 'coverage', 'ios', 'android']);
 
 function walk(dir, re, out = []) {
   let entries;

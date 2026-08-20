@@ -17,6 +17,7 @@ import {
 import { segment, detect, loadModel } from '@/lib/ai/visionModel';
 import { labelFor, refineSegFindings, clusterSegRegions, validateFinding, type NexpecModel, type SegRegion } from '@nexpec/shared-core';
 import { SegEditorOverlay, type SegEditDetection } from '@/components/inspector/SegEditorOverlay';
+import { AiBetaDisclaimer, AiBetaFirstUseNotice } from '@/components/inspector/AiBetaDisclaimer';
 
 interface Staged { id: string; url: string; name: string }
 interface Suggestion {
@@ -314,8 +315,17 @@ export default function AiCoinspectorPage() {
           <p className="text-[11px] font-semibold uppercase tracking-industrial text-violet-glow/80">Inspector, Vision</p>
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-white">AI Co-inspector</h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">Upload high-resolution or drone imagery for automated anomaly detection. All processing is <span className="text-zinc-200">strictly confidential and securely handled</span>.</p>
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent-amber/50 bg-accent-amber/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-industrial text-accent-amber">
+            Beta · Advisory only
+          </span>
         </div>
       </header>
+
+      {/* MANDATORY AI SAFETY STATE (owner release order 2026-08-18), identical
+          wording and behaviour to the Mobile AI screens: a one-time non-blocking
+          first-use notice, plus the persistent warning rendered beside every AI
+          result below. */}
+      <AiBetaFirstUseNotice />
 
       {/* Active model + selector */}
       <div className="flex flex-wrap items-center gap-3">
@@ -435,6 +445,9 @@ export default function AiCoinspectorPage() {
 
         {/* ── Suggestions + recorded findings ── */}
         <section className="space-y-5">
+          {/* Persistent advisory warning beside the AI results — mirrors the
+              Mobile findings card. */}
+          <AiBetaDisclaimer />
           {suggestions.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 font-semibold text-white"><Wand2 size={16} className="text-violet-glow" /> On-device suggestions</h2>

@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ebrahimfeyzi/.local/bin/graphify hook-guard search"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/ebrahimfeyzi/.local/bin/graphify hook-guard read"
+          }
+        ]
+      }
+    ]
+  },
+  "model": "opus",
+  "effortLevel": "high"
+}

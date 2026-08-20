@@ -92,8 +92,7 @@ for f in \
   supabase/tests/resume_disclosure_access_test.sql \
   supabase/tests/identity_lifecycle_test.sql \
   supabase/tests/countersign_lifecycle_test.sql \
-  supabase/tests/direct_chat_access_test.sql \
-  supabase/tests/direct_chat_role_parity_test.sql \
+  supabase/tests/communication_policy_matrix_test.sql \
   supabase/tests/supplier_chat_access_test.sql \
   supabase/tests/inspector_price_blindness_test.sql \
   supabase/tests/rls_jobs_price_blindness_test.sql \
@@ -403,8 +402,7 @@ SQL
     supabase/tests/resume_disclosure_access_test.sql \
     supabase/tests/identity_lifecycle_test.sql \
     supabase/tests/countersign_lifecycle_test.sql \
-    supabase/tests/direct_chat_access_test.sql \
-    supabase/tests/direct_chat_role_parity_test.sql \
+    supabase/tests/communication_policy_matrix_test.sql \
     supabase/tests/supplier_chat_access_test.sql \
     supabase/tests/rpc_authorization_test.sql \
     supabase/tests/admin_direct_assignment_test.sql ; do
@@ -414,7 +412,7 @@ SQL
   shopt -s nullglob
   for t in supabase/tests/*.sql; do
     case "$(basename "$t")" in
-      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql|resume_disclosure_access_test.sql|identity_lifecycle_test.sql|countersign_lifecycle_test.sql|direct_chat_access_test.sql|direct_chat_role_parity_test.sql|supplier_chat_access_test.sql) continue ;;
+      inspector_price_blindness_test.sql|rls_jobs_price_blindness_test.sql|rpc_authorization_test.sql|admin_direct_assignment_test.sql|identity_disclosure_test.sql|resume_disclosure_access_test.sql|identity_lifecycle_test.sql|countersign_lifecycle_test.sql|communication_policy_matrix_test.sql|supplier_chat_access_test.sql) continue ;;
     esac
     printf "   (pre-existing) "
     run_suite "$t"

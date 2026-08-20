@@ -35,6 +35,8 @@ import {
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { inspectorHandle } from '@/lib/identity/inspectorHandle';
+import { openJobChat } from '@/lib/actions/messages';
+import JobChatActions from '@/components/messaging/JobChatActions';
 
 export const metadata: Metadata = { title: 'Inspector details' };
 export const dynamic = 'force-dynamic';
@@ -248,22 +250,42 @@ export default async function JobScopedInspectorPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Project Messages — the monitored standard channel, every mode */}
-      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-5">
+      {/* COMMUNICATION POLICY (owner ruling 2026-08-19).
+            protected / professional → the NEXPEC admin room only.
+            full                     → admin room PLUS the two-party direct
+                                       room with the inspector.
+          JobChatActions renders nothing unless nx_job_chat_counterparts
+          authorizes it, so the direct-chat control appears exactly when the
+          Admin has set this job to Full — this page adds no policy of its
+          own and cannot widen the gate. */}
+      <JobChatActions
+        jobId={jobId}
+        returnTo={`/client/jobs/${jobId}/inspector/${applicationId}`}
+        heading="Direct messaging"
+      />
+
+      <form
+        action={openJobChat}
+        className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-5"
+      >
+        <input type="hidden" name="jobId" value={jobId} />
+        <input type="hidden" name="kind" value="job_client_admin" />
+        <input type="hidden" name="returnToBase" value="/client/messages" />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-zinc-400">
-            Project Messages is the job&rsquo;s monitored communication room and
-            the standard channel for this engagement.
+            Coordination runs through your NEXPEC admin room for this job —
+            admin relays to the inspector, and every conversation stays scoped
+            to this project.
           </p>
-          <Link
-            href={`/client/jobs/${jobId}/chat`}
+          <button
+            type="submit"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-semibold text-zinc-200 transition-colors hover:border-violet/40 hover:text-white"
           >
             <MessageSquare className="h-3.5 w-3.5" strokeWidth={2} />
-            Open Project Messages
-          </Link>
+            Open NEXPEC admin chat
+          </button>
         </div>
-      </section>
+      </form>
 
       {(d.ndt_methods?.length ?? 0) > 0 && (
         <p className="text-xs text-zinc-500">

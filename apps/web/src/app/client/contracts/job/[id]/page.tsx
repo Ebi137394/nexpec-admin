@@ -23,6 +23,8 @@ import {
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchClientJobContract } from '@/lib/data/jobContracts';
 import { clientSignJobContract } from '@/lib/actions/jobContracts';
+import { openJobChat } from '@/lib/actions/messages';
+import JobChatActions from '@/components/messaging/JobChatActions';
 
 export const metadata: Metadata = { title: 'Sign contract' };
 export const dynamic = 'force-dynamic';
@@ -188,19 +190,6 @@ export default async function ClientJobContractPage({
               )}
             </div>
           )}
-          <div className="mt-4 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
-            <p>
-              Project Messages is the job&rsquo;s monitored communication room
-              and the standard channel for this engagement.
-            </p>
-            <Link
-              href={`/client/jobs/${contract.jobId}/chat`}
-              className="mt-2 inline-flex items-center gap-1.5 font-semibold text-violet-glow hover:underline"
-            >
-              Open Project Messages
-              <ExternalLink className="h-3 w-3" strokeWidth={2} />
-            </Link>
-          </div>
         </section>
       )}
 
@@ -263,6 +252,46 @@ export default async function ClientJobContractPage({
           released according to the agreed funding schedule after the
           required approvals.
         </p>
+      </section>
+
+
+      {/* COMMUNICATION (owner ruling 2026-08-19) — ALWAYS available to the
+          client, independent of the identity mode and of whether the section
+          above rendered anything:
+            protected / professional → NEXPEC admin room only
+            full                     → admin room PLUS the two-party direct
+                                       room with the inspector
+          JobChatActions self-resolves against nx_job_chat_counterparts, so the
+          direct-chat control appears exactly when the Admin set this job to
+          Full. This page grants nothing on its own. */}
+      <section className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-6">
+        <p className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-industrial text-violet-glow">
+          <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} /> Communication
+        </p>
+        <div className="mt-3">
+          <JobChatActions
+            jobId={contract.jobId}
+            returnTo={`/client/contracts/job/${contract.id}`}
+            heading="Direct messaging"
+          />
+        </div>
+        <form action={openJobChat} className="mt-3 text-xs text-zinc-400">
+          <input type="hidden" name="jobId" value={contract.jobId} />
+          <input type="hidden" name="kind" value="job_client_admin" />
+          <input type="hidden" name="returnToBase" value="/client/messages" />
+          <p>
+            Your NEXPEC admin room is always available for this job — admin
+            relays to the inspector and every conversation stays scoped to
+            this project.
+          </p>
+          <button
+            type="submit"
+            className="mt-2 inline-flex items-center gap-1.5 font-semibold text-violet-glow hover:underline"
+          >
+            Open NEXPEC admin chat
+            <ExternalLink className="h-3 w-3" strokeWidth={2} />
+          </button>
+        </form>
       </section>
 
       {/* Custom contract URL (if uploaded by admin) */}

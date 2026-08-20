@@ -114,8 +114,26 @@ for (const f of files) {
   if (!page.includes('Total contract price')) {
     flag('client contract page lost the "Total contract price" heading');
   }
-  if (!page.includes('Open Project Messages')) {
-    flag('client contract page lost the Project Messages link');
+  // COMMUNICATION POLICY (2026-08-19): the client's authorized lane is the
+  // NEXPEC admin room. There is no direct Client↔Inspector channel.
+  if (!page.includes('job_client_admin')) {
+    flag('client contract page lost the NEXPEC admin chat lane');
+  }
+}
+
+// ── 4. no direct Client→Inspector chat route on any client surface ───────────
+{
+  const clientFiles = [];
+  for (const d of CLIENT_DIRS) walk(join(ROOT, d), clientFiles);
+  for (const f of clientFiles) {
+    const lines = stripComments(readFileSync(f, 'utf8'));
+    lines.forEach((line, i) => {
+      if (/open_direct_conversation|job_client_inspector/.test(line)) {
+        flag(
+          `${relative(ROOT, f)}:${i + 1} references the RETIRED direct Client↔Inspector room → ${line.trim().slice(0, 80)}`,
+        );
+      }
+    });
   }
 }
 

@@ -17,7 +17,7 @@
 -- ════════════════════════════════════════════════════════════════════════════
 begin;
 create extension if not exists pgtap;
-select plan(60);
+select plan(65);
 
 -- Never put a trailing comment on a \set line — psql concatenates the tail.
 \set CL1   'e1111111-1111-4111-8111-111111111111'
@@ -498,6 +498,60 @@ select is_empty(
   $$ select id from public.conversations
       where id = 'fa11fa11-fa11-4a11-8a11-fa11fa11fa11' $$,
   'SILO INTACT: the direct-chat policy does not widen job_client_admin visibility');
+
+reset role;
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  BYPASS HARDENING (20260801568000, retained by 20260801570000)
+--
+--  The owner audit of 2026-08-19 found that the broad, kind-blind policies
+--  OR-ed around this gate entirely: a Client could INSERT a
+--  job_client_inspector conversation naming any inspector, own it
+--  (user_id = self) and post into it — in ANY identity mode, with the gate
+--  irrelevant. Full-mode direct chat is intended; that door is not. These
+--  assertions pin the door shut so a future policy edit cannot reopen it.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- The six broad policies must all name the kind (i.e. exclude it).
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and policyname in ('view_own_chats','conv_select_self_or_admin','conv_insert_self_or_admin',
+                         'view_chat_msgs','msg_select_via_conv','msg_insert_party')
+      and coalesce(qual,'') || coalesce(with_check,'') like '%job_client_inspector%'),
+  6, 'BYPASS: all six broad policies still exclude job_client_inspector');
+
+-- …and the gate-aware policies remain the real doors.
+select is(
+  (select count(*)::int from pg_policies
+    where schemaname = 'public'
+      and policyname in ('conv_direct_select','conv_direct_update_parties',
+                         'msg_direct_select','msg_direct_insert')),
+  4, 'BYPASS: the four gate-aware direct policies are present');
+
+-- A Client cannot hand-craft a direct room, even while Full is active.
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"e1111111-1111-4111-8111-111111111111","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into public.conversations (job_id, client_id, contractor_id, kind, user_id, title, status)
+     values ('e6666666-6666-4666-8666-666666666666'::uuid,
+             'e1111111-1111-4111-8111-111111111111'::uuid,
+             'e3333333-3333-4333-8333-333333333333'::uuid,
+             'job_client_inspector'::public.conversation_kind,
+             'e1111111-1111-4111-8111-111111111111'::uuid, 'crafted', 'open') $$,
+  NULL, NULL,
+  'BYPASS: the Client cannot INSERT a direct room by hand (RPC-only creation)');
+
+-- Owning the row is not authorization: a forged/guessed id yields nothing.
+select is_empty(
+  $$ select id from public.messages
+      where conversation_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff' $$,
+  'BYPASS: guessed conversation ids expose no messages');
+
+-- The room-creation RPC is the authorized path and is gate-checked.
+select has_function('public', 'open_direct_conversation', ARRAY['uuid','uuid'],
+  'BYPASS: open_direct_conversation remains the authorized creation path');
 
 reset role;
 

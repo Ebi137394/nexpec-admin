@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
---  20260801531000_storage_bucket_hygiene.sql
+--  20260801588000_storage_bucket_hygiene.sql
 --
 --  Found by the Production migration rehearsal of 2026-08-20.
 --

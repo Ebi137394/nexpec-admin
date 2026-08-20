@@ -60,23 +60,29 @@ else
 fi
 
 # ── 2. Run every behavioural suite ─────────────────────────────────────────
-say ""; say "── behavioural SQL suites ──"
-shopt -s nullglob
-for suite in supabase/tests/*.sql; do
-  name="$(basename "$suite")"
-  out="$(psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f "$suite" 2>&1)"
-  if [[ $? -eq 0 ]]; then
-    ok "$name"
-    # Surface the suite's own PASSED banner if it printed one.
-    printf '%s' "$out" | grep -E "ALL ASSERTIONS PASSED|^\s*ok [0-9]" | tail -1 | sed "s/^/    ${DIM}/;s/$/${RST}/"
-    pass=$((pass+1))
-  else
-    bad "$name"
-    printf '%s\n' "$out" | grep -E "ERROR|FAILED|DETAIL|CONTEXT" | head -8 | sed 's/^/    /'
-    failed_suites+=("$name")
-    fail=$((fail+1))
-  fi
-done
+#  Delegated to scripts/qa/run-pgtap.mjs, which is the ONLY sanctioned way to
+#  decide whether a suite passed.
+#
+#  This loop used to live here and it lied. It ran psql with default ALIGNED
+#  output — every TAP row indented by one space — and judged the result on
+#  psql's exit code alone. A suite that aborted during fixture setup emitted no
+#  TAP at all, exited 0 under ON_ERROR_STOP=1 in some paths, matched neither
+#  `^ERROR` nor `^not ok`, and was counted GREEN. On 2026-08-20 that reported
+#  79/80 when the truth was 69/80.
+#
+#  run-pgtap.mjs requires a TAP plan, requires assertions run to equal the
+#  plan, rejects zero-assertion (vacuous) suites, matches `ERROR:` anywhere in
+#  the stream rather than line-anchored, and emits TAP unaligned at column 0.
+#  Do not reintroduce a local loop here.
+say ""; say "── behavioural SQL suites (canonical runner) ──"
+if node scripts/qa/run-pgtap.mjs; then
+  ok "pgTAP suites"
+  pass=$((pass+1))
+else
+  bad "pgTAP suites — see the breakdown above"
+  failed_suites+=("pgTAP suites")
+  fail=$((fail+1))
+fi
 
 # ── 3. Static guards (these also run in the sandbox) ───────────────────────
 say ""; say "── static guards ──"

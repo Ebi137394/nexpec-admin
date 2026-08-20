@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
---  20260801533000_reconcile_production_grant_drift.sql
+--  20260801590000_production_privilege_hotfix.sql
 --
 --  THE MOST SERIOUS THING THE PRODUCTION REHEARSAL OF 2026-08-20 FOUND.
 --

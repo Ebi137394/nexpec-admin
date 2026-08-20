@@ -75,7 +75,12 @@ function classify(out) {
 function run(file) {
   const r = spawnSync(
     'psql',
-    ['-h', DB.host, '-p', DB.port, '-U', DB.user, '-d', DB.db, '-X', '-q', '-f', join(DIR, file)],
+    // -A -t: unaligned, tuples-only. psql's default ALIGNED output indents
+    // every row by one space, which is what made a naive `grep '^not ok'`
+    // silently match nothing and report false green. The regexes below tolerate
+    // leading whitespace anyway, but emitting TAP at column 0 removes the trap
+    // for anyone who greps this output by hand.
+    ['-h', DB.host, '-p', DB.port, '-U', DB.user, '-d', DB.db, '-X', '-q', '-A', '-t', '-f', join(DIR, file)],
     { encoding: 'utf8', env: { ...process.env, PGPASSWORD: DB.pass }, maxBuffer: 32 * 1024 * 1024 },
   );
 
@@ -94,6 +99,10 @@ function run(file) {
   if (errors.length) reasons.push(`${errors.length} psql ERROR`);
   if (planned === null) reasons.push('no TAP plan emitted (aborted before plan)');
   else if (ran !== planned) reasons.push(`plan ${planned} vs ran ${ran}`);
+  // A suite that asserts nothing proves nothing. `1..0`, or a plan with no
+  // assertions behind it, is a vacuous pass and is rejected as a failure.
+  if (ran === 0) reasons.push('vacuous: zero assertions executed');
+  if (planned === 0) reasons.push('vacuous: plan is 1..0');
   if (notOk) reasons.push(`${notOk} failed assertion(s)`);
   if (mismatch) reasons.push('plan mismatch reported by pgTAP');
 
@@ -127,7 +136,11 @@ if (asJson) {
     groups.set(k, [...(groups.get(k) ?? []), f]);
   }
 
-  console.log(`\npgTAP: ${results.length} suites · ${pass.length} PASS · ${fail.length} FAIL\n`);
+  const totalRan = results.reduce((n, r) => n + r.ran, 0);
+  const totalNotOk = results.reduce((n, r) => n + r.notOk, 0);
+  const totalErrs = results.reduce((n, r) => n + (r.reasons.find((x) => /psql ERROR/.test(x)) ? 1 : 0), 0);
+  console.log(`\npgTAP: ${results.length} suites · ${pass.length} PASS · ${fail.length} FAIL`);
+  console.log(`assertions: ${totalRan} executed · ${totalNotOk} not ok · ${totalErrs} suite(s) with SQL errors\n`);
   for (const [bucket, items] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
     console.log(`── ${bucket}  (${items.length})`);
     if (items[0].detail) console.log(`   e.g. ${items[0].detail.slice(0, 110)}`);
@@ -138,4 +151,13 @@ if (asJson) {
   }
 }
 
-process.exit(fail.length === 0 ? 0 : 1);
+// Release-green is 80/80 with zero not-ok, zero SQL errors and zero vacuous
+// suites. Anything short of that exits non-zero: a partial pass is not a pass.
+const totalNotOkFinal = results.reduce((n, r) => n + r.notOk, 0);
+const green = fail.length === 0 && totalNotOkFinal === 0;
+if (!asJson) {
+  console.log(green
+    ? `VERDICT: GREEN — ${results.length}/${results.length} suites, 0 not ok`
+    : `VERDICT: NOT GREEN — ${pass.length}/${results.length} suites, ${totalNotOkFinal} failing assertion(s)`);
+}
+process.exit(green ? 0 : 1);

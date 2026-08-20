@@ -29,7 +29,7 @@ workdir**, so `supabase/.temp/project-ref` never stopped pointing at Staging.
 | **Pending for Production** | **45** |
 | Drift (on Production, absent from repo) | **0** |
 
-Pending runs contiguously from `20260801501000` to `20260801584000`. Four of the
+Pending runs contiguously from `20260801586000` to `20260801584000`. Four of the
 45 were written during the rehearsal, to fix what it found.
 
 ## What the rehearsal found
@@ -46,7 +46,7 @@ synthetic auth user, the trigger pre-creates that profile as `client`, the
 migration's `ON CONFLICT (id) DO NOTHING` keeps it, and `admin_dispatch_job`
 refuses with *"Only super_admin can dispatch jobs"*.
 
-Fixed by `20260801501000`: one canonical trigger, duplicate dropped, and reserved
+Fixed by `20260801586000`: one canonical trigger, duplicate dropped, and reserved
 undeliverable TLDs (`.invalid` / `.test` / `.local` / `.nx`) skipped so
 verification fixtures can still build their own privileged rows. No window in
 which real signups go unhandled.
@@ -82,7 +82,7 @@ afterwards.
 Cause: Production's history row for the squash baseline was *recorded, not
 executed*. The 122 REVOKE statements inside it never ran there.
 
-Fixed by `20260801533000`: resets the PostgREST roles and replays the tested
+Fixed by `20260801590000`: resets the PostgREST roles and replays the tested
 configuration verbatim — **0 extras, 0 missing** afterwards — and revokes the
 `ALTER DEFAULT PRIVILEGES` that would otherwise re-grant `anon` on every new
 table created from then on.
@@ -91,7 +91,7 @@ table created from then on.
 
 `certification-files` was public — empty, unreferenced, public since
 2026-01-21. `flash-report-attachments` carried no file size cap. Both fixed by
-`20260801531000`.
+`20260801588000`.
 
 ### 4. The email gate had broken 22 suites, unnoticed
 

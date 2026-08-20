@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
---  20260801501000_reconcile_signup_trigger_drift.sql
+--  20260801586000_reconcile_signup_trigger_drift.sql
 --
 --  PRODUCTION ↔ MIGRATION-SET DRIFT, found by the Production migration
 --  rehearsal of 2026-08-20 and fixed at its root.

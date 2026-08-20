@@ -35,7 +35,7 @@ select gen_random_uuid() as insp,
        gen_random_uuid() as adm_signup;
 grant select on _pv to authenticated;
 
--- '@synthetic.invalid' is skipped by handle_new_user (20260801501000), so these
+-- '@synthetic.invalid' is skipped by handle_new_user (20260801586000), so these
 -- rows keep the roles this suite gives them.
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at, created_at, updated_at)
 select u,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',

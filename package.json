@@ -53,6 +53,7 @@
     "qa:role-routing": "node scripts/qa/check-role-routing.mjs",
     "qa:payments": "node scripts/qa/check-manual-payment-posture.mjs",
     "qa:password-flows": "node scripts/qa/check-password-flows.mjs",
+    "qa:pgtap": "node scripts/qa/run-pgtap.mjs",
     "db:guard": "bash scripts/qa/assert-staging-target.sh",
     "db:push:staging": "bash scripts/qa/assert-staging-target.sh && supabase db push --linked"
   },

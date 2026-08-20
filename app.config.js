@@ -157,12 +157,19 @@ module.exports = {
         googleMaps: { apiKey: process.env.GOOGLE_MAPS_ANDROID_API_KEY },
       },
       package: 'com.nexpec.app',
-      // ★ NX-CLEAR-001 closure — plaintext disallowed. The
-      //   networkSecurityConfig XML stays in place as a defense-in-depth
-      //   layer (it can list specific exception domains for cert-pinning
-      //   later) but globally we accept HTTPS only.
-      usesCleartextTraffic: false,
-      networkSecurityConfig: './assets/security/network_security_config.xml',
+      // ★ NX-CLEAR-001 closure — plaintext disallowed.
+      //   `usesCleartextTraffic` and `networkSecurityConfig` are NOT keys in
+      //   the Expo `android` config schema; expo-doctor rejects them and
+      //   prebuild silently drops them, so the hardening they were supposed to
+      //   express was never reaching the generated manifest. The cleartext ban
+      //   now lives in expo-build-properties below, which is the supported
+      //   route and does end up in AndroidManifest.xml.
+      //
+      //   The networkSecurityConfig XML has no first-class Expo key at all. It
+      //   was only ever wired through the local android/ project, which EAS
+      //   does not use — android/ is in .easignore and untracked, so every EAS
+      //   build runs prebuild and generates its own native project. Keeping a
+      //   dead key here implied a protection that was not in the artifact.
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#020420',
@@ -207,6 +214,9 @@ module.exports = {
           },
           android: {
             newArchEnabled: true,
+            // Moved here from the `android` block: this is the supported key
+            // and it actually reaches AndroidManifest.xml.
+            usesCleartextTraffic: false,
             // Trim shrinkResources / minifyEnabled left to EAS production
             // profile defaults.
           },

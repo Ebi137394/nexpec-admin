@@ -162,7 +162,7 @@ module.exports = {
       //   layer (it can list specific exception domains for cert-pinning
       //   later) but globally we accept HTTPS only.
       usesCleartextTraffic: false,
-      networkSecurityConfig: './android/app/src/main/res/xml/network_security_config.xml',
+      networkSecurityConfig: './assets/security/network_security_config.xml',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#020420',

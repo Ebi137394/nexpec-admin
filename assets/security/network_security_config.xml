@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NEXPEC Android network security policy.
+
+  This file previously lived at android/app/src/main/res/xml/ — inside the
+  PREBUILD-GENERATED, gitignored android/ tree — and in fact did not exist on
+  disk or in version control at all. app.config.js still referenced it, so every
+  clean build machine (EAS included) failed once it tried to resolve the path.
+  It now lives in a tracked, non-generated location.
+
+  Intent, unchanged and matching android.usesCleartextTraffic=false:
+  all traffic is HTTPS; cleartext is denied for every domain, with no
+  debug-only exception bundled into release builds.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

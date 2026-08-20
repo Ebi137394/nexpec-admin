@@ -98,3 +98,6 @@ graphify-out/
 supabase/functions/deno.lock
 .expo-staging-*
 qa-artifacts/
+
+# Local Claude Code tooling (settings, skills) — machine-local, not shipped
+.claude/

@@ -314,6 +314,14 @@ select is(public.nx_can_access_doc(:'ADM', 'chat_attachments', :'ATT'), true,
 -- ══════════════════════════════════════════════════════════════════════════
 --  E. DOWNGRADE — Full → Professional → Protected revokes everything
 -- ══════════════════════════════════════════════════════════════════════════
+-- Capture the live room id BEFORE the downgrade. After it, the client cannot
+-- even SELECT the row (conv_direct_select consults the gate), so re-reading the
+-- id at that point yields NULL and would test nothing. Holding the id across
+-- the downgrade is exactly the attack this assertion is about.
+select id as staleconv from public.conversations
+ where job_id = :'JOB1'
+   and kind = 'job_client_inspector'::public.conversation_kind \gset
+
 update public.jobs set identity_mode = 'professional' where id = :'JOB1';
 
 select is(public.nx_direct_chat_authorized(:'JOB1', :'INSP1', :'CL1'), false,
@@ -325,11 +333,8 @@ select is(public.nx_direct_chat_authorized(:'JOB1', :'INSP1', :'INSP1'), false,
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"e1111111-1111-4111-8111-111111111111","role":"authenticated"}';
 select throws_ok(
-  $$ select public.send_message(
-       (select id from public.conversations
-         where job_id = 'e6666666-6666-4666-8666-666666666666'
-           and kind = 'job_client_inspector'::public.conversation_kind),
-       'sending through a stale id') $$,
+  format($$ select public.send_message(%L::uuid, 'sending through a stale id') $$,
+         :'staleconv'),
   '42501', null,
   'STALE ID: a held-open conversation id cannot send after a downgrade');
 reset role;

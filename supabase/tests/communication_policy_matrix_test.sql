@@ -1,20 +1,20 @@
 -- ════════════════════════════════════════════════════════════════════════════
 --  supabase/tests/communication_policy_matrix_test.sql
 --
---  OWNER COMMUNICATION POLICY (2026-08-19), proven at the database layer.
---  Replaces direct_chat_access_test.sql, direct_chat_role_parity_test.sql and
---  direct_room_admin_mediation_test.sql — all three exhaustively pinned the
---  Full-mode Client↔Inspector direct room (20260801332000 / …334000), a
---  feature the owner has now RETIRED (20260801568000). Their assertions
---  describe behaviour that must no longer exist; this suite proves it is gone
---  and that the allowed lanes survived.
+--  OWNER COMMUNICATION POLICY (final), proven at the database layer.
+--  Companion to direct_chat_access_test / direct_chat_role_parity_test /
+--  direct_room_admin_mediation_test, which cover the Full-mode room itself.
+--  This suite fixes the NON-Full case: on a job that is not in Full mode the
+--  Client↔Inspector lane must be closed in every direction and by every route
+--  (room-id guessing, hand-crafted INSERT, posting into an owned row, or the
+--  opener RPC), while the admin and supervisory lanes keep working.
 --
 --  RUN (LOCAL only):
 --    psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 \
 --      -f supabase/tests/communication_policy_matrix_test.sql
 --
 --  THE MATRIX
---    Client    → Inspector direct .................... DENIED (both directions)
+--    Client    → Inspector direct (NON-Full job) ..... DENIED (both directions)
 --    Client    → NEXPEC admin ........................ ALLOWED
 --    Inspector → NEXPEC admin ........................ ALLOWED
 --    Senior/QA reviewer ↔ working inspector .......... ALLOWED (review rounds)
@@ -25,8 +25,8 @@
 --    • reading a pre-existing direct room by id (guessing room ids)
 --    • crafting a new direct room by direct API call (INSERT)
 --    • posting into a direct room the client owns (the msg_insert_party door)
---    • raising identity_mode to 'full' to obtain a messaging right
---    • calling open_direct_conversation() directly
+--    • posting into a direct room without the gate agreeing
+--    • calling open_direct_conversation() on a job that is not in Full mode
 -- ════════════════════════════════════════════════════════════════════════════
 
 begin;
@@ -55,7 +55,8 @@ union all select senior_id,    'inspector', 'CM Senior',    'cm.s@synthetic.inva
 union all select admin_id,     'super_admin','CM Admin',    'cm.a@synthetic.invalid', true from _c
 on conflict (id) do update set role = excluded.role, email = excluded.email;
 
--- FULL mode on purpose: the strongest case for the retired coupling.
+-- identity_mode='full' but NO hired inspector: proves the gate keys on the
+-- ENGAGEMENT (active contract inspector), not on the disclosure mode alone.
 insert into public.jobs (id,title,client_id,status,moderation_status,payment_mode,
                          client_price_cents,inspector_payout_cents,identity_mode)
 select job_id,'cm comms',client_id,'open','approved','prepay',100000,80000,'full' from _c;
@@ -88,7 +89,7 @@ grant select on _c to authenticated;
 select is(
   public.nx_direct_chat_authorized(
     (select job_id from _c), (select inspector_id from _c), (select client_id from _c)),
-  false, 'G1 the direct-chat gate is retired (false even under identity_mode=full)');
+  false, 'G1 the gate denies without an active contract inspector, even in Full mode');
 
 -- ─── CLIENT → INSPECTOR : DENIED ────────────────────────────────────────────
 set local role authenticated;
@@ -109,11 +110,14 @@ select throws_ok(
   $$ insert into public.messages (conversation_id, sender_id, content)
      select direct_conv, client_id, 'sneak' from _c $$,
   NULL, NULL, 'C4 client cannot POST into the direct room it nominally owns');
+-- Full-mode direct chat was RESTORED by owner ruling (20260801570000), so the
+-- opener no longer refuses categorically: it refuses because THIS job is not in
+-- Full mode. The denial is what matters, and the message explains why.
 select throws_like(
   $$ select public.open_direct_conversation(
        (select job_id from _c), (select inspector_id from _c)) $$,
-  '%DIRECT_CLIENT_INSPECTOR_CHAT_DISABLED%',
-  'C5 open_direct_conversation() fails closed with the policy error');
+  '%direct chat is not authorized%',
+  'C5 open_direct_conversation() fails closed for a non-Full job');
 
 -- ─── CLIENT → ADMIN : ALLOWED ───────────────────────────────────────────────
 select is(

@@ -45,6 +45,12 @@ insert into auth.users (id, instance_id, aud, role, email, created_at, updated_a
   (:'I3', '00000000-0000-0000-0000-000000000000','authenticated','authenticated','i3.ir@test.nx', now(),now()),
   (:'ADM','00000000-0000-0000-0000-000000000000','authenticated','authenticated','adm.ir@test.nx',now(),now());
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 -- specialty_slugs is NOT NULL (defaults to '{}'); pass a valid empty array — never
 -- an explicit NULL — for the profiles that don't need identity fields.
 insert into public.profiles (id, email, role, full_name, headline, bio, resume_url, phone, certifications, specialty_slugs) values

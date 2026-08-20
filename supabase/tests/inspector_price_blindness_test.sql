@@ -80,6 +80,12 @@ BEGIN
     (v_insp, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pb.inspector@test.nx', now(), now()),
     (v_admin, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'pb.admin@test.nx', now(), now());
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
   INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
     (v_client,'client','Test Client','pb.client@test.nx',true),
     (v_insp, 'inspector','Test Inspector','pb.inspector@test.nx',true),

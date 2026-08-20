@@ -53,6 +53,12 @@ BEGIN
          'tc.'||u::text||'@test.nx', now(), now()
     FROM unnest(ARRAY[v_client,v_admin,v_lead,v_weld,v_sub,v_rando]) u;
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
   INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
     (v_client,'client','TC Client','tc.client@test.nx',true),
     (v_admin, 'admin','TC Admin','tc.admin@test.nx',true),

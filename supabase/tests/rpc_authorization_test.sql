@@ -53,6 +53,12 @@ VALUES
   (:'ADM',   '00000000-0000-0000-0000-000000000000','authenticated','authenticated','ra.admin@test.nx',     now(),now()),
   (:'RANDO', '00000000-0000-0000-0000-000000000000','authenticated','authenticated','ra.random@test.nx',    now(),now());
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 INSERT INTO public.profiles (id, role, full_name, email, is_verified) VALUES
   (:'CL',   'client',   'Auth Test Client',   'ra.client@test.nx',    true),
   (:'INSP', 'inspector','Auth Test Inspector','ra.inspector@test.nx', true),

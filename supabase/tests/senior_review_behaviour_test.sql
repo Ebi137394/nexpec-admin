@@ -60,6 +60,12 @@ select u, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticate
                (:'deact'::uuid), (:'coauth'::uuid), (:'cli'::uuid)) v(u)
 on conflict (id) do nothing;
 
+-- Fixture users are CONFIRMED users. The email-verification gate
+-- (20260801582000) refuses gated writes from an unconfirmed account, so a
+-- fixture that skips confirmation is not modelling a real signed-up user.
+-- Scoped to NULLs so it can never touch an already-confirmed row.
+update auth.users set email_confirmed_at = now() where email_confirmed_at is null;
+
 --  The buyer carries an AUTHORISED CREDIT LINE. The job below is net_terms, and
 --  net_terms is precisely the mode that dispatches against credit rather than
 --  against a prepaid tranche: nx_guard_dispatch_requires_funding resolves

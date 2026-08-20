@@ -54,7 +54,7 @@ export async function fetchClientJobReport(
       .select(
         // identity_mode is the admin-set disclosure policy (…284000); it lives
         // on jobs and therefore on jobs_secure_view (SELECT j.*).
-        'id, title, status, client_price_cents, payout_status, admin_confirmed_at, hired_inspector_id, contractor_id, identity_mode',
+        'id, title, status, client_price_cents, budget_cents, payout_status, admin_confirmed_at, hired_inspector_id, contractor_id, identity_mode',
       )
       .eq('id', jobId)
       .eq('client_id', user.id)
@@ -69,6 +69,54 @@ export async function fetchClientJobReport(
     }
 
     const j = rawJob as unknown as Record<string, unknown>;
+
+    // ── AUTHORITATIVE CLIENT PRICE ──────────────────────────────────────────
+    //  OWNER-REVIEW BUG: this tile rendered "$0" on a job whose price had not
+    //  been set yet (jobs.client_price_cents defaults to 0 until an admin
+    //  generates the contract), while the job page showed the real budget.
+    //  "$0" tells the client they owe nothing — a materially wrong statement
+    //  about their own money. Resolution order, no hardcoded amount:
+    //    1. the live (non-voided) job contract — the committed, signed figure
+    //    2. jobs.client_price_cents when it is actually set (> 0)
+    //    3. null → the surface renders an honest "not set yet", never 0
+    //  GOLDEN_RULE_2 is untouched: only client_price_cents is selected, never
+    //  a payout or spread column.
+    let resolvedClientPriceCents: number | null = null;
+    let resolvedClientPriceSource: 'contract' | 'job' | 'budget' | null = null;
+    {
+      const rawJobPrice =
+        typeof j.client_price_cents === 'string'
+          ? Number(j.client_price_cents)
+          : (j.client_price_cents as number | null) ?? null;
+
+      const { data: contractRow } = await supabase
+        .from('client_job_contracts_view')
+        .select('client_price_cents')
+        .eq('job_id', jobId)
+        .neq('status', 'voided')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const contractPrice = contractRow
+        ? Number((contractRow as Record<string, unknown>).client_price_cents ?? 0)
+        : 0;
+
+      const budget = Number(j.budget_cents ?? 0);
+
+      if (contractPrice > 0) {
+        resolvedClientPriceCents = contractPrice;
+        resolvedClientPriceSource = 'contract';
+      } else if (rawJobPrice && rawJobPrice > 0) {
+        resolvedClientPriceCents = rawJobPrice;
+        resolvedClientPriceSource = 'job';
+      } else if (Number.isFinite(budget) && budget > 0) {
+        // Same fallback the mobile approve screen already used; labelled as a
+        // budget so it is never mistaken for an agreed contract price.
+        resolvedClientPriceCents = budget;
+        resolvedClientPriceSource = 'budget';
+      }
+    }
 
     // 2. Inspector identity — IDENTITY ESCROW.
     //
@@ -204,10 +252,8 @@ export async function fetchClientJobReport(
       reportResult,
       reportStatus,
       adminConfirmedAt: (j.admin_confirmed_at as string | null) ?? null,
-      clientPriceCents:
-        typeof j.client_price_cents === 'string'
-          ? Number(j.client_price_cents)
-          : (j.client_price_cents as number | null) ?? null,
+      clientPriceCents: resolvedClientPriceCents,
+      clientPriceSource: resolvedClientPriceSource,
       inspectorFullName,
       inspectorCompanyName,
       inspectorHandle,

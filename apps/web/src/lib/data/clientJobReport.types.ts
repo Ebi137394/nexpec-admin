@@ -48,6 +48,17 @@ export interface ClientReportState {
   /** Client-side final price (admin-set). NEVER the inspector's payout. */
   clientPriceCents: number | null;
   /**
+   * Where clientPriceCents came from, so the surface can label it honestly
+   * instead of implying a committed price that does not exist yet:
+   *   'contract' — the live job contract (authoritative, signed figure)
+   *   'job'      — jobs.client_price_cents (admin-set on the job)
+   *   'budget'   — the posted budget; NO price agreed yet
+   *   null       — nothing is set; render "not set yet", never $0
+   * Mirrors the mobile buyerPriceCents() fallback chain so both platforms
+   * present the same commercial figure for the same job.
+   */
+  clientPriceSource: 'contract' | 'job' | 'budget' | null;
+  /**
    * Identity of the inspector who completed the work — display only, and
    * ONLY populated when jobs.identity_mode permits it ('professional' |
    * 'full') AND the workflow reveal boundary has passed (admin_confirmed_at

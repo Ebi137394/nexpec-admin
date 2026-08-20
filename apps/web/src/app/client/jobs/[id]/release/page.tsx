@@ -169,8 +169,16 @@ export default async function ClientReleasePage({
         />
         <SummaryTile
           icon={<Clock className="h-4 w-4" strokeWidth={1.75} />}
-          label="Your price"
-          value={formatPrice(state.clientPriceCents)}
+          label={
+            state.clientPriceSource === 'budget'
+              ? 'Your budget, price not set yet'
+              : 'Total contract price'
+          }
+          value={
+            state.clientPriceCents === null
+              ? 'Not set yet'
+              : formatPrice(state.clientPriceCents)
+          }
           tone="violet"
         />
       </section>

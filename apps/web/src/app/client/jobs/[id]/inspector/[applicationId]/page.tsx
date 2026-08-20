@@ -264,6 +264,21 @@ export default async function JobScopedInspectorPage({ params }: PageProps) {
         heading="Direct messaging"
       />
 
+      {/* Full disclosure is per-job, but the direct room is per ENGAGEMENT:
+          it exists between the client and the job's ACTIVE contract inspector.
+          On a Full job whose applicant is not hired yet there is no
+          counterparty to open a room with, and JobChatActions correctly
+          renders nothing. Say so, rather than leaving the client to wonder why
+          Full showed the identity but no chat. */}
+      {isFull && d.application_status !== 'hired' && d.application_status !== 'accepted' && (
+        <p className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-relaxed text-zinc-400">
+          Full access is active on this job, so this applicant&rsquo;s identity
+          and contact details are disclosed above. Direct messaging with an
+          inspector opens once they are hired and the contract for this job is
+          executed — until then, use your NEXPEC admin room below.
+        </p>
+      )}
+
       <form
         action={openJobChat}
         className="rounded-3xl border border-white/[0.06] bg-white/[0.01] p-5"

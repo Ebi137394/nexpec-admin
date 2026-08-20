@@ -34,7 +34,18 @@ major_version = 15
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# The mobile app requests redirectTo = Linking.createURL('reset-password'),
+# which resolves to nexpec://reset-password in a standalone build (scheme is
+# set in app.config.js) and to an exp:// URL under Expo Go. GoTrue rejects a
+# redirectTo that is not on this list BEFORE the app ever sees it, so a
+# recovery link opened on a device would silently fail without these.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "nexpec://reset-password",
+  "nexpec://oauth-callback",
+  "nexpec://*",
+  "exp://127.0.0.1:8081/--/reset-password",
+]
 jwt_expiry = 3600
 enable_signup = true
 

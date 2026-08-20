@@ -1,59 +1,59 @@
 -- ════════════════════════════════════════════════════════════════════════════
 --  20260801590000_production_privilege_hotfix.sql
 --
---  THE MOST SERIOUS THING THE PRODUCTION REHEARSAL OF 2026-08-20 FOUND.
+--  URGENT PRODUCTION SECURITY HOTFIX — standalone and dependency-minimal.
 --
---  Production's PostgREST-facing roles carry privileges that no migration in
---  this repository ever granted, and that the tested configuration does not
---  have. Measured by diffing the restored Production snapshot against a
---  database built purely from this migration set at the same HEAD:
+--  Designed to be applied to Production BY ITSELF, ahead of the rest of the
+--  pending chain. It reads no table the chain creates, calls no function the
+--  chain adds, and every grant it replays is guarded by to_regclass() /
+--  to_regprocedure(), so objects that do not exist on this database yet are
+--  skipped rather than raising. It is equally correct applied to Production as
+--  it stands today, to Staging at HEAD, or to a fresh local reset.
 --
---        extra table-level privileges .......  2169   (1815 of them to anon)
---        extra column-level privileges ...... 14392   (12427 to anon)
---        extra function EXECUTE grants ......  2552   (1405 to anon)
---        privileges MISSING on Production ...     0
+--  ── THE EXPOSURE ───────────────────────────────────────────────────────────
+--  anon is the UNAUTHENTICATED PostgREST role. Its key ships inside the public
+--  web bundle and inside the mobile app, so "anon can" means "anyone can".
 --
---  Production is a strict SUPERSET. That last line is what makes this change
---  safe: there is nothing the application could be relying on that this file
---  takes away, because Staging — which runs exactly the configuration replayed
---  below — serves the same web and mobile builds.
+--    • anon held INSERT/UPDATE/DELETE/TRUNCATE on 281 tables. The tested
+--      configuration grants it 4.
+--    • On six of those tables RLS is not enabled at all, so nothing else stood
+--      in the way: assets, badges, error_logs, form_drafts, spatial_ref_sys,
+--      user_badges.
+--    • Probed on a restored replica, as anon, inside a rolled-back transaction:
+--        INSERT INTO badges          -> ACCEPTED
+--        DELETE FROM form_drafts     -> ACCEPTED
+--        INSERT INTO error_logs      -> refused only by a NOT NULL constraint,
+--                                       i.e. it passed authorization
+--    • anon also held SELECT on public.jobs, and authenticated held table-level
+--      SELECT, which covers the buyer-only money columns GOLDEN_RULE_2 exists
+--      to hide. anon read client_price_cents on 3 rows (max 300000 = $3,000.00);
+--      an ordinary inspector read it on 6.
 --
---  ── WHAT IS ACTUALLY EXPOSED ───────────────────────────────────────────────
---  anon is the UNAUTHENTICATED role. Its key ships inside the public web
---  bundle and inside the mobile app, so "anon can" means "anyone can".
+--  Measured against a database built only from this migration set at the same
+--  HEAD: 2169 extra table privileges, 14392 extra column privileges, 2552 extra
+--  function EXECUTE grants, and ZERO privileges missing. Production is a strict
+--  SUPERSET, which is what makes this file safe — it cannot take away anything
+--  the application relies on, because Staging serves the same web and mobile
+--  builds on exactly the configuration replayed below.
 --
---   • anon holds INSERT/UPDATE/DELETE/TRUNCATE on 281 tables. The tested
---     configuration grants it 4. Row-level security is the only thing standing
---     in the way, which makes RLS a single point of failure across the whole
---     schema rather than the second of two layers.
---
---   • On SIX of those tables RLS is not enabled at all, so there is no second
---     layer: assets, badges, error_logs, form_drafts, spatial_ref_sys,
---     user_badges. Probed on a restored replica, as anon, inside a rolled-back
---     transaction: INSERT into badges was ACCEPTED, DELETE from form_drafts was
---     ACCEPTED, and error_logs refused only on a NOT NULL constraint — an
---     authorization pass, not an authorization failure.
---
---   • anon holds SELECT on public.jobs, and authenticated holds table-level
---     SELECT, which covers the buyer-only money columns that GOLDEN_RULE_2
---     exists to hide. Probed the same way: anon read client_price_cents on 3
---     job rows (max 300000 = $3,000.00) and an ordinary inspector read it on 6.
---     Applying the 41 pending migrations does NOT fix this — the same probe
---     returns the same numbers afterwards, which is why this file exists.
---
---  ── WHERE THE DRIFT CAME FROM ──────────────────────────────────────────────
+--  ── WHY PRODUCTION AND NOTHING ELSE ────────────────────────────────────────
 --  Production's history row for 00000000000000_remote_baseline.sql was
 --  RECORDED, not executed — that is what a squash baseline is. The 122 REVOKE
---  statements inside that file therefore never ran on Production, while every
---  environment rebuilt from the migration set did run them. The blanket
---  "GRANT ... ON ALL TABLES IN SCHEMA public TO anon, authenticated" from
---  early project setup was never withdrawn there.
+--  statements inside it therefore never ran there, while every environment
+--  rebuilt from the migration set did run them. The blanket
+--  "GRANT ... ON ALL TABLES IN SCHEMA public TO anon, authenticated" from early
+--  project setup was never withdrawn.
+--
+--  Applying the 45 pending migrations does NOT close this: the same probes
+--  return the same numbers afterwards. That is why this is a hotfix and not a
+--  line item in the promotion.
 --
 --  ── METHOD ─────────────────────────────────────────────────────────────────
---  Reset the two PostgREST roles (and the PUBLIC pseudo-role they inherit from)
---  to zero inside schema public, then replay the tested configuration verbatim.
---  Declarative and idempotent: applying it twice leaves the same state, and it
---  is a no-op on any environment already built from these migrations.
+--  Reset the two PostgREST roles and the PUBLIC pseudo-role they inherit from,
+--  harden the default privileges so the drift cannot grow back, then replay the
+--  tested configuration. Declarative and idempotent: applying it twice leaves
+--  the same state, and it is a no-op on any environment already built from
+--  these migrations.
 --
 --  service_role and postgres are not reset directly. They lose only what they
 --  held via PUBLIC, which is precisely the tested configuration's posture.
@@ -68,574 +68,1326 @@ REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, PUBLIC;
 REVOKE ALL ON ALL ROUTINES  IN SCHEMA public FROM anon, authenticated, PUBLIC;
 
--- ── 2. Replay the tested configuration, exactly ──────────────────────────
---  Generated from the migration-built control database at HEAD 20260801582000.
---  Production is a strict SUPERSET of this set: the rehearsal diff found 0
---  privileges present in the tested configuration and missing on Production,
---  so nothing the application uses can be lost here.
-
-GRANT SELECT ON TABLE public."_app_config" TO anon;
-GRANT SELECT ON TABLE public."admin_direct_messages" TO anon;
-GRANT SELECT ON TABLE public."agreement_signatures" TO anon;
-GRANT SELECT ON TABLE public."agreements" TO anon;
-GRANT SELECT ON TABLE public."approval_decisions" TO anon;
-GRANT SELECT ON TABLE public."approval_policies" TO anon;
-GRANT SELECT ON TABLE public."approval_requests" TO anon;
-GRANT SELECT ON TABLE public."asset_defect_observations" TO anon;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."audit_events_public" TO anon;
-GRANT SELECT ON TABLE public."auth_recovery_codes" TO anon;
-GRANT SELECT ON TABLE public."bridge_documents" TO anon;
-GRANT SELECT ON TABLE public."bridge_slots" TO anon;
-GRANT SELECT ON TABLE public."client_assigned_inspector_view" TO anon;
-GRANT SELECT ON TABLE public."client_documents" TO anon;
-GRANT SELECT ON TABLE public."client_error_events" TO anon;
-GRANT SELECT ON TABLE public."client_inspector_shortlist_view" TO anon;
-GRANT SELECT ON TABLE public."client_job_contracts_view" TO anon;
-GRANT SELECT ON TABLE public."compliance_documents" TO anon;
-GRANT SELECT ON TABLE public."contact_submissions" TO anon;
-GRANT SELECT ON TABLE public."contractor_certifications" TO anon;
-GRANT SELECT ON TABLE public."contractors" TO anon;
-GRANT SELECT ON TABLE public."contracts" TO anon;
-GRANT SELECT ON TABLE public."conversations" TO anon;
-GRANT SELECT ON TABLE public."coordination_bridges" TO anon;
-GRANT SELECT ON TABLE public."country_codes" TO anon;
-GRANT SELECT ON TABLE public."courses" TO anon;
-GRANT SELECT ON TABLE public."deal_inspector_candidates" TO anon;
-GRANT SELECT ON TABLE public."deal_money_legs" TO anon;
-GRANT SELECT ON TABLE public."deal_nonconformances" TO anon;
-GRANT SELECT ON TABLE public."deal_payment_schedule" TO anon;
-GRANT SELECT ON TABLE public."deal_revision_events" TO anon;
-GRANT SELECT ON TABLE public."deal_revisions" TO anon;
-GRANT SELECT ON TABLE public."deals" TO anon;
-GRANT SELECT ON TABLE public."department_budgets" TO anon;
-GRANT SELECT ON TABLE public."department_members" TO anon;
-GRANT SELECT ON TABLE public."departments" TO anon;
-GRANT SELECT ON TABLE public."dispute_activities" TO anon;
-GRANT SELECT ON TABLE public."disputes" TO anon;
-GRANT SELECT ON TABLE public."doc_validations" TO anon;
-GRANT SELECT ON TABLE public."engineering_tools" TO anon;
-GRANT SELECT ON TABLE public."enterprise_domains" TO anon;
-GRANT SELECT ON TABLE public."escrow_logs" TO anon;
-GRANT SELECT ON TABLE public."expenses" TO anon;
-GRANT SELECT ON TABLE public."findings" TO anon;
-GRANT SELECT ON TABLE public."flash_report_attachments" TO anon;
-GRANT SELECT ON TABLE public."flash_reports" TO anon;
-GRANT SELECT ON TABLE public."fx_rates" TO anon;
-GRANT SELECT ON TABLE public."fx_refresh_runs" TO anon;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."geography_columns" TO anon;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."geometry_columns" TO anon;
-GRANT SELECT ON TABLE public."helpdesk_messages" TO anon;
-GRANT SELECT ON TABLE public."identity_links" TO anon;
-GRANT SELECT ON TABLE public."inspection_assets" TO anon;
-GRANT SELECT ON TABLE public."inspection_captures" TO anon;
-GRANT SELECT ON TABLE public."inspection_domains" TO anon;
-GRANT SELECT ON TABLE public."inspection_events" TO anon;
-GRANT SELECT ON TABLE public."inspection_evidence_requirements" TO anon;
-GRANT SELECT ON TABLE public."inspection_scope_templates" TO anon;
-GRANT SELECT ON TABLE public."inspection_seal_anchors" TO anon;
-GRANT SELECT ON TABLE public."inspector_certificates" TO anon;
-GRANT SELECT ON TABLE public."inspector_credentials" TO anon;
-GRANT SELECT ON TABLE public."inspector_domain_practice" TO anon;
-GRANT SELECT ON TABLE public."inspector_engagement_meta" TO anon;
-GRANT SELECT ON TABLE public."inspector_job_contracts_view" TO anon;
-GRANT SELECT ON TABLE public."inspectors_directory" TO anon;
-GRANT SELECT ON TABLE public."job_contracts" TO anon;
-GRANT SELECT ON TABLE public."job_meeting_participants" TO anon;
-GRANT SELECT ON TABLE public."job_meetings" TO anon;
-GRANT SELECT ON TABLE public."knowledge_base" TO anon;
-GRANT SELECT ON TABLE public."legal_document_acceptances" TO anon;
-GRANT SELECT ON TABLE public."legal_documents" TO anon;
-GRANT SELECT ON TABLE public."messages" TO anon;
-GRANT SELECT ON TABLE public."model_artifacts" TO anon;
-GRANT SELECT ON TABLE public."notification_logs" TO anon;
-GRANT SELECT ON TABLE public."notification_preferences" TO anon;
-GRANT SELECT ON TABLE public."notifications" TO anon;
-GRANT SELECT ON TABLE public."org_department_members" TO anon;
-GRANT SELECT ON TABLE public."org_departments" TO anon;
-GRANT SELECT ON TABLE public."org_invitations" TO anon;
-GRANT SELECT ON TABLE public."org_members" TO anon;
-GRANT SELECT ON TABLE public."organizations" TO anon;
-GRANT SELECT ON TABLE public."payments" TO anon;
-GRANT SELECT ON TABLE public."payout_requests" TO anon;
-GRANT SELECT ON TABLE public."pi_report_seals" TO anon;
-GRANT SELECT ON TABLE public."platform_settings" TO anon;
-GRANT SELECT ON TABLE public."preferred_inspectors" TO anon;
-GRANT SELECT ON TABLE public."profile_work_auth_documents" TO anon;
-GRANT SELECT ON TABLE public."profiles" TO anon;
-GRANT SELECT ON TABLE public."proposals" TO anon;
-GRANT SELECT ON TABLE public."public_demand_feed" TO anon;
-GRANT SELECT ON TABLE public."public_supply_feed" TO anon;
-GRANT SELECT ON TABLE public."push_tokens" TO anon;
-GRANT SELECT ON TABLE public."referrals" TO anon;
-GRANT SELECT ON TABLE public."report_reminders" TO anon;
-GRANT SELECT ON TABLE public."report_templates" TO anon;
-GRANT SELECT ON TABLE public."reports" TO anon;
-GRANT SELECT ON TABLE public."review_weights_config" TO anon;
-GRANT SELECT ON TABLE public."reviews" TO anon;
-GRANT SELECT ON TABLE public."reviews_public" TO anon;
-GRANT SELECT ON TABLE public."rfq_client_offers_view" TO anon;
-GRANT SELECT ON TABLE public."safety_checks" TO anon;
-GRANT SELECT ON TABLE public."saved_jobs" TO anon;
-GRANT SELECT ON TABLE public."signing_keys" TO anon;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."spatial_ref_sys" TO anon;
-GRANT SELECT ON TABLE public."stripe_webhook_events" TO anon;
-GRANT SELECT ON TABLE public."supplier_capability_catalog" TO anon;
-GRANT SELECT ON TABLE public."supplier_contracts" TO anon;
-GRANT SELECT ON TABLE public."supplier_directory" TO anon;
-GRANT SELECT ON TABLE public."supplier_profiles" TO anon;
-GRANT SELECT ON TABLE public."supplier_rfqs" TO anon;
-GRANT SELECT ON TABLE public."support_messages" TO anon;
-GRANT SELECT ON TABLE public."support_tickets" TO anon;
-GRANT SELECT ON TABLE public."tool_pro_grants" TO anon;
-GRANT SELECT ON TABLE public."tool_reference_data" TO anon;
-GRANT SELECT ON TABLE public."tool_runs" TO anon;
-GRANT SELECT ON TABLE public."trust_certificates" TO anon;
-GRANT SELECT ON TABLE public."unified_contracts_view" TO anon;
-GRANT SELECT ON TABLE public."user_course_progress" TO anon;
-GRANT SELECT ON TABLE public."user_roles" TO anon;
-GRANT SELECT ON TABLE public."vendor_contacts" TO anon;
-GRANT SELECT ON TABLE public."vendor_documents" TO anon;
-GRANT SELECT ON TABLE public."verification_affidavits" TO anon;
-GRANT SELECT ON TABLE public."verification_audit_log" TO anon;
-GRANT SELECT ON TABLE public."withdrawals" TO anon;
-GRANT SELECT ON TABLE public."work_sessions" TO anon;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."_app_config" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."activity_logs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_direct_conversations_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_direct_messages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_direct_messages_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_dispute_summary" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_notification_settings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_operational_conversations_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."admin_operational_messages_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."agreement_signatures" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."agreements" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_active_learning_scores" TO authenticated;
-GRANT REFERENCES, TRIGGER, TRUNCATE ON TABLE public."ai_analysis_queue" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_audit_history" TO authenticated;
-GRANT INSERT, SELECT ON TABLE public."ai_correction_history" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_dataset_images" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_dataset_statistics" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_dataset_versions" TO authenticated;
-GRANT INSERT, SELECT ON TABLE public."ai_detection_feedback" TO authenticated;
-GRANT SELECT ON TABLE public."ai_detections" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_export_history" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_golden_dataset_members" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_golden_datasets" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_hard_examples" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_inference_statistics" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_model_deployment_history" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_monthly_snapshots" TO authenticated;
-GRANT INSERT, SELECT ON TABLE public."ai_prediction_history" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_quality_statistics" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_rare_classes" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_rollback_history" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_storage_providers" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_storage_quotas" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_sync_statistics" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_training_runs" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."ai_training_snapshots" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."alerts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."application_assignment_origin" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."applications" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."approval_decisions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."approval_policies" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."approval_requests" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."asset_defect_observations" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."assets" TO authenticated;
-GRANT INSERT, SELECT ON TABLE public."audit_events" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."audit_events_public" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."auth_recovery_codes" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."badges" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."bridge_documents" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."bridge_slots" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."certification_expiry_reminders" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."certification_stats" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."certifications" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_assigned_inspector_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_deal_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_delivery_policy" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_error_events" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_inspector_shortlist_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."client_job_contracts_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."compliance_documents" TO authenticated;
-GRANT SELECT ON TABLE public."consent_audit_logs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."consent_receipt_status" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."contact_submissions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."contractor_certifications" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."contractors" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."contracts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."conversations" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."coordination_bridges" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."country_codes" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."courses" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_inspector_candidates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_money_legs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_nonconformances" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_payment_schedule" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_revision_events" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deal_revisions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."deals" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."department_budgets" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."department_members" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."departments" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."dev_sso_signup_check" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."dispute_activities" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."disputes" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."doc_validations" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER ON TABLE public."documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."engineering_tools" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."enterprise_domains" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."equipment" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."error_logs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."escrow_logs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."expenses" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."findings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."flash_report_attachments" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."flash_reports" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."form_drafts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."form_submissions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."form_templates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."funding_policy_audit" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."funding_term_defaults" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."fx_rates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."fx_refresh_runs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."geography_columns" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."geometry_columns" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."helpdesk_messages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."identity_links" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."inspection_assets" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_captures" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_domains" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_events" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_evidence_requirements" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_items" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_reports" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_scope_templates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspection_seal_anchors" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_certificates" TO authenticated;
-GRANT INSERT, SELECT, UPDATE ON TABLE public."inspector_certifications" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_credentials" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_deal_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_domain_practice" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER ON TABLE public."inspector_earnings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_engagement_meta" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_equipment" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_job_contracts_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_profile_smoke_test" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_skills" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspector_work_experience" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."inspectors_directory" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_canonical_entities" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_canonical_fields" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_connector_health" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_connectors" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_dead_letter_queue" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_entity_sync_state" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_field_mappings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_inbound_messages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_mapping_versions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_record_history" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."integration_record_links" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."invoices" TO authenticated;
-GRANT SELECT ON TABLE public."itp_point_results" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."itp_points" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_applicant_identity_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_applications" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."job_contracts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_disputes" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_events" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."job_expenses" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_funding_stages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_inspectors" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_meeting_participants" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_meetings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_visit_assignments" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."job_visits" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, TRIGGER, TRUNCATE, UPDATE ON TABLE public."jobs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."jobs_client_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."jobs_inspector_secure_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."jobs_inspector_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."jobs_secure_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."knowledge_base" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."legal_consents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."legal_document_acceptances" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."legal_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."legal_templates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."manual_payment_records" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."messages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."milestones" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."model_artifacts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."notification_logs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."notification_preferences" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."notification_settings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."notifications" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."org_department_members" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."org_departments" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."org_invitations" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."org_members" TO authenticated;
-GRANT SELECT ON TABLE public."org_scim_events" TO authenticated;
-GRANT SELECT ON TABLE public."org_scim_group_mappings" TO authenticated;
-GRANT SELECT ON TABLE public."org_scim_identities" TO authenticated;
-GRANT SELECT ON TABLE public."org_scim_membership_archive" TO authenticated;
-GRANT SELECT ON TABLE public."org_sso_connections" TO authenticated;
-GRANT SELECT ON TABLE public."org_sso_domains" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."organizations" TO authenticated;
-GRANT SELECT ON TABLE public."payment_audit_log" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."payment_methods" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."payments" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."payout_advances" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."payout_requests" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."pi_report_seals" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."platform_settings" TO authenticated;
-GRANT SELECT ON TABLE public."platform_wallet" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."preferred_inspectors" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."profile_work_auth_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."profiles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."programs" TO authenticated;
-GRANT INSERT, SELECT ON TABLE public."project_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."projects" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."proposals" TO authenticated;
-GRANT SELECT ON TABLE public."public_demand_feed" TO authenticated;
-GRANT SELECT ON TABLE public."public_supply_feed" TO authenticated;
-GRANT SELECT ON TABLE public."push_token_history" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."push_tokens" TO authenticated;
-GRANT SELECT ON TABLE public."qcp_required_documents" TO authenticated;
-GRANT SELECT ON TABLE public."qcp_revisions" TO authenticated;
-GRANT SELECT ON TABLE public."qcp_stage_templates" TO authenticated;
-GRANT SELECT ON TABLE public."qcp_stages" TO authenticated;
-GRANT SELECT ON TABLE public."quality_control_plans" TO authenticated;
-GRANT SELECT ON TABLE public."reconciliation_runs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."referrals" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."report_reminders" TO authenticated;
-GRANT SELECT ON TABLE public."report_review_history" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."report_senior_reviews" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."report_templates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."reports" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."review_weights_config" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."reviews" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."reviews_public" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."rfq_admin_quotes_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."rfq_client_offers_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."safety_checks" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."saved_jobs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."secure_chat_profiles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."signed_agreements" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."signing_keys" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."spatial_ref_sys" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."stripe_webhook_events" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_capability_catalog" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_contracts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_deal_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_directory" TO authenticated;
-GRANT SELECT ON TABLE public."supplier_earnings" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_profiles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_releases" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_rfqs" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_scorecard_confidence_bands" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_scorecard_metrics" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."supplier_scorecard_policy" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."support_messages" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."support_tickets" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_candidate_domains" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_candidate_profiles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_compliance_checks" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_consents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_disclosures" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_interviews" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_offers" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_opportunities" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_opportunity_domains" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_placements" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_submission_employer_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."talent_submissions" TO authenticated;
-GRANT SELECT ON TABLE public."tax_profiles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."tool_pro_grants" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."tool_reference_data" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."tool_runs" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."transactions" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."trust_certificates" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."unified_contracts_view" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."user_badges" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."user_course_progress" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."user_roles" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."v_certifications_with_status" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."v_cron_job_status" TO authenticated;
-GRANT REFERENCES, SELECT, TRIGGER, TRUNCATE ON TABLE public."vendor_contacts" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."vendor_documents" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."verification_affidavits" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."verification_audit_log" TO authenticated;
-GRANT SELECT ON TABLE public."wallets" TO authenticated;
-GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE public."withdrawal_requests" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."withdrawals" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."work_experience" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."work_orders" TO authenticated;
-GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public."work_sessions" TO authenticated;
-
-GRANT INSERT ("channel", "email", "ip_address", "message", "name", "user_agent") ON TABLE public."contact_submissions" TO anon;
-GRANT UPDATE ("flash_report_id") ON TABLE public."itp_point_results" TO authenticated;
-GRANT SELECT ("accepts_remote_inspectors", "admin_confirmed_at", "admin_confirmed_by", "agency_id", "applications_count", "budget_type", "calendar_event_id", "calendar_synced_at", "cancel_reason", "cancelled_at", "cancelled_by", "claimed_address_geocoded", "claimed_address_text", "client_id", "client_invoiced_at", "client_op_id", "client_settled_at", "contract_generated_at", "contract_id", "contractor_id", "created_at", "currency", "deleted_at", "department_id", "description", "domain", "escrow_status", "estimated_duration", "geog", "hired_inspector_id", "id", "identity_mode", "inspection_type", "inspector_id", "is_featured", "is_senior_review", "job_country", "job_type", "latitude", "location", "location_city", "longitude", "moderation_notes", "moderation_reviewed_at", "moderation_reviewed_by", "moderation_status", "payment_mode", "payout_marked_by", "payout_notes", "payout_paid_at", "payout_reference", "payout_status", "public_listable", "replacement_mode", "report_signed_docs_notes", "report_signed_docs_url", "report_template_id", "required_certifications", "requires_cci", "scheduled_date", "scope_template_id", "source_rfq_id", "specialty_slugs", "sponsorship_offered", "started_at", "status", "template_url", "title", "updated_at", "urgency") ON TABLE public."jobs" TO authenticated;
-GRANT SELECT ("connection_id", "created_at", "created_by", "expires_at", "id", "last_used_at", "name", "org_id", "revoked_at", "revoked_by", "revoked_reason", "rotated_from_id", "scopes", "token_prefix") ON TABLE public."org_scim_tokens" TO authenticated;
-GRANT INSERT ("quote", "rfq_id", "supplier_id") ON TABLE public."supplier_quotes" TO authenticated;
-GRANT SELECT ("created_at", "id", "presented_at", "quote", "rfq_id", "status", "supplier_id") ON TABLE public."supplier_quotes" TO authenticated;
-GRANT UPDATE ("quote") ON TABLE public."supplier_quotes" TO authenticated;
-
-GRANT USAGE ON SEQUENCE public."ai_audit_history_id_seq" TO anon;
-GRANT USAGE ON SEQUENCE public."ai_audit_history_id_seq" TO authenticated;
-
-GRANT EXECUTE ON FUNCTION public._brokered_autocontract_on_quote_award(), public._brokered_build_trust_artifacts(p_inspector_id uuid, p_supplier_handle text, p_scope text, p_tier text), public._brokered_client_supply_md(p_title text, p_amount_cents bigint, p_currency text, p_tier text, p_source_fat boolean), public._brokered_common_terms_md(), public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text), public._brokered_inspector_engagement_md(p_title text, p_payout_cents bigint, p_currency text), public._brokered_notify_on_present(), public._brokered_payment_schedule_md(p_total_cents bigint, p_currency text), public._brokered_schedule_a_md(p_title text, p_discipline text), public._brokered_supplier_supply_md(p_title text, p_amount_cents bigint, p_currency text), public._budget_window_start(p_window text), public._conversation_on_new_message(), public._default_daily_application_limit(), public._dept_actor_profile(p_user_id uuid), public._email_domain(p_email text), public._haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public._messages_fill_sender_role(), public._postgis_deprecate(oldname text, newname text, version text), public._postgis_index_extent(tbl regclass, col text), public._postgis_join_selectivity(regclass, text, regclass, text, text), public._postgis_pgsql_version(), public._postgis_scripts_pgsql_version(), public._postgis_selectivity(tbl regclass, att_name text, geom geometry, mode text), public._postgis_stats(tbl regclass, att_name text, text), public._quote_raw_cents(p_quote jsonb), public._recovery_code_hash(p_code text), public._resolve_display_currency(p_org_id uuid, p_requested text), public._revision_role(p_kind text), public._spawn_inspection_for_award(), public._st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public._st_3ddwithin(geom1 geometry, geom2 geometry, double precision), public._st_3dintersects(geom1 geometry, geom2 geometry), public._st_asgml(integer, geometry, integer, integer, text, text), public._st_asx3d(integer, geometry, integer, integer, text), public._st_bestsrid(geography), public._st_bestsrid(geography, geography), public._st_contains(geom1 geometry, geom2 geometry), public._st_containsproperly(geom1 geometry, geom2 geometry), public._st_coveredby(geog1 geography, geog2 geography), public._st_coveredby(geom1 geometry, geom2 geometry), public._st_covers(geog1 geography, geog2 geography), public._st_covers(geom1 geometry, geom2 geometry), public._st_crosses(geom1 geometry, geom2 geometry), public._st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public._st_distancetree(geography, geography), public._st_distancetree(geography, geography, double precision, boolean), public._st_distanceuncached(geography, geography), public._st_distanceuncached(geography, geography, boolean), public._st_distanceuncached(geography, geography, double precision, boolean), public._st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean), public._st_dwithin(geom1 geometry, geom2 geometry, double precision), public._st_dwithinuncached(geography, geography, double precision), public._st_dwithinuncached(geography, geography, double precision, boolean), public._st_equals(geom1 geometry, geom2 geometry), public._st_expand(geography, double precision), public._st_geomfromgml(text, integer), public._st_intersects(geom1 geometry, geom2 geometry), public._st_linecrossingdirection(line1 geometry, line2 geometry), public._st_longestline(geom1 geometry, geom2 geometry), public._st_maxdistance(geom1 geometry, geom2 geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public._st_orderingequals(geom1 geometry, geom2 geometry), public._st_overlaps(geom1 geometry, geom2 geometry), public._st_pointoutside(geography), public._st_sortablehash(geom geometry), public._st_touches(geom1 geometry, geom2 geometry), public._st_voronoi(g1 geometry, clip geometry, tolerance double precision, return_polygons boolean), public._st_within(geom1 geometry, geom2 geometry), public._supplier_quote_cents(p_quote jsonb), public._touch_conversations_updated_at(), public._touch_updated_at(), public._touch_updated_at_flash_reports(), public._touch_updated_at_push_tokens(), public._touch_updated_at_pwad(), public.addauth(text), public.addgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean), public.ai_ops_audit_immutable(), public.ai_ops_guard_lifecycle(), public.assemble_evidence_pack(p_job_id uuid), public.assert_job_payable(p_job_id uuid), public.assign_member_to_department(p_department_id uuid, p_user_id uuid), public.audit_delta_keys(input jsonb), public.audit_public_summary(p_summary text, p_is_buyer boolean), public.audit_redact_buyer_pricing(input jsonb), public.audit_redact_internal(input jsonb), public.audit_redact_pricing(input jsonb), public.audit_set_correlation(p_correlation_id uuid), public.audit_set_intent(p_intent text), public.auto_expire_certifications() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.box(box3d), public.box(geometry), public.box2d(box3d), public.box2d(geometry), public.box2d_in(cstring), public.box2d_out(box2d), public.box2df_in(cstring), public.box2df_out(box2df), public.box3d(box2d), public.box3d(geometry), public.box3d_in(cstring), public.box3d_out(box3d), public.box3dtobox(box3d), public.bridge_accept_counter_schedule(p_bridge_id uuid, p_slot_id uuid), public.bridge_accept_document(p_document_id uuid), public.bridge_add_document_request(p_bridge_id uuid, p_title text, p_description text, p_required boolean, p_max_size_mb integer), public.bridge_cancel(p_bridge_id uuid, p_reason text), public.bridge_complete(p_bridge_id uuid), public.bridge_create(p_job_id uuid, p_company_name text, p_contact_name text, p_contact_email text, p_contact_phone text, p_country_code text, p_timezone text, p_language_code text, p_token_ttl_days integer), public.bridge_fetch_for_inspector(p_bridge_id uuid), public.bridge_propose_schedule(p_bridge_id uuid, p_proposed_at timestamp with time zone, p_timezone text, p_notes text), public.bridge_reject_document(p_document_id uuid, p_reason text), public.bridge_rotate_token(p_bridge_id uuid, p_token_ttl_days integer), public.bytea(geography), public.bytea(geometry), public.can_access_job_messages(p_job_id uuid, p_user_id uuid), public.can_assemble_evidence_for(p_job_id uuid, p_user_id uuid), public.can_manage_org_structure(p_org_id uuid, p_user_id uuid), public.can_raise_dispute(p_project_id uuid, p_user_id uuid), public.cancel_job_approval(p_job_id uuid, p_reason text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.check_department_budget(p_department_id uuid, p_as_of date, p_additional_cents bigint, p_additional_currency text), public.check_expert_badge_eligibility(), public.check_project_completion_lock(), public.checkauth(text, text), public.checkauth(text, text, text), public.checkauthtrigger(), public.cleanup_old_notification_logs(days_to_keep integer), public.compliance_posture_summary(p_org_id uuid), public.compute_review_weight(p_verified boolean, p_jobs_count integer, p_role text), public.consume_recovery_code(p_code text), public.contains_2d(box2df, box2df), public.contains_2d(box2df, geometry), public.contains_2d(geometry, box2df), public.contracts_is_contractor_party(p_contract_id uuid, p_uid uuid), public.contracts_touch(), public.convert_cents(p_amount_cents bigint, p_from_currency text, p_to_currency text, p_as_of timestamp with time zone), public.count_valid_certificates(contractor_uuid uuid), public.create_admin_notification(p_title text, p_body text, p_type text, p_link text, p_job_id uuid), public.create_department(p_org_id uuid, p_parent_department_id uuid, p_name text, p_cost_center text), public.delete_department(p_department_id uuid, p_force boolean), public.detect_band_evasion_pattern(p_org_id uuid), public.detect_client_cancellation_spam(), public.detect_concentration_risk(p_org_id uuid), public.detect_off_hours_decisions(p_org_id uuid), public.detect_quarter_end_clustering(p_org_id uuid), public.detect_rubber_stamping(p_org_id uuid), public.detect_silent_overrides(p_org_id uuid), public.detect_vendor_coordination_latency(p_org_id uuid, p_lookback_days integer), public.disablelongtransactions(), public.dropgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.dropgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying), public.dropgeometrycolumn(table_name character varying, column_name character varying), public.dropgeometrytable(catalog_name character varying, schema_name character varying, table_name character varying), public.dropgeometrytable(schema_name character varying, table_name character varying), public.dropgeometrytable(table_name character varying), public.enablelongtransactions(), public.enforce_application_rate_limit(), public.ensure_help_support_conversation(), public.ensure_job_conversation(p_job_id uuid, p_kind text), public.equals(geom1 geometry, geom2 geometry), public.evaluate_job_for_approval(p_org_id uuid, p_department_id uuid, p_amount_cents bigint, p_currency text), public.expire_old_certifications(), public.fetch_affidavit_by_verify_token(p_token text), public.fetch_cert_by_slug(p_slug text), public.fetch_department_audit_trail(p_org_id uuid, p_limit integer), public.fetch_department_budget_rollup(p_org_id uuid, p_window text, p_display_currency text), public.fetch_department_tree(p_org_id uuid), public.fetch_my_org_memberships(), public.fetch_my_pending_approvals(), public.file_dispute(p_job_id uuid, p_category text, p_body text), public.find_srid(character varying, character varying, character varying), public.format_amount_for_notification(p_amount_cents bigint, p_currency text), public.gen_verify_token(), public.geog_brin_inclusion_add_value(internal, internal, internal, internal), public.geography(bytea), public.geography(geography, integer, boolean), public.geography(geometry), public.geography_analyze(internal), public.geography_cmp(geography, geography), public.geography_distance_knn(geography, geography) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.geography_eq(geography, geography), public.geography_ge(geography, geography), public.geography_gist_compress(internal), public.geography_gist_consistent(internal, geography, integer), public.geography_gist_decompress(internal), public.geography_gist_distance(internal, geography, integer), public.geography_gist_penalty(internal, internal, internal), public.geography_gist_picksplit(internal, internal), public.geography_gist_same(box2d, box2d, internal), public.geography_gist_union(bytea, internal), public.geography_gt(geography, geography), public.geography_in(cstring, oid, integer), public.geography_le(geography, geography), public.geography_lt(geography, geography), public.geography_out(geography), public.geography_overlaps(geography, geography), public.geography_recv(internal, oid, integer), public.geography_send(geography), public.geography_spgist_choose_nd(internal, internal), public.geography_spgist_compress_nd(internal), public.geography_spgist_config_nd(internal, internal), public.geography_spgist_inner_consistent_nd(internal, internal), public.geography_spgist_leaf_consistent_nd(internal, internal), public.geography_spgist_picksplit_nd(internal, internal), public.geography_typmod_in(cstring[]), public.geography_typmod_out(integer), public.geom2d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom3d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom4d_brin_inclusion_add_value(internal, internal, internal, internal), public.geometry(box2d) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.geometry(box3d), public.geometry(bytea), public.geometry(geography), public.geometry(geometry, integer, boolean), public.geometry(path), public.geometry(point), public.geometry(polygon), public.geometry(text), public.geometry_above(geom1 geometry, geom2 geometry), public.geometry_analyze(internal), public.geometry_below(geom1 geometry, geom2 geometry), public.geometry_cmp(geom1 geometry, geom2 geometry), public.geometry_contained_3d(geom1 geometry, geom2 geometry), public.geometry_contains(geom1 geometry, geom2 geometry), public.geometry_contains_3d(geom1 geometry, geom2 geometry), public.geometry_contains_nd(geometry, geometry), public.geometry_distance_box(geom1 geometry, geom2 geometry), public.geometry_distance_centroid(geom1 geometry, geom2 geometry), public.geometry_distance_centroid_nd(geometry, geometry), public.geometry_distance_cpa(geometry, geometry), public.geometry_eq(geom1 geometry, geom2 geometry), public.geometry_ge(geom1 geometry, geom2 geometry), public.geometry_gist_compress_2d(internal), public.geometry_gist_compress_nd(internal), public.geometry_gist_consistent_2d(internal, geometry, integer), public.geometry_gist_consistent_nd(internal, geometry, integer), public.geometry_gist_decompress_2d(internal), public.geometry_gist_decompress_nd(internal), public.geometry_gist_distance_2d(internal, geometry, integer), public.geometry_gist_distance_nd(internal, geometry, integer) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.geometry_gist_penalty_2d(internal, internal, internal), public.geometry_gist_penalty_nd(internal, internal, internal), public.geometry_gist_picksplit_2d(internal, internal), public.geometry_gist_picksplit_nd(internal, internal), public.geometry_gist_same_2d(geom1 geometry, geom2 geometry, internal), public.geometry_gist_same_nd(geometry, geometry, internal), public.geometry_gist_sortsupport_2d(internal), public.geometry_gist_union_2d(bytea, internal), public.geometry_gist_union_nd(bytea, internal), public.geometry_gt(geom1 geometry, geom2 geometry), public.geometry_hash(geometry), public.geometry_in(cstring), public.geometry_le(geom1 geometry, geom2 geometry), public.geometry_left(geom1 geometry, geom2 geometry), public.geometry_lt(geom1 geometry, geom2 geometry), public.geometry_out(geometry), public.geometry_overabove(geom1 geometry, geom2 geometry), public.geometry_overbelow(geom1 geometry, geom2 geometry), public.geometry_overlaps(geom1 geometry, geom2 geometry), public.geometry_overlaps_3d(geom1 geometry, geom2 geometry), public.geometry_overlaps_nd(geometry, geometry), public.geometry_overleft(geom1 geometry, geom2 geometry), public.geometry_overright(geom1 geometry, geom2 geometry), public.geometry_recv(internal), public.geometry_right(geom1 geometry, geom2 geometry), public.geometry_same(geom1 geometry, geom2 geometry), public.geometry_same_3d(geom1 geometry, geom2 geometry), public.geometry_same_nd(geometry, geometry), public.geometry_send(geometry), public.geometry_sortsupport(internal) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.geometry_spgist_choose_2d(internal, internal), public.geometry_spgist_choose_3d(internal, internal), public.geometry_spgist_choose_nd(internal, internal), public.geometry_spgist_compress_2d(internal), public.geometry_spgist_compress_3d(internal), public.geometry_spgist_compress_nd(internal), public.geometry_spgist_config_2d(internal, internal), public.geometry_spgist_config_3d(internal, internal), public.geometry_spgist_config_nd(internal, internal), public.geometry_spgist_inner_consistent_2d(internal, internal), public.geometry_spgist_inner_consistent_3d(internal, internal), public.geometry_spgist_inner_consistent_nd(internal, internal), public.geometry_spgist_leaf_consistent_2d(internal, internal), public.geometry_spgist_leaf_consistent_3d(internal, internal), public.geometry_spgist_leaf_consistent_nd(internal, internal), public.geometry_spgist_picksplit_2d(internal, internal), public.geometry_spgist_picksplit_3d(internal, internal), public.geometry_spgist_picksplit_nd(internal, internal), public.geometry_typmod_in(cstring[]), public.geometry_typmod_out(integer), public.geometry_within(geom1 geometry, geom2 geometry), public.geometry_within_nd(geometry, geometry), public.geometrytype(geography), public.geometrytype(geometry), public.geomfromewkb(bytea), public.geomfromewkt(text), public.get_asset_timeline(p_asset_id uuid), public.get_burn_rate(p_project_id uuid, p_months_back integer), public.get_certification_expiry_summary(p_contractor_id uuid), public.get_dashboard_analytics() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_expiring_certifications(reminder_days integer[]), public.get_expiring_certifications_with_contractor(reminder_days integer[]), public.get_inspection_passport(p_seal_id uuid), public.get_inspector_dashboard_stats(), public.get_latest_consent(p_user_id text, p_document_id text), public.get_monthly_breakdown(p_inspector_id uuid), public.get_my_application_quota(), public.get_proj4_from_srid(integer), public.get_project_dispute_stats(p_project_id uuid), public.get_spending_dashboard(p_project_id uuid), public.get_template_for_job(p_job_id uuid), public.get_user_earnings(p_user_id uuid), public.get_utilization(p_project_id uuid), public.get_weekly_earnings(p_inspector_id uuid), public.gettransactionid(), public.gidx_in(cstring), public.gidx_out(gidx), public.gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal), public.gin_extract_value_trgm(text, internal), public.gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal), public.gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal), public.global_search(p_query text, p_limit integer), public.gserialized_gist_joinsel_2d(internal, oid, internal, smallint), public.gserialized_gist_joinsel_nd(internal, oid, internal, smallint), public.gserialized_gist_sel_2d(internal, oid, internal, integer), public.gserialized_gist_sel_nd(internal, oid, internal, integer), public.gtrgm_compress(internal), public.gtrgm_consistent(internal, text, smallint, oid, internal), public.gtrgm_decompress(internal), public.gtrgm_distance(internal, text, smallint, oid, internal) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.gtrgm_in(cstring), public.gtrgm_options(internal), public.gtrgm_out(gtrgm), public.gtrgm_penalty(internal, internal, internal), public.gtrgm_picksplit(internal, internal), public.gtrgm_same(gtrgm, gtrgm, internal), public.gtrgm_union(internal, internal), public.guard_application_self_transition(), public.guard_jobs_status_transition(), public.guard_profile_privileged_columns(), public.handle_inspection_report_state_machine(), public.handle_job_acceptance(), public.handle_new_user_settings(), public.handle_payout_updated_at(), public.handle_report_status_change(), public.handle_report_submission(), public.handle_updated_at(), public.has_applied_to_job(p_job_id uuid), public.has_valid_certificates(contractor_uuid uuid), public.has_valid_consent(p_user_id text, p_document_id text, p_policy_version text), public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public.increment_job_applications_count(), public.inspector_integrity_analytics(p_window_days integer), public.inspector_respond_to_counter(p_application_id uuid, p_decision text, p_note text), public.inspector_start_job(p_job_id uuid), public.invite_inspector_to_job(p_job_id uuid, p_inspector_id uuid, p_message text), public.is_active_cci(p_uid uuid, p_min_tier cci_credential_tier), public.is_admin(), public.is_contained_2d(box2df, box2df), public.is_contained_2d(box2df, geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.is_contained_2d(geometry, box2df), public.is_helpdesk_admin(), public.is_member_of_org(p_org_id uuid), public.is_service_role(), public.is_super_admin(), public.is_support_admin(), public.jobs_has_contractor_party(p_job_id uuid, p_uid uuid), public.json(geometry), public.jsonb(geometry), public.link_organization_by_email_domain(), public.lock_report_template(p_template_id uuid), public.lockrow(text, text, text), public.lockrow(text, text, text, text), public.lockrow(text, text, text, text, timestamp without time zone), public.lockrow(text, text, text, timestamp without time zone), public.log_application_event(), public.log_dispute_status_change(), public.log_job_event(), public.log_verification_change(), public.longtransactionsenabled(), public.lookup_sso_for_email(p_email text), public.mark_conversation_read(p_conv_id uuid), public.mark_report_viewed(p_report_id uuid), public.moddatetime(), public.move_department(p_department_id uuid, p_new_parent_id uuid), public.notification_smoke_test(), public.notify_admins(p_kind text, p_title text, p_body text, p_link text, p_job_id uuid), public.notify_inspectors_about_existing_job(p_job_id uuid), public.notify_inspectors_on_job_approved(), public.notify_job_event_webhook() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.notify_on_application_change(), public.notify_on_contract_assignment(), public.notify_on_dispute_change(), public.notify_on_job_change(), public.notify_on_new_message(), public.notify_on_new_review(), public.notify_on_transaction_change(), public.nx_business_days_elapsed(p_since timestamp with time zone), public.nx_can_see_job_dept_scoping(p_user_id uuid, p_job_id uuid), public.nx_contract_clause_forbidden(p_text text, p_viewer text), public.nx_contract_text_for_client(p_md text), public.nx_contract_text_for_inspector(p_md text), public.nx_contract_text_sanitize(p_md text, p_viewer text), public.nx_guard_contract_before_money(), public.nx_guard_inspector_certification_verification(), public.nx_guard_jobs_funding_columns(), public.nx_guard_marketplace_hidden(), public.nx_guard_no_self_senior_review(), public.nx_guard_project_program_same_org(), public.nx_guard_report_delivery(), public.nx_guard_report_no_self_approval(), public.nx_guard_senior_review_immutable(), public.nx_guard_senior_review_no_delete(), public.nx_is_admin(p_uid uuid), public.nx_jobs_buyer_only_columns(), public.nx_jobs_margin_columns(), public.nx_jobs_seller_only_columns(), public.nx_milestone_deemed_accepted(p_deal_id uuid, p_kind text), public.nx_notify_admins(p_title text, p_body text, p_kind text, p_link text, p_job_id uuid), public.nx_platform_owner_immutable() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.nx_protect_privileged_profiles(), public.nx_report_review_history_append_only(), public.nx_report_review_history_capture(), public.nx_report_review_history_no_truncate(), public.nx_require_email_verified(), public.nx_set_updated_at(), public.nx_terminal_job_statuses(), public.nx_user_is_org_admin(p_user_id uuid, p_org_id uuid), public.nx_user_visible_department_ids(p_user_id uuid), public.open_job_approval_request(p_job_id uuid, p_policy_id uuid, p_amount_cents bigint, p_currency text, p_min_approvers_required integer, p_required_approver_roles text[], p_requires_sod boolean), public.overlaps_2d(box2df, box2df), public.overlaps_2d(box2df, geometry), public.overlaps_2d(geometry, box2df), public.overlaps_geog(geography, gidx), public.overlaps_geog(gidx, geography), public.overlaps_geog(gidx, gidx), public.overlaps_nd(geometry, gidx), public.overlaps_nd(gidx, geometry), public.overlaps_nd(gidx, gidx), public.owner_cancel_job(p_job_id uuid, p_reason text), public.path(geometry), public.pgis_asflatgeobuf_finalfn(internal), public.pgis_asflatgeobuf_transfn(internal, anyelement), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean, text), public.pgis_asgeobuf_finalfn(internal), public.pgis_asgeobuf_transfn(internal, anyelement), public.pgis_asgeobuf_transfn(internal, anyelement, text), public.pgis_asmvt_combinefn(internal, internal), public.pgis_asmvt_deserialfn(bytea, internal) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.pgis_asmvt_finalfn(internal), public.pgis_asmvt_serialfn(internal), public.pgis_asmvt_transfn(internal, anyelement), public.pgis_asmvt_transfn(internal, anyelement, text), public.pgis_asmvt_transfn(internal, anyelement, text, integer), public.pgis_asmvt_transfn(internal, anyelement, text, integer, text), public.pgis_asmvt_transfn(internal, anyelement, text, integer, text, text), public.pgis_geometry_accum_transfn(internal, geometry), public.pgis_geometry_accum_transfn(internal, geometry, double precision), public.pgis_geometry_accum_transfn(internal, geometry, double precision, integer), public.pgis_geometry_clusterintersecting_finalfn(internal), public.pgis_geometry_clusterwithin_finalfn(internal), public.pgis_geometry_collect_finalfn(internal), public.pgis_geometry_makeline_finalfn(internal), public.pgis_geometry_polygonize_finalfn(internal), public.pgis_geometry_union_parallel_combinefn(internal, internal), public.pgis_geometry_union_parallel_deserialfn(bytea, internal), public.pgis_geometry_union_parallel_finalfn(internal), public.pgis_geometry_union_parallel_serialfn(internal), public.pgis_geometry_union_parallel_transfn(internal, geometry), public.pgis_geometry_union_parallel_transfn(internal, geometry, double precision), public.pi_canonical_json(p jsonb), public.pi_countersign_inspection_report(p_report_id uuid), public.pi_fetch_report_seal(p_report_id uuid), public.pi_record_doc_validation(p_job_id uuid, p_model_slug text, p_model_version integer, p_model_sha256 text, p_verdict jsonb, p_conformance_score numeric, p_report_id uuid, p_template_id uuid, p_report_file_sha256 text, p_extracted_sha256 text, p_template_sha256 text, p_flagged_for_review boolean, p_accepted boolean, p_client_op_id text), public.pi_seal_inspection_report(p_report_id uuid), public.point(geometry), public.polygon(geometry), public.populate_geometry_columns(tbl_oid oid, use_typmod boolean), public.populate_geometry_columns(use_typmod boolean) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.postgis_addbbox(geometry), public.postgis_cache_bbox(), public.postgis_constraint_dims(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_srid(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_type(geomschema text, geomtable text, geomcolumn text), public.postgis_dropbbox(geometry), public.postgis_extensions_upgrade(), public.postgis_full_version(), public.postgis_geos_noop(geometry), public.postgis_geos_version(), public.postgis_getbbox(geometry), public.postgis_hasbbox(geometry), public.postgis_index_supportfn(internal), public.postgis_lib_build_date(), public.postgis_lib_revision(), public.postgis_lib_version(), public.postgis_libjson_version(), public.postgis_liblwgeom_version(), public.postgis_libprotobuf_version(), public.postgis_libxml_version(), public.postgis_noop(geometry), public.postgis_proj_version(), public.postgis_scripts_build_date(), public.postgis_scripts_installed(), public.postgis_scripts_released(), public.postgis_svn_version(), public.postgis_transform_geometry(geom geometry, text, text, integer), public.postgis_type_name(geomname character varying, coord_dimension integer, use_new_name boolean), public.postgis_typmod_dims(integer), public.postgis_typmod_srid(integer) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.postgis_typmod_type(integer), public.postgis_version(), public.postgis_wagyu_version(), public.public_get_fee_schedule(), public.public_stats(), public.public_total_jobs(), public.record_seal_anchor(p_seal_id uuid, p_root_sha256 text, p_status text, p_ots_proof text, p_calendar text), public.regenerate_recovery_codes(), public.reject_application(p_application_id uuid), public.rename_department(p_department_id uuid, p_name text, p_cost_center text), public.request_milestone_release(p_job_id uuid, p_amount_cents bigint, p_note text), public.search_inspectors(p_search_query text, p_ndt_methods text[], p_location text, p_min_rating numeric, p_is_verified boolean, p_sort_by text, p_limit integer, p_offset integer), public.send_offer(p_application_id uuid), public.set_approval_policy(p_org_id uuid, p_name text, p_min_amount_cents bigint, p_max_amount_cents bigint, p_currency text, p_required_approver_roles text[], p_min_approvers_count integer, p_requires_sod boolean, p_scope_department_id uuid, p_is_active boolean, p_id uuid), public.set_department_budget(p_department_id uuid, p_fiscal_period_start date, p_fiscal_period_end date, p_currency text, p_allocated_cents bigint, p_notes text), public.set_dispute_resolved_at(), public.set_limit(real), public.set_org_base_currency(p_org_id uuid, p_currency text), public.set_project_client_id(), public.shortlist_application(p_application_id uuid), public.should_deliver(p_recipient uuid, p_kind text, p_channel text), public.show_limit(), public.show_trgm(text), public.similarity(text, text), public.similarity_dist(text, text), public.similarity_op(text, text), public.soft_delete(p_table text, p_id uuid), public.spheroid_in(cstring), public.spheroid_out(spheroid), public.st_3dclosestpoint(geom1 geometry, geom2 geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_3ddistance(geom1 geometry, geom2 geometry), public.st_3ddwithin(geom1 geometry, geom2 geometry, double precision), public.st_3dextent(geometry), public.st_3dintersects(geom1 geometry, geom2 geometry), public.st_3dlength(geometry), public.st_3dlineinterpolatepoint(geometry, double precision), public.st_3dlongestline(geom1 geometry, geom2 geometry), public.st_3dmakebox(geom1 geometry, geom2 geometry), public.st_3dmaxdistance(geom1 geometry, geom2 geometry), public.st_3dperimeter(geometry), public.st_3dshortestline(geom1 geometry, geom2 geometry), public.st_addmeasure(geometry, double precision, double precision), public.st_addpoint(geom1 geometry, geom2 geometry), public.st_addpoint(geom1 geometry, geom2 geometry, integer), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision), public.st_angle(line1 geometry, line2 geometry), public.st_angle(pt1 geometry, pt2 geometry, pt3 geometry, pt4 geometry), public.st_area(geog geography, use_spheroid boolean), public.st_area(geometry), public.st_area(text), public.st_area2d(geometry), public.st_asbinary(geography), public.st_asbinary(geography, text), public.st_asbinary(geometry), public.st_asbinary(geometry, text), public.st_asencodedpolyline(geom geometry, nprecision integer), public.st_asewkb(geometry), public.st_asewkb(geometry, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_asewkt(geography), public.st_asewkt(geography, integer), public.st_asewkt(geometry), public.st_asewkt(geometry, integer), public.st_asewkt(text), public.st_asflatgeobuf(anyelement), public.st_asflatgeobuf(anyelement, boolean), public.st_asflatgeobuf(anyelement, boolean, text), public.st_asgeobuf(anyelement), public.st_asgeobuf(anyelement, text), public.st_asgeojson(geog geography, maxdecimaldigits integer, options integer), public.st_asgeojson(geom geometry, maxdecimaldigits integer, options integer), public.st_asgeojson(r record, geom_column text, maxdecimaldigits integer, pretty_bool boolean), public.st_asgeojson(text), public.st_asgml(geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(geom geometry, maxdecimaldigits integer, options integer), public.st_asgml(text), public.st_asgml(version integer, geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(version integer, geom geometry, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_ashexewkb(geometry), public.st_ashexewkb(geometry, text), public.st_askml(geog geography, maxdecimaldigits integer, nprefix text), public.st_askml(geom geometry, maxdecimaldigits integer, nprefix text), public.st_askml(text), public.st_aslatlontext(geom geometry, tmpl text), public.st_asmarc21(geom geometry, format text), public.st_asmvt(anyelement), public.st_asmvt(anyelement, text), public.st_asmvt(anyelement, text, integer), public.st_asmvt(anyelement, text, integer, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_asmvt(anyelement, text, integer, text, text), public.st_asmvtgeom(geom geometry, bounds box2d, extent integer, buffer integer, clip_geom boolean), public.st_assvg(geog geography, rel integer, maxdecimaldigits integer), public.st_assvg(geom geometry, rel integer, maxdecimaldigits integer), public.st_assvg(text), public.st_astext(geography), public.st_astext(geography, integer), public.st_astext(geometry), public.st_astext(geometry, integer), public.st_astext(text), public.st_astwkb(geom geometry, prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_astwkb(geom geometry[], ids bigint[], prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_asx3d(geom geometry, maxdecimaldigits integer, options integer), public.st_azimuth(geog1 geography, geog2 geography), public.st_azimuth(geom1 geometry, geom2 geometry), public.st_bdmpolyfromtext(text, integer), public.st_bdpolyfromtext(text, integer), public.st_boundary(geometry), public.st_boundingdiagonal(geom geometry, fits boolean), public.st_box2dfromgeohash(text, integer), public.st_buffer(geography, double precision), public.st_buffer(geography, double precision, integer), public.st_buffer(geography, double precision, text), public.st_buffer(geom geometry, radius double precision, options text), public.st_buffer(geom geometry, radius double precision, quadsegs integer), public.st_buffer(text, double precision), public.st_buffer(text, double precision, integer), public.st_buffer(text, double precision, text), public.st_buildarea(geometry), public.st_centroid(geography, use_spheroid boolean) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_centroid(geometry), public.st_centroid(text), public.st_chaikinsmoothing(geometry, integer, boolean), public.st_cleangeometry(geometry), public.st_clipbybox2d(geom geometry, box box2d), public.st_closestpoint(geom1 geometry, geom2 geometry), public.st_closestpointofapproach(geometry, geometry), public.st_clusterdbscan(geometry, eps double precision, minpoints integer), public.st_clusterintersecting(geometry), public.st_clusterintersecting(geometry[]), public.st_clusterkmeans(geom geometry, k integer, max_radius double precision), public.st_clusterwithin(geometry, double precision), public.st_clusterwithin(geometry[], double precision), public.st_collect(geom1 geometry, geom2 geometry), public.st_collect(geometry), public.st_collect(geometry[]), public.st_collectionextract(geometry), public.st_collectionextract(geometry, integer), public.st_collectionhomogenize(geometry), public.st_combinebbox(box2d, geometry), public.st_combinebbox(box3d, box3d), public.st_combinebbox(box3d, geometry), public.st_concavehull(param_geom geometry, param_pctconvex double precision, param_allow_holes boolean), public.st_contains(geom1 geometry, geom2 geometry), public.st_containsproperly(geom1 geometry, geom2 geometry), public.st_convexhull(geometry), public.st_coorddim(geometry geometry), public.st_coveredby(geog1 geography, geog2 geography), public.st_coveredby(geom1 geometry, geom2 geometry), public.st_coveredby(text, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_covers(geog1 geography, geog2 geography), public.st_covers(geom1 geometry, geom2 geometry), public.st_covers(text, text), public.st_cpawithin(geometry, geometry, double precision), public.st_crosses(geom1 geometry, geom2 geometry), public.st_curvetoline(geom geometry, tol double precision, toltype integer, flags integer), public.st_delaunaytriangles(g1 geometry, tolerance double precision, flags integer), public.st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_difference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_dimension(geometry), public.st_disjoint(geom1 geometry, geom2 geometry), public.st_distance(geog1 geography, geog2 geography, use_spheroid boolean), public.st_distance(geom1 geometry, geom2 geometry), public.st_distance(text, text), public.st_distancecpa(geometry, geometry), public.st_distancesphere(geom1 geometry, geom2 geometry), public.st_distancesphere(geom1 geometry, geom2 geometry, radius double precision), public.st_distancespheroid(geom1 geometry, geom2 geometry), public.st_distancespheroid(geom1 geometry, geom2 geometry, spheroid), public.st_dump(geometry), public.st_dumppoints(geometry), public.st_dumprings(geometry), public.st_dumpsegments(geometry), public.st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean), public.st_dwithin(geom1 geometry, geom2 geometry, double precision), public.st_dwithin(text, text, double precision), public.st_endpoint(geometry), public.st_envelope(geometry), public.st_equals(geom1 geometry, geom2 geometry), public.st_estimatedextent(text, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_estimatedextent(text, text, text), public.st_estimatedextent(text, text, text, boolean), public.st_expand(box box2d, dx double precision, dy double precision), public.st_expand(box box3d, dx double precision, dy double precision, dz double precision), public.st_expand(box2d, double precision), public.st_expand(box3d, double precision), public.st_expand(geom geometry, dx double precision, dy double precision, dz double precision, dm double precision), public.st_expand(geometry, double precision), public.st_extent(geometry), public.st_exteriorring(geometry), public.st_filterbym(geometry, double precision, double precision, boolean), public.st_findextent(text, text), public.st_findextent(text, text, text), public.st_flipcoordinates(geometry), public.st_force2d(geometry), public.st_force3d(geom geometry, zvalue double precision), public.st_force3dm(geom geometry, mvalue double precision), public.st_force3dz(geom geometry, zvalue double precision), public.st_force4d(geom geometry, zvalue double precision, mvalue double precision), public.st_forcecollection(geometry), public.st_forcecurve(geometry), public.st_forcepolygonccw(geometry), public.st_forcepolygoncw(geometry), public.st_forcerhr(geometry), public.st_forcesfs(geometry), public.st_forcesfs(geometry, version text), public.st_frechetdistance(geom1 geometry, geom2 geometry, double precision), public.st_fromflatgeobuf(anyelement, bytea), public.st_fromflatgeobuftotable(text, text, bytea), public.st_generatepoints(area geometry, npoints integer) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_generatepoints(area geometry, npoints integer, seed integer), public.st_geogfromtext(text), public.st_geogfromwkb(bytea), public.st_geographyfromtext(text), public.st_geohash(geog geography, maxchars integer), public.st_geohash(geom geometry, maxchars integer), public.st_geomcollfromtext(text), public.st_geomcollfromtext(text, integer), public.st_geomcollfromwkb(bytea), public.st_geomcollfromwkb(bytea, integer), public.st_geometricmedian(g geometry, tolerance double precision, max_iter integer, fail_if_not_converged boolean), public.st_geometryfromtext(text), public.st_geometryfromtext(text, integer), public.st_geometryn(geometry, integer), public.st_geometrytype(geometry), public.st_geomfromewkb(bytea), public.st_geomfromewkt(text), public.st_geomfromgeohash(text, integer), public.st_geomfromgeojson(json), public.st_geomfromgeojson(jsonb), public.st_geomfromgeojson(text), public.st_geomfromgml(text), public.st_geomfromgml(text, integer), public.st_geomfromkml(text), public.st_geomfrommarc21(marc21xml text), public.st_geomfromtext(text), public.st_geomfromtext(text, integer), public.st_geomfromtwkb(bytea), public.st_geomfromwkb(bytea), public.st_geomfromwkb(bytea, integer) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_gmltosql(text), public.st_gmltosql(text, integer), public.st_hasarc(geometry geometry), public.st_hausdorffdistance(geom1 geometry, geom2 geometry), public.st_hausdorffdistance(geom1 geometry, geom2 geometry, double precision), public.st_hexagon(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_hexagongrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_interiorringn(geometry, integer), public.st_interpolatepoint(line geometry, point geometry), public.st_intersection(geography, geography), public.st_intersection(geom1 geometry, geom2 geometry, gridsize double precision), public.st_intersection(text, text), public.st_intersects(geog1 geography, geog2 geography), public.st_intersects(geom1 geometry, geom2 geometry), public.st_intersects(text, text), public.st_isclosed(geometry), public.st_iscollection(geometry), public.st_isempty(geometry), public.st_ispolygonccw(geometry), public.st_ispolygoncw(geometry), public.st_isring(geometry), public.st_issimple(geometry), public.st_isvalid(geometry), public.st_isvalid(geometry, integer), public.st_isvaliddetail(geom geometry, flags integer), public.st_isvalidreason(geometry), public.st_isvalidreason(geometry, integer), public.st_isvalidtrajectory(geometry), public.st_length(geog geography, use_spheroid boolean), public.st_length(geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_length(text), public.st_length2d(geometry), public.st_length2dspheroid(geometry, spheroid), public.st_lengthspheroid(geometry, spheroid), public.st_letters(letters text, font json), public.st_linecrossingdirection(line1 geometry, line2 geometry), public.st_linefromencodedpolyline(txtin text, nprecision integer), public.st_linefrommultipoint(geometry), public.st_linefromtext(text), public.st_linefromtext(text, integer), public.st_linefromwkb(bytea), public.st_linefromwkb(bytea, integer), public.st_lineinterpolatepoint(geometry, double precision), public.st_lineinterpolatepoints(geometry, double precision, repeat boolean), public.st_linelocatepoint(geom1 geometry, geom2 geometry), public.st_linemerge(geometry), public.st_linemerge(geometry, boolean), public.st_linestringfromwkb(bytea), public.st_linestringfromwkb(bytea, integer), public.st_linesubstring(geometry, double precision, double precision), public.st_linetocurve(geometry geometry), public.st_locatealong(geometry geometry, measure double precision, leftrightoffset double precision), public.st_locatebetween(geometry geometry, frommeasure double precision, tomeasure double precision, leftrightoffset double precision), public.st_locatebetweenelevations(geometry geometry, fromelevation double precision, toelevation double precision), public.st_longestline(geom1 geometry, geom2 geometry), public.st_m(geometry), public.st_makebox2d(geom1 geometry, geom2 geometry), public.st_makeenvelope(double precision, double precision, double precision, double precision, integer), public.st_makeline(geom1 geometry, geom2 geometry), public.st_makeline(geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_makeline(geometry[]), public.st_makepoint(double precision, double precision), public.st_makepoint(double precision, double precision, double precision), public.st_makepoint(double precision, double precision, double precision, double precision), public.st_makepointm(double precision, double precision, double precision), public.st_makepolygon(geometry), public.st_makepolygon(geometry, geometry[]), public.st_makevalid(geom geometry, params text), public.st_makevalid(geometry), public.st_maxdistance(geom1 geometry, geom2 geometry), public.st_maximuminscribedcircle(geometry, OUT center geometry, OUT nearest geometry, OUT radius double precision), public.st_memcollect(geometry), public.st_memsize(geometry), public.st_memunion(geometry), public.st_minimumboundingcircle(inputgeom geometry, segs_per_quarter integer), public.st_minimumboundingradius(geometry, OUT center geometry, OUT radius double precision), public.st_minimumclearance(geometry), public.st_minimumclearanceline(geometry), public.st_mlinefromtext(text), public.st_mlinefromtext(text, integer), public.st_mlinefromwkb(bytea), public.st_mlinefromwkb(bytea, integer), public.st_mpointfromtext(text), public.st_mpointfromtext(text, integer), public.st_mpointfromwkb(bytea), public.st_mpointfromwkb(bytea, integer), public.st_mpolyfromtext(text), public.st_mpolyfromtext(text, integer), public.st_mpolyfromwkb(bytea), public.st_mpolyfromwkb(bytea, integer) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_multi(geometry), public.st_multilinefromwkb(bytea), public.st_multilinestringfromtext(text), public.st_multilinestringfromtext(text, integer), public.st_multipointfromtext(text), public.st_multipointfromwkb(bytea), public.st_multipointfromwkb(bytea, integer), public.st_multipolyfromwkb(bytea), public.st_multipolyfromwkb(bytea, integer), public.st_multipolygonfromtext(text), public.st_multipolygonfromtext(text, integer), public.st_ndims(geometry), public.st_node(g geometry), public.st_normalize(geom geometry), public.st_npoints(geometry), public.st_nrings(geometry), public.st_numgeometries(geometry), public.st_numinteriorring(geometry), public.st_numinteriorrings(geometry), public.st_numpatches(geometry), public.st_numpoints(geometry), public.st_offsetcurve(line geometry, distance double precision, params text), public.st_orderingequals(geom1 geometry, geom2 geometry), public.st_orientedenvelope(geometry), public.st_overlaps(geom1 geometry, geom2 geometry), public.st_patchn(geometry, integer), public.st_perimeter(geog geography, use_spheroid boolean), public.st_perimeter(geometry), public.st_perimeter2d(geometry), public.st_point(double precision, double precision) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_point(double precision, double precision, srid integer), public.st_pointfromgeohash(text, integer), public.st_pointfromtext(text), public.st_pointfromtext(text, integer), public.st_pointfromwkb(bytea), public.st_pointfromwkb(bytea, integer), public.st_pointinsidecircle(geometry, double precision, double precision, double precision), public.st_pointm(xcoordinate double precision, ycoordinate double precision, mcoordinate double precision, srid integer), public.st_pointn(geometry, integer), public.st_pointonsurface(geometry), public.st_points(geometry), public.st_pointz(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, srid integer), public.st_pointzm(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, mcoordinate double precision, srid integer), public.st_polyfromtext(text), public.st_polyfromtext(text, integer), public.st_polyfromwkb(bytea), public.st_polyfromwkb(bytea, integer), public.st_polygon(geometry, integer), public.st_polygonfromtext(text), public.st_polygonfromtext(text, integer), public.st_polygonfromwkb(bytea), public.st_polygonfromwkb(bytea, integer), public.st_polygonize(geometry), public.st_polygonize(geometry[]), public.st_project(geog geography, distance double precision, azimuth double precision), public.st_quantizecoordinates(g geometry, prec_x integer, prec_y integer, prec_z integer, prec_m integer), public.st_reduceprecision(geom geometry, gridsize double precision), public.st_relate(geom1 geometry, geom2 geometry), public.st_relate(geom1 geometry, geom2 geometry, integer), public.st_relate(geom1 geometry, geom2 geometry, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_relatematch(text, text), public.st_removepoint(geometry, integer), public.st_removerepeatedpoints(geom geometry, tolerance double precision), public.st_reverse(geometry), public.st_rotate(geometry, double precision), public.st_rotate(geometry, double precision, double precision, double precision), public.st_rotate(geometry, double precision, geometry), public.st_rotatex(geometry, double precision), public.st_rotatey(geometry, double precision), public.st_rotatez(geometry, double precision), public.st_scale(geometry, double precision, double precision), public.st_scale(geometry, double precision, double precision, double precision), public.st_scale(geometry, geometry), public.st_scale(geometry, geometry, origin geometry), public.st_scroll(geometry, geometry), public.st_segmentize(geog geography, max_segment_length double precision), public.st_segmentize(geometry, double precision), public.st_seteffectivearea(geometry, double precision, integer), public.st_setpoint(geometry, integer, geometry), public.st_setsrid(geog geography, srid integer), public.st_setsrid(geom geometry, srid integer), public.st_sharedpaths(geom1 geometry, geom2 geometry), public.st_shiftlongitude(geometry), public.st_shortestline(geom1 geometry, geom2 geometry), public.st_simplify(geometry, double precision), public.st_simplify(geometry, double precision, boolean), public.st_simplifypolygonhull(geom geometry, vertex_fraction double precision, is_outer boolean), public.st_simplifypreservetopology(geometry, double precision), public.st_simplifyvw(geometry, double precision), public.st_snap(geom1 geometry, geom2 geometry, double precision) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_snaptogrid(geom1 geometry, geom2 geometry, double precision, double precision, double precision, double precision), public.st_snaptogrid(geometry, double precision), public.st_snaptogrid(geometry, double precision, double precision), public.st_snaptogrid(geometry, double precision, double precision, double precision, double precision), public.st_split(geom1 geometry, geom2 geometry), public.st_square(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_squaregrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_srid(geog geography), public.st_srid(geom geometry), public.st_startpoint(geometry), public.st_subdivide(geom geometry, maxvertices integer, gridsize double precision), public.st_summary(geography), public.st_summary(geometry), public.st_swapordinates(geom geometry, ords cstring), public.st_symdifference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_symmetricdifference(geom1 geometry, geom2 geometry), public.st_tileenvelope(zoom integer, x integer, y integer, bounds geometry, margin double precision), public.st_touches(geom1 geometry, geom2 geometry), public.st_transform(geom geometry, from_proj text, to_proj text), public.st_transform(geom geometry, from_proj text, to_srid integer), public.st_transform(geom geometry, to_proj text), public.st_transform(geometry, integer), public.st_translate(geometry, double precision, double precision), public.st_translate(geometry, double precision, double precision, double precision), public.st_transscale(geometry, double precision, double precision, double precision, double precision), public.st_triangulatepolygon(g1 geometry), public.st_unaryunion(geometry, gridsize double precision), public.st_union(geom1 geometry, geom2 geometry), public.st_union(geom1 geometry, geom2 geometry, gridsize double precision), public.st_union(geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.st_union(geometry, gridsize double precision), public.st_union(geometry[]), public.st_voronoilines(g1 geometry, tolerance double precision, extend_to geometry), public.st_voronoipolygons(g1 geometry, tolerance double precision, extend_to geometry), public.st_within(geom1 geometry, geom2 geometry), public.st_wkbtosql(wkb bytea), public.st_wkttosql(text), public.st_wrapx(geom geometry, wrap double precision, move double precision), public.st_x(geometry), public.st_xmax(box3d), public.st_xmin(box3d), public.st_y(geometry), public.st_ymax(box3d), public.st_ymin(box3d), public.st_z(geometry), public.st_zmax(box3d), public.st_zmflag(geometry), public.st_zmin(box3d), public.strict_word_similarity(text, text), public.strict_word_similarity_commutator_op(text, text), public.strict_word_similarity_dist_commutator_op(text, text), public.strict_word_similarity_dist_op(text, text), public.strict_word_similarity_op(text, text), public.submit_inspection_report(p_job_id uuid, p_photo_url text, p_notes text), public.submit_job_approval(p_job_id uuid, p_decision text, p_comment text), public.submit_review(p_job_id uuid, p_reviewee_id uuid, p_rating integer, p_comment text, p_is_public boolean, p_private_admin_note text), public.supplier_match(p_need jsonb, p_limit integer), public.support_messages_touch(), public.sync_onboarding_metadata_to_profile(), public.text(geometry) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.tg_app_sync_job_payout_to_bid(), public.tg_applications_notifications_v2(), public.tg_approval_decisions_enforce_sod(), public.tg_approval_policies_no_overlap(), public.tg_approval_policies_set_updated_at(), public.tg_approval_requests_set_updated_at(), public.tg_audit_events_fill_actor(), public.tg_bridge_slots_set_updated_at(), public.tg_capture_set_gps_pin(), public.tg_coordination_bridges_set_updated_at(), public.tg_department_budgets_set_updated_at(), public.tg_departments_set_updated_at(), public.tg_direct_message_fanout(), public.tg_engagement_meta_reject_reassign(), public.tg_enqueue_document_analysis(), public.tg_enqueue_visual_analysis(), public.tg_guard_capture_visit(), public.tg_guard_item_visit(), public.tg_guard_itp_result_visit(), public.tg_guard_qcp_required_document(), public.tg_heal_contract_on_executed(), public.tg_inspection_domains_set_updated_at(), public.tg_inspector_domain_practice_set_updated_at(), public.tg_invoice_inherit_department(), public.tg_itp_result_history(), public.tg_job_contracts_identity_snapshot(), public.tg_job_contracts_notifications(), public.tg_job_contracts_reject_brokered_job(), public.tg_jobs_notifications_v2(), public.tg_jobs_project_coherence() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.tg_jobs_publish_on_approval(), public.tg_model_artifacts_touch(), public.tg_notification_preferences_touch(), public.tg_notifications_consent_gate(), public.tg_notify_applications(), public.tg_notify_approval_decided(), public.tg_notify_approval_finalised(), public.tg_notify_approval_requested(), public.tg_notify_bridge_document_requested(), public.tg_notify_bridge_document_uploaded(), public.tg_notify_bridge_schedule_changed(), public.tg_notify_evidence_pack_assembled(), public.tg_notify_flash_report_raised(), public.tg_notify_inspection_report_sealed(), public.tg_notify_jobs(), public.tg_notify_messages(), public.tg_operational_message_fanout(), public.tg_org_departments_compute_depth(), public.tg_org_departments_no_cycle(), public.tg_org_dept_members_org_consistency(), public.tg_project_documents_job_coherence(), public.tg_qcp_child_draft_only(), public.tg_qcp_document_project_coherence(), public.tg_qcp_org_matches_project(), public.tg_qcp_required_document_audit(), public.tg_qcp_required_document_guard(), public.tg_qcp_revision_state(), public.tg_report_templates_touch(), public.tg_sync_inspector_payout_to_agreed_bid(), public.tg_touch_itp() TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.tg_touch_job_inspectors(), public.tg_touch_job_visits(), public.tg_touch_qcp(), public.tg_touch_updated_at(), public.tg_vendor_contacts_set_updated_at(), public.tool_invoke(p_tool_key text, p_inputs jsonb), public.tool_project(p_schema jsonb, p_results jsonb), public.touch_inspector_certificates_updated_at(), public.touch_job_contracts_updated_at(), public.touch_supplier_contracts_updated_at(), public.track_push_token_changes(), public.trg_refresh_demand(), public.trg_refresh_supply(), public.trigger_certification_check(), public.trigger_contract_generation(), public.unassign_member_from_department(p_department_id uuid, p_user_id uuid), public.unlockrows(text), public.update_certification_reminder_sent(certification_ids uuid[]), public.update_certifications_updated_at(), public.update_conversation_timestamp(), public.update_disputes_updated_at(), public.update_legal_consents_updated_at(), public.update_profile_search_vector(), public.update_updated_at_column(), public.updategeometrysrid(catalogn_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer), public.updategeometrysrid(character varying, character varying, character varying, integer), public.updategeometrysrid(character varying, character varying, integer), public.upsert_fx_rate(p_base_currency text, p_quote_currency text, p_rate numeric, p_effective_date date, p_source text), public.validate_application_status_transition(), public.validate_balance(p_wallet_id uuid, p_amount numeric) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public.word_similarity(text, text), public.word_similarity_commutator_op(text, text), public.word_similarity_dist_commutator_op(text, text), public.word_similarity_dist_op(text, text), public.word_similarity_op(text, text) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION public._app_config_get(p_key text), public._apply_revision(p_revision_id uuid, p_agreed bigint, p_actor uuid), public._brokered_autocontract_on_quote_award(), public._brokered_build_trust_artifacts(p_inspector_id uuid, p_supplier_handle text, p_scope text, p_tier text), public._brokered_client_supply_md(p_title text, p_amount_cents bigint, p_currency text, p_tier text, p_source_fat boolean), public._brokered_common_terms_md(), public._brokered_create_engagement(p_deal_id uuid, p_inspector_id uuid, p_payout_cents bigint, p_routing text, p_client_review text), public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text), public._brokered_ensure_payment_schedule(p_deal_id uuid, p_total_cents bigint, p_currency text), public._brokered_ensure_supplier_contract(p_quote_id uuid), public._brokered_inspector_engagement_md(p_title text, p_payout_cents bigint, p_currency text), public._brokered_notify_on_present(), public._brokered_payment_schedule_md(p_total_cents bigint, p_currency text), public._brokered_schedule_a_md(p_title text, p_discipline text), public._brokered_score_inspectors(p_deal_id uuid), public._brokered_supplier_supply_md(p_title text, p_amount_cents bigint, p_currency text), public._budget_window_start(p_window text), public._conversation_on_new_message(), public._default_daily_application_limit(), public._dept_actor_profile(p_user_id uuid), public._email_domain(p_email text), public._haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public._messages_fill_sender_role(), public._postgis_deprecate(oldname text, newname text, version text), public._postgis_index_extent(tbl regclass, col text), public._postgis_join_selectivity(regclass, text, regclass, text, text), public._postgis_pgsql_version(), public._postgis_scripts_pgsql_version(), public._postgis_selectivity(tbl regclass, att_name text, geom geometry, mode text), public._postgis_stats(tbl regclass, att_name text, text) TO anon;
-GRANT EXECUTE ON FUNCTION public._quote_raw_cents(p_quote jsonb), public._recovery_code_hash(p_code text), public._resolve_display_currency(p_org_id uuid, p_requested text), public._revision_log(p_revision_id uuid, p_actor_id uuid, p_actor_role text, p_action text, p_amount bigint, p_reason text, p_note text), public._revision_notify(p_recipient uuid, p_title text, p_body text, p_deal uuid), public._revision_role(p_kind text), public._spawn_inspection_for_award(), public._st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision), public._st_3ddwithin(geom1 geometry, geom2 geometry, double precision), public._st_3dintersects(geom1 geometry, geom2 geometry), public._st_asgml(integer, geometry, integer, integer, text, text), public._st_asx3d(integer, geometry, integer, integer, text), public._st_bestsrid(geography), public._st_bestsrid(geography, geography), public._st_contains(geom1 geometry, geom2 geometry), public._st_containsproperly(geom1 geometry, geom2 geometry), public._st_coveredby(geog1 geography, geog2 geography), public._st_coveredby(geom1 geometry, geom2 geometry), public._st_covers(geog1 geography, geog2 geography), public._st_covers(geom1 geometry, geom2 geometry), public._st_crosses(geom1 geometry, geom2 geometry), public._st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public._st_distancetree(geography, geography), public._st_distancetree(geography, geography, double precision, boolean), public._st_distanceuncached(geography, geography), public._st_distanceuncached(geography, geography, boolean), public._st_distanceuncached(geography, geography, double precision, boolean), public._st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean), public._st_dwithin(geom1 geometry, geom2 geometry, double precision), public._st_dwithinuncached(geography, geography, double precision) TO anon;
-GRANT EXECUTE ON FUNCTION public._st_dwithinuncached(geography, geography, double precision, boolean), public._st_equals(geom1 geometry, geom2 geometry), public._st_expand(geography, double precision), public._st_geomfromgml(text, integer), public._st_intersects(geom1 geometry, geom2 geometry), public._st_linecrossingdirection(line1 geometry, line2 geometry), public._st_longestline(geom1 geometry, geom2 geometry), public._st_maxdistance(geom1 geometry, geom2 geometry), public._st_orderingequals(geom1 geometry, geom2 geometry), public._st_overlaps(geom1 geometry, geom2 geometry), public._st_pointoutside(geography), public._st_sortablehash(geom geometry), public._st_touches(geom1 geometry, geom2 geometry), public._st_voronoi(g1 geometry, clip geometry, tolerance double precision, return_polygons boolean), public._st_within(geom1 geometry, geom2 geometry), public._supplier_quote_cents(p_quote jsonb), public._tool_canon(j jsonb), public._tool_eval(node jsonb, ctx jsonb, depth integer), public._tool_num(node jsonb, ctx jsonb, depth integer), public._touch_conversations_updated_at(), public._touch_updated_at(), public._touch_updated_at_flash_reports(), public._touch_updated_at_push_tokens(), public._touch_updated_at_pwad(), public.addauth(text), public.addgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean), public.ai_ops_audit_immutable(), public.ai_ops_guard_lifecycle() TO anon;
-GRANT EXECUTE ON FUNCTION public.assemble_evidence_pack(p_job_id uuid), public.assert_job_payable(p_job_id uuid), public.assign_member_to_department(p_department_id uuid, p_user_id uuid), public.audit_capture(), public.audit_delta_keys(input jsonb), public.audit_public_summary(p_summary text, p_is_buyer boolean), public.audit_redact_buyer_pricing(input jsonb), public.audit_redact_internal(input jsonb), public.audit_redact_pricing(input jsonb), public.audit_set_correlation(p_correlation_id uuid), public.audit_set_intent(p_intent text), public.auto_expire_certifications(), public.award_and_dispatch(p_quote_id uuid), public.award_quote(p_quote_id uuid), public.box(box3d), public.box(geometry), public.box2d(box3d), public.box2d(geometry), public.box2d_in(cstring), public.box2d_out(box2d), public.box2df_in(cstring), public.box2df_out(box2df), public.box3d(box2d), public.box3d(geometry), public.box3d_in(cstring), public.box3d_out(box3d), public.box3dtobox(box3d), public.bridge_accept_counter_schedule(p_bridge_id uuid, p_slot_id uuid), public.bridge_accept_document(p_document_id uuid), public.bridge_add_document_request(p_bridge_id uuid, p_title text, p_description text, p_required boolean, p_max_size_mb integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.bridge_cancel(p_bridge_id uuid, p_reason text), public.bridge_complete(p_bridge_id uuid), public.bridge_create(p_job_id uuid, p_company_name text, p_contact_name text, p_contact_email text, p_contact_phone text, p_country_code text, p_timezone text, p_language_code text, p_token_ttl_days integer), public.bridge_fetch_for_inspector(p_bridge_id uuid), public.bridge_propose_schedule(p_bridge_id uuid, p_proposed_at timestamp with time zone, p_timezone text, p_notes text), public.bridge_reject_document(p_document_id uuid, p_reason text), public.bridge_rotate_token(p_bridge_id uuid, p_token_ttl_days integer), public.bytea(geography), public.bytea(geometry), public.can_access_job_messages(p_job_id uuid, p_user_id uuid), public.can_assemble_evidence_for(p_job_id uuid, p_user_id uuid), public.can_manage_org_structure(p_org_id uuid, p_user_id uuid), public.can_raise_dispute(p_project_id uuid, p_user_id uuid), public.cancel_job_approval(p_job_id uuid, p_reason text), public.cancel_meeting(p_meeting_id uuid), public.check_department_budget(p_department_id uuid, p_as_of date, p_additional_cents bigint, p_additional_currency text), public.check_expert_badge_eligibility(), public.check_project_completion_lock(), public.checkauth(text, text), public.checkauth(text, text, text), public.checkauthtrigger(), public.claim_pending_notification_emails(p_limit integer), public.cleanup_old_notification_logs(days_to_keep integer), public.client_review_engagement(p_deal_id uuid, p_decision text, p_reason text), public.client_select_inspector(p_deal_id uuid, p_candidate_id uuid), public.compliance_posture_summary(p_org_id uuid), public.compute_review_weight(p_verified boolean, p_jobs_count integer, p_role text), public.consume_recovery_code(p_code text), public.contains_2d(box2df, box2df), public.contains_2d(box2df, geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.contains_2d(geometry, box2df), public.contracts_is_contractor_party(p_contract_id uuid, p_uid uuid), public.contracts_touch(), public.convert_cents(p_amount_cents bigint, p_from_currency text, p_to_currency text, p_as_of timestamp with time zone), public.count_valid_certificates(contractor_uuid uuid), public.create_admin_notification(p_title text, p_body text, p_type text, p_link text, p_job_id uuid), public.create_department(p_org_id uuid, p_parent_department_id uuid, p_name text, p_cost_center text), public.create_rfq(p_title text, p_spec jsonb, p_scope_template_id uuid, p_requires_source_inspection boolean, p_broker_mode text), public.delete_department(p_department_id uuid, p_force boolean), public.delete_user(), public.detect_band_evasion_pattern(p_org_id uuid), public.detect_client_cancellation_spam(), public.detect_concentration_risk(p_org_id uuid), public.detect_off_hours_decisions(p_org_id uuid), public.detect_quarter_end_clustering(p_org_id uuid), public.detect_rubber_stamping(p_org_id uuid), public.detect_silent_overrides(p_org_id uuid), public.detect_vendor_coordination_latency(p_org_id uuid, p_lookback_days integer), public.disablelongtransactions(), public.dropgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying), public.dropgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying), public.dropgeometrycolumn(table_name character varying, column_name character varying), public.dropgeometrytable(catalog_name character varying, schema_name character varying, table_name character varying), public.dropgeometrytable(schema_name character varying, table_name character varying), public.dropgeometrytable(table_name character varying), public.enablelongtransactions(), public.enforce_application_rate_limit(), public.ensure_help_support_conversation(), public.ensure_job_conversation(p_job_id uuid, p_kind text), public.equals(geom1 geometry, geom2 geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.evaluate_job_for_approval(p_org_id uuid, p_department_id uuid, p_amount_cents bigint, p_currency text), public.expire_old_certifications(), public.fetch_affidavit_by_verify_token(p_token text), public.fetch_cert_by_slug(p_slug text), public.fetch_department_audit_trail(p_org_id uuid, p_limit integer), public.fetch_department_budget_rollup(p_org_id uuid, p_window text, p_display_currency text), public.fetch_department_spend_summary(p_department_id uuid, p_display_currency text), public.fetch_department_tree(p_org_id uuid), public.fetch_my_org_memberships(), public.fetch_my_pending_approvals(), public.file_dispute(p_job_id uuid, p_category text, p_body text), public.find_srid(character varying, character varying, character varying), public.flag_job_dispute(p_job_id uuid, p_reason text, p_reason_category text, p_evidence_urls text[]), public.flash_report_add_attachment(p_flash_report_id uuid, p_kind text, p_storage_path text, p_mime_type text, p_size_bytes bigint, p_caption text), public.flash_report_create(p_job_id uuid, p_category text, p_severity text, p_title text, p_description text, p_location_text text, p_occurred_at timestamp with time zone, p_client_id uuid), public.flash_report_transition(p_id uuid, p_to_status text, p_notes text), public.format_amount_for_notification(p_amount_cents bigint, p_currency text), public.fund_deal_balance(p_deal_id uuid), public.gen_verify_token(), public.geog_brin_inclusion_add_value(internal, internal, internal, internal), public.geography(bytea), public.geography(geography, integer, boolean), public.geography(geometry), public.geography_analyze(internal), public.geography_cmp(geography, geography), public.geography_distance_knn(geography, geography), public.geography_eq(geography, geography), public.geography_ge(geography, geography), public.geography_gist_compress(internal), public.geography_gist_consistent(internal, geography, integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.geography_gist_decompress(internal), public.geography_gist_distance(internal, geography, integer), public.geography_gist_penalty(internal, internal, internal), public.geography_gist_picksplit(internal, internal), public.geography_gist_same(box2d, box2d, internal), public.geography_gist_union(bytea, internal), public.geography_gt(geography, geography), public.geography_in(cstring, oid, integer), public.geography_le(geography, geography), public.geography_lt(geography, geography), public.geography_out(geography), public.geography_overlaps(geography, geography), public.geography_recv(internal, oid, integer), public.geography_send(geography), public.geography_spgist_choose_nd(internal, internal), public.geography_spgist_compress_nd(internal), public.geography_spgist_config_nd(internal, internal), public.geography_spgist_inner_consistent_nd(internal, internal), public.geography_spgist_leaf_consistent_nd(internal, internal), public.geography_spgist_picksplit_nd(internal, internal), public.geography_typmod_in(cstring[]), public.geography_typmod_out(integer), public.geom2d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom3d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom4d_brin_inclusion_add_value(internal, internal, internal, internal), public.geometry(box2d), public.geometry(box3d), public.geometry(bytea), public.geometry(geography), public.geometry(geometry, integer, boolean) TO anon;
-GRANT EXECUTE ON FUNCTION public.geometry(path), public.geometry(point), public.geometry(polygon), public.geometry(text), public.geometry_above(geom1 geometry, geom2 geometry), public.geometry_analyze(internal), public.geometry_below(geom1 geometry, geom2 geometry), public.geometry_cmp(geom1 geometry, geom2 geometry), public.geometry_contained_3d(geom1 geometry, geom2 geometry), public.geometry_contains(geom1 geometry, geom2 geometry), public.geometry_contains_3d(geom1 geometry, geom2 geometry), public.geometry_contains_nd(geometry, geometry), public.geometry_distance_box(geom1 geometry, geom2 geometry), public.geometry_distance_centroid(geom1 geometry, geom2 geometry), public.geometry_distance_centroid_nd(geometry, geometry), public.geometry_distance_cpa(geometry, geometry), public.geometry_eq(geom1 geometry, geom2 geometry), public.geometry_ge(geom1 geometry, geom2 geometry), public.geometry_gist_compress_2d(internal), public.geometry_gist_compress_nd(internal), public.geometry_gist_consistent_2d(internal, geometry, integer), public.geometry_gist_consistent_nd(internal, geometry, integer), public.geometry_gist_decompress_2d(internal), public.geometry_gist_decompress_nd(internal), public.geometry_gist_distance_2d(internal, geometry, integer), public.geometry_gist_distance_nd(internal, geometry, integer), public.geometry_gist_penalty_2d(internal, internal, internal), public.geometry_gist_penalty_nd(internal, internal, internal), public.geometry_gist_picksplit_2d(internal, internal), public.geometry_gist_picksplit_nd(internal, internal) TO anon;
-GRANT EXECUTE ON FUNCTION public.geometry_gist_same_2d(geom1 geometry, geom2 geometry, internal), public.geometry_gist_same_nd(geometry, geometry, internal), public.geometry_gist_sortsupport_2d(internal), public.geometry_gist_union_2d(bytea, internal), public.geometry_gist_union_nd(bytea, internal), public.geometry_gt(geom1 geometry, geom2 geometry), public.geometry_hash(geometry), public.geometry_in(cstring), public.geometry_le(geom1 geometry, geom2 geometry), public.geometry_left(geom1 geometry, geom2 geometry), public.geometry_lt(geom1 geometry, geom2 geometry), public.geometry_out(geometry), public.geometry_overabove(geom1 geometry, geom2 geometry), public.geometry_overbelow(geom1 geometry, geom2 geometry), public.geometry_overlaps(geom1 geometry, geom2 geometry), public.geometry_overlaps_3d(geom1 geometry, geom2 geometry), public.geometry_overlaps_nd(geometry, geometry), public.geometry_overleft(geom1 geometry, geom2 geometry), public.geometry_overright(geom1 geometry, geom2 geometry), public.geometry_recv(internal), public.geometry_right(geom1 geometry, geom2 geometry), public.geometry_same(geom1 geometry, geom2 geometry), public.geometry_same_3d(geom1 geometry, geom2 geometry), public.geometry_same_nd(geometry, geometry), public.geometry_send(geometry), public.geometry_sortsupport(internal), public.geometry_spgist_choose_2d(internal, internal), public.geometry_spgist_choose_3d(internal, internal), public.geometry_spgist_choose_nd(internal, internal), public.geometry_spgist_compress_2d(internal) TO anon;
-GRANT EXECUTE ON FUNCTION public.geometry_spgist_compress_3d(internal), public.geometry_spgist_compress_nd(internal), public.geometry_spgist_config_2d(internal, internal), public.geometry_spgist_config_3d(internal, internal), public.geometry_spgist_config_nd(internal, internal), public.geometry_spgist_inner_consistent_2d(internal, internal), public.geometry_spgist_inner_consistent_3d(internal, internal), public.geometry_spgist_inner_consistent_nd(internal, internal), public.geometry_spgist_leaf_consistent_2d(internal, internal), public.geometry_spgist_leaf_consistent_3d(internal, internal), public.geometry_spgist_leaf_consistent_nd(internal, internal), public.geometry_spgist_picksplit_2d(internal, internal), public.geometry_spgist_picksplit_3d(internal, internal), public.geometry_spgist_picksplit_nd(internal, internal), public.geometry_typmod_in(cstring[]), public.geometry_typmod_out(integer), public.geometry_within(geom1 geometry, geom2 geometry), public.geometry_within_nd(geometry, geometry), public.geometrytype(geography), public.geometrytype(geometry), public.geomfromewkb(bytea), public.geomfromewkt(text), public.get_asset_timeline(p_asset_id uuid), public.get_burn_rate(p_project_id uuid, p_months_back integer), public.get_certification_expiry_summary(p_contractor_id uuid), public.get_client_branding(p_uid uuid), public.get_dashboard_analytics(), public.get_expiring_certifications(reminder_days integer[]), public.get_expiring_certifications_with_contractor(reminder_days integer[]), public.get_inspection_passport(p_seal_id uuid) TO anon;
-GRANT EXECUTE ON FUNCTION public.get_inspector_dashboard_stats(), public.get_inspector_reputation(p_inspector_id uuid), public.get_latest_consent(p_user_id text, p_document_id text), public.get_monthly_breakdown(p_inspector_id uuid), public.get_my_application_quota(), public.get_organization_members(p_org_id uuid), public.get_overdue_reports(), public.get_proj4_from_srid(integer), public.get_project_dispute_stats(p_project_id uuid), public.get_spending_dashboard(p_project_id uuid), public.get_template_for_job(p_job_id uuid), public.get_top_inspectors(p_limit integer, p_min_jobs integer, p_min_rating numeric), public.get_user_earnings(p_user_id uuid), public.get_utilization(p_project_id uuid), public.get_weekly_earnings(p_inspector_id uuid), public.gettransactionid(), public.gidx_in(cstring), public.gidx_out(gidx), public.gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal), public.gin_extract_value_trgm(text, internal), public.gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal), public.gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal), public.global_search(p_query text, p_limit integer), public.gserialized_gist_joinsel_2d(internal, oid, internal, smallint), public.gserialized_gist_joinsel_nd(internal, oid, internal, smallint), public.gserialized_gist_sel_2d(internal, oid, internal, integer), public.gserialized_gist_sel_nd(internal, oid, internal, integer), public.gtrgm_compress(internal), public.gtrgm_consistent(internal, text, smallint, oid, internal), public.gtrgm_decompress(internal) TO anon;
-GRANT EXECUTE ON FUNCTION public.gtrgm_distance(internal, text, smallint, oid, internal), public.gtrgm_in(cstring), public.gtrgm_options(internal), public.gtrgm_out(gtrgm), public.gtrgm_penalty(internal, internal, internal), public.gtrgm_picksplit(internal, internal), public.gtrgm_same(gtrgm, gtrgm, internal), public.gtrgm_union(internal, internal), public.guard_application_self_transition(), public.guard_jobs_status_transition(), public.guard_profile_privileged_columns(), public.handle_inspection_report_state_machine(), public.handle_job_acceptance(), public.handle_new_user_settings(), public.handle_payout_updated_at(), public.handle_report_status_change(), public.handle_report_submission(), public.handle_updated_at(), public.has_applied_to_job(p_job_id uuid), public.has_valid_certificates(contractor_uuid uuid), public.has_valid_consent(p_user_id text, p_document_id text, p_policy_version text), public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public.increment_job_applications_count(), public.inspector_assignment_end(p_job_id uuid, p_user_id uuid), public.inspector_integrity_analytics(p_window_days integer), public.inspector_respond_to_counter(p_application_id uuid, p_decision text, p_note text), public.inspector_start_job(p_job_id uuid), public.inspectors_near_job(p_job_id uuid, p_max_km numeric, p_limit integer), public.invite_inspector_to_job(p_job_id uuid, p_inspector_id uuid, p_message text), public.is_active_cci(p_uid uuid, p_min_tier cci_credential_tier) TO anon;
-GRANT EXECUTE ON FUNCTION public.is_active_contract_inspector(p_job_id uuid, p_user_id uuid), public.is_admin(), public.is_contained_2d(box2df, box2df), public.is_contained_2d(box2df, geometry), public.is_contained_2d(geometry, box2df), public.is_helpdesk_admin(), public.is_meeting_participant(p_meeting uuid, p_uid uuid), public.is_member_of_org(p_org_id uuid), public.is_service_role(), public.is_super_admin(), public.is_support_admin(), public.job_applications_delete_trigger(), public.job_applications_insert_trigger(), public.job_applications_update_trigger(), public.jobs_has_contractor_party(p_job_id uuid, p_uid uuid), public.jobs_near_inspector(p_inspector_id uuid, p_max_km numeric, p_limit integer), public.json(geometry), public.jsonb(geometry), public.link_organization_by_email_domain(), public.list_my_sessions(), public.lock_report_template(p_template_id uuid), public.lockrow(text, text, text), public.lockrow(text, text, text, text), public.lockrow(text, text, text, text, timestamp without time zone), public.lockrow(text, text, text, timestamp without time zone), public.log_application_event(), public.log_dispute_status_change(), public.log_job_event(), public.log_verification_change(), public.longtransactionsenabled() TO anon;
-GRANT EXECUTE ON FUNCTION public.lookup_sso_for_email(p_email text), public.mark_conversation_read(p_conv_id uuid), public.mark_report_viewed(p_report_id uuid), public.ml_register_model(p_kind text, p_slug text, p_version integer, p_runtime text, p_storage_path text, p_size_bytes bigint, p_sha256 text, p_tier text, p_semver text, p_signature text, p_signature_alg text, p_signing_key_id text, p_device_min_tier text, p_min_app_version text, p_os_constraint text, p_license text, p_params jsonb, p_notes text), public.ml_resolve_models(p_kind text, p_device_tier text, p_os text, p_app_version text), public.ml_set_model_status(p_id uuid, p_status text), public.moddatetime(), public.move_department(p_department_id uuid, p_new_parent_id uuid), public.notification_smoke_test(), public.notify_admins(p_kind text, p_title text, p_body text, p_link text, p_job_id uuid), public.notify_inspectors_about_existing_job(p_job_id uuid), public.notify_inspectors_on_job_approved(), public.notify_job_event_webhook(), public.notify_on_application_change(), public.notify_on_contract_assignment(), public.notify_on_dispute_change(), public.notify_on_job_change(), public.notify_on_new_message(), public.notify_on_new_review(), public.notify_on_transaction_change(), public.nx_active_super_admin_count(), public.nx_auto_approve_due_engagements(), public.nx_business_days_elapsed(p_since timestamp with time zone), public.nx_can_see_job_dept_scoping(p_user_id uuid, p_job_id uuid), public.nx_can_team_access_conversation(p_conversation_id uuid), public.nx_can_team_access_job(p_job_id uuid), public.nx_can_team_manage_conversation(p_conversation_id uuid), public.nx_can_team_manage_job(p_job_id uuid), public.nx_contract_clause_forbidden(p_text text, p_viewer text), public.nx_contract_text_for_client(p_md text) TO anon;
-GRANT EXECUTE ON FUNCTION public.nx_contract_text_for_inspector(p_md text), public.nx_contract_text_sanitize(p_md text, p_viewer text), public.nx_guard_contract_before_money(), public.nx_guard_inspector_certification_verification(), public.nx_guard_jobs_funding_columns(), public.nx_guard_marketplace_hidden(), public.nx_guard_no_self_senior_review(), public.nx_guard_project_program_same_org(), public.nx_guard_report_delivery(), public.nx_guard_report_no_self_approval(), public.nx_guard_senior_review_immutable(), public.nx_guard_senior_review_no_delete(), public.nx_handle(p_id uuid), public.nx_is_admin(p_uid uuid), public.nx_is_platform_owner(p_uid uuid), public.nx_jobs_buyer_only_columns(), public.nx_jobs_margin_columns(), public.nx_jobs_seller_only_columns(), public.nx_mask_name(p_name text), public.nx_milestone_deemed_accepted(p_deal_id uuid, p_kind text), public.nx_notify_admins(p_title text, p_body text, p_kind text, p_link text, p_job_id uuid), public.nx_online_payments_enabled(), public.nx_platform_owner_immutable(), public.nx_protect_privileged_profiles(), public.nx_rate_band(p_cents bigint), public.nx_report_review_history_append_only(), public.nx_report_review_history_capture(), public.nx_report_review_history_no_truncate(), public.nx_require_email_verified(), public.nx_set_updated_at() TO anon;
-GRANT EXECUTE ON FUNCTION public.nx_terminal_job_statuses(), public.nx_user_is_org_admin(p_user_id uuid, p_org_id uuid), public.nx_user_visible_department_ids(p_user_id uuid), public.open_job_approval_request(p_job_id uuid, p_policy_id uuid, p_amount_cents bigint, p_currency text, p_min_approvers_required integer, p_required_approver_roles text[], p_requires_sod boolean), public.overlaps_2d(box2df, box2df), public.overlaps_2d(box2df, geometry), public.overlaps_2d(geometry, box2df), public.overlaps_geog(geography, gidx), public.overlaps_geog(gidx, geography), public.overlaps_geog(gidx, gidx), public.overlaps_nd(geometry, gidx), public.overlaps_nd(gidx, geometry), public.overlaps_nd(gidx, gidx), public.owner_cancel_job(p_job_id uuid, p_reason text), public.path(geometry), public.pgis_asflatgeobuf_finalfn(internal), public.pgis_asflatgeobuf_transfn(internal, anyelement), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean, text), public.pgis_asgeobuf_finalfn(internal), public.pgis_asgeobuf_transfn(internal, anyelement), public.pgis_asgeobuf_transfn(internal, anyelement, text), public.pgis_asmvt_combinefn(internal, internal), public.pgis_asmvt_deserialfn(bytea, internal), public.pgis_asmvt_finalfn(internal), public.pgis_asmvt_serialfn(internal), public.pgis_asmvt_transfn(internal, anyelement), public.pgis_asmvt_transfn(internal, anyelement, text), public.pgis_asmvt_transfn(internal, anyelement, text, integer), public.pgis_asmvt_transfn(internal, anyelement, text, integer, text) TO anon;
-GRANT EXECUTE ON FUNCTION public.pgis_asmvt_transfn(internal, anyelement, text, integer, text, text), public.pgis_geometry_accum_transfn(internal, geometry), public.pgis_geometry_accum_transfn(internal, geometry, double precision), public.pgis_geometry_accum_transfn(internal, geometry, double precision, integer), public.pgis_geometry_clusterintersecting_finalfn(internal), public.pgis_geometry_clusterwithin_finalfn(internal), public.pgis_geometry_collect_finalfn(internal), public.pgis_geometry_makeline_finalfn(internal), public.pgis_geometry_polygonize_finalfn(internal), public.pgis_geometry_union_parallel_combinefn(internal, internal), public.pgis_geometry_union_parallel_deserialfn(bytea, internal), public.pgis_geometry_union_parallel_finalfn(internal), public.pgis_geometry_union_parallel_serialfn(internal), public.pgis_geometry_union_parallel_transfn(internal, geometry), public.pgis_geometry_union_parallel_transfn(internal, geometry, double precision), public.pi_canonical_json(p jsonb), public.pi_countersign_inspection_report(p_report_id uuid), public.pi_fetch_report_seal(p_report_id uuid), public.pi_record_doc_validation(p_job_id uuid, p_model_slug text, p_model_version integer, p_model_sha256 text, p_verdict jsonb, p_conformance_score numeric, p_report_id uuid, p_template_id uuid, p_report_file_sha256 text, p_extracted_sha256 text, p_template_sha256 text, p_flagged_for_review boolean, p_accepted boolean, p_client_op_id text), public.pi_seal_inspection_report(p_report_id uuid), public.point(geometry), public.polygon(geometry), public.populate_geometry_columns(tbl_oid oid, use_typmod boolean), public.populate_geometry_columns(use_typmod boolean), public.postgis_addbbox(geometry), public.postgis_cache_bbox(), public.postgis_constraint_dims(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_srid(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_type(geomschema text, geomtable text, geomcolumn text), public.postgis_dropbbox(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.postgis_extensions_upgrade(), public.postgis_full_version(), public.postgis_geos_noop(geometry), public.postgis_geos_version(), public.postgis_getbbox(geometry), public.postgis_hasbbox(geometry), public.postgis_index_supportfn(internal), public.postgis_lib_build_date(), public.postgis_lib_revision(), public.postgis_lib_version(), public.postgis_libjson_version(), public.postgis_liblwgeom_version(), public.postgis_libprotobuf_version(), public.postgis_libxml_version(), public.postgis_noop(geometry), public.postgis_proj_version(), public.postgis_scripts_build_date(), public.postgis_scripts_installed(), public.postgis_scripts_released(), public.postgis_svn_version(), public.postgis_transform_geometry(geom geometry, text, text, integer), public.postgis_type_name(geomname character varying, coord_dimension integer, use_new_name boolean), public.postgis_typmod_dims(integer), public.postgis_typmod_srid(integer), public.postgis_typmod_type(integer), public.postgis_version(), public.postgis_wagyu_version(), public.public_get_fee_schedule(), public.public_stats(), public.public_total_jobs() TO anon;
-GRANT EXECUTE ON FUNCTION public.raise_nonconformance(p_deal_id uuid, p_kind text, p_citation text, p_basis text, p_code_ref text), public.record_seal_anchor(p_seal_id uuid, p_root_sha256 text, p_status text, p_ots_proof text, p_calendar text), public.refresh_inspector_reputation(), public.regenerate_recovery_codes(), public.reject_application(p_application_id uuid), public.release_deal_leg(p_leg_id uuid), public.release_inspector_payout(p_deal_id uuid), public.release_supplier_contract(p_quote_id uuid, p_amount_cents integer, p_note text), public.release_supplier_payout(p_deal_id uuid), public.rename_department(p_department_id uuid, p_name text, p_cost_center text), public.request_milestone_release(p_job_id uuid, p_amount_cents bigint, p_note text), public.request_named_disclosure(p_deal_id uuid, p_fee_cents bigint), public.request_payout_advance(p_job_id uuid, p_fee_bps integer), public.request_price_revision(p_agreement_id uuid, p_proposed_amount_cents bigint, p_reason_code text, p_justification text), public.resolve_job_dispute(p_dispute_id uuid, p_outcome text, p_resolution_notes text), public.respond_to_counter(p_revision_id uuid, p_decision text, p_amount_cents bigint, p_note text), public.reviews_populate_generalized(), public.reviews_recompute_trigger(), public.revoke_session(p_session_id uuid), public.search_inspectors(p_search_query text, p_ndt_methods text[], p_location text, p_min_rating numeric, p_is_verified boolean, p_sort_by text, p_limit integer, p_offset integer), public.send_offer(p_application_id uuid), public.set_approval_policy(p_org_id uuid, p_name text, p_min_amount_cents bigint, p_max_amount_cents bigint, p_currency text, p_required_approver_roles text[], p_min_approvers_count integer, p_requires_sod boolean, p_scope_department_id uuid, p_is_active boolean, p_id uuid), public.set_default_template(p_template_id uuid), public.set_department_budget(p_department_id uuid, p_fiscal_period_start date, p_fiscal_period_end date, p_currency text, p_allocated_cents bigint, p_notes text), public.set_dispute_resolved_at(), public.set_limit(real), public.set_org_base_currency(p_org_id uuid, p_currency text), public.set_project_client_id(), public.shortlist_application(p_application_id uuid), public.should_deliver(p_recipient uuid, p_kind text, p_channel text) TO anon;
-GRANT EXECUTE ON FUNCTION public.show_limit(), public.show_trgm(text), public.sign_agreement(p_agreement_id uuid, p_signed_name text, p_ip text, p_user_agent text), public.similarity(text, text), public.similarity_dist(text, text), public.similarity_op(text, text), public.soft_delete(p_table text, p_id uuid), public.spheroid_in(cstring), public.spheroid_out(spheroid), public.st_3dclosestpoint(geom1 geometry, geom2 geometry), public.st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_3ddistance(geom1 geometry, geom2 geometry), public.st_3ddwithin(geom1 geometry, geom2 geometry, double precision), public.st_3dextent(geometry), public.st_3dintersects(geom1 geometry, geom2 geometry), public.st_3dlength(geometry), public.st_3dlineinterpolatepoint(geometry, double precision), public.st_3dlongestline(geom1 geometry, geom2 geometry), public.st_3dmakebox(geom1 geometry, geom2 geometry), public.st_3dmaxdistance(geom1 geometry, geom2 geometry), public.st_3dperimeter(geometry), public.st_3dshortestline(geom1 geometry, geom2 geometry), public.st_addmeasure(geometry, double precision, double precision), public.st_addpoint(geom1 geometry, geom2 geometry), public.st_addpoint(geom1 geometry, geom2 geometry, integer), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision), public.st_angle(line1 geometry, line2 geometry), public.st_angle(pt1 geometry, pt2 geometry, pt3 geometry, pt4 geometry), public.st_area(geog geography, use_spheroid boolean) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_area(geometry), public.st_area(text), public.st_area2d(geometry), public.st_asbinary(geography), public.st_asbinary(geography, text), public.st_asbinary(geometry), public.st_asbinary(geometry, text), public.st_asencodedpolyline(geom geometry, nprecision integer), public.st_asewkb(geometry), public.st_asewkb(geometry, text), public.st_asewkt(geography), public.st_asewkt(geography, integer), public.st_asewkt(geometry), public.st_asewkt(geometry, integer), public.st_asewkt(text), public.st_asflatgeobuf(anyelement), public.st_asflatgeobuf(anyelement, boolean), public.st_asflatgeobuf(anyelement, boolean, text), public.st_asgeobuf(anyelement), public.st_asgeobuf(anyelement, text), public.st_asgeojson(geog geography, maxdecimaldigits integer, options integer), public.st_asgeojson(geom geometry, maxdecimaldigits integer, options integer), public.st_asgeojson(r record, geom_column text, maxdecimaldigits integer, pretty_bool boolean), public.st_asgeojson(text), public.st_asgml(geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(geom geometry, maxdecimaldigits integer, options integer), public.st_asgml(text), public.st_asgml(version integer, geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(version integer, geom geometry, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_ashexewkb(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_ashexewkb(geometry, text), public.st_askml(geog geography, maxdecimaldigits integer, nprefix text), public.st_askml(geom geometry, maxdecimaldigits integer, nprefix text), public.st_askml(text), public.st_aslatlontext(geom geometry, tmpl text), public.st_asmarc21(geom geometry, format text), public.st_asmvt(anyelement), public.st_asmvt(anyelement, text), public.st_asmvt(anyelement, text, integer), public.st_asmvt(anyelement, text, integer, text), public.st_asmvt(anyelement, text, integer, text, text), public.st_asmvtgeom(geom geometry, bounds box2d, extent integer, buffer integer, clip_geom boolean), public.st_assvg(geog geography, rel integer, maxdecimaldigits integer), public.st_assvg(geom geometry, rel integer, maxdecimaldigits integer), public.st_assvg(text), public.st_astext(geography), public.st_astext(geography, integer), public.st_astext(geometry), public.st_astext(geometry, integer), public.st_astext(text), public.st_astwkb(geom geometry, prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_astwkb(geom geometry[], ids bigint[], prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_asx3d(geom geometry, maxdecimaldigits integer, options integer), public.st_azimuth(geog1 geography, geog2 geography), public.st_azimuth(geom1 geometry, geom2 geometry), public.st_bdmpolyfromtext(text, integer), public.st_bdpolyfromtext(text, integer), public.st_boundary(geometry), public.st_boundingdiagonal(geom geometry, fits boolean), public.st_box2dfromgeohash(text, integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_buffer(geography, double precision), public.st_buffer(geography, double precision, integer), public.st_buffer(geography, double precision, text), public.st_buffer(geom geometry, radius double precision, options text), public.st_buffer(geom geometry, radius double precision, quadsegs integer), public.st_buffer(text, double precision), public.st_buffer(text, double precision, integer), public.st_buffer(text, double precision, text), public.st_buildarea(geometry), public.st_centroid(geography, use_spheroid boolean), public.st_centroid(geometry), public.st_centroid(text), public.st_chaikinsmoothing(geometry, integer, boolean), public.st_cleangeometry(geometry), public.st_clipbybox2d(geom geometry, box box2d), public.st_closestpoint(geom1 geometry, geom2 geometry), public.st_closestpointofapproach(geometry, geometry), public.st_clusterdbscan(geometry, eps double precision, minpoints integer), public.st_clusterintersecting(geometry), public.st_clusterintersecting(geometry[]), public.st_clusterkmeans(geom geometry, k integer, max_radius double precision), public.st_clusterwithin(geometry, double precision), public.st_clusterwithin(geometry[], double precision), public.st_collect(geom1 geometry, geom2 geometry), public.st_collect(geometry), public.st_collect(geometry[]), public.st_collectionextract(geometry), public.st_collectionextract(geometry, integer), public.st_collectionhomogenize(geometry), public.st_combinebbox(box2d, geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_combinebbox(box3d, box3d), public.st_combinebbox(box3d, geometry), public.st_concavehull(param_geom geometry, param_pctconvex double precision, param_allow_holes boolean), public.st_contains(geom1 geometry, geom2 geometry), public.st_containsproperly(geom1 geometry, geom2 geometry), public.st_convexhull(geometry), public.st_coorddim(geometry geometry), public.st_coveredby(geog1 geography, geog2 geography), public.st_coveredby(geom1 geometry, geom2 geometry), public.st_coveredby(text, text), public.st_covers(geog1 geography, geog2 geography), public.st_covers(geom1 geometry, geom2 geometry), public.st_covers(text, text), public.st_cpawithin(geometry, geometry, double precision), public.st_crosses(geom1 geometry, geom2 geometry), public.st_curvetoline(geom geometry, tol double precision, toltype integer, flags integer), public.st_delaunaytriangles(g1 geometry, tolerance double precision, flags integer), public.st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_difference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_dimension(geometry), public.st_disjoint(geom1 geometry, geom2 geometry), public.st_distance(geog1 geography, geog2 geography, use_spheroid boolean), public.st_distance(geom1 geometry, geom2 geometry), public.st_distance(text, text), public.st_distancecpa(geometry, geometry), public.st_distancesphere(geom1 geometry, geom2 geometry), public.st_distancesphere(geom1 geometry, geom2 geometry, radius double precision), public.st_distancespheroid(geom1 geometry, geom2 geometry), public.st_distancespheroid(geom1 geometry, geom2 geometry, spheroid), public.st_dump(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_dumppoints(geometry), public.st_dumprings(geometry), public.st_dumpsegments(geometry), public.st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean), public.st_dwithin(geom1 geometry, geom2 geometry, double precision), public.st_dwithin(text, text, double precision), public.st_endpoint(geometry), public.st_envelope(geometry), public.st_equals(geom1 geometry, geom2 geometry), public.st_estimatedextent(text, text), public.st_estimatedextent(text, text, text), public.st_estimatedextent(text, text, text, boolean), public.st_expand(box box2d, dx double precision, dy double precision), public.st_expand(box box3d, dx double precision, dy double precision, dz double precision), public.st_expand(box2d, double precision), public.st_expand(box3d, double precision), public.st_expand(geom geometry, dx double precision, dy double precision, dz double precision, dm double precision), public.st_expand(geometry, double precision), public.st_extent(geometry), public.st_exteriorring(geometry), public.st_filterbym(geometry, double precision, double precision, boolean), public.st_findextent(text, text), public.st_findextent(text, text, text), public.st_flipcoordinates(geometry), public.st_force2d(geometry), public.st_force3d(geom geometry, zvalue double precision), public.st_force3dm(geom geometry, mvalue double precision), public.st_force3dz(geom geometry, zvalue double precision), public.st_force4d(geom geometry, zvalue double precision, mvalue double precision), public.st_forcecollection(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_forcecurve(geometry), public.st_forcepolygonccw(geometry), public.st_forcepolygoncw(geometry), public.st_forcerhr(geometry), public.st_forcesfs(geometry), public.st_forcesfs(geometry, version text), public.st_frechetdistance(geom1 geometry, geom2 geometry, double precision), public.st_fromflatgeobuf(anyelement, bytea), public.st_fromflatgeobuftotable(text, text, bytea), public.st_generatepoints(area geometry, npoints integer), public.st_generatepoints(area geometry, npoints integer, seed integer), public.st_geogfromtext(text), public.st_geogfromwkb(bytea), public.st_geographyfromtext(text), public.st_geohash(geog geography, maxchars integer), public.st_geohash(geom geometry, maxchars integer), public.st_geomcollfromtext(text), public.st_geomcollfromtext(text, integer), public.st_geomcollfromwkb(bytea), public.st_geomcollfromwkb(bytea, integer), public.st_geometricmedian(g geometry, tolerance double precision, max_iter integer, fail_if_not_converged boolean), public.st_geometryfromtext(text), public.st_geometryfromtext(text, integer), public.st_geometryn(geometry, integer), public.st_geometrytype(geometry), public.st_geomfromewkb(bytea), public.st_geomfromewkt(text), public.st_geomfromgeohash(text, integer), public.st_geomfromgeojson(json), public.st_geomfromgeojson(jsonb) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_geomfromgeojson(text), public.st_geomfromgml(text), public.st_geomfromgml(text, integer), public.st_geomfromkml(text), public.st_geomfrommarc21(marc21xml text), public.st_geomfromtext(text), public.st_geomfromtext(text, integer), public.st_geomfromtwkb(bytea), public.st_geomfromwkb(bytea), public.st_geomfromwkb(bytea, integer), public.st_gmltosql(text), public.st_gmltosql(text, integer), public.st_hasarc(geometry geometry), public.st_hausdorffdistance(geom1 geometry, geom2 geometry), public.st_hausdorffdistance(geom1 geometry, geom2 geometry, double precision), public.st_hexagon(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_hexagongrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_interiorringn(geometry, integer), public.st_interpolatepoint(line geometry, point geometry), public.st_intersection(geography, geography), public.st_intersection(geom1 geometry, geom2 geometry, gridsize double precision), public.st_intersection(text, text), public.st_intersects(geog1 geography, geog2 geography), public.st_intersects(geom1 geometry, geom2 geometry), public.st_intersects(text, text), public.st_isclosed(geometry), public.st_iscollection(geometry), public.st_isempty(geometry), public.st_ispolygonccw(geometry), public.st_ispolygoncw(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_isring(geometry), public.st_issimple(geometry), public.st_isvalid(geometry), public.st_isvalid(geometry, integer), public.st_isvaliddetail(geom geometry, flags integer), public.st_isvalidreason(geometry), public.st_isvalidreason(geometry, integer), public.st_isvalidtrajectory(geometry), public.st_length(geog geography, use_spheroid boolean), public.st_length(geometry), public.st_length(text), public.st_length2d(geometry), public.st_length2dspheroid(geometry, spheroid), public.st_lengthspheroid(geometry, spheroid), public.st_letters(letters text, font json), public.st_linecrossingdirection(line1 geometry, line2 geometry), public.st_linefromencodedpolyline(txtin text, nprecision integer), public.st_linefrommultipoint(geometry), public.st_linefromtext(text), public.st_linefromtext(text, integer), public.st_linefromwkb(bytea), public.st_linefromwkb(bytea, integer), public.st_lineinterpolatepoint(geometry, double precision), public.st_lineinterpolatepoints(geometry, double precision, repeat boolean), public.st_linelocatepoint(geom1 geometry, geom2 geometry), public.st_linemerge(geometry), public.st_linemerge(geometry, boolean), public.st_linestringfromwkb(bytea), public.st_linestringfromwkb(bytea, integer), public.st_linesubstring(geometry, double precision, double precision) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_linetocurve(geometry geometry), public.st_locatealong(geometry geometry, measure double precision, leftrightoffset double precision), public.st_locatebetween(geometry geometry, frommeasure double precision, tomeasure double precision, leftrightoffset double precision), public.st_locatebetweenelevations(geometry geometry, fromelevation double precision, toelevation double precision), public.st_longestline(geom1 geometry, geom2 geometry), public.st_m(geometry), public.st_makebox2d(geom1 geometry, geom2 geometry), public.st_makeenvelope(double precision, double precision, double precision, double precision, integer), public.st_makeline(geom1 geometry, geom2 geometry), public.st_makeline(geometry), public.st_makeline(geometry[]), public.st_makepoint(double precision, double precision), public.st_makepoint(double precision, double precision, double precision), public.st_makepoint(double precision, double precision, double precision, double precision), public.st_makepointm(double precision, double precision, double precision), public.st_makepolygon(geometry), public.st_makepolygon(geometry, geometry[]), public.st_makevalid(geom geometry, params text), public.st_makevalid(geometry), public.st_maxdistance(geom1 geometry, geom2 geometry), public.st_maximuminscribedcircle(geometry, OUT center geometry, OUT nearest geometry, OUT radius double precision), public.st_memcollect(geometry), public.st_memsize(geometry), public.st_memunion(geometry), public.st_minimumboundingcircle(inputgeom geometry, segs_per_quarter integer), public.st_minimumboundingradius(geometry, OUT center geometry, OUT radius double precision), public.st_minimumclearance(geometry), public.st_minimumclearanceline(geometry), public.st_mlinefromtext(text), public.st_mlinefromtext(text, integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_mlinefromwkb(bytea), public.st_mlinefromwkb(bytea, integer), public.st_mpointfromtext(text), public.st_mpointfromtext(text, integer), public.st_mpointfromwkb(bytea), public.st_mpointfromwkb(bytea, integer), public.st_mpolyfromtext(text), public.st_mpolyfromtext(text, integer), public.st_mpolyfromwkb(bytea), public.st_mpolyfromwkb(bytea, integer), public.st_multi(geometry), public.st_multilinefromwkb(bytea), public.st_multilinestringfromtext(text), public.st_multilinestringfromtext(text, integer), public.st_multipointfromtext(text), public.st_multipointfromwkb(bytea), public.st_multipointfromwkb(bytea, integer), public.st_multipolyfromwkb(bytea), public.st_multipolyfromwkb(bytea, integer), public.st_multipolygonfromtext(text), public.st_multipolygonfromtext(text, integer), public.st_ndims(geometry), public.st_node(g geometry), public.st_normalize(geom geometry), public.st_npoints(geometry), public.st_nrings(geometry), public.st_numgeometries(geometry), public.st_numinteriorring(geometry), public.st_numinteriorrings(geometry), public.st_numpatches(geometry) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_numpoints(geometry), public.st_offsetcurve(line geometry, distance double precision, params text), public.st_orderingequals(geom1 geometry, geom2 geometry), public.st_orientedenvelope(geometry), public.st_overlaps(geom1 geometry, geom2 geometry), public.st_patchn(geometry, integer), public.st_perimeter(geog geography, use_spheroid boolean), public.st_perimeter(geometry), public.st_perimeter2d(geometry), public.st_point(double precision, double precision), public.st_point(double precision, double precision, srid integer), public.st_pointfromgeohash(text, integer), public.st_pointfromtext(text), public.st_pointfromtext(text, integer), public.st_pointfromwkb(bytea), public.st_pointfromwkb(bytea, integer), public.st_pointinsidecircle(geometry, double precision, double precision, double precision), public.st_pointm(xcoordinate double precision, ycoordinate double precision, mcoordinate double precision, srid integer), public.st_pointn(geometry, integer), public.st_pointonsurface(geometry), public.st_points(geometry), public.st_pointz(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, srid integer), public.st_pointzm(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, mcoordinate double precision, srid integer), public.st_polyfromtext(text), public.st_polyfromtext(text, integer), public.st_polyfromwkb(bytea), public.st_polyfromwkb(bytea, integer), public.st_polygon(geometry, integer), public.st_polygonfromtext(text), public.st_polygonfromtext(text, integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_polygonfromwkb(bytea), public.st_polygonfromwkb(bytea, integer), public.st_polygonize(geometry), public.st_polygonize(geometry[]), public.st_project(geog geography, distance double precision, azimuth double precision), public.st_quantizecoordinates(g geometry, prec_x integer, prec_y integer, prec_z integer, prec_m integer), public.st_reduceprecision(geom geometry, gridsize double precision), public.st_relate(geom1 geometry, geom2 geometry), public.st_relate(geom1 geometry, geom2 geometry, integer), public.st_relate(geom1 geometry, geom2 geometry, text), public.st_relatematch(text, text), public.st_removepoint(geometry, integer), public.st_removerepeatedpoints(geom geometry, tolerance double precision), public.st_reverse(geometry), public.st_rotate(geometry, double precision), public.st_rotate(geometry, double precision, double precision, double precision), public.st_rotate(geometry, double precision, geometry), public.st_rotatex(geometry, double precision), public.st_rotatey(geometry, double precision), public.st_rotatez(geometry, double precision), public.st_scale(geometry, double precision, double precision), public.st_scale(geometry, double precision, double precision, double precision), public.st_scale(geometry, geometry), public.st_scale(geometry, geometry, origin geometry), public.st_scroll(geometry, geometry), public.st_segmentize(geog geography, max_segment_length double precision), public.st_segmentize(geometry, double precision), public.st_seteffectivearea(geometry, double precision, integer), public.st_setpoint(geometry, integer, geometry), public.st_setsrid(geog geography, srid integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_setsrid(geom geometry, srid integer), public.st_sharedpaths(geom1 geometry, geom2 geometry), public.st_shiftlongitude(geometry), public.st_shortestline(geom1 geometry, geom2 geometry), public.st_simplify(geometry, double precision), public.st_simplify(geometry, double precision, boolean), public.st_simplifypolygonhull(geom geometry, vertex_fraction double precision, is_outer boolean), public.st_simplifypreservetopology(geometry, double precision), public.st_simplifyvw(geometry, double precision), public.st_snap(geom1 geometry, geom2 geometry, double precision), public.st_snaptogrid(geom1 geometry, geom2 geometry, double precision, double precision, double precision, double precision), public.st_snaptogrid(geometry, double precision), public.st_snaptogrid(geometry, double precision, double precision), public.st_snaptogrid(geometry, double precision, double precision, double precision, double precision), public.st_split(geom1 geometry, geom2 geometry), public.st_square(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_squaregrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_srid(geog geography), public.st_srid(geom geometry), public.st_startpoint(geometry), public.st_subdivide(geom geometry, maxvertices integer, gridsize double precision), public.st_summary(geography), public.st_summary(geometry), public.st_swapordinates(geom geometry, ords cstring), public.st_symdifference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_symmetricdifference(geom1 geometry, geom2 geometry), public.st_tileenvelope(zoom integer, x integer, y integer, bounds geometry, margin double precision), public.st_touches(geom1 geometry, geom2 geometry), public.st_transform(geom geometry, from_proj text, to_proj text), public.st_transform(geom geometry, from_proj text, to_srid integer) TO anon;
-GRANT EXECUTE ON FUNCTION public.st_transform(geom geometry, to_proj text), public.st_transform(geometry, integer), public.st_translate(geometry, double precision, double precision), public.st_translate(geometry, double precision, double precision, double precision), public.st_transscale(geometry, double precision, double precision, double precision, double precision), public.st_triangulatepolygon(g1 geometry), public.st_unaryunion(geometry, gridsize double precision), public.st_union(geom1 geometry, geom2 geometry), public.st_union(geom1 geometry, geom2 geometry, gridsize double precision), public.st_union(geometry), public.st_union(geometry, gridsize double precision), public.st_union(geometry[]), public.st_voronoilines(g1 geometry, tolerance double precision, extend_to geometry), public.st_voronoipolygons(g1 geometry, tolerance double precision, extend_to geometry), public.st_within(geom1 geometry, geom2 geometry), public.st_wkbtosql(wkb bytea), public.st_wkttosql(text), public.st_wrapx(geom geometry, wrap double precision, move double precision), public.st_x(geometry), public.st_xmax(box3d), public.st_xmin(box3d), public.st_y(geometry), public.st_ymax(box3d), public.st_ymin(box3d), public.st_z(geometry), public.st_zmax(box3d), public.st_zmflag(geometry), public.st_zmin(box3d), public.strict_word_similarity(text, text), public.strict_word_similarity_commutator_op(text, text) TO anon;
-GRANT EXECUTE ON FUNCTION public.strict_word_similarity_dist_commutator_op(text, text), public.strict_word_similarity_dist_op(text, text), public.strict_word_similarity_op(text, text), public.stripe_settle_named_disclosure(p_agreement_id uuid, p_payment_intent_id text, p_amount_cents bigint, p_transaction_ref_id uuid), public.submit_inspection_report(p_job_id uuid, p_photo_url text, p_notes text), public.submit_job_approval(p_job_id uuid, p_decision text, p_comment text), public.submit_quote(p_rfq_id uuid, p_quote jsonb), public.submit_review(p_job_id uuid, p_reviewee_id uuid, p_rating integer, p_comment text, p_is_public boolean, p_private_admin_note text), public.supplier_has_quote_on_rfq(p_rfq uuid, p_uid uuid), public.supplier_match(p_need jsonb, p_limit integer), public.supplier_onboard(p_legal_name text, p_capabilities text[], p_attributes jsonb, p_lat double precision, p_lng double precision, p_country text, p_headline text), public.support_messages_touch(), public.sweep_overdue_reports(), public.sync_onboarding_metadata_to_profile(), public.text(geometry), public.tg_app_sync_job_payout_to_bid(), public.tg_applications_notifications_v2(), public.tg_approval_decisions_enforce_sod(), public.tg_approval_policies_no_overlap(), public.tg_approval_policies_set_updated_at(), public.tg_approval_requests_set_updated_at(), public.tg_audit_events_fill_actor(), public.tg_bridge_slots_set_updated_at(), public.tg_capture_set_gps_pin(), public.tg_coordination_bridges_set_updated_at(), public.tg_department_budgets_set_updated_at(), public.tg_departments_set_updated_at(), public.tg_direct_message_fanout(), public.tg_engagement_meta_reject_reassign(), public.tg_enqueue_document_analysis() TO anon;
-GRANT EXECUTE ON FUNCTION public.tg_enqueue_visual_analysis(), public.tg_guard_capture_visit(), public.tg_guard_item_visit(), public.tg_guard_itp_result_visit(), public.tg_guard_qcp_required_document(), public.tg_heal_contract_on_executed(), public.tg_inspection_domains_set_updated_at(), public.tg_inspector_domain_practice_set_updated_at(), public.tg_invoice_inherit_department(), public.tg_itp_result_history(), public.tg_job_contracts_identity_snapshot(), public.tg_job_contracts_notifications(), public.tg_job_contracts_reject_brokered_job(), public.tg_jobs_notifications_v2(), public.tg_jobs_project_coherence(), public.tg_jobs_publish_on_approval(), public.tg_model_artifacts_touch(), public.tg_notification_preferences_touch(), public.tg_notifications_consent_gate(), public.tg_notify_applications(), public.tg_notify_approval_decided(), public.tg_notify_approval_finalised(), public.tg_notify_approval_requested(), public.tg_notify_bridge_document_requested(), public.tg_notify_bridge_document_uploaded(), public.tg_notify_bridge_schedule_changed(), public.tg_notify_evidence_pack_assembled(), public.tg_notify_flash_report_raised(), public.tg_notify_inspection_report_sealed(), public.tg_notify_jobs() TO anon;
-GRANT EXECUTE ON FUNCTION public.tg_notify_messages(), public.tg_operational_message_fanout(), public.tg_org_departments_compute_depth(), public.tg_org_departments_no_cycle(), public.tg_org_dept_members_org_consistency(), public.tg_project_documents_job_coherence(), public.tg_qcp_child_draft_only(), public.tg_qcp_document_project_coherence(), public.tg_qcp_org_matches_project(), public.tg_qcp_required_document_audit(), public.tg_qcp_required_document_guard(), public.tg_qcp_revision_state(), public.tg_report_templates_touch(), public.tg_sync_inspector_payout_to_agreed_bid(), public.tg_touch_itp(), public.tg_touch_job_inspectors(), public.tg_touch_job_visits(), public.tg_touch_qcp(), public.tg_touch_updated_at(), public.tg_vendor_contacts_set_updated_at(), public.tool_eval(p_formula jsonb, p_inputs jsonb), public.tool_has_pro_access(p_uid uuid), public.tool_invoke(p_tool_key text, p_inputs jsonb), public.tool_project(p_schema jsonb, p_results jsonb), public.tool_validate_inputs(p_schema jsonb, p_inputs jsonb), public.touch_inspector_certificates_updated_at(), public.touch_job_contracts_updated_at(), public.touch_supplier_contracts_updated_at(), public.track_push_token_changes(), public.trg_refresh_demand() TO anon;
-GRANT EXECUTE ON FUNCTION public.trg_refresh_supply(), public.trigger_certification_check(), public.trigger_contract_generation(), public.unassign_member_from_department(p_department_id uuid, p_user_id uuid), public.unlockrows(text), public.update_certification_reminder_sent(certification_ids uuid[]), public.update_certifications_updated_at(), public.update_conversation_timestamp(), public.update_disputes_updated_at(), public.update_legal_consents_updated_at(), public.update_profile_search_vector(), public.update_updated_at_column(), public.updategeometrysrid(catalogn_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer), public.updategeometrysrid(character varying, character varying, character varying, integer), public.updategeometrysrid(character varying, character varying, integer), public.upsert_fx_rate(p_base_currency text, p_quote_currency text, p_rate numeric, p_effective_date date, p_source text), public.validate_application_status_transition(), public.validate_balance(p_wallet_id uuid, p_amount numeric), public.vendor_document_record_anchor(p_doc_id uuid, p_status text, p_calendar text, p_ots_proof text, p_block_height bigint), public.vendor_document_seal(p_storage_path text, p_content_sha256 text, p_doc_type text, p_title text, p_mime_type text, p_byte_size bigint, p_bound_type text, p_bound_id uuid), public.withdraw_revision(p_revision_id uuid, p_note text), public.word_similarity(text, text), public.word_similarity_commutator_op(text, text), public.word_similarity_dist_commutator_op(text, text), public.word_similarity_dist_op(text, text), public.word_similarity_op(text, text) TO anon;
-GRANT EXECUTE ON FUNCTION public._actor_is_super_admin(), public._app_config_get(p_key text), public._apply_revision(p_revision_id uuid, p_agreed bigint, p_actor uuid), public._brokered_autocontract_on_quote_award(), public._brokered_build_trust_artifacts(p_inspector_id uuid, p_supplier_handle text, p_scope text, p_tier text), public._brokered_client_supply_md(p_title text, p_amount_cents bigint, p_currency text, p_tier text, p_source_fat boolean), public._brokered_common_terms_md(), public._brokered_create_engagement(p_deal_id uuid, p_inspector_id uuid, p_payout_cents bigint, p_routing text, p_client_review text), public._brokered_disclosure_amendment_md(p_title text, p_fee_cents bigint, p_currency text, p_tier_label text), public._brokered_ensure_payment_schedule(p_deal_id uuid, p_total_cents bigint, p_currency text), public._brokered_ensure_supplier_contract(p_quote_id uuid), public._brokered_inspector_engagement_md(p_title text, p_payout_cents bigint, p_currency text), public._brokered_notify_on_present(), public._brokered_payment_schedule_md(p_total_cents bigint, p_currency text), public._brokered_schedule_a_md(p_title text, p_discipline text), public._brokered_score_inspectors(p_deal_id uuid), public._brokered_supplier_supply_md(p_title text, p_amount_cents bigint, p_currency text), public._budget_window_start(p_window text), public._compliance_actor_can_read(p_org_id uuid), public._conversation_on_new_message(), public._default_daily_application_limit(), public._dept_actor_profile(p_user_id uuid), public._email_domain(p_email text), public._haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public._messages_fill_sender_role(), public._postgis_deprecate(oldname text, newname text, version text), public._postgis_index_extent(tbl regclass, col text), public._postgis_join_selectivity(regclass, text, regclass, text, text), public._postgis_pgsql_version(), public._postgis_scripts_pgsql_version() TO authenticated;
-GRANT EXECUTE ON FUNCTION public._postgis_selectivity(tbl regclass, att_name text, geom geometry, mode text), public._postgis_stats(tbl regclass, att_name text, text), public._quote_raw_cents(p_quote jsonb), public._recovery_code_hash(p_code text), public._resolve_display_currency(p_org_id uuid, p_requested text), public._revision_log(p_revision_id uuid, p_actor_id uuid, p_actor_role text, p_action text, p_amount bigint, p_reason text, p_note text), public._revision_notify(p_recipient uuid, p_title text, p_body text, p_deal uuid), public._revision_role(p_kind text), public._spawn_inspection_for_award(), public._st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision), public._st_3ddwithin(geom1 geometry, geom2 geometry, double precision), public._st_3dintersects(geom1 geometry, geom2 geometry), public._st_asgml(integer, geometry, integer, integer, text, text), public._st_asx3d(integer, geometry, integer, integer, text), public._st_bestsrid(geography), public._st_bestsrid(geography, geography), public._st_contains(geom1 geometry, geom2 geometry), public._st_containsproperly(geom1 geometry, geom2 geometry), public._st_coveredby(geog1 geography, geog2 geography), public._st_coveredby(geom1 geometry, geom2 geometry), public._st_covers(geog1 geography, geog2 geography), public._st_covers(geom1 geometry, geom2 geometry), public._st_crosses(geom1 geometry, geom2 geometry), public._st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public._st_distancetree(geography, geography), public._st_distancetree(geography, geography, double precision, boolean), public._st_distanceuncached(geography, geography), public._st_distanceuncached(geography, geography, boolean), public._st_distanceuncached(geography, geography, double precision, boolean), public._st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean) TO authenticated;
-GRANT EXECUTE ON FUNCTION public._st_dwithin(geom1 geometry, geom2 geometry, double precision), public._st_dwithinuncached(geography, geography, double precision), public._st_dwithinuncached(geography, geography, double precision, boolean), public._st_equals(geom1 geometry, geom2 geometry), public._st_expand(geography, double precision), public._st_geomfromgml(text, integer), public._st_intersects(geom1 geometry, geom2 geometry), public._st_linecrossingdirection(line1 geometry, line2 geometry), public._st_longestline(geom1 geometry, geom2 geometry), public._st_maxdistance(geom1 geometry, geom2 geometry), public._st_orderingequals(geom1 geometry, geom2 geometry), public._st_overlaps(geom1 geometry, geom2 geometry), public._st_pointoutside(geography), public._st_sortablehash(geom geometry), public._st_touches(geom1 geometry, geom2 geometry), public._st_voronoi(g1 geometry, clip geometry, tolerance double precision, return_polygons boolean), public._st_within(geom1 geometry, geom2 geometry), public._supplier_quote_cents(p_quote jsonb), public._tool_canon(j jsonb), public._tool_eval(node jsonb, ctx jsonb, depth integer), public._tool_num(node jsonb, ctx jsonb, depth integer), public._touch_conversations_updated_at(), public._touch_updated_at(), public._touch_updated_at_flash_reports(), public._touch_updated_at_push_tokens(), public._touch_updated_at_pwad(), public.addauth(text), public.addgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean), public.addgeometrycolumn(table_name character varying, column_name character varying, new_srid integer, new_type character varying, new_dim integer, use_typmod boolean) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_accept_goods(p_deal_id uuid), public.admin_assign_inspector(p_deal_id uuid, p_inspector_id uuid, p_payout_cents bigint, p_routing text), public.admin_assign_inspector_directly(p_job_id uuid, p_inspector_id uuid, p_client_price_cents bigint, p_inspector_payout_cents bigint, p_reason text), public.admin_auto_match_inspector(p_deal_id uuid, p_payout_cents bigint), public.admin_cancel_job(p_job_id uuid, p_reason text), public.admin_counter_application(p_application_id uuid, p_counter_cents bigint, p_comment text), public.admin_counter_revision(p_revision_id uuid, p_counter_amount_cents bigint, p_admin_note text), public.admin_countersign_supplier_contract(p_contract_id uuid, p_typed_name text, p_ip text), public.admin_decide_revision(p_revision_id uuid, p_decision text, p_admin_note text), public.admin_decrypt_tax_id(p_user_id uuid, p_key text), public.admin_dispatch_job(p_job_id uuid, p_application_id uuid, p_client_price_cents bigint, p_payout_cents bigint, p_payout_status text), public.admin_forward_application_to_client(p_application_id uuid), public.admin_fund_advance(p_id uuid, p_funded_by text), public.admin_generate_job_contract(p_application_id uuid, p_client_price_cents bigint, p_inspector_payout_cents bigint, p_contract_text_md text, p_custom_contract_url text), public.admin_generate_supplier_contract(p_quote_id uuid, p_contract_text_md text, p_custom_contract_url text), public.admin_invite_org_member(p_org_id uuid, p_email text, p_role text), public.admin_ledger_snapshot(), public.admin_list_internal_threads(), public.admin_list_listing_candidates(), public.admin_list_payout_requests(p_status text), public.admin_mark_goods_delivered(p_deal_id uuid), public.admin_mark_payout_processed(p_job_id uuid, p_stripe_reference text, p_notes text), public.admin_mark_report_delivered(p_deal_id uuid), public.admin_mark_withdrawal_paid(p_id uuid, p_reference text), public.admin_match_preview(p_deal_id uuid, p_n integer), public.admin_offer_inspector_shortlist(p_deal_id uuid, p_payout_cents bigint, p_inspector_ids uuid[], p_n integer), public.admin_open_internal_thread(p_conversation_id uuid), public.admin_present_agreement(p_agreement_id uuid), public.admin_present_quote(p_quote_id uuid, p_client_price_cents bigint, p_admin_note text), public.admin_recent_transactions(p_limit integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_record_manual_payment(p_job_id uuid, p_direction text, p_amount_cents bigint, p_method text, p_paid_on date, p_reference text, p_notes text, p_status text), public.admin_reject_withdrawal(p_id uuid, p_reason text), public.admin_remove_org_member(p_member_id uuid, p_reason text), public.admin_replace_inspector(p_job_id uuid, p_new_application_id uuid, p_client_price_cents bigint, p_inspector_payout_cents bigint, p_reason text), public.admin_resolve_dispute(p_job_id uuid, p_resolution text, p_reason text), public.admin_review_credential(p_credential_id uuid, p_decision text, p_notes text), public.admin_review_job(p_job_id uuid, p_decision text, p_notes text), public.admin_review_job_with_pricing(p_job_id uuid, p_decision text, p_notes text, p_inspector_payout_cents bigint), public.admin_search_assignable_inspectors(p_query text, p_limit integer, p_include_unverified boolean), public.admin_set_fee_schedule(p_client_commission_bps integer, p_stripe_application_fee_bps integer, p_dispute_fee_cents integer, p_payout_fee_bps integer, p_reason text), public.admin_set_job_marketplace_visibility(p_job_id uuid, p_hidden boolean, p_reason text), public.admin_set_job_pricing(p_job_id uuid, p_inspector_payout_cents bigint), public.admin_set_listing_featured(p_target_id uuid, p_kind text, p_featured boolean), public.admin_set_project_policy(p_job_id uuid, p_identity_mode text, p_replacement_mode text), public.admin_set_tax_exemption(p_user_id uuid, p_exempt boolean, p_reason text), public.admin_set_tax_status(p_user_id uuid, p_status text), public.admin_suspend_user(p_user_id uuid, p_reason text), public.admin_unsuspend_user(p_user_id uuid), public.admin_update_org_member_role(p_member_id uuid, p_role text), public.admin_verify_user(p_user_id uuid, p_status text, p_reason text), public.admin_void_contract(p_contract_id uuid, p_reason text), public.ai_ops_audit_immutable(), public.ai_ops_create_monthly_snapshot(p_month date), public.ai_ops_guard_lifecycle(), public.apply_onboarding_role(p_role text, p_full_name text, p_company_name text, p_contact_person_name text, p_specialty_slugs text[], p_terms_accepted_at timestamp with time zone, p_terms_version text), public.approve_inspection_report(p_job_id uuid, p_approved boolean, p_comment text), public.assemble_evidence_pack(p_job_id uuid), public.assert_job_payable(p_job_id uuid), public.assign_job_contractor(p_job_id uuid, p_contractor_id uuid), public.assign_member_to_department(p_department_id uuid, p_user_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.audit_capture(), public.audit_delta_keys(input jsonb), public.audit_public_summary(p_summary text, p_is_buyer boolean), public.audit_redact_buyer_pricing(input jsonb), public.audit_redact_internal(input jsonb), public.audit_redact_pricing(input jsonb), public.audit_set_correlation(p_correlation_id uuid), public.audit_set_intent(p_intent text), public.auto_expire_certifications(), public.award_and_dispatch(p_quote_id uuid), public.award_quote(p_quote_id uuid), public.box(box3d), public.box(geometry), public.box2d(box3d), public.box2d(geometry), public.box2d_in(cstring), public.box2d_out(box2d), public.box2df_in(cstring), public.box2df_out(box2df), public.box3d(box2d), public.box3d(geometry), public.box3d_in(cstring), public.box3d_out(box3d), public.box3dtobox(box3d), public.bridge_accept_counter_schedule(p_bridge_id uuid, p_slot_id uuid), public.bridge_accept_document(p_document_id uuid), public.bridge_add_document_request(p_bridge_id uuid, p_title text, p_description text, p_required boolean, p_max_size_mb integer), public.bridge_cancel(p_bridge_id uuid, p_reason text), public.bridge_complete(p_bridge_id uuid), public.bridge_create(p_job_id uuid, p_company_name text, p_contact_name text, p_contact_email text, p_contact_phone text, p_country_code text, p_timezone text, p_language_code text, p_token_ttl_days integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.bridge_fetch_for_inspector(p_bridge_id uuid), public.bridge_propose_schedule(p_bridge_id uuid, p_proposed_at timestamp with time zone, p_timezone text, p_notes text), public.bridge_reject_document(p_document_id uuid, p_reason text), public.bridge_rotate_token(p_bridge_id uuid, p_token_ttl_days integer), public.bridge_send_invitation(p_bridge_id uuid, p_raw_token text, p_portal_base text), public.bulk_update_inspector_specialties(p_inspector_ids uuid[], p_add_slugs text[], p_remove_slugs text[]), public.bytea(geography), public.bytea(geometry), public.can_access_job_messages(p_job_id uuid, p_user_id uuid), public.can_assemble_evidence_for(p_job_id uuid, p_user_id uuid), public.can_manage_org_structure(p_org_id uuid, p_user_id uuid), public.can_raise_dispute(p_project_id uuid, p_user_id uuid), public.can_review_job(p_job_id uuid), public.can_review_job(p_job_id uuid, p_direction text), public.cancel_job_approval(p_job_id uuid, p_reason text), public.cancel_meeting(p_meeting_id uuid), public.cb_actor_profile(p_user_id uuid), public.cb_sha256_hex(p_text text), public.check_department_budget(p_department_id uuid, p_as_of date, p_additional_cents bigint, p_additional_currency text), public.check_expert_badge_eligibility(), public.check_project_completion_lock(), public.checkauth(text, text), public.checkauth(text, text, text), public.checkauthtrigger(), public.claim_pending_notification_emails(p_limit integer), public.cleanup_old_notification_logs(days_to_keep integer), public.clear_active_org(), public.client_review_engagement(p_deal_id uuid, p_decision text, p_reason text), public.client_select_inspector(p_deal_id uuid, p_candidate_id uuid), public.client_sign_job_contract(p_contract_id uuid, p_typed_name text, p_ip text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.compliance_posture_summary(p_org_id uuid), public.compute_review_weight(p_verified boolean, p_jobs_count integer, p_role text), public.consume_recovery_code(p_code text), public.contains_2d(box2df, box2df), public.contains_2d(box2df, geometry), public.contains_2d(geometry, box2df), public.contracts_is_contractor_party(p_contract_id uuid, p_uid uuid), public.contracts_touch(), public.convert_cents(p_amount_cents bigint, p_from_currency text, p_to_currency text, p_as_of timestamp with time zone), public.count_valid_certificates(contractor_uuid uuid), public.create_admin_notification(p_title text, p_body text, p_type text, p_link text, p_job_id uuid), public.create_department(p_org_id uuid, p_parent_department_id uuid, p_name text, p_cost_center text), public.create_organization(p_name text, p_kind text), public.create_rfq(p_title text, p_spec jsonb, p_scope_template_id uuid, p_requires_source_inspection boolean, p_broker_mode text), public.credit_inspector_earning_on_approval(p_job_id uuid), public.credit_supplier_earnings(p_supplier_id uuid, p_amount_cents integer, p_description text, p_rfq_id uuid), public.delete_department(p_department_id uuid, p_force boolean), public.delete_user(), public.detect_band_evasion_pattern(p_org_id uuid), public.detect_client_cancellation_spam(), public.detect_concentration_risk(p_org_id uuid), public.detect_off_hours_decisions(p_org_id uuid), public.detect_quarter_end_clustering(p_org_id uuid), public.detect_rubber_stamping(p_org_id uuid), public.detect_silent_overrides(p_org_id uuid), public.detect_vendor_coordination_latency(p_org_id uuid, p_lookback_days integer), public.disablelongtransactions(), public.discover_jobs(p_inspector_id uuid, p_lat numeric, p_lng numeric, p_radius_km integer, p_city_query text, p_limit integer, p_offset integer), public.dropgeometrycolumn(catalog_name character varying, schema_name character varying, table_name character varying, column_name character varying), public.dropgeometrycolumn(schema_name character varying, table_name character varying, column_name character varying) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.dropgeometrycolumn(table_name character varying, column_name character varying), public.dropgeometrytable(catalog_name character varying, schema_name character varying, table_name character varying), public.dropgeometrytable(schema_name character varying, table_name character varying), public.dropgeometrytable(table_name character varying), public.enablelongtransactions(), public.enforce_application_rate_limit(), public.ensure_help_support_conversation(), public.ensure_job_conversation(p_job_id uuid, p_kind text), public.ensure_team_internal_conversation(p_job_id uuid), public.equals(geom1 geometry, geom2 geometry), public.evaluate_job_for_approval(p_org_id uuid, p_department_id uuid, p_amount_cents bigint, p_currency text), public.expire_old_certifications(), public.fetch_affidavit_by_verify_token(p_token text), public.fetch_cert_by_slug(p_slug text), public.fetch_department_audit_trail(p_org_id uuid, p_limit integer), public.fetch_department_budget_rollup(p_org_id uuid, p_window text, p_display_currency text), public.fetch_department_spend_summary(p_department_id uuid, p_display_currency text), public.fetch_department_tree(p_org_id uuid), public.fetch_my_org_memberships(), public.fetch_my_pending_approvals(), public.file_dispute(p_job_id uuid, p_category text, p_body text), public.fin_visible_client_ids(p_user_id uuid), public.find_srid(character varying, character varying, character varying), public.flag_job_dispute(p_job_id uuid, p_reason text, p_reason_category text, p_evidence_urls text[]), public.flash_report_add_attachment(p_flash_report_id uuid, p_kind text, p_storage_path text, p_mime_type text, p_size_bytes bigint, p_caption text), public.flash_report_create(p_job_id uuid, p_category text, p_severity text, p_title text, p_description text, p_location_text text, p_occurred_at timestamp with time zone, p_client_id uuid), public.flash_report_transition(p_id uuid, p_to_status text, p_notes text), public.format_amount_for_notification(p_amount_cents bigint, p_currency text), public.fund_deal_balance(p_deal_id uuid), public.gen_verify_token() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.geog_brin_inclusion_add_value(internal, internal, internal, internal), public.geography(bytea), public.geography(geography, integer, boolean), public.geography(geometry), public.geography_analyze(internal), public.geography_cmp(geography, geography), public.geography_distance_knn(geography, geography), public.geography_eq(geography, geography), public.geography_ge(geography, geography), public.geography_gist_compress(internal), public.geography_gist_consistent(internal, geography, integer), public.geography_gist_decompress(internal), public.geography_gist_distance(internal, geography, integer), public.geography_gist_penalty(internal, internal, internal), public.geography_gist_picksplit(internal, internal), public.geography_gist_same(box2d, box2d, internal), public.geography_gist_union(bytea, internal), public.geography_gt(geography, geography), public.geography_in(cstring, oid, integer), public.geography_le(geography, geography), public.geography_lt(geography, geography), public.geography_out(geography), public.geography_overlaps(geography, geography), public.geography_recv(internal, oid, integer), public.geography_send(geography), public.geography_spgist_choose_nd(internal, internal), public.geography_spgist_compress_nd(internal), public.geography_spgist_config_nd(internal, internal), public.geography_spgist_inner_consistent_nd(internal, internal), public.geography_spgist_leaf_consistent_nd(internal, internal) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.geography_spgist_picksplit_nd(internal, internal), public.geography_typmod_in(cstring[]), public.geography_typmod_out(integer), public.geom2d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom3d_brin_inclusion_add_value(internal, internal, internal, internal), public.geom4d_brin_inclusion_add_value(internal, internal, internal, internal), public.geometry(box2d), public.geometry(box3d), public.geometry(bytea), public.geometry(geography), public.geometry(geometry, integer, boolean), public.geometry(path), public.geometry(point), public.geometry(polygon), public.geometry(text), public.geometry_above(geom1 geometry, geom2 geometry), public.geometry_analyze(internal), public.geometry_below(geom1 geometry, geom2 geometry), public.geometry_cmp(geom1 geometry, geom2 geometry), public.geometry_contained_3d(geom1 geometry, geom2 geometry), public.geometry_contains(geom1 geometry, geom2 geometry), public.geometry_contains_3d(geom1 geometry, geom2 geometry), public.geometry_contains_nd(geometry, geometry), public.geometry_distance_box(geom1 geometry, geom2 geometry), public.geometry_distance_centroid(geom1 geometry, geom2 geometry), public.geometry_distance_centroid_nd(geometry, geometry), public.geometry_distance_cpa(geometry, geometry), public.geometry_eq(geom1 geometry, geom2 geometry), public.geometry_ge(geom1 geometry, geom2 geometry), public.geometry_gist_compress_2d(internal) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.geometry_gist_compress_nd(internal), public.geometry_gist_consistent_2d(internal, geometry, integer), public.geometry_gist_consistent_nd(internal, geometry, integer), public.geometry_gist_decompress_2d(internal), public.geometry_gist_decompress_nd(internal), public.geometry_gist_distance_2d(internal, geometry, integer), public.geometry_gist_distance_nd(internal, geometry, integer), public.geometry_gist_penalty_2d(internal, internal, internal), public.geometry_gist_penalty_nd(internal, internal, internal), public.geometry_gist_picksplit_2d(internal, internal), public.geometry_gist_picksplit_nd(internal, internal), public.geometry_gist_same_2d(geom1 geometry, geom2 geometry, internal), public.geometry_gist_same_nd(geometry, geometry, internal), public.geometry_gist_sortsupport_2d(internal), public.geometry_gist_union_2d(bytea, internal), public.geometry_gist_union_nd(bytea, internal), public.geometry_gt(geom1 geometry, geom2 geometry), public.geometry_hash(geometry), public.geometry_in(cstring), public.geometry_le(geom1 geometry, geom2 geometry), public.geometry_left(geom1 geometry, geom2 geometry), public.geometry_lt(geom1 geometry, geom2 geometry), public.geometry_out(geometry), public.geometry_overabove(geom1 geometry, geom2 geometry), public.geometry_overbelow(geom1 geometry, geom2 geometry), public.geometry_overlaps(geom1 geometry, geom2 geometry), public.geometry_overlaps_3d(geom1 geometry, geom2 geometry), public.geometry_overlaps_nd(geometry, geometry), public.geometry_overleft(geom1 geometry, geom2 geometry), public.geometry_overright(geom1 geometry, geom2 geometry) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.geometry_recv(internal), public.geometry_right(geom1 geometry, geom2 geometry), public.geometry_same(geom1 geometry, geom2 geometry), public.geometry_same_3d(geom1 geometry, geom2 geometry), public.geometry_same_nd(geometry, geometry), public.geometry_send(geometry), public.geometry_sortsupport(internal), public.geometry_spgist_choose_2d(internal, internal), public.geometry_spgist_choose_3d(internal, internal), public.geometry_spgist_choose_nd(internal, internal), public.geometry_spgist_compress_2d(internal), public.geometry_spgist_compress_3d(internal), public.geometry_spgist_compress_nd(internal), public.geometry_spgist_config_2d(internal, internal), public.geometry_spgist_config_3d(internal, internal), public.geometry_spgist_config_nd(internal, internal), public.geometry_spgist_inner_consistent_2d(internal, internal), public.geometry_spgist_inner_consistent_3d(internal, internal), public.geometry_spgist_inner_consistent_nd(internal, internal), public.geometry_spgist_leaf_consistent_2d(internal, internal), public.geometry_spgist_leaf_consistent_3d(internal, internal), public.geometry_spgist_leaf_consistent_nd(internal, internal), public.geometry_spgist_picksplit_2d(internal, internal), public.geometry_spgist_picksplit_3d(internal, internal), public.geometry_spgist_picksplit_nd(internal, internal), public.geometry_typmod_in(cstring[]), public.geometry_typmod_out(integer), public.geometry_within(geom1 geometry, geom2 geometry), public.geometry_within_nd(geometry, geometry), public.geometrytype(geography) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.geometrytype(geometry), public.geomfromewkb(bytea), public.geomfromewkt(text), public.get_asset_timeline(p_asset_id uuid), public.get_budget_by_inspector(p_limit integer), public.get_budget_monthly(p_months integer), public.get_budget_recent_activity(p_limit integer), public.get_budget_summary(), public.get_burn_rate(p_project_id uuid, p_months_back integer), public.get_certification_expiry_summary(p_contractor_id uuid), public.get_client_branding(p_uid uuid), public.get_dashboard_analytics(), public.get_expiring_certifications(reminder_days integer[]), public.get_expiring_certifications_with_contractor(reminder_days integer[]), public.get_inspection_passport(p_seal_id uuid), public.get_inspector_dashboard_stats(), public.get_inspector_reputation(p_inspector_id uuid), public.get_latest_consent(p_user_id text, p_document_id text), public.get_marketplace_inspectors(p_search text, p_min_rating numeric, p_only_verified boolean, p_only_available boolean, p_location_city text, p_ndt_methods text[], p_sort_by text, p_limit integer, p_offset integer), public.get_monthly_breakdown(p_inspector_id uuid), public.get_my_application_quota(), public.get_organization_members(p_org_id uuid), public.get_overdue_reports(), public.get_proj4_from_srid(integer), public.get_project_dispute_stats(p_project_id uuid), public.get_public_profile(p_uid uuid), public.get_public_profiles(p_uids uuid[]), public.get_spending_dashboard(p_project_id uuid), public.get_template_for_job(p_job_id uuid), public.get_top_inspectors(p_limit integer, p_min_jobs integer, p_min_rating numeric) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_user_earnings(p_user_id uuid), public.get_utilization(p_project_id uuid), public.get_weekly_earnings(p_inspector_id uuid), public.gettransactionid(), public.gidx_in(cstring), public.gidx_out(gidx), public.gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal), public.gin_extract_value_trgm(text, internal), public.gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal), public.gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal), public.global_search(p_query text, p_limit integer), public.gserialized_gist_joinsel_2d(internal, oid, internal, smallint), public.gserialized_gist_joinsel_nd(internal, oid, internal, smallint), public.gserialized_gist_sel_2d(internal, oid, internal, integer), public.gserialized_gist_sel_nd(internal, oid, internal, integer), public.gtrgm_compress(internal), public.gtrgm_consistent(internal, text, smallint, oid, internal), public.gtrgm_decompress(internal), public.gtrgm_distance(internal, text, smallint, oid, internal), public.gtrgm_in(cstring), public.gtrgm_options(internal), public.gtrgm_out(gtrgm), public.gtrgm_penalty(internal, internal, internal), public.gtrgm_picksplit(internal, internal), public.gtrgm_same(gtrgm, gtrgm, internal), public.gtrgm_union(internal, internal), public.guard_application_self_transition(), public.guard_jobs_status_transition(), public.guard_profile_privileged_columns(), public.handle_inspection_report_state_machine() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.handle_job_acceptance(), public.handle_new_user(), public.handle_new_user_settings(), public.handle_new_user_wallet(), public.handle_payout_updated_at(), public.handle_report_status_change(), public.handle_report_submission(), public.handle_updated_at(), public.has_applied_to_job(p_job_id uuid), public.has_valid_certificates(contractor_uuid uuid), public.has_valid_consent(p_user_id text, p_document_id text, p_policy_version text), public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision), public.hydrate_identity(p_provider text, p_claims jsonb), public.increment_job_applications_count(), public.increment_notification_badge(), public.inspector_assignment_end(p_job_id uuid, p_user_id uuid), public.inspector_integrity_analytics(p_window_days integer), public.inspector_respond_to_counter(p_application_id uuid, p_decision text, p_note text), public.inspector_sign_job_contract(p_contract_id uuid, p_typed_name text, p_ip text), public.inspector_start_job(p_job_id uuid), public.inspectors_near_job(p_job_id uuid, p_max_km numeric, p_limit integer), public.invite_inspector_to_job(p_job_id uuid, p_inspector_id uuid, p_message text), public.is_active_cci(p_uid uuid, p_min_tier cci_credential_tier), public.is_active_contract_inspector(p_job_id uuid, p_user_id uuid), public.is_admin(), public.is_contained_2d(box2df, box2df), public.is_contained_2d(box2df, geometry), public.is_contained_2d(geometry, box2df), public.is_helpdesk_admin(), public.is_meeting_participant(p_meeting uuid, p_uid uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_member_of_org(p_org_id uuid), public.is_service_role(), public.is_super_admin(), public.is_support_admin(), public.job_applications_delete_trigger(), public.job_applications_insert_trigger(), public.job_applications_update_trigger(), public.jobs_has_contractor_party(p_job_id uuid, p_uid uuid), public.jobs_near_inspector(p_inspector_id uuid, p_max_km numeric, p_limit integer), public.json(geometry), public.jsonb(geometry), public.link_organization_by_email_domain(), public.list_my_sessions(), public.lock_report_template(p_template_id uuid), public.lockrow(text, text, text), public.lockrow(text, text, text, text), public.lockrow(text, text, text, text, timestamp without time zone), public.lockrow(text, text, text, timestamp without time zone), public.log_application_event(), public.log_dispute_status_change(), public.log_job_event(), public.log_verification_change(), public.longtransactionsenabled(), public.lookup_sso_for_email(p_email text), public.mark_conversation_read(p_conv_id uuid), public.mark_direct_conversation_read(p_conversation_id uuid), public.mark_job_completed(p_job_id uuid, p_note text), public.mark_operational_conversation_read(p_conversation_id uuid), public.mark_report_viewed(p_report_id uuid), public.ml_register_model(p_kind text, p_slug text, p_version integer, p_runtime text, p_storage_path text, p_size_bytes bigint, p_sha256 text, p_tier text, p_semver text, p_signature text, p_signature_alg text, p_signing_key_id text, p_device_min_tier text, p_min_app_version text, p_os_constraint text, p_license text, p_params jsonb, p_notes text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.ml_resolve_models(p_kind text, p_device_tier text, p_os text, p_app_version text), public.ml_set_model_status(p_id uuid, p_status text), public.moddatetime(), public.moderate_review(p_review_id uuid, p_action text, p_notes text), public.move_department(p_department_id uuid, p_new_parent_id uuid), public.notification_smoke_test(), public.notify(p_recipient uuid, p_kind text, p_title text, p_body text, p_link text, p_job_id uuid), public.notify_admins(p_kind text, p_title text, p_body text, p_link text, p_job_id uuid), public.notify_inspectors_about_existing_job(p_job_id uuid), public.notify_inspectors_on_job_approved(), public.notify_job_event_webhook(), public.notify_on_application_change(), public.notify_on_contract_assignment(), public.notify_on_dispute_change(), public.notify_on_job_change(), public.notify_on_new_message(), public.notify_on_new_review(), public.notify_on_transaction_change(), public.nx_active_super_admin_count(), public.nx_actor_is_platform(), public.nx_admin_assign_senior_reviewer(p_report_id uuid, p_reviewer_id uuid), public.nx_admin_deliver_report(p_report_id uuid), public.nx_admin_release_job_on_credit(p_job_id uuid, p_net_term_days integer, p_reason text), public.nx_admin_report_first_pass_rate(p_since timestamp with time zone, p_until timestamp with time zone), public.nx_admin_report_review_queue(p_limit integer, p_only_unreviewed boolean), public.nx_admin_review_inspection_report(p_report_id uuid, p_kind text, p_approved boolean, p_note text), public.nx_admin_set_client_delivery_policy(p_client_id uuid, p_mode text, p_net_term_days integer, p_reason text), public.nx_admin_set_funding_terms(p_job_id uuid, p_stages jsonb), public.nx_assert_online_payments_enabled(), public.nx_auto_approve_due_engagements() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_brokered_engagement_conflict(p_deal_id uuid, p_inspector_id uuid), public.nx_business_days_elapsed(p_since timestamp with time zone), public.nx_buyer_supplier_chat_authorized(p_buyer_id uuid, p_supplier_id uuid, p_uid uuid), public.nx_buyer_supplier_conversation_authorized(p_conversation_id uuid, p_uid uuid), public.nx_buyer_supplier_related(p_buyer_id uuid, p_supplier_id uuid), public.nx_can_read_profile(p_target uuid), public.nx_can_record_visit_work(p_visit_id uuid, p_uid uuid), public.nx_can_see_job_dept_scoping(p_user_id uuid, p_job_id uuid), public.nx_can_team_access_conversation(p_conversation_id uuid), public.nx_can_team_access_internal(p_conversation_id uuid), public.nx_can_team_access_job(p_job_id uuid), public.nx_can_team_manage_conversation(p_conversation_id uuid), public.nx_can_team_manage_internal(p_conversation_id uuid), public.nx_can_team_manage_job(p_job_id uuid), public.nx_can_view_supplier_scorecard(p_supplier_id uuid, p_uid uuid), public.nx_certifications_verification_authority(), public.nx_client_may_read_report_doc(p_report_id uuid, p_uid uuid), public.nx_contract_clause_forbidden(p_text text, p_viewer text), public.nx_contract_text_for_client(p_md text), public.nx_contract_text_for_inspector(p_md text), public.nx_contract_text_sanitize(p_md text, p_viewer text), public.nx_current_job_inspector_id(p_job_id uuid), public.nx_direct_chat_authorized(p_job_id uuid, p_inspector_id uuid, p_uid uuid), public.nx_direct_conversation_authorized(p_conversation_id uuid, p_uid uuid), public.nx_email_verified(p_uid uuid), public.nx_funding_delivery_satisfied(p_job_id uuid), public.nx_funding_ensure_schedule(p_job_id uuid), public.nx_funding_initial_satisfied(p_job_id uuid), public.nx_funding_invoice_status(p_job_id uuid), public.nx_funding_issue_delivery_invoice(p_job_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_funding_mark_stage_funded(p_job_id uuid, p_code text, p_payment_intent text), public.nx_funding_stage_is_funded(p_job_id uuid, p_code text), public.nx_gate_report_doc_for_client(p_report_id uuid, p_uid uuid), public.nx_guard_contract_before_money(), public.nx_guard_dispatch_requires_contract(), public.nx_guard_dispatch_requires_funding(), public.nx_guard_inspector_certification_verification(), public.nx_guard_jobs_funding_columns(), public.nx_guard_marketplace_hidden(), public.nx_guard_no_self_senior_review(), public.nx_guard_project_program_same_org(), public.nx_guard_report_delivery(), public.nx_guard_report_no_self_approval(), public.nx_guard_senior_review_immutable(), public.nx_guard_senior_review_no_delete(), public.nx_handle(p_id uuid), public.nx_identity_replacement_reminders(), public.nx_inspector_job_match(p_job_id uuid, p_inspector_id uuid), public.nx_integration_backoff_interval(p_attempts integer, p_base_seconds integer, p_max_seconds integer, p_seed uuid), public.nx_integration_bind_record(p_link_id uuid, p_internal_table text, p_internal_id uuid), public.nx_integration_can_administer(p_connector_id uuid), public.nx_integration_guard_link_org(), public.nx_integration_guard_mapping_target(), public.nx_integration_guard_message_org(), public.nx_integration_history_append_only(), public.nx_integration_is_service_context(), public.nx_integration_map_payload(p_connector_id uuid, p_entity_type text, p_payload jsonb), public.nx_integration_register_secret(p_connector_id uuid, p_token_hash text, p_label text, p_secret_kind text), public.nx_integration_replay_message(p_message_id uuid), public.nx_integration_revoke_secret(p_secret_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_integration_validate_canonical(p_entity_type text, p_canonical jsonb), public.nx_is_active_job_team_member(p_job_id uuid, p_uid uuid), public.nx_is_admin(p_uid uuid), public.nx_is_buyer_principal_side(p_principal_id uuid, p_uid uuid), public.nx_is_current_job_inspector(p_job_id uuid, p_inspector_id uuid), public.nx_is_eligible_senior_reviewer(p_user_id uuid, p_report_id uuid), public.nx_is_inspector(), public.nx_is_job_buyer_finance_principal(p_job_id uuid, p_uid uuid), public.nx_is_job_buyer_side(p_job_id uuid, p_uid uuid), public.nx_is_job_supplier(p_job_id uuid, p_supplier_id uuid), public.nx_is_org_identity_admin(p_org_id uuid), public.nx_is_org_member(p_org_id uuid, p_uid uuid), public.nx_is_platform_owner(p_uid uuid), public.nx_is_report_contributor(p_report_id uuid, p_user_id uuid), public.nx_is_strict_super_admin(), public.nx_itp_may_waive(p_job_id uuid, p_uid uuid), public.nx_itp_record_result(p_point_id uuid, p_job_id uuid, p_result text, p_visit_id uuid, p_comments text, p_witnessed_by text), public.nx_itp_release_hold(p_result_id uuid, p_note text), public.nx_job_active_visit_for(p_job_id uuid, p_uid uuid), public.nx_job_add_inspector(p_job_id uuid, p_inspector_id uuid, p_role text, p_specialty text, p_is_lead boolean, p_note text), public.nx_job_add_visit(p_job_id uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_kind text, p_title text, p_timezone text, p_notes text, p_recurrence_group uuid), public.nx_job_awaiting_replacement(p_job_id uuid), public.nx_job_buyer_principal(p_job_id uuid), public.nx_job_cancel_visit(p_visit_id uuid, p_reason text), public.nx_job_chat_counterparts(p_job_id uuid), public.nx_job_create_recurring_visits(p_job_id uuid, p_first_start timestamp with time zone, p_count integer, p_interval_days integer, p_kind text, p_title text, p_timezone text), public.nx_job_effective_identity_mode(p_job_id uuid), public.nx_job_inspector_team_public(p_job_id uuid), public.nx_job_inspectors(p_job_id uuid), public.nx_job_itp(p_job_id uuid, p_visit_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_job_itp_blocking_points(p_job_id uuid, p_visit_id uuid), public.nx_job_remove_inspector(p_job_id uuid, p_inspector_id uuid, p_reason text), public.nx_job_replace_team_member(p_job_id uuid, p_outgoing uuid, p_incoming uuid, p_reason text), public.nx_job_reschedule_visit(p_visit_id uuid, p_new_start timestamp with time zone, p_new_end timestamp with time zone, p_reason text), public.nx_job_schedule_conflicts(p_job_id uuid, p_inspector_id uuid), public.nx_job_set_lead(p_job_id uuid, p_inspector_id uuid), public.nx_job_visits(p_job_id uuid), public.nx_jobs_buyer_only_columns(), public.nx_jobs_margin_columns(), public.nx_jobs_seller_only_columns(), public.nx_mark_all_notifications_read(), public.nx_mark_notification_read(p_id uuid), public.nx_mask_name(p_name text), public.nx_match_inspectors_for_job(p_job_id uuid, p_limit integer, p_include_unverified boolean), public.nx_meeting_engagement_party(p_uid uuid, p_job_id uuid, p_rfq_id uuid), public.nx_milestone_deemed_accepted(p_deal_id uuid, p_kind text), public.nx_my_certification_status(), public.nx_my_chattable_suppliers(), public.nx_my_supplier_chat_targets(), public.nx_notify_admins(p_title text, p_body text, p_kind text, p_link text, p_job_id uuid), public.nx_online_payments_enabled(), public.nx_org_slug(p_name text), public.nx_platform_owner_immutable(), public.nx_program_rollup(p_program_id uuid), public.nx_project_qcp(p_project_id uuid), public.nx_protect_privileged_profiles(), public.nx_qcp_accept_document(p_requirement_id uuid, p_note text), public.nx_qcp_add_revision(p_qcp_id uuid), public.nx_qcp_approve_revision(p_revision_id uuid, p_note text), public.nx_qcp_attach_document(p_requirement_id uuid, p_document_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_qcp_can_author(p_qcp_id uuid, p_uid uuid), public.nx_qcp_can_read(p_qcp_id uuid, p_uid uuid), public.nx_qcp_can_read_detail(p_qcp_id uuid, p_uid uuid), public.nx_qcp_create(p_project_id uuid, p_title text, p_supplier_id uuid), public.nx_qcp_for_job(p_job_id uuid), public.nx_qcp_is_engaged_inspector(p_qcp_id uuid, p_uid uuid), public.nx_qcp_may_accept_document(p_qcp_id uuid, p_uid uuid), public.nx_qcp_may_read(p_qcp_id uuid, p_uid uuid), public.nx_qcp_may_supply_document(p_qcp_id uuid, p_uid uuid), public.nx_qcp_org_author(p_org_id uuid, p_uid uuid), public.nx_qcp_org_reader(p_org_id uuid, p_uid uuid), public.nx_qcp_outstanding_requirements(p_qcp_id uuid), public.nx_qcp_revision_documents(p_revision_id uuid), public.nx_qcp_revision_history(p_qcp_id uuid), public.nx_qcp_revoke_document_acceptance(p_requirement_id uuid, p_note text), public.nx_qcp_rollup(p_qcp_id uuid), public.nx_qcp_set_stage_templates(p_stage_id uuid, p_template_ids uuid[]), public.nx_qcp_stage_progress(p_qcp_id uuid, p_revision_id uuid), public.nx_qcp_submit_revision(p_revision_id uuid), public.nx_qcp_visible(p_qcp_id uuid, p_uid uuid), public.nx_raise_ncr_from_inspection_item(p_item_id uuid, p_severity text, p_category text, p_note text), public.nx_raise_ncr_from_itp_point(p_result_id uuid, p_severity text, p_category text, p_note text), public.nx_rate_band(p_cents bigint), public.nx_report_contributors(p_report_id uuid), public.nx_report_itp_log(p_report_id uuid), public.nx_report_itp_rollup(p_report_id uuid), public.nx_report_qcp_rollup(p_report_id uuid), public.nx_report_resubmit(p_job_id uuid, p_report_id uuid, p_expected_updated_at timestamp with time zone, p_summary text, p_response_to_reviewer text), public.nx_report_review_history_append_only(), public.nx_report_review_history_capture() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_report_review_history_no_truncate(), public.nx_report_review_stats(p_report_id uuid), public.nx_report_review_transition(p_status text), public.nx_report_visit_log(p_report_id uuid), public.nx_report_visit_rollup(p_report_id uuid), public.nx_require_email_verified(), public.nx_scim_issue_token(p_org_id uuid, p_name text, p_connection_id uuid, p_expires_in_days integer, p_rotates_token_id uuid, p_grace_hours integer), public.nx_scim_redact_detail(p_detail jsonb), public.nx_scim_resolve_role(p_connection_id uuid, p_groups text[]), public.nx_scim_revoke_token(p_token_id uuid, p_reason text), public.nx_senior_review_decide(p_report_id uuid, p_decision text, p_comments text, p_expected_round integer), public.nx_set_updated_at(), public.nx_supplier_inspector_chat_authorized(p_job_id uuid, p_inspector_id uuid, p_supplier_id uuid, p_uid uuid), public.nx_supplier_inspector_conversation_authorized(p_conversation_id uuid, p_uid uuid), public.nx_supplier_scorecard(p_supplier_id uuid), public.nx_supplier_scorecard_band(p_n integer), public.nx_supplier_scorecard_counts(p_supplier_id uuid, p_metric_key text), public.nx_supplier_scorecard_evidence(p_supplier_id uuid, p_metric_key text), public.nx_supplier_scorecard_jobs(p_supplier_id uuid), public.nx_supplier_scorecard_metric(p_supplier_id uuid, p_metric_key text), public.nx_talent_admin_set_fee_status(p_placement_id uuid, p_status text), public.nx_talent_disclose_identity(p_submission_id uuid), public.nx_talent_match_candidates(p_opportunity_id uuid, p_limit integer), public.nx_talent_record_placement(p_submission_id uuid, p_offer_id uuid, p_guarantee_days integer), public.nx_talent_revoke_disclosure(p_submission_id uuid), public.nx_talent_submit_candidate(p_opportunity_id uuid, p_profile_id uuid), public.nx_team_jobs(), public.nx_terminal_job_statuses(), public.nx_user_is_org_admin(p_user_id uuid, p_org_id uuid), public.nx_user_visible_department_ids(p_user_id uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.nx_visit_assign_inspector(p_visit_id uuid, p_inspector_id uuid, p_is_lead boolean), public.nx_visit_evidence_summary(p_job_id uuid), public.nx_visit_schedule_conflicts(p_visit_id uuid, p_inspector_id uuid), public.open_buyer_supplier_conversation(p_buyer_id uuid, p_supplier_id uuid), public.open_direct_conversation(p_job_id uuid, p_inspector_id uuid), public.open_job_approval_request(p_job_id uuid, p_policy_id uuid, p_amount_cents bigint, p_currency text, p_min_approvers_required integer, p_required_approver_roles text[], p_requires_sod boolean), public.open_supplier_inspector_conversation(p_job_id uuid, p_inspector_id uuid, p_supplier_id uuid), public.overlaps_2d(box2df, box2df), public.overlaps_2d(box2df, geometry), public.overlaps_2d(geometry, box2df), public.overlaps_geog(geography, gidx), public.overlaps_geog(gidx, geography), public.overlaps_geog(gidx, gidx), public.overlaps_nd(geometry, gidx), public.overlaps_nd(gidx, geometry), public.overlaps_nd(gidx, gidx), public.owner_cancel_job(p_job_id uuid, p_reason text), public.path(geometry), public.pgis_asflatgeobuf_finalfn(internal), public.pgis_asflatgeobuf_transfn(internal, anyelement), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean), public.pgis_asflatgeobuf_transfn(internal, anyelement, boolean, text), public.pgis_asgeobuf_finalfn(internal), public.pgis_asgeobuf_transfn(internal, anyelement), public.pgis_asgeobuf_transfn(internal, anyelement, text), public.pgis_asmvt_combinefn(internal, internal), public.pgis_asmvt_deserialfn(bytea, internal), public.pgis_asmvt_finalfn(internal), public.pgis_asmvt_serialfn(internal), public.pgis_asmvt_transfn(internal, anyelement) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.pgis_asmvt_transfn(internal, anyelement, text), public.pgis_asmvt_transfn(internal, anyelement, text, integer), public.pgis_asmvt_transfn(internal, anyelement, text, integer, text), public.pgis_asmvt_transfn(internal, anyelement, text, integer, text, text), public.pgis_geometry_accum_transfn(internal, geometry), public.pgis_geometry_accum_transfn(internal, geometry, double precision), public.pgis_geometry_accum_transfn(internal, geometry, double precision, integer), public.pgis_geometry_clusterintersecting_finalfn(internal), public.pgis_geometry_clusterwithin_finalfn(internal), public.pgis_geometry_collect_finalfn(internal), public.pgis_geometry_makeline_finalfn(internal), public.pgis_geometry_polygonize_finalfn(internal), public.pgis_geometry_union_parallel_combinefn(internal, internal), public.pgis_geometry_union_parallel_deserialfn(bytea, internal), public.pgis_geometry_union_parallel_finalfn(internal), public.pgis_geometry_union_parallel_serialfn(internal), public.pgis_geometry_union_parallel_transfn(internal, geometry), public.pgis_geometry_union_parallel_transfn(internal, geometry, double precision), public.pi_canonical_json(p jsonb), public.pi_countersign_inspection_report(p_report_id uuid), public.pi_fetch_report_seal(p_report_id uuid), public.pi_record_ai_detection(p_job_id uuid, p_defect_id text, p_label text, p_confidence numeric, p_model_slug text, p_model_version integer, p_model_sha256 text, p_severity text, p_severity_scale text, p_standard_refs text[], p_accepted boolean, p_raw jsonb, p_report_id uuid, p_capture_id uuid, p_client_op_id uuid), public.pi_record_ai_feedback(p_job_id uuid, p_capture_id uuid, p_model_slug text, p_model_version integer, p_ai_defect_id text, p_verdict text, p_corrected_defect_id text, p_label text, p_confidence numeric, p_raw jsonb, p_client_op_id uuid), public.pi_record_doc_validation(p_job_id uuid, p_model_slug text, p_model_version integer, p_model_sha256 text, p_verdict jsonb, p_conformance_score numeric, p_report_id uuid, p_template_id uuid, p_report_file_sha256 text, p_extracted_sha256 text, p_template_sha256 text, p_flagged_for_review boolean, p_accepted boolean, p_client_op_id text), public.pi_seal_inspection_report(p_report_id uuid), public.point(geometry), public.polygon(geometry), public.populate_geometry_columns(tbl_oid oid, use_typmod boolean), public.populate_geometry_columns(use_typmod boolean), public.postgis_addbbox(geometry) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.postgis_cache_bbox(), public.postgis_constraint_dims(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_srid(geomschema text, geomtable text, geomcolumn text), public.postgis_constraint_type(geomschema text, geomtable text, geomcolumn text), public.postgis_dropbbox(geometry), public.postgis_extensions_upgrade(), public.postgis_full_version(), public.postgis_geos_noop(geometry), public.postgis_geos_version(), public.postgis_getbbox(geometry), public.postgis_hasbbox(geometry), public.postgis_index_supportfn(internal), public.postgis_lib_build_date(), public.postgis_lib_revision(), public.postgis_lib_version(), public.postgis_libjson_version(), public.postgis_liblwgeom_version(), public.postgis_libprotobuf_version(), public.postgis_libxml_version(), public.postgis_noop(geometry), public.postgis_proj_version(), public.postgis_scripts_build_date(), public.postgis_scripts_installed(), public.postgis_scripts_released(), public.postgis_svn_version(), public.postgis_transform_geometry(geom geometry, text, text, integer), public.postgis_type_name(geomname character varying, coord_dimension integer, use_new_name boolean), public.postgis_typmod_dims(integer), public.postgis_typmod_srid(integer), public.postgis_typmod_type(integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.postgis_version(), public.postgis_wagyu_version(), public.process_withdrawal(p_amount numeric, p_bank_details jsonb), public.protect_certification_verification(), public.public_get_fee_schedule(), public.public_stats(), public.public_total_jobs(), public.raise_nonconformance(p_deal_id uuid, p_kind text, p_citation text, p_basis text, p_code_ref text), public.reassign_invoice_department(p_invoice_id uuid, p_new_department_id uuid, p_reason text), public.record_reconciliation_run(p_source text, p_stripe_balance_cents bigint), public.record_seal_anchor(p_seal_id uuid, p_root_sha256 text, p_status text, p_ots_proof text, p_calendar text), public.refresh_inspector_reputation(), public.refresh_public_demand_feed(), public.refresh_public_supply_feed(), public.regenerate_recovery_codes(), public.reject_application(p_application_id uuid), public.release_deal_leg(p_leg_id uuid), public.release_inspector_payout(p_deal_id uuid), public.release_supplier_contract(p_quote_id uuid, p_amount_cents integer, p_note text), public.release_supplier_payout(p_deal_id uuid), public.rename_department(p_department_id uuid, p_name text, p_cost_center text), public.request_account_deletion(), public.request_milestone_release(p_job_id uuid, p_amount_cents bigint, p_note text), public.request_named_disclosure(p_deal_id uuid, p_fee_cents bigint), public.request_payout_advance(p_job_id uuid, p_fee_bps integer), public.request_price_revision(p_agreement_id uuid, p_proposed_amount_cents bigint, p_reason_code text, p_justification text), public.request_withdrawal(p_amount_cents bigint, p_method text, p_note text, p_client_op_id uuid), public.resolve_job_dispute(p_dispute_id uuid, p_outcome text, p_resolution_notes text), public.respond_to_counter(p_revision_id uuid, p_decision text, p_amount_cents bigint, p_note text), public.reviews_populate_generalized() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.reviews_recompute_trigger(), public.revoke_session(p_session_id uuid), public.schedule_meeting(p_title text, p_url text, p_scheduled_at timestamp with time zone, p_participant_ids uuid[], p_job_id uuid, p_rfq_id uuid, p_provider text, p_duration_min integer), public.search_inspectors(p_search_query text, p_ndt_methods text[], p_location text, p_min_rating numeric, p_is_verified boolean, p_sort_by text, p_limit integer, p_offset integer), public.send_message(p_conversation_id uuid, p_content text, p_attachment_url text, p_attachment_type text, p_attachment_name text), public.send_offer(p_application_id uuid), public.set_active_org(p_org_id uuid), public.set_approval_policy(p_org_id uuid, p_name text, p_min_amount_cents bigint, p_max_amount_cents bigint, p_currency text, p_required_approver_roles text[], p_min_approvers_count integer, p_requires_sod boolean, p_scope_department_id uuid, p_is_active boolean, p_id uuid), public.set_default_template(p_template_id uuid), public.set_department_budget(p_department_id uuid, p_fiscal_period_start date, p_fiscal_period_end date, p_currency text, p_allocated_cents bigint, p_notes text), public.set_dispute_resolved_at(), public.set_limit(real), public.set_org_base_currency(p_org_id uuid, p_currency text), public.set_project_client_id(), public.settle_client_payment(p_job_id uuid), public.shortlist_application(p_application_id uuid), public.should_deliver(p_recipient uuid, p_kind text, p_channel text), public.show_limit(), public.show_trgm(text), public.sign_agreement(p_agreement_id uuid, p_signed_name text, p_ip text, p_user_agent text), public.similarity(text, text), public.similarity_dist(text, text), public.similarity_op(text, text), public.soft_delete(p_table text, p_id uuid), public.spheroid_in(cstring), public.spheroid_out(spheroid), public.st_3dclosestpoint(geom1 geometry, geom2 geometry), public.st_3ddfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_3ddistance(geom1 geometry, geom2 geometry), public.st_3ddwithin(geom1 geometry, geom2 geometry, double precision) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_3dextent(geometry), public.st_3dintersects(geom1 geometry, geom2 geometry), public.st_3dlength(geometry), public.st_3dlineinterpolatepoint(geometry, double precision), public.st_3dlongestline(geom1 geometry, geom2 geometry), public.st_3dmakebox(geom1 geometry, geom2 geometry), public.st_3dmaxdistance(geom1 geometry, geom2 geometry), public.st_3dperimeter(geometry), public.st_3dshortestline(geom1 geometry, geom2 geometry), public.st_addmeasure(geometry, double precision, double precision), public.st_addpoint(geom1 geometry, geom2 geometry), public.st_addpoint(geom1 geometry, geom2 geometry, integer), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision), public.st_affine(geometry, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision, double precision), public.st_angle(line1 geometry, line2 geometry), public.st_angle(pt1 geometry, pt2 geometry, pt3 geometry, pt4 geometry), public.st_area(geog geography, use_spheroid boolean), public.st_area(geometry), public.st_area(text), public.st_area2d(geometry), public.st_asbinary(geography), public.st_asbinary(geography, text), public.st_asbinary(geometry), public.st_asbinary(geometry, text), public.st_asencodedpolyline(geom geometry, nprecision integer), public.st_asewkb(geometry), public.st_asewkb(geometry, text), public.st_asewkt(geography), public.st_asewkt(geography, integer), public.st_asewkt(geometry) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_asewkt(geometry, integer), public.st_asewkt(text), public.st_asflatgeobuf(anyelement), public.st_asflatgeobuf(anyelement, boolean), public.st_asflatgeobuf(anyelement, boolean, text), public.st_asgeobuf(anyelement), public.st_asgeobuf(anyelement, text), public.st_asgeojson(geog geography, maxdecimaldigits integer, options integer), public.st_asgeojson(geom geometry, maxdecimaldigits integer, options integer), public.st_asgeojson(r record, geom_column text, maxdecimaldigits integer, pretty_bool boolean), public.st_asgeojson(text), public.st_asgml(geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(geom geometry, maxdecimaldigits integer, options integer), public.st_asgml(text), public.st_asgml(version integer, geog geography, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_asgml(version integer, geom geometry, maxdecimaldigits integer, options integer, nprefix text, id text), public.st_ashexewkb(geometry), public.st_ashexewkb(geometry, text), public.st_askml(geog geography, maxdecimaldigits integer, nprefix text), public.st_askml(geom geometry, maxdecimaldigits integer, nprefix text), public.st_askml(text), public.st_aslatlontext(geom geometry, tmpl text), public.st_asmarc21(geom geometry, format text), public.st_asmvt(anyelement), public.st_asmvt(anyelement, text), public.st_asmvt(anyelement, text, integer), public.st_asmvt(anyelement, text, integer, text), public.st_asmvt(anyelement, text, integer, text, text), public.st_asmvtgeom(geom geometry, bounds box2d, extent integer, buffer integer, clip_geom boolean), public.st_assvg(geog geography, rel integer, maxdecimaldigits integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_assvg(geom geometry, rel integer, maxdecimaldigits integer), public.st_assvg(text), public.st_astext(geography), public.st_astext(geography, integer), public.st_astext(geometry), public.st_astext(geometry, integer), public.st_astext(text), public.st_astwkb(geom geometry, prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_astwkb(geom geometry[], ids bigint[], prec integer, prec_z integer, prec_m integer, with_sizes boolean, with_boxes boolean), public.st_asx3d(geom geometry, maxdecimaldigits integer, options integer), public.st_azimuth(geog1 geography, geog2 geography), public.st_azimuth(geom1 geometry, geom2 geometry), public.st_bdmpolyfromtext(text, integer), public.st_bdpolyfromtext(text, integer), public.st_boundary(geometry), public.st_boundingdiagonal(geom geometry, fits boolean), public.st_box2dfromgeohash(text, integer), public.st_buffer(geography, double precision), public.st_buffer(geography, double precision, integer), public.st_buffer(geography, double precision, text), public.st_buffer(geom geometry, radius double precision, options text), public.st_buffer(geom geometry, radius double precision, quadsegs integer), public.st_buffer(text, double precision), public.st_buffer(text, double precision, integer), public.st_buffer(text, double precision, text), public.st_buildarea(geometry), public.st_centroid(geography, use_spheroid boolean), public.st_centroid(geometry), public.st_centroid(text), public.st_chaikinsmoothing(geometry, integer, boolean) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_cleangeometry(geometry), public.st_clipbybox2d(geom geometry, box box2d), public.st_closestpoint(geom1 geometry, geom2 geometry), public.st_closestpointofapproach(geometry, geometry), public.st_clusterdbscan(geometry, eps double precision, minpoints integer), public.st_clusterintersecting(geometry), public.st_clusterintersecting(geometry[]), public.st_clusterkmeans(geom geometry, k integer, max_radius double precision), public.st_clusterwithin(geometry, double precision), public.st_clusterwithin(geometry[], double precision), public.st_collect(geom1 geometry, geom2 geometry), public.st_collect(geometry), public.st_collect(geometry[]), public.st_collectionextract(geometry), public.st_collectionextract(geometry, integer), public.st_collectionhomogenize(geometry), public.st_combinebbox(box2d, geometry), public.st_combinebbox(box3d, box3d), public.st_combinebbox(box3d, geometry), public.st_concavehull(param_geom geometry, param_pctconvex double precision, param_allow_holes boolean), public.st_contains(geom1 geometry, geom2 geometry), public.st_containsproperly(geom1 geometry, geom2 geometry), public.st_convexhull(geometry), public.st_coorddim(geometry geometry), public.st_coveredby(geog1 geography, geog2 geography), public.st_coveredby(geom1 geometry, geom2 geometry), public.st_coveredby(text, text), public.st_covers(geog1 geography, geog2 geography), public.st_covers(geom1 geometry, geom2 geometry), public.st_covers(text, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_cpawithin(geometry, geometry, double precision), public.st_crosses(geom1 geometry, geom2 geometry), public.st_curvetoline(geom geometry, tol double precision, toltype integer, flags integer), public.st_delaunaytriangles(g1 geometry, tolerance double precision, flags integer), public.st_dfullywithin(geom1 geometry, geom2 geometry, double precision), public.st_difference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_dimension(geometry), public.st_disjoint(geom1 geometry, geom2 geometry), public.st_distance(geog1 geography, geog2 geography, use_spheroid boolean), public.st_distance(geom1 geometry, geom2 geometry), public.st_distance(text, text), public.st_distancecpa(geometry, geometry), public.st_distancesphere(geom1 geometry, geom2 geometry), public.st_distancesphere(geom1 geometry, geom2 geometry, radius double precision), public.st_distancespheroid(geom1 geometry, geom2 geometry), public.st_distancespheroid(geom1 geometry, geom2 geometry, spheroid), public.st_dump(geometry), public.st_dumppoints(geometry), public.st_dumprings(geometry), public.st_dumpsegments(geometry), public.st_dwithin(geog1 geography, geog2 geography, tolerance double precision, use_spheroid boolean), public.st_dwithin(geom1 geometry, geom2 geometry, double precision), public.st_dwithin(text, text, double precision), public.st_endpoint(geometry), public.st_envelope(geometry), public.st_equals(geom1 geometry, geom2 geometry), public.st_estimatedextent(text, text), public.st_estimatedextent(text, text, text), public.st_estimatedextent(text, text, text, boolean), public.st_expand(box box2d, dx double precision, dy double precision) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_expand(box box3d, dx double precision, dy double precision, dz double precision), public.st_expand(box2d, double precision), public.st_expand(box3d, double precision), public.st_expand(geom geometry, dx double precision, dy double precision, dz double precision, dm double precision), public.st_expand(geometry, double precision), public.st_extent(geometry), public.st_exteriorring(geometry), public.st_filterbym(geometry, double precision, double precision, boolean), public.st_findextent(text, text), public.st_findextent(text, text, text), public.st_flipcoordinates(geometry), public.st_force2d(geometry), public.st_force3d(geom geometry, zvalue double precision), public.st_force3dm(geom geometry, mvalue double precision), public.st_force3dz(geom geometry, zvalue double precision), public.st_force4d(geom geometry, zvalue double precision, mvalue double precision), public.st_forcecollection(geometry), public.st_forcecurve(geometry), public.st_forcepolygonccw(geometry), public.st_forcepolygoncw(geometry), public.st_forcerhr(geometry), public.st_forcesfs(geometry), public.st_forcesfs(geometry, version text), public.st_frechetdistance(geom1 geometry, geom2 geometry, double precision), public.st_fromflatgeobuf(anyelement, bytea), public.st_fromflatgeobuftotable(text, text, bytea), public.st_generatepoints(area geometry, npoints integer), public.st_generatepoints(area geometry, npoints integer, seed integer), public.st_geogfromtext(text), public.st_geogfromwkb(bytea) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_geographyfromtext(text), public.st_geohash(geog geography, maxchars integer), public.st_geohash(geom geometry, maxchars integer), public.st_geomcollfromtext(text), public.st_geomcollfromtext(text, integer), public.st_geomcollfromwkb(bytea), public.st_geomcollfromwkb(bytea, integer), public.st_geometricmedian(g geometry, tolerance double precision, max_iter integer, fail_if_not_converged boolean), public.st_geometryfromtext(text), public.st_geometryfromtext(text, integer), public.st_geometryn(geometry, integer), public.st_geometrytype(geometry), public.st_geomfromewkb(bytea), public.st_geomfromewkt(text), public.st_geomfromgeohash(text, integer), public.st_geomfromgeojson(json), public.st_geomfromgeojson(jsonb), public.st_geomfromgeojson(text), public.st_geomfromgml(text), public.st_geomfromgml(text, integer), public.st_geomfromkml(text), public.st_geomfrommarc21(marc21xml text), public.st_geomfromtext(text), public.st_geomfromtext(text, integer), public.st_geomfromtwkb(bytea), public.st_geomfromwkb(bytea), public.st_geomfromwkb(bytea, integer), public.st_gmltosql(text), public.st_gmltosql(text, integer), public.st_hasarc(geometry geometry) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_hausdorffdistance(geom1 geometry, geom2 geometry), public.st_hausdorffdistance(geom1 geometry, geom2 geometry, double precision), public.st_hexagon(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_hexagongrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_interiorringn(geometry, integer), public.st_interpolatepoint(line geometry, point geometry), public.st_intersection(geography, geography), public.st_intersection(geom1 geometry, geom2 geometry, gridsize double precision), public.st_intersection(text, text), public.st_intersects(geog1 geography, geog2 geography), public.st_intersects(geom1 geometry, geom2 geometry), public.st_intersects(text, text), public.st_isclosed(geometry), public.st_iscollection(geometry), public.st_isempty(geometry), public.st_ispolygonccw(geometry), public.st_ispolygoncw(geometry), public.st_isring(geometry), public.st_issimple(geometry), public.st_isvalid(geometry), public.st_isvalid(geometry, integer), public.st_isvaliddetail(geom geometry, flags integer), public.st_isvalidreason(geometry), public.st_isvalidreason(geometry, integer), public.st_isvalidtrajectory(geometry), public.st_length(geog geography, use_spheroid boolean), public.st_length(geometry), public.st_length(text), public.st_length2d(geometry), public.st_length2dspheroid(geometry, spheroid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_lengthspheroid(geometry, spheroid), public.st_letters(letters text, font json), public.st_linecrossingdirection(line1 geometry, line2 geometry), public.st_linefromencodedpolyline(txtin text, nprecision integer), public.st_linefrommultipoint(geometry), public.st_linefromtext(text), public.st_linefromtext(text, integer), public.st_linefromwkb(bytea), public.st_linefromwkb(bytea, integer), public.st_lineinterpolatepoint(geometry, double precision), public.st_lineinterpolatepoints(geometry, double precision, repeat boolean), public.st_linelocatepoint(geom1 geometry, geom2 geometry), public.st_linemerge(geometry), public.st_linemerge(geometry, boolean), public.st_linestringfromwkb(bytea), public.st_linestringfromwkb(bytea, integer), public.st_linesubstring(geometry, double precision, double precision), public.st_linetocurve(geometry geometry), public.st_locatealong(geometry geometry, measure double precision, leftrightoffset double precision), public.st_locatebetween(geometry geometry, frommeasure double precision, tomeasure double precision, leftrightoffset double precision), public.st_locatebetweenelevations(geometry geometry, fromelevation double precision, toelevation double precision), public.st_longestline(geom1 geometry, geom2 geometry), public.st_m(geometry), public.st_makebox2d(geom1 geometry, geom2 geometry), public.st_makeenvelope(double precision, double precision, double precision, double precision, integer), public.st_makeline(geom1 geometry, geom2 geometry), public.st_makeline(geometry), public.st_makeline(geometry[]), public.st_makepoint(double precision, double precision), public.st_makepoint(double precision, double precision, double precision) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_makepoint(double precision, double precision, double precision, double precision), public.st_makepointm(double precision, double precision, double precision), public.st_makepolygon(geometry), public.st_makepolygon(geometry, geometry[]), public.st_makevalid(geom geometry, params text), public.st_makevalid(geometry), public.st_maxdistance(geom1 geometry, geom2 geometry), public.st_maximuminscribedcircle(geometry, OUT center geometry, OUT nearest geometry, OUT radius double precision), public.st_memcollect(geometry), public.st_memsize(geometry), public.st_memunion(geometry), public.st_minimumboundingcircle(inputgeom geometry, segs_per_quarter integer), public.st_minimumboundingradius(geometry, OUT center geometry, OUT radius double precision), public.st_minimumclearance(geometry), public.st_minimumclearanceline(geometry), public.st_mlinefromtext(text), public.st_mlinefromtext(text, integer), public.st_mlinefromwkb(bytea), public.st_mlinefromwkb(bytea, integer), public.st_mpointfromtext(text), public.st_mpointfromtext(text, integer), public.st_mpointfromwkb(bytea), public.st_mpointfromwkb(bytea, integer), public.st_mpolyfromtext(text), public.st_mpolyfromtext(text, integer), public.st_mpolyfromwkb(bytea), public.st_mpolyfromwkb(bytea, integer), public.st_multi(geometry), public.st_multilinefromwkb(bytea), public.st_multilinestringfromtext(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_multilinestringfromtext(text, integer), public.st_multipointfromtext(text), public.st_multipointfromwkb(bytea), public.st_multipointfromwkb(bytea, integer), public.st_multipolyfromwkb(bytea), public.st_multipolyfromwkb(bytea, integer), public.st_multipolygonfromtext(text), public.st_multipolygonfromtext(text, integer), public.st_ndims(geometry), public.st_node(g geometry), public.st_normalize(geom geometry), public.st_npoints(geometry), public.st_nrings(geometry), public.st_numgeometries(geometry), public.st_numinteriorring(geometry), public.st_numinteriorrings(geometry), public.st_numpatches(geometry), public.st_numpoints(geometry), public.st_offsetcurve(line geometry, distance double precision, params text), public.st_orderingequals(geom1 geometry, geom2 geometry), public.st_orientedenvelope(geometry), public.st_overlaps(geom1 geometry, geom2 geometry), public.st_patchn(geometry, integer), public.st_perimeter(geog geography, use_spheroid boolean), public.st_perimeter(geometry), public.st_perimeter2d(geometry), public.st_point(double precision, double precision), public.st_point(double precision, double precision, srid integer), public.st_pointfromgeohash(text, integer), public.st_pointfromtext(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_pointfromtext(text, integer), public.st_pointfromwkb(bytea), public.st_pointfromwkb(bytea, integer), public.st_pointinsidecircle(geometry, double precision, double precision, double precision), public.st_pointm(xcoordinate double precision, ycoordinate double precision, mcoordinate double precision, srid integer), public.st_pointn(geometry, integer), public.st_pointonsurface(geometry), public.st_points(geometry), public.st_pointz(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, srid integer), public.st_pointzm(xcoordinate double precision, ycoordinate double precision, zcoordinate double precision, mcoordinate double precision, srid integer), public.st_polyfromtext(text), public.st_polyfromtext(text, integer), public.st_polyfromwkb(bytea), public.st_polyfromwkb(bytea, integer), public.st_polygon(geometry, integer), public.st_polygonfromtext(text), public.st_polygonfromtext(text, integer), public.st_polygonfromwkb(bytea), public.st_polygonfromwkb(bytea, integer), public.st_polygonize(geometry), public.st_polygonize(geometry[]), public.st_project(geog geography, distance double precision, azimuth double precision), public.st_quantizecoordinates(g geometry, prec_x integer, prec_y integer, prec_z integer, prec_m integer), public.st_reduceprecision(geom geometry, gridsize double precision), public.st_relate(geom1 geometry, geom2 geometry), public.st_relate(geom1 geometry, geom2 geometry, integer), public.st_relate(geom1 geometry, geom2 geometry, text), public.st_relatematch(text, text), public.st_removepoint(geometry, integer), public.st_removerepeatedpoints(geom geometry, tolerance double precision) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_reverse(geometry), public.st_rotate(geometry, double precision), public.st_rotate(geometry, double precision, double precision, double precision), public.st_rotate(geometry, double precision, geometry), public.st_rotatex(geometry, double precision), public.st_rotatey(geometry, double precision), public.st_rotatez(geometry, double precision), public.st_scale(geometry, double precision, double precision), public.st_scale(geometry, double precision, double precision, double precision), public.st_scale(geometry, geometry), public.st_scale(geometry, geometry, origin geometry), public.st_scroll(geometry, geometry), public.st_segmentize(geog geography, max_segment_length double precision), public.st_segmentize(geometry, double precision), public.st_seteffectivearea(geometry, double precision, integer), public.st_setpoint(geometry, integer, geometry), public.st_setsrid(geog geography, srid integer), public.st_setsrid(geom geometry, srid integer), public.st_sharedpaths(geom1 geometry, geom2 geometry), public.st_shiftlongitude(geometry), public.st_shortestline(geom1 geometry, geom2 geometry), public.st_simplify(geometry, double precision), public.st_simplify(geometry, double precision, boolean), public.st_simplifypolygonhull(geom geometry, vertex_fraction double precision, is_outer boolean), public.st_simplifypreservetopology(geometry, double precision), public.st_simplifyvw(geometry, double precision), public.st_snap(geom1 geometry, geom2 geometry, double precision), public.st_snaptogrid(geom1 geometry, geom2 geometry, double precision, double precision, double precision, double precision), public.st_snaptogrid(geometry, double precision), public.st_snaptogrid(geometry, double precision, double precision) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_snaptogrid(geometry, double precision, double precision, double precision, double precision), public.st_split(geom1 geometry, geom2 geometry), public.st_square(size double precision, cell_i integer, cell_j integer, origin geometry), public.st_squaregrid(size double precision, bounds geometry, OUT geom geometry, OUT i integer, OUT j integer), public.st_srid(geog geography), public.st_srid(geom geometry), public.st_startpoint(geometry), public.st_subdivide(geom geometry, maxvertices integer, gridsize double precision), public.st_summary(geography), public.st_summary(geometry), public.st_swapordinates(geom geometry, ords cstring), public.st_symdifference(geom1 geometry, geom2 geometry, gridsize double precision), public.st_symmetricdifference(geom1 geometry, geom2 geometry), public.st_tileenvelope(zoom integer, x integer, y integer, bounds geometry, margin double precision), public.st_touches(geom1 geometry, geom2 geometry), public.st_transform(geom geometry, from_proj text, to_proj text), public.st_transform(geom geometry, from_proj text, to_srid integer), public.st_transform(geom geometry, to_proj text), public.st_transform(geometry, integer), public.st_translate(geometry, double precision, double precision), public.st_translate(geometry, double precision, double precision, double precision), public.st_transscale(geometry, double precision, double precision, double precision, double precision), public.st_triangulatepolygon(g1 geometry), public.st_unaryunion(geometry, gridsize double precision), public.st_union(geom1 geometry, geom2 geometry), public.st_union(geom1 geometry, geom2 geometry, gridsize double precision), public.st_union(geometry), public.st_union(geometry, gridsize double precision), public.st_union(geometry[]), public.st_voronoilines(g1 geometry, tolerance double precision, extend_to geometry) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.st_voronoipolygons(g1 geometry, tolerance double precision, extend_to geometry), public.st_within(geom1 geometry, geom2 geometry), public.st_wkbtosql(wkb bytea), public.st_wkttosql(text), public.st_wrapx(geom geometry, wrap double precision, move double precision), public.st_x(geometry), public.st_xmax(box3d), public.st_xmin(box3d), public.st_y(geometry), public.st_ymax(box3d), public.st_ymin(box3d), public.st_z(geometry), public.st_zmax(box3d), public.st_zmflag(geometry), public.st_zmin(box3d), public.strict_word_similarity(text, text), public.strict_word_similarity_commutator_op(text, text), public.strict_word_similarity_dist_commutator_op(text, text), public.strict_word_similarity_dist_op(text, text), public.strict_word_similarity_op(text, text), public.submit_inspection_report(p_job_id uuid, p_photo_url text, p_notes text), public.submit_job_approval(p_job_id uuid, p_decision text, p_comment text), public.submit_quote(p_rfq_id uuid, p_quote jsonb), public.submit_review(p_job_id uuid, p_reviewee_id uuid, p_rating integer, p_comment text, p_is_public boolean, p_private_admin_note text), public.supplier_has_quote_on_rfq(p_rfq uuid, p_uid uuid), public.supplier_match(p_need jsonb, p_limit integer), public.supplier_onboard(p_legal_name text, p_capabilities text[], p_attributes jsonb, p_lat double precision, p_lng double precision, p_country text, p_headline text), public.supplier_sign_contract(p_contract_id uuid, p_typed_name text, p_ip text), public.support_messages_touch(), public.sweep_overdue_reports() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.sync_onboarding_metadata_to_profile(), public.tax_can_withdraw(p_uid uuid), public.tax_is_verified(p_uid uuid), public.text(geometry), public.tg_app_sync_job_payout_to_bid(), public.tg_applications_notifications_v2(), public.tg_approval_decisions_enforce_sod(), public.tg_approval_policies_no_overlap(), public.tg_approval_policies_set_updated_at(), public.tg_approval_requests_set_updated_at(), public.tg_audit_events_fill_actor(), public.tg_auto_issue_invoice_on_contract_executed(), public.tg_bridge_slots_set_updated_at(), public.tg_capture_set_gps_pin(), public.tg_coordination_bridges_set_updated_at(), public.tg_credit_inspector_on_confirm(), public.tg_department_budgets_set_updated_at(), public.tg_departments_set_updated_at(), public.tg_direct_message_fanout(), public.tg_engagement_meta_reject_reassign(), public.tg_enqueue_document_analysis(), public.tg_enqueue_visual_analysis(), public.tg_guard_capture_visit(), public.tg_guard_item_visit(), public.tg_guard_itp_result_visit(), public.tg_guard_qcp_required_document(), public.tg_heal_contract_on_executed(), public.tg_inspection_domains_set_updated_at(), public.tg_inspector_domain_practice_set_updated_at(), public.tg_invoice_inherit_department() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.tg_itp_result_history(), public.tg_job_contracts_identity_snapshot(), public.tg_job_contracts_notifications(), public.tg_job_contracts_reject_brokered_job(), public.tg_jobs_notifications_v2(), public.tg_jobs_project_coherence(), public.tg_jobs_publish_on_approval(), public.tg_model_artifacts_touch(), public.tg_notification_preferences_touch(), public.tg_notifications_consent_gate(), public.tg_notify_applications(), public.tg_notify_approval_decided(), public.tg_notify_approval_finalised(), public.tg_notify_approval_requested(), public.tg_notify_bridge_document_requested(), public.tg_notify_bridge_document_uploaded(), public.tg_notify_bridge_schedule_changed(), public.tg_notify_evidence_pack_assembled(), public.tg_notify_flash_report_raised(), public.tg_notify_inspection_report_sealed(), public.tg_notify_jobs(), public.tg_notify_messages(), public.tg_operational_message_fanout(), public.tg_org_departments_compute_depth(), public.tg_org_departments_no_cycle(), public.tg_org_dept_members_org_consistency(), public.tg_project_documents_job_coherence(), public.tg_qcp_child_draft_only(), public.tg_qcp_document_project_coherence(), public.tg_qcp_org_matches_project() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.tg_qcp_required_document_audit(), public.tg_qcp_required_document_guard(), public.tg_qcp_revision_state(), public.tg_report_templates_touch(), public.tg_sync_inspector_payout_to_agreed_bid(), public.tg_touch_itp(), public.tg_touch_job_inspectors(), public.tg_touch_job_visits(), public.tg_touch_qcp(), public.tg_touch_updated_at(), public.tg_vendor_contacts_set_updated_at(), public.tool_eval(p_formula jsonb, p_inputs jsonb), public.tool_has_pro_access(p_uid uuid), public.tool_invoke(p_tool_key text, p_inputs jsonb), public.tool_project(p_schema jsonb, p_results jsonb), public.tool_validate_inputs(p_schema jsonb, p_inputs jsonb), public.touch_inspector_certificates_updated_at(), public.touch_job_contracts_updated_at(), public.touch_supplier_contracts_updated_at(), public.track_push_token_changes(), public.trg_refresh_demand(), public.trg_refresh_supply(), public.trigger_certification_check(), public.trigger_contract_generation(), public.unassign_member_from_department(p_department_id uuid, p_user_id uuid), public.unlockrows(text), public.update_average_rating(), public.update_average_rating_on_delete(), public.update_certification_reminder_sent(certification_ids uuid[]), public.update_certifications_updated_at() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.update_conversation_timestamp(), public.update_disputes_updated_at(), public.update_legal_consents_updated_at(), public.update_profile_search_vector(), public.update_updated_at_column(), public.updategeometrysrid(catalogn_name character varying, schema_name character varying, table_name character varying, column_name character varying, new_srid_in integer), public.updategeometrysrid(character varying, character varying, character varying, integer), public.updategeometrysrid(character varying, character varying, integer), public.upsert_fx_rate(p_base_currency text, p_quote_currency text, p_rate numeric, p_effective_date date, p_source text), public.upsert_tax_profile(p_form_type text, p_country text, p_stripe_tax_form_id text, p_masked_tax_id text, p_expires_at timestamp with time zone), public.validate_application_status_transition(), public.validate_balance(p_wallet_id uuid, p_amount numeric), public.vault_store_tax_id(p_form_type text, p_country text, p_tax_id text, p_key text), public.vendor_document_record_anchor(p_doc_id uuid, p_status text, p_calendar text, p_ots_proof text, p_block_height bigint), public.vendor_document_seal(p_storage_path text, p_content_sha256 text, p_doc_type text, p_title text, p_mime_type text, p_byte_size bigint, p_bound_type text, p_bound_id uuid), public.withdraw_revision(p_revision_id uuid, p_note text), public.word_similarity(text, text), public.word_similarity_commutator_op(text, text), public.word_similarity_dist_commutator_op(text, text), public.word_similarity_dist_op(text, text), public.word_similarity_op(text, text) TO authenticated;
-
--- ── 2b. Stop the drift from coming back ────────────────────────────────────
---  Revoking today's grants is not enough. Production also carries
---  ALTER DEFAULT PRIVILEGES for role postgres that grants anon arwdDxtm on
---  every TABLE, rwU on every SEQUENCE and EXECUTE on every FUNCTION created in
---  schema public from now on. Without this block the very next migration that
---  creates a table would silently hand it back to anon, and the reconciliation
---  above would decay one object at a time.
+-- ── 2. Stop the drift coming back ──────────────────────────────────────────
+--  Revoking today's grants is not enough on its own. Production also carries
+--  ALTER DEFAULT PRIVILEGES for role postgres granting anon arwdDxtm on every
+--  TABLE, rwU on every SEQUENCE and EXECUTE on every FUNCTION created in schema
+--  public from now on. Without this block the very next migration that creates
+--  a table would hand it straight back to anon, and this reconciliation would
+--  decay one object at a time.
 --
---  The tested configuration keeps the default privileges for postgres,
---  authenticated and service_role and omits anon; that is exactly what is
---  reproduced here. The supabase_admin-owned defaults are identical in both
---  environments and are not this role's to change.
+--  The tested configuration keeps these defaults for postgres, authenticated
+--  and service_role and omits anon; that is exactly what is reproduced here.
+--  The supabase_admin-owned defaults are identical in both environments and are
+--  not this role's to change.
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON TABLES    FROM anon;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon;
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon;
 
--- ── 3. Hardening beyond parity: PostGIS's reference table ──────────────────
+-- ── 3. Replay the tested configuration ─────────────────────────────────────
+--  ── Table-level grants: the tested configuration, verbatim ────────────
+--  399 role/object pairs. to_regclass() skips anything the pending chain has
+--  not created on this database yet, which is what makes this file applicable
+--  to Production AS IT STANDS rather than only at HEAD.
+DO $grants$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+    ('anon','_app_config','SELECT'),
+    ('anon','admin_direct_messages','SELECT'),
+    ('anon','agreement_signatures','SELECT'),
+    ('anon','agreements','SELECT'),
+    ('anon','approval_decisions','SELECT'),
+    ('anon','approval_policies','SELECT'),
+    ('anon','approval_requests','SELECT'),
+    ('anon','asset_defect_observations','SELECT'),
+    ('anon','audit_events_public','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('anon','auth_recovery_codes','SELECT'),
+    ('anon','bridge_documents','SELECT'),
+    ('anon','bridge_slots','SELECT'),
+    ('anon','client_assigned_inspector_view','SELECT'),
+    ('anon','client_documents','SELECT'),
+    ('anon','client_error_events','SELECT'),
+    ('anon','client_inspector_shortlist_view','SELECT'),
+    ('anon','client_job_contracts_view','SELECT'),
+    ('anon','compliance_documents','SELECT'),
+    ('anon','contact_submissions','SELECT'),
+    ('anon','contractor_certifications','SELECT'),
+    ('anon','contractors','SELECT'),
+    ('anon','contracts','SELECT'),
+    ('anon','conversations','SELECT'),
+    ('anon','coordination_bridges','SELECT'),
+    ('anon','country_codes','SELECT'),
+    ('anon','courses','SELECT'),
+    ('anon','deal_inspector_candidates','SELECT'),
+    ('anon','deal_money_legs','SELECT'),
+    ('anon','deal_nonconformances','SELECT'),
+    ('anon','deal_payment_schedule','SELECT'),
+    ('anon','deal_revision_events','SELECT'),
+    ('anon','deal_revisions','SELECT'),
+    ('anon','deals','SELECT'),
+    ('anon','department_budgets','SELECT'),
+    ('anon','department_members','SELECT'),
+    ('anon','departments','SELECT'),
+    ('anon','dispute_activities','SELECT'),
+    ('anon','disputes','SELECT'),
+    ('anon','doc_validations','SELECT'),
+    ('anon','engineering_tools','SELECT'),
+    ('anon','enterprise_domains','SELECT'),
+    ('anon','escrow_logs','SELECT'),
+    ('anon','expenses','SELECT'),
+    ('anon','findings','SELECT'),
+    ('anon','flash_report_attachments','SELECT'),
+    ('anon','flash_reports','SELECT'),
+    ('anon','fx_rates','SELECT'),
+    ('anon','fx_refresh_runs','SELECT'),
+    ('anon','geography_columns','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('anon','geometry_columns','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('anon','helpdesk_messages','SELECT'),
+    ('anon','identity_links','SELECT'),
+    ('anon','inspection_assets','SELECT'),
+    ('anon','inspection_captures','SELECT'),
+    ('anon','inspection_domains','SELECT'),
+    ('anon','inspection_events','SELECT'),
+    ('anon','inspection_evidence_requirements','SELECT'),
+    ('anon','inspection_scope_templates','SELECT'),
+    ('anon','inspection_seal_anchors','SELECT'),
+    ('anon','inspector_certificates','SELECT'),
+    ('anon','inspector_credentials','SELECT'),
+    ('anon','inspector_domain_practice','SELECT'),
+    ('anon','inspector_engagement_meta','SELECT'),
+    ('anon','inspector_job_contracts_view','SELECT'),
+    ('anon','inspectors_directory','SELECT'),
+    ('anon','job_contracts','SELECT'),
+    ('anon','job_meeting_participants','SELECT'),
+    ('anon','job_meetings','SELECT'),
+    ('anon','knowledge_base','SELECT'),
+    ('anon','legal_document_acceptances','SELECT'),
+    ('anon','legal_documents','SELECT'),
+    ('anon','messages','SELECT'),
+    ('anon','model_artifacts','SELECT'),
+    ('anon','notification_logs','SELECT'),
+    ('anon','notification_preferences','SELECT'),
+    ('anon','notifications','SELECT'),
+    ('anon','org_department_members','SELECT'),
+    ('anon','org_departments','SELECT'),
+    ('anon','org_invitations','SELECT'),
+    ('anon','org_members','SELECT'),
+    ('anon','organizations','SELECT'),
+    ('anon','payments','SELECT'),
+    ('anon','payout_requests','SELECT'),
+    ('anon','pi_report_seals','SELECT'),
+    ('anon','platform_settings','SELECT'),
+    ('anon','preferred_inspectors','SELECT'),
+    ('anon','profile_work_auth_documents','SELECT'),
+    ('anon','profiles','SELECT'),
+    ('anon','proposals','SELECT'),
+    ('anon','public_demand_feed','SELECT'),
+    ('anon','public_supply_feed','SELECT'),
+    ('anon','push_tokens','SELECT'),
+    ('anon','referrals','SELECT'),
+    ('anon','report_reminders','SELECT'),
+    ('anon','report_templates','SELECT'),
+    ('anon','reports','SELECT'),
+    ('anon','review_weights_config','SELECT'),
+    ('anon','reviews','SELECT'),
+    ('anon','reviews_public','SELECT'),
+    ('anon','rfq_client_offers_view','SELECT'),
+    ('anon','safety_checks','SELECT'),
+    ('anon','saved_jobs','SELECT'),
+    ('anon','signing_keys','SELECT'),
+    ('anon','spatial_ref_sys','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('anon','stripe_webhook_events','SELECT'),
+    ('anon','supplier_capability_catalog','SELECT'),
+    ('anon','supplier_contracts','SELECT'),
+    ('anon','supplier_directory','SELECT'),
+    ('anon','supplier_profiles','SELECT'),
+    ('anon','supplier_rfqs','SELECT'),
+    ('anon','support_messages','SELECT'),
+    ('anon','support_tickets','SELECT'),
+    ('anon','tool_pro_grants','SELECT'),
+    ('anon','tool_reference_data','SELECT'),
+    ('anon','tool_runs','SELECT'),
+    ('anon','trust_certificates','SELECT'),
+    ('anon','unified_contracts_view','SELECT'),
+    ('anon','user_course_progress','SELECT'),
+    ('anon','user_roles','SELECT'),
+    ('anon','vendor_contacts','SELECT'),
+    ('anon','vendor_documents','SELECT'),
+    ('anon','verification_affidavits','SELECT'),
+    ('anon','verification_audit_log','SELECT'),
+    ('anon','withdrawals','SELECT'),
+    ('anon','work_sessions','SELECT'),
+    ('authenticated','_app_config','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','activity_logs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_direct_conversations_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_direct_messages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_direct_messages_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_dispute_summary','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_notification_settings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_operational_conversations_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','admin_operational_messages_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','agreement_signatures','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','agreements','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','ai_active_learning_scores','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_analysis_queue','REFERENCES, TRIGGER, TRUNCATE'),
+    ('authenticated','ai_audit_history','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_correction_history','INSERT, SELECT'),
+    ('authenticated','ai_dataset_images','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_dataset_statistics','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_dataset_versions','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_detection_feedback','INSERT, SELECT'),
+    ('authenticated','ai_detections','SELECT'),
+    ('authenticated','ai_export_history','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_golden_dataset_members','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_golden_datasets','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_hard_examples','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_inference_statistics','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_model_deployment_history','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_monthly_snapshots','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_prediction_history','INSERT, SELECT'),
+    ('authenticated','ai_quality_statistics','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_rare_classes','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_rollback_history','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_storage_providers','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_storage_quotas','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_sync_statistics','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_training_runs','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','ai_training_snapshots','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','alerts','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','application_assignment_origin','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','applications','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','approval_decisions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','approval_policies','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','approval_requests','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','asset_defect_observations','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','assets','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','audit_events','INSERT, SELECT'),
+    ('authenticated','audit_events_public','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','auth_recovery_codes','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','badges','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','bridge_documents','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','bridge_slots','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','certification_expiry_reminders','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','certification_stats','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','certifications','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_assigned_inspector_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_deal_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_delivery_policy','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_error_events','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_inspector_shortlist_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','client_job_contracts_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','compliance_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','consent_audit_logs','SELECT'),
+    ('authenticated','consent_receipt_status','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','contact_submissions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','contractor_certifications','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','contractors','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','contracts','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','conversations','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','coordination_bridges','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','country_codes','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','courses','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_inspector_candidates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_money_legs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_nonconformances','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_payment_schedule','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_revision_events','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deal_revisions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','deals','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','department_budgets','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','department_members','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','departments','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','dev_sso_signup_check','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','dispute_activities','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','disputes','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','doc_validations','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','documents','REFERENCES, SELECT, TRIGGER'),
+    ('authenticated','engineering_tools','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','enterprise_domains','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','equipment','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','error_logs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','escrow_logs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','expenses','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','findings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','flash_report_attachments','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','flash_reports','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','form_drafts','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','form_submissions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','form_templates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','funding_policy_audit','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','funding_term_defaults','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','fx_rates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','fx_refresh_runs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','geography_columns','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','geometry_columns','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','helpdesk_messages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','identity_links','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_assets','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','inspection_captures','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_domains','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_events','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_evidence_requirements','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_items','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_reports','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_scope_templates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspection_seal_anchors','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_certificates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_certifications','INSERT, SELECT, UPDATE'),
+    ('authenticated','inspector_credentials','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_deal_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_domain_practice','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_earnings','REFERENCES, SELECT, TRIGGER'),
+    ('authenticated','inspector_engagement_meta','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_equipment','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_job_contracts_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_profile_smoke_test','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_skills','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspector_work_experience','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','inspectors_directory','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_canonical_entities','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_canonical_fields','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_connector_health','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_connectors','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_dead_letter_queue','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_entity_sync_state','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_field_mappings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_inbound_messages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_mapping_versions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_record_history','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','integration_record_links','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','invoices','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','itp_point_results','SELECT'),
+    ('authenticated','itp_points','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_applicant_identity_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_applications','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_contracts','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','job_disputes','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_events','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_expenses','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','job_funding_stages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_inspectors','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_meeting_participants','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_meetings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_visit_assignments','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','job_visits','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','jobs','DELETE, INSERT, REFERENCES, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','jobs_client_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','jobs_inspector_secure_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','jobs_inspector_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','jobs_secure_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','knowledge_base','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','legal_consents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','legal_document_acceptances','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','legal_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','legal_templates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','manual_payment_records','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','messages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','milestones','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','model_artifacts','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','notification_logs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','notification_preferences','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','notification_settings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','notifications','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','org_department_members','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','org_departments','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','org_invitations','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','org_members','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','org_scim_events','SELECT'),
+    ('authenticated','org_scim_group_mappings','SELECT'),
+    ('authenticated','org_scim_identities','SELECT'),
+    ('authenticated','org_scim_membership_archive','SELECT'),
+    ('authenticated','org_sso_connections','SELECT'),
+    ('authenticated','org_sso_domains','SELECT'),
+    ('authenticated','organizations','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','payment_audit_log','SELECT'),
+    ('authenticated','payment_methods','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','payments','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','payout_advances','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','payout_requests','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','pi_report_seals','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','platform_settings','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','platform_wallet','SELECT'),
+    ('authenticated','preferred_inspectors','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','profile_work_auth_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','profiles','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','programs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','project_documents','INSERT, SELECT'),
+    ('authenticated','projects','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','proposals','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','public_demand_feed','SELECT'),
+    ('authenticated','public_supply_feed','SELECT'),
+    ('authenticated','push_token_history','SELECT'),
+    ('authenticated','push_tokens','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','qcp_required_documents','SELECT'),
+    ('authenticated','qcp_revisions','SELECT'),
+    ('authenticated','qcp_stage_templates','SELECT'),
+    ('authenticated','qcp_stages','SELECT'),
+    ('authenticated','quality_control_plans','SELECT'),
+    ('authenticated','reconciliation_runs','SELECT'),
+    ('authenticated','referrals','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','report_reminders','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','report_review_history','SELECT'),
+    ('authenticated','report_senior_reviews','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','report_templates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','reports','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','review_weights_config','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','reviews','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','reviews_public','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','rfq_admin_quotes_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','rfq_client_offers_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','safety_checks','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','saved_jobs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','secure_chat_profiles','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','signed_agreements','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','signing_keys','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','spatial_ref_sys','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','stripe_webhook_events','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_capability_catalog','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_contracts','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_deal_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_directory','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_earnings','SELECT'),
+    ('authenticated','supplier_profiles','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_releases','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_rfqs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_scorecard_confidence_bands','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_scorecard_metrics','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','supplier_scorecard_policy','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','support_messages','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','support_tickets','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_candidate_domains','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_candidate_profiles','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_compliance_checks','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_consents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_disclosures','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_interviews','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_offers','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_opportunities','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_opportunity_domains','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_placements','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_submission_employer_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','talent_submissions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','tax_profiles','SELECT'),
+    ('authenticated','tool_pro_grants','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','tool_reference_data','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','tool_runs','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','transactions','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','trust_certificates','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','unified_contracts_view','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','user_badges','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','user_course_progress','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','user_roles','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','v_certifications_with_status','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','v_cron_job_status','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','vendor_contacts','REFERENCES, SELECT, TRIGGER, TRUNCATE'),
+    ('authenticated','vendor_documents','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','verification_affidavits','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','verification_audit_log','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','wallets','SELECT'),
+    ('authenticated','withdrawal_requests','DELETE, INSERT, SELECT, UPDATE'),
+    ('authenticated','withdrawals','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','work_experience','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','work_orders','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE'),
+    ('authenticated','work_sessions','DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE')
+  ) AS t(grantee, obj, privs) LOOP
+    IF to_regclass('public.' || quote_ident(r.obj)) IS NOT NULL THEN
+      EXECUTE format('GRANT %s ON TABLE public.%I TO %I', r.privs, r.obj, r.grantee);
+    END IF;
+  END LOOP;
+END $grants$;
+
+--  ── Column-level grants not implied by a table-level grant ────────────
+DO $colgrants$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+    ('anon','contact_submissions','INSERT','"channel", "email", "ip_address", "message", "name", "user_agent"'),
+    ('authenticated','itp_point_results','UPDATE','"flash_report_id"'),
+    ('authenticated','jobs','SELECT','"accepts_remote_inspectors", "admin_confirmed_at", "admin_confirmed_by", "agency_id", "applications_count", "budget_type", "calendar_event_id", "calendar_synced_at", "cancel_reason", "cancelled_at", "cancelled_by", "claimed_address_geocoded", "claimed_address_text", "client_id", "client_invoiced_at", "client_op_id", "client_settled_at", "contract_generated_at", "contract_id", "contractor_id", "created_at", "currency", "deleted_at", "department_id", "description", "domain", "escrow_status", "estimated_duration", "geog", "hired_inspector_id", "id", "identity_mode", "inspection_type", "inspector_id", "is_featured", "is_senior_review", "job_country", "job_type", "latitude", "location", "location_city", "longitude", "moderation_notes", "moderation_reviewed_at", "moderation_reviewed_by", "moderation_status", "payment_mode", "payout_marked_by", "payout_notes", "payout_paid_at", "payout_reference", "payout_status", "public_listable", "replacement_mode", "report_signed_docs_notes", "report_signed_docs_url", "report_template_id", "required_certifications", "requires_cci", "scheduled_date", "scope_template_id", "source_rfq_id", "specialty_slugs", "sponsorship_offered", "started_at", "status", "template_url", "title", "updated_at", "urgency"'),
+    ('authenticated','org_scim_tokens','SELECT','"connection_id", "created_at", "created_by", "expires_at", "id", "last_used_at", "name", "org_id", "revoked_at", "revoked_by", "revoked_reason", "rotated_from_id", "scopes", "token_prefix"'),
+    ('authenticated','supplier_quotes','INSERT','"quote", "rfq_id", "supplier_id"'),
+    ('authenticated','supplier_quotes','SELECT','"created_at", "id", "presented_at", "quote", "rfq_id", "status", "supplier_id"'),
+    ('authenticated','supplier_quotes','UPDATE','"quote"')
+  ) AS t(grantee, obj, priv, cols) LOOP
+    IF to_regclass('public.' || quote_ident(r.obj)) IS NOT NULL THEN
+      EXECUTE format('GRANT %s (%s) ON TABLE public.%I TO %I', r.priv, r.cols, r.obj, r.grantee);
+    END IF;
+  END LOOP;
+END $colgrants$;
+
+--  ── Sequence USAGE ────────────────────────────────────────────────────
+DO $seqgrants$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+    ('anon','ai_audit_history_id_seq'),
+    ('authenticated','ai_audit_history_id_seq')
+  ) AS t(grantee, obj) LOOP
+    IF to_regclass('public.' || quote_ident(r.obj)) IS NOT NULL THEN
+      EXECUTE format('GRANT USAGE ON SEQUENCE public.%I TO %I', r.obj, r.grantee);
+    END IF;
+  END LOOP;
+END $seqgrants$;
+
+--  ── Function EXECUTE: blanket grant, then the tested exceptions ───────
+--  A complement, because it is far smaller and therefore far easier to
+--  review: 817 exceptions instead of ~3700 individual grants. Exact, because
+--  Production's objects are a strict SUBSET of the tested configuration's
+--  (verified: 0 Production-only functions, 0 Production-only tables), so
+--  granting broadly and withdrawing the exceptions reproduces the tested
+--  state precisely for every object that exists here.
+--
+--  Signatures are TYPE-ONLY (oidvectortypes). regprocedure does not accept
+--  parameter names, so pg_get_function_identity_arguments cannot be used.
+GRANT EXECUTE ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, PUBLIC;
+DO $fnrevoke$
+DECLARE r record; v_oid oid;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+    ('anon','_actor_is_super_admin()'),
+    ('anon','_compliance_actor_can_read(uuid)'),
+    ('anon','accept_offer(uuid)'),
+    ('anon','admin_accept_goods(uuid)'),
+    ('anon','admin_assign_inspector(uuid, uuid, bigint, text)'),
+    ('anon','admin_assign_inspector_directly(uuid, uuid, bigint, bigint, text)'),
+    ('anon','admin_auto_match_inspector(uuid, bigint)'),
+    ('anon','admin_cancel_job(uuid, text)'),
+    ('anon','admin_counter_application(uuid, bigint, text)'),
+    ('anon','admin_counter_revision(uuid, bigint, text)'),
+    ('anon','admin_countersign_supplier_contract(uuid, text, text)'),
+    ('anon','admin_decide_revision(uuid, text, text)'),
+    ('anon','admin_decrypt_tax_id(uuid, text)'),
+    ('anon','admin_dispatch_job(uuid, uuid, bigint, bigint, text)'),
+    ('anon','admin_forward_application_to_client(uuid)'),
+    ('anon','admin_fund_advance(uuid, text)'),
+    ('anon','admin_generate_job_contract(uuid, bigint, bigint, text, text)'),
+    ('anon','admin_generate_supplier_contract(uuid, text, text)'),
+    ('anon','admin_invite_org_member(uuid, text, text)'),
+    ('anon','admin_ledger_snapshot()'),
+    ('anon','admin_list_internal_threads()'),
+    ('anon','admin_list_listing_candidates()'),
+    ('anon','admin_list_payout_requests(text)'),
+    ('anon','admin_mark_goods_delivered(uuid)'),
+    ('anon','admin_mark_payout_processed(uuid, text, text)'),
+    ('anon','admin_mark_report_delivered(uuid)'),
+    ('anon','admin_mark_withdrawal_paid(uuid, text)'),
+    ('anon','admin_match_preview(uuid, integer)'),
+    ('anon','admin_offer_inspector_shortlist(uuid, bigint, uuid[], integer)'),
+    ('anon','admin_open_internal_thread(uuid)'),
+    ('anon','admin_present_agreement(uuid)'),
+    ('anon','admin_present_quote(uuid, bigint, text)'),
+    ('anon','admin_recent_transactions(integer)'),
+    ('anon','admin_record_manual_payment(uuid, text, bigint, text, date, text, text, text)'),
+    ('anon','admin_reject_withdrawal(uuid, text)'),
+    ('anon','admin_remove_org_member(uuid, text)'),
+    ('anon','admin_replace_inspector(uuid, uuid, bigint, bigint, text)'),
+    ('anon','admin_resolve_dispute(uuid, text, text)'),
+    ('anon','admin_review_credential(uuid, text, text)'),
+    ('anon','admin_review_job(uuid, text, text)'),
+    ('anon','admin_review_job_with_pricing(uuid, text, text, bigint)'),
+    ('anon','admin_search_assignable_inspectors(text, integer, boolean)'),
+    ('anon','admin_set_fee_schedule(integer, integer, integer, integer, text)'),
+    ('anon','admin_set_job_marketplace_visibility(uuid, boolean, text)'),
+    ('anon','admin_set_job_pricing(uuid, bigint)'),
+    ('anon','admin_set_listing_featured(uuid, text, boolean)'),
+    ('anon','admin_set_marketplace_activation(uuid, boolean, text)'),
+    ('anon','admin_set_project_policy(uuid, text, text)'),
+    ('anon','admin_set_tax_exemption(uuid, boolean, text)'),
+    ('anon','admin_set_tax_status(uuid, text)'),
+    ('anon','admin_suspend_user(uuid, text)'),
+    ('anon','admin_unsuspend_user(uuid)'),
+    ('anon','admin_update_org_member_role(uuid, text)'),
+    ('anon','admin_verify_user(uuid, text, text)'),
+    ('anon','admin_void_contract(uuid, text)'),
+    ('anon','ai_ops_create_monthly_snapshot(date)'),
+    ('anon','apply_onboarding_role(text, text, text, text, text[], timestamp with time zone, text)'),
+    ('anon','approve_inspection_report(uuid, boolean, text)'),
+    ('anon','approve_job_and_pay(uuid, uuid, numeric)'),
+    ('anon','assign_job_contractor(uuid, uuid)'),
+    ('anon','bridge_send_invitation(uuid, text, text)'),
+    ('anon','bridge_vendor_accept_schedule(text, uuid)'),
+    ('anon','bridge_vendor_acknowledge_scope(text, uuid, jsonb)'),
+    ('anon','bridge_vendor_counter_schedule(text, uuid, timestamp with time zone, text, text)'),
+    ('anon','bridge_vendor_declare_site_access(text, uuid, jsonb)'),
+    ('anon','bridge_vendor_get_state(text)'),
+    ('anon','bridge_vendor_register_uploaded_document(text, uuid, text, text, text, bigint, text)'),
+    ('anon','bridge_vendor_resolve_token(text)'),
+    ('anon','bridge_vendor_sign_arrival(text, uuid, text, text)'),
+    ('anon','bridge_vendor_touch(text)'),
+    ('anon','bulk_update_inspector_specialties(uuid[], text[], text[])'),
+    ('anon','can_review_job(uuid)'),
+    ('anon','can_review_job(uuid, text)'),
+    ('anon','cb_actor_profile(uuid)'),
+    ('anon','cb_emit_audit(text, text, uuid, text, text, uuid, uuid, text, jsonb, jsonb)'),
+    ('anon','cb_sha256_hex(text)'),
+    ('anon','claim_ai_analysis_jobs(integer)'),
+    ('anon','claim_stripe_webhook_event(text, text, jsonb)'),
+    ('anon','clear_active_org()'),
+    ('anon','client_sign_job_contract(uuid, text, text)'),
+    ('anon','complete_ai_analysis_job(uuid)'),
+    ('anon','complete_stripe_webhook_event(text)'),
+    ('anon','create_organization(text, text)'),
+    ('anon','create_system_notification(uuid, text, text, text, text, uuid)'),
+    ('anon','credit_inspector_earning_on_approval(uuid)'),
+    ('anon','credit_supplier_earnings(uuid, integer, text, uuid)'),
+    ('anon','cron_kickoff_email_dispatch()'),
+    ('anon','cron_kickoff_fx_refresh()'),
+    ('anon','cron_upsert_fx_rate(text, text, numeric, date, text)'),
+    ('anon','debit_wallet_for_payout(uuid, bigint)'),
+    ('anon','discover_jobs(uuid, numeric, numeric, integer, text, integer, integer)'),
+    ('anon','enqueue_notification(uuid, text, text, text, text, uuid, boolean, text, jsonb)'),
+    ('anon','ensure_team_internal_conversation(uuid)'),
+    ('anon','execute_auto_payout()'),
+    ('anon','fin_visible_client_ids(uuid)'),
+    ('anon','generate_contract_for_job(uuid)'),
+    ('anon','get_budget_by_inspector(integer)'),
+    ('anon','get_budget_monthly(integer)'),
+    ('anon','get_budget_recent_activity(integer)'),
+    ('anon','get_budget_summary()'),
+    ('anon','get_marketplace_inspectors(text, numeric, boolean, boolean, text, text[], text, integer, integer)'),
+    ('anon','get_or_create_wallet(uuid)'),
+    ('anon','get_public_profile(uuid)'),
+    ('anon','get_public_profiles(uuid[])'),
+    ('anon','handle_job_cancellation()'),
+    ('anon','handle_job_completion()'),
+    ('anon','handle_new_user()'),
+    ('anon','handle_new_user_wallet()'),
+    ('anon','heal_contract_to_active(uuid)'),
+    ('anon','hydrate_identity(text, jsonb)'),
+    ('anon','increment_notification_badge()'),
+    ('anon','inspector_sign_job_contract(uuid, text, text)'),
+    ('anon','mark_direct_conversation_read(uuid)'),
+    ('anon','mark_job_completed(uuid, text)'),
+    ('anon','mark_notification_email_failed(uuid, text)'),
+    ('anon','mark_notification_email_sent(uuid, text)'),
+    ('anon','mark_operational_conversation_read(uuid)'),
+    ('anon','moderate_review(uuid, text, text)'),
+    ('anon','notify(uuid, text, text, text, text, uuid)'),
+    ('anon','notify_safe(uuid, text, text, text, text, uuid)'),
+    ('anon','nx_actor_is_platform()'),
+    ('anon','nx_admin_assign_senior_reviewer(uuid, uuid)'),
+    ('anon','nx_admin_deliver_report(uuid)'),
+    ('anon','nx_admin_release_job_on_credit(uuid, integer, text)'),
+    ('anon','nx_admin_report_first_pass_rate(timestamp with time zone, timestamp with time zone)'),
+    ('anon','nx_admin_report_review_queue(integer, boolean)'),
+    ('anon','nx_admin_review_inspection_report(uuid, text, boolean, text)'),
+    ('anon','nx_admin_set_client_delivery_policy(uuid, text, integer, text)'),
+    ('anon','nx_admin_set_funding_terms(uuid, jsonb)'),
+    ('anon','nx_admin_upsert_direct_application(uuid, uuid, bigint)'),
+    ('anon','nx_assert_online_payments_enabled()'),
+    ('anon','nx_brokered_engagement_conflict(uuid, uuid)'),
+    ('anon','nx_buyer_supplier_chat_authorized(uuid, uuid, uuid)'),
+    ('anon','nx_buyer_supplier_conversation_authorized(uuid, uuid)'),
+    ('anon','nx_buyer_supplier_related(uuid, uuid)'),
+    ('anon','nx_can_access_doc(uuid, text, text)'),
+    ('anon','nx_can_read_profile(uuid)'),
+    ('anon','nx_can_record_visit_work(uuid, uuid)'),
+    ('anon','nx_can_team_access_internal(uuid)'),
+    ('anon','nx_can_team_manage_internal(uuid)'),
+    ('anon','nx_can_view_supplier_scorecard(uuid, uuid)'),
+    ('anon','nx_certification_expiry_scan(integer[])'),
+    ('anon','nx_certification_flag_drift()'),
+    ('anon','nx_certifications_verification_authority()'),
+    ('anon','nx_client_may_read_report_doc(uuid, uuid)'),
+    ('anon','nx_current_job_inspector_id(uuid)'),
+    ('anon','nx_direct_chat_authorized(uuid, uuid, uuid)'),
+    ('anon','nx_direct_conversation_authorized(uuid, uuid)'),
+    ('anon','nx_email_verified(uuid)'),
+    ('anon','nx_funding_delivery_satisfied(uuid)'),
+    ('anon','nx_funding_ensure_schedule(uuid)'),
+    ('anon','nx_funding_initial_satisfied(uuid)'),
+    ('anon','nx_funding_invoice_status(uuid)'),
+    ('anon','nx_funding_issue_delivery_invoice(uuid)'),
+    ('anon','nx_funding_mark_stage_funded(uuid, text, text)'),
+    ('anon','nx_funding_stage_is_funded(uuid, text)'),
+    ('anon','nx_gate_report_doc_for_client(uuid, uuid)'),
+    ('anon','nx_guard_dispatch_requires_contract()'),
+    ('anon','nx_guard_dispatch_requires_funding()'),
+    ('anon','nx_identity_replacement_reminders()'),
+    ('anon','nx_inspector_job_match(uuid, uuid)'),
+    ('anon','nx_inspector_job_match_core(uuid, uuid)'),
+    ('anon','nx_integration_backoff_interval(integer, integer, integer, uuid)'),
+    ('anon','nx_integration_bind_record(uuid, text, uuid)'),
+    ('anon','nx_integration_can_administer(uuid)'),
+    ('anon','nx_integration_claim_message(uuid, text, text, jsonb, text)'),
+    ('anon','nx_integration_complete_message(uuid, jsonb, uuid)'),
+    ('anon','nx_integration_fail_message(uuid, text, boolean, jsonb)'),
+    ('anon','nx_integration_guard_link_org()'),
+    ('anon','nx_integration_guard_mapping_target()'),
+    ('anon','nx_integration_guard_message_org()'),
+    ('anon','nx_integration_history_append_only()'),
+    ('anon','nx_integration_is_service_context()'),
+    ('anon','nx_integration_map_payload(uuid, text, jsonb)'),
+    ('anon','nx_integration_process_message(uuid)'),
+    ('anon','nx_integration_register_secret(uuid, text, text, text)'),
+    ('anon','nx_integration_replay_message(uuid)'),
+    ('anon','nx_integration_resolve_connector(text)'),
+    ('anon','nx_integration_revoke_secret(uuid)'),
+    ('anon','nx_integration_validate_canonical(text, jsonb)'),
+    ('anon','nx_is_active_job_team_member(uuid, uuid)'),
+    ('anon','nx_is_buyer_principal_side(uuid, uuid)'),
+    ('anon','nx_is_current_job_inspector(uuid, uuid)'),
+    ('anon','nx_is_eligible_senior_reviewer(uuid, uuid)'),
+    ('anon','nx_is_inspector()'),
+    ('anon','nx_is_job_buyer_finance_principal(uuid, uuid)'),
+    ('anon','nx_is_job_buyer_side(uuid, uuid)'),
+    ('anon','nx_is_job_supplier(uuid, uuid)'),
+    ('anon','nx_is_org_identity_admin(uuid)'),
+    ('anon','nx_is_org_member(uuid, uuid)'),
+    ('anon','nx_is_report_contributor(uuid, uuid)'),
+    ('anon','nx_is_strict_super_admin()'),
+    ('anon','nx_itp_may_waive(uuid, uuid)'),
+    ('anon','nx_itp_record_result(uuid, uuid, text, uuid, text, text)'),
+    ('anon','nx_itp_release_hold(uuid, text)'),
+    ('anon','nx_job_active_visit_for(uuid, uuid)'),
+    ('anon','nx_job_add_inspector(uuid, uuid, text, text, boolean, text)'),
+    ('anon','nx_job_add_visit(uuid, timestamp with time zone, timestamp with time zone, text, text, text, text, uuid)'),
+    ('anon','nx_job_awaiting_replacement(uuid)'),
+    ('anon','nx_job_broadcast_targets(uuid, integer, integer, integer)'),
+    ('anon','nx_job_buyer_principal(uuid)'),
+    ('anon','nx_job_cancel_visit(uuid, text)'),
+    ('anon','nx_job_chat_counterparts(uuid)'),
+    ('anon','nx_job_create_recurring_visits(uuid, timestamp with time zone, integer, integer, text, text, text)'),
+    ('anon','nx_job_effective_identity_mode(uuid)'),
+    ('anon','nx_job_inspector_team_public(uuid)'),
+    ('anon','nx_job_inspectors(uuid)'),
+    ('anon','nx_job_itp(uuid, uuid)'),
+    ('anon','nx_job_itp_blocking_points(uuid, uuid)'),
+    ('anon','nx_job_qcp(uuid)'),
+    ('anon','nx_job_remove_inspector(uuid, uuid, text)'),
+    ('anon','nx_job_replace_team_member(uuid, uuid, uuid, text)'),
+    ('anon','nx_job_reschedule_visit(uuid, timestamp with time zone, timestamp with time zone, text)'),
+    ('anon','nx_job_schedule_conflicts(uuid, uuid)'),
+    ('anon','nx_job_set_lead(uuid, uuid)'),
+    ('anon','nx_job_visits(uuid)'),
+    ('anon','nx_mark_all_notifications_read()'),
+    ('anon','nx_mark_notification_read(uuid)'),
+    ('anon','nx_match_inspectors_for_job(uuid, integer, boolean)'),
+    ('anon','nx_meeting_engagement_party(uuid, uuid, uuid)'),
+    ('anon','nx_my_certification_status()'),
+    ('anon','nx_my_chattable_suppliers()'),
+    ('anon','nx_my_supplier_chat_targets()'),
+    ('anon','nx_notify(uuid, text, text, text, text, uuid)'),
+    ('anon','nx_notify_lifecycle(uuid, text, text, text, text, uuid)'),
+    ('anon','nx_org_slug(text)'),
+    ('anon','nx_program_rollup(uuid)'),
+    ('anon','nx_project_qcp(uuid)'),
+    ('anon','nx_qcp_accept_document(uuid, text)'),
+    ('anon','nx_qcp_add_revision(uuid)'),
+    ('anon','nx_qcp_approve_revision(uuid, text)'),
+    ('anon','nx_qcp_attach_document(uuid, uuid)'),
+    ('anon','nx_qcp_can_author(uuid, uuid)'),
+    ('anon','nx_qcp_can_read(uuid, uuid)'),
+    ('anon','nx_qcp_can_read_detail(uuid, uuid)'),
+    ('anon','nx_qcp_create(uuid, text, uuid)'),
+    ('anon','nx_qcp_effective_revision(uuid)'),
+    ('anon','nx_qcp_for_job(uuid)'),
+    ('anon','nx_qcp_is_engaged_inspector(uuid, uuid)'),
+    ('anon','nx_qcp_may_accept_document(uuid, uuid)'),
+    ('anon','nx_qcp_may_read(uuid, uuid)'),
+    ('anon','nx_qcp_may_supply_document(uuid, uuid)'),
+    ('anon','nx_qcp_org_author(uuid, uuid)'),
+    ('anon','nx_qcp_org_reader(uuid, uuid)'),
+    ('anon','nx_qcp_outstanding_requirements(uuid)'),
+    ('anon','nx_qcp_revision_documents(uuid)'),
+    ('anon','nx_qcp_revision_history(uuid)'),
+    ('anon','nx_qcp_revoke_document_acceptance(uuid, text)'),
+    ('anon','nx_qcp_rollup(uuid)'),
+    ('anon','nx_qcp_scope_job_ids(uuid)'),
+    ('anon','nx_qcp_scope_jobs(uuid, uuid)'),
+    ('anon','nx_qcp_set_stage_templates(uuid, uuid[])'),
+    ('anon','nx_qcp_stage_progress(uuid, uuid)'),
+    ('anon','nx_qcp_submit_revision(uuid)'),
+    ('anon','nx_qcp_visible(uuid, uuid)'),
+    ('anon','nx_raise_ncr_from_inspection_item(uuid, text, text, text)'),
+    ('anon','nx_raise_ncr_from_itp_point(uuid, text, text, text)'),
+    ('anon','nx_report_contributors(uuid)'),
+    ('anon','nx_report_itp_log(uuid)'),
+    ('anon','nx_report_itp_rollup(uuid)'),
+    ('anon','nx_report_qcp_rollup(uuid)'),
+    ('anon','nx_report_resubmit(uuid, uuid, timestamp with time zone, text, text)'),
+    ('anon','nx_report_review_stats(uuid)'),
+    ('anon','nx_report_review_transition(text)'),
+    ('anon','nx_report_visit_log(uuid)'),
+    ('anon','nx_report_visit_rollup(uuid)'),
+    ('anon','nx_schedule_conflicts_core(date, uuid, uuid, uuid)'),
+    ('anon','nx_scim_deactivate_membership(uuid, uuid, uuid, text)'),
+    ('anon','nx_scim_deprovision_user(text, text, text)'),
+    ('anon','nx_scim_issue_token(uuid, text, uuid, integer, uuid, integer)'),
+    ('anon','nx_scim_provision_user(text, text, uuid, boolean, text[], text)'),
+    ('anon','nx_scim_redact_detail(jsonb)'),
+    ('anon','nx_scim_resolve_role(uuid, text[])'),
+    ('anon','nx_scim_resolve_token(text)'),
+    ('anon','nx_scim_revoke_token(uuid, text)'),
+    ('anon','nx_senior_review_decide(uuid, text, text, integer)'),
+    ('anon','nx_stripe_settle_job(uuid, text, bigint, text, uuid)'),
+    ('anon','nx_supplier_inspector_chat_authorized(uuid, uuid, uuid, uuid)'),
+    ('anon','nx_supplier_inspector_conversation_authorized(uuid, uuid)'),
+    ('anon','nx_supplier_scorecard(uuid)'),
+    ('anon','nx_supplier_scorecard_band(integer)'),
+    ('anon','nx_supplier_scorecard_counts(uuid, text)'),
+    ('anon','nx_supplier_scorecard_evidence(uuid, text)'),
+    ('anon','nx_supplier_scorecard_jobs(uuid)'),
+    ('anon','nx_supplier_scorecard_metric(uuid, text)'),
+    ('anon','nx_talent_admin_set_fee_status(uuid, text)'),
+    ('anon','nx_talent_disclose_identity(uuid)'),
+    ('anon','nx_talent_match_candidates(uuid, integer)'),
+    ('anon','nx_talent_record_placement(uuid, uuid, integer)'),
+    ('anon','nx_talent_revoke_disclosure(uuid)'),
+    ('anon','nx_talent_submit_candidate(uuid, uuid)'),
+    ('anon','nx_team_jobs()'),
+    ('anon','nx_visit_assign_inspector(uuid, uuid, boolean)'),
+    ('anon','nx_visit_evidence_summary(uuid)'),
+    ('anon','nx_visit_job_id(uuid)'),
+    ('anon','nx_visit_live_successor(uuid)'),
+    ('anon','nx_visit_schedule_conflicts(uuid, uuid)'),
+    ('anon','open_buyer_supplier_conversation(uuid, uuid)'),
+    ('anon','open_direct_conversation(uuid, uuid)'),
+    ('anon','open_supplier_inspector_conversation(uuid, uuid, uuid)'),
+    ('anon','pi_record_ai_detection(uuid, text, text, numeric, text, integer, text, text, text, text[], boolean, jsonb, uuid, uuid, uuid)'),
+    ('anon','pi_record_ai_feedback(uuid, uuid, text, integer, text, text, text, text, numeric, jsonb, uuid)'),
+    ('anon','process_withdrawal(numeric, jsonb)'),
+    ('anon','protect_certification_verification()'),
+    ('anon','reassign_invoice_department(uuid, uuid, text)'),
+    ('anon','recompute_reputation(uuid)'),
+    ('anon','record_fx_refresh_result(uuid, boolean, integer, text, integer)'),
+    ('anon','record_reconciliation_run(text, bigint)'),
+    ('anon','refresh_public_demand_feed()'),
+    ('anon','refresh_public_supply_feed()'),
+    ('anon','release_ai_analysis_job(uuid, text)'),
+    ('anon','release_stripe_webhook_event(text, text)'),
+    ('anon','request_account_deletion()'),
+    ('anon','request_senior_review(uuid)'),
+    ('anon','request_withdrawal(bigint, text, text, uuid)'),
+    ('anon','restore_wallet_balance(uuid, bigint, text)'),
+    ('anon','schedule_meeting(text, text, timestamp with time zone, uuid[], uuid, uuid, text, integer)'),
+    ('anon','seed_platform_owner(uuid)'),
+    ('anon','send_message(uuid, text, text, text, text)'),
+    ('anon','set_active_org(uuid)'),
+    ('anon','set_inspector_daily_limit(uuid, integer)'),
+    ('anon','settle_client_payment(uuid)'),
+    ('anon','supplier_sign_contract(uuid, text, text)'),
+    ('anon','tax_can_withdraw(uuid)'),
+    ('anon','tax_is_verified(uuid)'),
+    ('anon','tg_auto_issue_invoice_on_contract_executed()'),
+    ('anon','tg_credit_inspector_on_confirm()'),
+    ('anon','transfer_platform_owner(uuid, text)'),
+    ('anon','update_average_rating()'),
+    ('anon','update_average_rating_on_delete()'),
+    ('anon','upsert_tax_profile(text, text, text, text, timestamp with time zone)'),
+    ('anon','vault_store_tax_id(text, text, text, text)'),
+    ('anon','vca_claimed_address_text(uuid)'),
+    ('anon','wallet_credit_topup(uuid, bigint, text, uuid, uuid)'),
+    ('authenticated','accept_offer(uuid)'),
+    ('authenticated','approve_job_and_pay(uuid, uuid, numeric)'),
+    ('authenticated','bridge_vendor_accept_schedule(text, uuid)'),
+    ('authenticated','bridge_vendor_acknowledge_scope(text, uuid, jsonb)'),
+    ('authenticated','bridge_vendor_counter_schedule(text, uuid, timestamp with time zone, text, text)'),
+    ('authenticated','bridge_vendor_declare_site_access(text, uuid, jsonb)'),
+    ('authenticated','bridge_vendor_get_state(text)'),
+    ('authenticated','bridge_vendor_register_uploaded_document(text, uuid, text, text, text, bigint, text)'),
+    ('authenticated','bridge_vendor_resolve_token(text)'),
+    ('authenticated','bridge_vendor_sign_arrival(text, uuid, text, text)'),
+    ('authenticated','bridge_vendor_touch(text)'),
+    ('authenticated','cb_emit_audit(text, text, uuid, text, text, uuid, uuid, text, jsonb, jsonb)'),
+    ('authenticated','claim_ai_analysis_jobs(integer)'),
+    ('authenticated','claim_stripe_webhook_event(text, text, jsonb)'),
+    ('authenticated','complete_ai_analysis_job(uuid)'),
+    ('authenticated','complete_stripe_webhook_event(text)'),
+    ('authenticated','create_system_notification(uuid, text, text, text, text, uuid)'),
+    ('authenticated','cron_kickoff_email_dispatch()'),
+    ('authenticated','cron_kickoff_fx_refresh()'),
+    ('authenticated','cron_upsert_fx_rate(text, text, numeric, date, text)'),
+    ('authenticated','debit_wallet_for_payout(uuid, bigint)'),
+    ('authenticated','enqueue_notification(uuid, text, text, text, text, uuid, boolean, text, jsonb)'),
+    ('authenticated','execute_auto_payout()'),
+    ('authenticated','generate_contract_for_job(uuid)'),
+    ('authenticated','get_or_create_wallet(uuid)'),
+    ('authenticated','handle_job_cancellation()'),
+    ('authenticated','handle_job_completion()'),
+    ('authenticated','heal_contract_to_active(uuid)'),
+    ('authenticated','mark_notification_email_failed(uuid, text)'),
+    ('authenticated','mark_notification_email_sent(uuid, text)'),
+    ('authenticated','notify_safe(uuid, text, text, text, text, uuid)'),
+    ('authenticated','nx_admin_upsert_direct_application(uuid, uuid, bigint)'),
+    ('authenticated','nx_can_access_doc(uuid, text, text)'),
+    ('authenticated','nx_certification_expiry_scan(integer[])'),
+    ('authenticated','nx_certification_flag_drift()'),
+    ('authenticated','nx_inspector_job_match_core(uuid, uuid)'),
+    ('authenticated','nx_integration_claim_message(uuid, text, text, jsonb, text)'),
+    ('authenticated','nx_integration_complete_message(uuid, jsonb, uuid)'),
+    ('authenticated','nx_integration_fail_message(uuid, text, boolean, jsonb)'),
+    ('authenticated','nx_integration_process_message(uuid)'),
+    ('authenticated','nx_integration_resolve_connector(text)'),
+    ('authenticated','nx_job_broadcast_targets(uuid, integer, integer, integer)'),
+    ('authenticated','nx_job_qcp(uuid)'),
+    ('authenticated','nx_notify(uuid, text, text, text, text, uuid)'),
+    ('authenticated','nx_notify_lifecycle(uuid, text, text, text, text, uuid)'),
+    ('authenticated','nx_qcp_effective_revision(uuid)'),
+    ('authenticated','nx_qcp_scope_job_ids(uuid)'),
+    ('authenticated','nx_qcp_scope_jobs(uuid, uuid)'),
+    ('authenticated','nx_schedule_conflicts_core(date, uuid, uuid, uuid)'),
+    ('authenticated','nx_scim_deactivate_membership(uuid, uuid, uuid, text)'),
+    ('authenticated','nx_scim_deprovision_user(text, text, text)'),
+    ('authenticated','nx_scim_provision_user(text, text, uuid, boolean, text[], text)'),
+    ('authenticated','nx_scim_resolve_token(text)'),
+    ('authenticated','nx_stripe_settle_job(uuid, text, bigint, text, uuid)'),
+    ('authenticated','nx_visit_job_id(uuid)'),
+    ('authenticated','nx_visit_live_successor(uuid)'),
+    ('authenticated','recompute_reputation(uuid)'),
+    ('authenticated','record_fx_refresh_result(uuid, boolean, integer, text, integer)'),
+    ('authenticated','release_ai_analysis_job(uuid, text)'),
+    ('authenticated','release_stripe_webhook_event(text, text)'),
+    ('authenticated','request_senior_review(uuid)'),
+    ('authenticated','restore_wallet_balance(uuid, bigint, text)'),
+    ('authenticated','seed_platform_owner(uuid)'),
+    ('authenticated','set_inspector_daily_limit(uuid, integer)'),
+    ('authenticated','stripe_settle_named_disclosure(uuid, text, bigint, uuid)'),
+    ('authenticated','transfer_platform_owner(uuid, text)'),
+    ('authenticated','vca_claimed_address_text(uuid)'),
+    ('authenticated','wallet_credit_topup(uuid, bigint, text, uuid, uuid)'),
+    ('public','_actor_is_super_admin()'),
+    ('public','_app_config_get(text)'),
+    ('public','_apply_revision(uuid, bigint, uuid)'),
+    ('public','_brokered_create_engagement(uuid, uuid, bigint, text, text)'),
+    ('public','_brokered_ensure_payment_schedule(uuid, bigint, text)'),
+    ('public','_brokered_ensure_supplier_contract(uuid)'),
+    ('public','_brokered_score_inspectors(uuid)'),
+    ('public','_compliance_actor_can_read(uuid)'),
+    ('public','_revision_log(uuid, uuid, text, text, bigint, text, text)'),
+    ('public','_revision_notify(uuid, text, text, uuid)'),
+    ('public','_tool_canon(jsonb)'),
+    ('public','_tool_eval(jsonb, jsonb, integer)'),
+    ('public','_tool_num(jsonb, jsonb, integer)'),
+    ('public','accept_offer(uuid)'),
+    ('public','admin_accept_goods(uuid)'),
+    ('public','admin_assign_inspector(uuid, uuid, bigint, text)'),
+    ('public','admin_assign_inspector_directly(uuid, uuid, bigint, bigint, text)'),
+    ('public','admin_auto_match_inspector(uuid, bigint)'),
+    ('public','admin_cancel_job(uuid, text)'),
+    ('public','admin_counter_application(uuid, bigint, text)'),
+    ('public','admin_counter_revision(uuid, bigint, text)'),
+    ('public','admin_countersign_supplier_contract(uuid, text, text)'),
+    ('public','admin_decide_revision(uuid, text, text)'),
+    ('public','admin_decrypt_tax_id(uuid, text)'),
+    ('public','admin_dispatch_job(uuid, uuid, bigint, bigint, text)'),
+    ('public','admin_forward_application_to_client(uuid)'),
+    ('public','admin_fund_advance(uuid, text)'),
+    ('public','admin_generate_job_contract(uuid, bigint, bigint, text, text)'),
+    ('public','admin_generate_supplier_contract(uuid, text, text)'),
+    ('public','admin_invite_org_member(uuid, text, text)'),
+    ('public','admin_ledger_snapshot()'),
+    ('public','admin_list_internal_threads()'),
+    ('public','admin_list_listing_candidates()'),
+    ('public','admin_list_payout_requests(text)'),
+    ('public','admin_mark_goods_delivered(uuid)'),
+    ('public','admin_mark_payout_processed(uuid, text, text)'),
+    ('public','admin_mark_report_delivered(uuid)'),
+    ('public','admin_mark_withdrawal_paid(uuid, text)'),
+    ('public','admin_match_preview(uuid, integer)'),
+    ('public','admin_offer_inspector_shortlist(uuid, bigint, uuid[], integer)'),
+    ('public','admin_open_internal_thread(uuid)'),
+    ('public','admin_present_agreement(uuid)'),
+    ('public','admin_present_quote(uuid, bigint, text)'),
+    ('public','admin_recent_transactions(integer)'),
+    ('public','admin_record_manual_payment(uuid, text, bigint, text, date, text, text, text)'),
+    ('public','admin_reject_withdrawal(uuid, text)'),
+    ('public','admin_remove_org_member(uuid, text)'),
+    ('public','admin_replace_inspector(uuid, uuid, bigint, bigint, text)'),
+    ('public','admin_resolve_dispute(uuid, text, text)'),
+    ('public','admin_review_credential(uuid, text, text)'),
+    ('public','admin_review_job(uuid, text, text)'),
+    ('public','admin_review_job_with_pricing(uuid, text, text, bigint)'),
+    ('public','admin_search_assignable_inspectors(text, integer, boolean)'),
+    ('public','admin_set_fee_schedule(integer, integer, integer, integer, text)'),
+    ('public','admin_set_job_marketplace_visibility(uuid, boolean, text)'),
+    ('public','admin_set_job_pricing(uuid, bigint)'),
+    ('public','admin_set_listing_featured(uuid, text, boolean)'),
+    ('public','admin_set_marketplace_activation(uuid, boolean, text)'),
+    ('public','admin_set_project_policy(uuid, text, text)'),
+    ('public','admin_set_tax_exemption(uuid, boolean, text)'),
+    ('public','admin_set_tax_status(uuid, text)'),
+    ('public','admin_suspend_user(uuid, text)'),
+    ('public','admin_unsuspend_user(uuid)'),
+    ('public','admin_update_org_member_role(uuid, text)'),
+    ('public','admin_verify_user(uuid, text, text)'),
+    ('public','admin_void_contract(uuid, text)'),
+    ('public','ai_ops_create_monthly_snapshot(date)'),
+    ('public','apply_onboarding_role(text, text, text, text, text[], timestamp with time zone, text)'),
+    ('public','approve_inspection_report(uuid, boolean, text)'),
+    ('public','approve_job_and_pay(uuid, uuid, numeric)'),
+    ('public','assign_job_contractor(uuid, uuid)'),
+    ('public','audit_capture()'),
+    ('public','award_and_dispatch(uuid)'),
+    ('public','award_quote(uuid)'),
+    ('public','bridge_send_invitation(uuid, text, text)'),
+    ('public','bridge_vendor_accept_schedule(text, uuid)'),
+    ('public','bridge_vendor_acknowledge_scope(text, uuid, jsonb)'),
+    ('public','bridge_vendor_counter_schedule(text, uuid, timestamp with time zone, text, text)'),
+    ('public','bridge_vendor_declare_site_access(text, uuid, jsonb)'),
+    ('public','bridge_vendor_get_state(text)'),
+    ('public','bridge_vendor_register_uploaded_document(text, uuid, text, text, text, bigint, text)'),
+    ('public','bridge_vendor_resolve_token(text)'),
+    ('public','bridge_vendor_sign_arrival(text, uuid, text, text)'),
+    ('public','bridge_vendor_touch(text)'),
+    ('public','bulk_update_inspector_specialties(uuid[], text[], text[])'),
+    ('public','can_review_job(uuid)'),
+    ('public','can_review_job(uuid, text)'),
+    ('public','cancel_meeting(uuid)'),
+    ('public','cb_actor_profile(uuid)'),
+    ('public','cb_emit_audit(text, text, uuid, text, text, uuid, uuid, text, jsonb, jsonb)'),
+    ('public','cb_sha256_hex(text)'),
+    ('public','claim_ai_analysis_jobs(integer)'),
+    ('public','claim_pending_notification_emails(integer)'),
+    ('public','claim_stripe_webhook_event(text, text, jsonb)'),
+    ('public','clear_active_org()'),
+    ('public','client_review_engagement(uuid, text, text)'),
+    ('public','client_select_inspector(uuid, uuid)'),
+    ('public','client_sign_job_contract(uuid, text, text)'),
+    ('public','complete_ai_analysis_job(uuid)'),
+    ('public','complete_stripe_webhook_event(text)'),
+    ('public','create_organization(text, text)'),
+    ('public','create_rfq(text, jsonb, uuid, boolean, text)'),
+    ('public','create_system_notification(uuid, text, text, text, text, uuid)'),
+    ('public','credit_inspector_earning_on_approval(uuid)'),
+    ('public','credit_supplier_earnings(uuid, integer, text, uuid)'),
+    ('public','cron_kickoff_email_dispatch()'),
+    ('public','cron_kickoff_fx_refresh()'),
+    ('public','cron_upsert_fx_rate(text, text, numeric, date, text)'),
+    ('public','debit_wallet_for_payout(uuid, bigint)'),
+    ('public','delete_user()'),
+    ('public','discover_jobs(uuid, numeric, numeric, integer, text, integer, integer)'),
+    ('public','enqueue_notification(uuid, text, text, text, text, uuid, boolean, text, jsonb)'),
+    ('public','ensure_team_internal_conversation(uuid)'),
+    ('public','execute_auto_payout()'),
+    ('public','fetch_department_spend_summary(uuid, text)'),
+    ('public','fin_visible_client_ids(uuid)'),
+    ('public','flag_job_dispute(uuid, text, text, text[])'),
+    ('public','flash_report_add_attachment(uuid, text, text, text, bigint, text)'),
+    ('public','flash_report_create(uuid, text, text, text, text, text, timestamp with time zone, uuid)'),
+    ('public','flash_report_transition(uuid, text, text)'),
+    ('public','fund_deal_balance(uuid)'),
+    ('public','generate_contract_for_job(uuid)'),
+    ('public','get_budget_by_inspector(integer)'),
+    ('public','get_budget_monthly(integer)'),
+    ('public','get_budget_recent_activity(integer)'),
+    ('public','get_budget_summary()'),
+    ('public','get_client_branding(uuid)'),
+    ('public','get_inspector_reputation(uuid)'),
+    ('public','get_marketplace_inspectors(text, numeric, boolean, boolean, text, text[], text, integer, integer)'),
+    ('public','get_or_create_wallet(uuid)'),
+    ('public','get_organization_members(uuid)'),
+    ('public','get_overdue_reports()'),
+    ('public','get_public_profile(uuid)'),
+    ('public','get_public_profiles(uuid[])'),
+    ('public','get_top_inspectors(integer, integer, numeric)'),
+    ('public','handle_job_cancellation()'),
+    ('public','handle_job_completion()'),
+    ('public','handle_new_user()'),
+    ('public','handle_new_user_wallet()'),
+    ('public','heal_contract_to_active(uuid)'),
+    ('public','hydrate_identity(text, jsonb)'),
+    ('public','increment_notification_badge()'),
+    ('public','inspector_assignment_end(uuid, uuid)'),
+    ('public','inspector_sign_job_contract(uuid, text, text)'),
+    ('public','inspectors_near_job(uuid, numeric, integer)'),
+    ('public','is_active_contract_inspector(uuid, uuid)'),
+    ('public','is_meeting_participant(uuid, uuid)'),
+    ('public','job_applications_delete_trigger()'),
+    ('public','job_applications_insert_trigger()'),
+    ('public','job_applications_update_trigger()'),
+    ('public','jobs_near_inspector(uuid, numeric, integer)'),
+    ('public','list_my_sessions()'),
+    ('public','mark_direct_conversation_read(uuid)'),
+    ('public','mark_job_completed(uuid, text)'),
+    ('public','mark_notification_email_failed(uuid, text)'),
+    ('public','mark_notification_email_sent(uuid, text)'),
+    ('public','mark_operational_conversation_read(uuid)'),
+    ('public','ml_register_model(text, text, integer, text, text, bigint, text, text, text, text, text, text, text, text, text, text, jsonb, text)'),
+    ('public','ml_resolve_models(text, text, text, text)'),
+    ('public','ml_set_model_status(uuid, text)'),
+    ('public','moderate_review(uuid, text, text)'),
+    ('public','notify(uuid, text, text, text, text, uuid)'),
+    ('public','notify_safe(uuid, text, text, text, text, uuid)'),
+    ('public','nx_active_super_admin_count()'),
+    ('public','nx_actor_is_platform()'),
+    ('public','nx_admin_assign_senior_reviewer(uuid, uuid)'),
+    ('public','nx_admin_deliver_report(uuid)'),
+    ('public','nx_admin_release_job_on_credit(uuid, integer, text)'),
+    ('public','nx_admin_report_first_pass_rate(timestamp with time zone, timestamp with time zone)'),
+    ('public','nx_admin_report_review_queue(integer, boolean)'),
+    ('public','nx_admin_review_inspection_report(uuid, text, boolean, text)'),
+    ('public','nx_admin_set_client_delivery_policy(uuid, text, integer, text)'),
+    ('public','nx_admin_set_funding_terms(uuid, jsonb)'),
+    ('public','nx_admin_upsert_direct_application(uuid, uuid, bigint)'),
+    ('public','nx_assert_online_payments_enabled()'),
+    ('public','nx_auto_approve_due_engagements()'),
+    ('public','nx_brokered_engagement_conflict(uuid, uuid)'),
+    ('public','nx_buyer_supplier_chat_authorized(uuid, uuid, uuid)'),
+    ('public','nx_buyer_supplier_conversation_authorized(uuid, uuid)'),
+    ('public','nx_buyer_supplier_related(uuid, uuid)'),
+    ('public','nx_can_access_doc(uuid, text, text)'),
+    ('public','nx_can_read_profile(uuid)'),
+    ('public','nx_can_record_visit_work(uuid, uuid)'),
+    ('public','nx_can_team_access_conversation(uuid)'),
+    ('public','nx_can_team_access_internal(uuid)'),
+    ('public','nx_can_team_access_job(uuid)'),
+    ('public','nx_can_team_manage_conversation(uuid)'),
+    ('public','nx_can_team_manage_internal(uuid)'),
+    ('public','nx_can_team_manage_job(uuid)'),
+    ('public','nx_can_view_supplier_scorecard(uuid, uuid)'),
+    ('public','nx_certification_expiry_scan(integer[])'),
+    ('public','nx_certification_flag_drift()'),
+    ('public','nx_certifications_verification_authority()'),
+    ('public','nx_client_may_read_report_doc(uuid, uuid)'),
+    ('public','nx_current_job_inspector_id(uuid)'),
+    ('public','nx_direct_chat_authorized(uuid, uuid, uuid)'),
+    ('public','nx_direct_conversation_authorized(uuid, uuid)'),
+    ('public','nx_email_verified(uuid)'),
+    ('public','nx_funding_delivery_satisfied(uuid)'),
+    ('public','nx_funding_ensure_schedule(uuid)'),
+    ('public','nx_funding_initial_satisfied(uuid)'),
+    ('public','nx_funding_invoice_status(uuid)'),
+    ('public','nx_funding_issue_delivery_invoice(uuid)'),
+    ('public','nx_funding_mark_stage_funded(uuid, text, text)'),
+    ('public','nx_funding_stage_is_funded(uuid, text)'),
+    ('public','nx_gate_report_doc_for_client(uuid, uuid)'),
+    ('public','nx_guard_dispatch_requires_contract()'),
+    ('public','nx_guard_dispatch_requires_funding()'),
+    ('public','nx_handle(uuid)'),
+    ('public','nx_identity_replacement_reminders()'),
+    ('public','nx_inspector_job_match(uuid, uuid)'),
+    ('public','nx_inspector_job_match_core(uuid, uuid)'),
+    ('public','nx_integration_backoff_interval(integer, integer, integer, uuid)'),
+    ('public','nx_integration_bind_record(uuid, text, uuid)'),
+    ('public','nx_integration_can_administer(uuid)'),
+    ('public','nx_integration_claim_message(uuid, text, text, jsonb, text)'),
+    ('public','nx_integration_complete_message(uuid, jsonb, uuid)'),
+    ('public','nx_integration_fail_message(uuid, text, boolean, jsonb)'),
+    ('public','nx_integration_guard_link_org()'),
+    ('public','nx_integration_guard_mapping_target()'),
+    ('public','nx_integration_guard_message_org()'),
+    ('public','nx_integration_history_append_only()'),
+    ('public','nx_integration_is_service_context()'),
+    ('public','nx_integration_map_payload(uuid, text, jsonb)'),
+    ('public','nx_integration_process_message(uuid)'),
+    ('public','nx_integration_register_secret(uuid, text, text, text)'),
+    ('public','nx_integration_replay_message(uuid)'),
+    ('public','nx_integration_resolve_connector(text)'),
+    ('public','nx_integration_revoke_secret(uuid)'),
+    ('public','nx_integration_validate_canonical(text, jsonb)'),
+    ('public','nx_is_active_job_team_member(uuid, uuid)'),
+    ('public','nx_is_buyer_principal_side(uuid, uuid)'),
+    ('public','nx_is_current_job_inspector(uuid, uuid)'),
+    ('public','nx_is_eligible_senior_reviewer(uuid, uuid)'),
+    ('public','nx_is_inspector()'),
+    ('public','nx_is_job_buyer_finance_principal(uuid, uuid)'),
+    ('public','nx_is_job_buyer_side(uuid, uuid)'),
+    ('public','nx_is_job_supplier(uuid, uuid)'),
+    ('public','nx_is_org_identity_admin(uuid)'),
+    ('public','nx_is_org_member(uuid, uuid)'),
+    ('public','nx_is_platform_owner(uuid)'),
+    ('public','nx_is_report_contributor(uuid, uuid)'),
+    ('public','nx_is_strict_super_admin()'),
+    ('public','nx_itp_may_waive(uuid, uuid)'),
+    ('public','nx_itp_record_result(uuid, uuid, text, uuid, text, text)'),
+    ('public','nx_itp_release_hold(uuid, text)'),
+    ('public','nx_job_active_visit_for(uuid, uuid)'),
+    ('public','nx_job_add_inspector(uuid, uuid, text, text, boolean, text)'),
+    ('public','nx_job_add_visit(uuid, timestamp with time zone, timestamp with time zone, text, text, text, text, uuid)'),
+    ('public','nx_job_awaiting_replacement(uuid)'),
+    ('public','nx_job_broadcast_targets(uuid, integer, integer, integer)'),
+    ('public','nx_job_buyer_principal(uuid)'),
+    ('public','nx_job_cancel_visit(uuid, text)'),
+    ('public','nx_job_chat_counterparts(uuid)'),
+    ('public','nx_job_create_recurring_visits(uuid, timestamp with time zone, integer, integer, text, text, text)'),
+    ('public','nx_job_effective_identity_mode(uuid)'),
+    ('public','nx_job_inspector_team_public(uuid)'),
+    ('public','nx_job_inspectors(uuid)'),
+    ('public','nx_job_itp(uuid, uuid)'),
+    ('public','nx_job_itp_blocking_points(uuid, uuid)'),
+    ('public','nx_job_qcp(uuid)'),
+    ('public','nx_job_remove_inspector(uuid, uuid, text)'),
+    ('public','nx_job_replace_team_member(uuid, uuid, uuid, text)'),
+    ('public','nx_job_reschedule_visit(uuid, timestamp with time zone, timestamp with time zone, text)'),
+    ('public','nx_job_schedule_conflicts(uuid, uuid)'),
+    ('public','nx_job_set_lead(uuid, uuid)'),
+    ('public','nx_job_visits(uuid)'),
+    ('public','nx_mark_all_notifications_read()'),
+    ('public','nx_mark_notification_read(uuid)'),
+    ('public','nx_mask_name(text)'),
+    ('public','nx_match_inspectors_for_job(uuid, integer, boolean)'),
+    ('public','nx_meeting_engagement_party(uuid, uuid, uuid)'),
+    ('public','nx_my_certification_status()'),
+    ('public','nx_my_chattable_suppliers()'),
+    ('public','nx_my_supplier_chat_targets()'),
+    ('public','nx_notify(uuid, text, text, text, text, uuid)'),
+    ('public','nx_notify_lifecycle(uuid, text, text, text, text, uuid)'),
+    ('public','nx_online_payments_enabled()'),
+    ('public','nx_org_slug(text)'),
+    ('public','nx_program_rollup(uuid)'),
+    ('public','nx_project_qcp(uuid)'),
+    ('public','nx_qcp_accept_document(uuid, text)'),
+    ('public','nx_qcp_add_revision(uuid)'),
+    ('public','nx_qcp_approve_revision(uuid, text)'),
+    ('public','nx_qcp_attach_document(uuid, uuid)'),
+    ('public','nx_qcp_can_author(uuid, uuid)'),
+    ('public','nx_qcp_can_read(uuid, uuid)'),
+    ('public','nx_qcp_can_read_detail(uuid, uuid)'),
+    ('public','nx_qcp_create(uuid, text, uuid)'),
+    ('public','nx_qcp_effective_revision(uuid)'),
+    ('public','nx_qcp_for_job(uuid)'),
+    ('public','nx_qcp_is_engaged_inspector(uuid, uuid)'),
+    ('public','nx_qcp_may_accept_document(uuid, uuid)'),
+    ('public','nx_qcp_may_read(uuid, uuid)'),
+    ('public','nx_qcp_may_supply_document(uuid, uuid)'),
+    ('public','nx_qcp_org_author(uuid, uuid)'),
+    ('public','nx_qcp_org_reader(uuid, uuid)'),
+    ('public','nx_qcp_outstanding_requirements(uuid)'),
+    ('public','nx_qcp_revision_documents(uuid)'),
+    ('public','nx_qcp_revision_history(uuid)'),
+    ('public','nx_qcp_revoke_document_acceptance(uuid, text)'),
+    ('public','nx_qcp_rollup(uuid)'),
+    ('public','nx_qcp_scope_job_ids(uuid)'),
+    ('public','nx_qcp_scope_jobs(uuid, uuid)'),
+    ('public','nx_qcp_set_stage_templates(uuid, uuid[])'),
+    ('public','nx_qcp_stage_progress(uuid, uuid)'),
+    ('public','nx_qcp_submit_revision(uuid)'),
+    ('public','nx_qcp_visible(uuid, uuid)'),
+    ('public','nx_raise_ncr_from_inspection_item(uuid, text, text, text)'),
+    ('public','nx_raise_ncr_from_itp_point(uuid, text, text, text)'),
+    ('public','nx_rate_band(bigint)'),
+    ('public','nx_report_contributors(uuid)'),
+    ('public','nx_report_itp_log(uuid)'),
+    ('public','nx_report_itp_rollup(uuid)'),
+    ('public','nx_report_qcp_rollup(uuid)'),
+    ('public','nx_report_resubmit(uuid, uuid, timestamp with time zone, text, text)'),
+    ('public','nx_report_review_stats(uuid)'),
+    ('public','nx_report_review_transition(text)'),
+    ('public','nx_report_visit_log(uuid)'),
+    ('public','nx_report_visit_rollup(uuid)'),
+    ('public','nx_schedule_conflicts_core(date, uuid, uuid, uuid)'),
+    ('public','nx_scim_deactivate_membership(uuid, uuid, uuid, text)'),
+    ('public','nx_scim_deprovision_user(text, text, text)'),
+    ('public','nx_scim_issue_token(uuid, text, uuid, integer, uuid, integer)'),
+    ('public','nx_scim_provision_user(text, text, uuid, boolean, text[], text)'),
+    ('public','nx_scim_redact_detail(jsonb)'),
+    ('public','nx_scim_resolve_role(uuid, text[])'),
+    ('public','nx_scim_resolve_token(text)'),
+    ('public','nx_scim_revoke_token(uuid, text)'),
+    ('public','nx_senior_review_decide(uuid, text, text, integer)'),
+    ('public','nx_stripe_settle_job(uuid, text, bigint, text, uuid)'),
+    ('public','nx_supplier_inspector_chat_authorized(uuid, uuid, uuid, uuid)'),
+    ('public','nx_supplier_inspector_conversation_authorized(uuid, uuid)'),
+    ('public','nx_supplier_scorecard(uuid)'),
+    ('public','nx_supplier_scorecard_band(integer)'),
+    ('public','nx_supplier_scorecard_counts(uuid, text)'),
+    ('public','nx_supplier_scorecard_evidence(uuid, text)'),
+    ('public','nx_supplier_scorecard_jobs(uuid)'),
+    ('public','nx_supplier_scorecard_metric(uuid, text)'),
+    ('public','nx_talent_admin_set_fee_status(uuid, text)'),
+    ('public','nx_talent_disclose_identity(uuid)'),
+    ('public','nx_talent_match_candidates(uuid, integer)'),
+    ('public','nx_talent_record_placement(uuid, uuid, integer)'),
+    ('public','nx_talent_revoke_disclosure(uuid)'),
+    ('public','nx_talent_submit_candidate(uuid, uuid)'),
+    ('public','nx_team_jobs()'),
+    ('public','nx_visit_assign_inspector(uuid, uuid, boolean)'),
+    ('public','nx_visit_evidence_summary(uuid)'),
+    ('public','nx_visit_job_id(uuid)'),
+    ('public','nx_visit_live_successor(uuid)'),
+    ('public','nx_visit_schedule_conflicts(uuid, uuid)'),
+    ('public','open_buyer_supplier_conversation(uuid, uuid)'),
+    ('public','open_direct_conversation(uuid, uuid)'),
+    ('public','open_supplier_inspector_conversation(uuid, uuid, uuid)'),
+    ('public','pi_record_ai_detection(uuid, text, text, numeric, text, integer, text, text, text, text[], boolean, jsonb, uuid, uuid, uuid)'),
+    ('public','pi_record_ai_feedback(uuid, uuid, text, integer, text, text, text, text, numeric, jsonb, uuid)'),
+    ('public','process_withdrawal(numeric, jsonb)'),
+    ('public','protect_certification_verification()'),
+    ('public','raise_nonconformance(uuid, text, text, text, text)'),
+    ('public','reassign_invoice_department(uuid, uuid, text)'),
+    ('public','recompute_reputation(uuid)'),
+    ('public','record_fx_refresh_result(uuid, boolean, integer, text, integer)'),
+    ('public','record_reconciliation_run(text, bigint)'),
+    ('public','refresh_inspector_reputation()'),
+    ('public','refresh_public_demand_feed()'),
+    ('public','refresh_public_supply_feed()'),
+    ('public','release_ai_analysis_job(uuid, text)'),
+    ('public','release_deal_leg(uuid)'),
+    ('public','release_inspector_payout(uuid)'),
+    ('public','release_stripe_webhook_event(text, text)'),
+    ('public','release_supplier_contract(uuid, integer, text)'),
+    ('public','release_supplier_payout(uuid)'),
+    ('public','request_account_deletion()'),
+    ('public','request_named_disclosure(uuid, bigint)'),
+    ('public','request_payout_advance(uuid, integer)'),
+    ('public','request_price_revision(uuid, bigint, text, text)'),
+    ('public','request_senior_review(uuid)'),
+    ('public','request_withdrawal(bigint, text, text, uuid)'),
+    ('public','resolve_job_dispute(uuid, text, text)'),
+    ('public','respond_to_counter(uuid, text, bigint, text)'),
+    ('public','restore_wallet_balance(uuid, bigint, text)'),
+    ('public','reviews_populate_generalized()'),
+    ('public','reviews_recompute_trigger()'),
+    ('public','revoke_session(uuid)'),
+    ('public','schedule_meeting(text, text, timestamp with time zone, uuid[], uuid, uuid, text, integer)'),
+    ('public','seed_platform_owner(uuid)'),
+    ('public','send_message(uuid, text, text, text, text)'),
+    ('public','set_active_org(uuid)'),
+    ('public','set_default_template(uuid)'),
+    ('public','set_inspector_daily_limit(uuid, integer)'),
+    ('public','settle_client_payment(uuid)'),
+    ('public','sign_agreement(uuid, text, text, text)'),
+    ('public','stripe_settle_named_disclosure(uuid, text, bigint, uuid)'),
+    ('public','submit_quote(uuid, jsonb)'),
+    ('public','supplier_has_quote_on_rfq(uuid, uuid)'),
+    ('public','supplier_onboard(text, text[], jsonb, double precision, double precision, text, text)'),
+    ('public','supplier_sign_contract(uuid, text, text)'),
+    ('public','sweep_overdue_reports()'),
+    ('public','tax_can_withdraw(uuid)'),
+    ('public','tax_is_verified(uuid)'),
+    ('public','tg_auto_issue_invoice_on_contract_executed()'),
+    ('public','tg_credit_inspector_on_confirm()'),
+    ('public','tool_eval(jsonb, jsonb)'),
+    ('public','tool_has_pro_access(uuid)'),
+    ('public','tool_validate_inputs(jsonb, jsonb)'),
+    ('public','transfer_platform_owner(uuid, text)'),
+    ('public','update_average_rating()'),
+    ('public','update_average_rating_on_delete()'),
+    ('public','upsert_tax_profile(text, text, text, text, timestamp with time zone)'),
+    ('public','vault_store_tax_id(text, text, text, text)'),
+    ('public','vca_claimed_address_text(uuid)'),
+    ('public','vendor_document_record_anchor(uuid, text, text, text, bigint)'),
+    ('public','vendor_document_seal(text, text, text, text, text, bigint, text, uuid)'),
+    ('public','wallet_credit_topup(uuid, bigint, text, uuid, uuid)'),
+    ('public','withdraw_revision(uuid, text)')
+  ) AS t(grantee, sig) LOOP
+    v_oid := to_regprocedure('public.' || r.sig);
+    IF v_oid IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM %s',
+                     v_oid::regprocedure::text,
+                     CASE WHEN r.grantee = 'public' THEN 'PUBLIC' ELSE quote_ident(r.grantee) END);
+    END IF;
+  END LOOP;
+END $fnrevoke$;
+
+-- ── 4. Hardening beyond parity: PostGIS's reference table ──────────────────
 --  spatial_ref_sys is NOT drift — the tested configuration grants anon the same
 --  full write access, because that is PostGIS's own default. It is still wrong:
 --  the table holds the coordinate-system definitions every geospatial query
 --  resolves against, it has no RLS, and anon may TRUNCATE it. The application
 --  only ever reads it. It is owned by supabase_admin, so the migration role may
---  not be able to revoke; that is not a reason to fail the promotion, so the
---  attempt is guarded and its outcome reported.
+--  not be able to revoke; that is not a reason to fail a security hotfix, so
+--  the attempt is guarded and its outcome reported.
 DO $srs$
 BEGIN
+  IF to_regclass('public.spatial_ref_sys') IS NULL THEN
+    RAISE NOTICE 'spatial_ref_sys: absent (PostGIS not installed) — nothing to do';
+    RETURN;
+  END IF;
   REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.spatial_ref_sys
     FROM anon, authenticated, PUBLIC;
   RAISE NOTICE 'spatial_ref_sys: write access revoked from anon/authenticated (SELECT retained)';
@@ -644,61 +1396,46 @@ EXCEPTION WHEN insufficient_privilege OR wrong_object_type THEN
 END
 $srs$;
 
--- ── 4. SELFTEST — the exposures this file exists to close ──────────────────
+-- ── 5. SELFTEST — the exposure this file exists to close ───────────────────
 DO $verify$
 DECLARE
   v_bad text;
   v_col text;
   v_n   int;
 BEGIN
-  -- (a) the six RLS-less tables must be unwritable by anon
+  -- (a) the RLS-less tables must be unwritable by anon
   SELECT string_agg(DISTINCT g.table_name, ', ' ORDER BY g.table_name) INTO v_bad
     FROM information_schema.role_table_grants g
    WHERE g.table_schema = 'public' AND g.grantee = 'anon'
      AND g.privilege_type IN ('INSERT','UPDATE','DELETE','TRUNCATE')
      --  spatial_ref_sys is handled above: PostGIS's own default, identical in
      --  the tested configuration, and not always revocable by this role.
-     AND g.table_name IN ('assets','badges','error_logs','form_drafts',
-                          'user_badges');
+     AND g.table_name IN ('assets','badges','error_logs','form_drafts','user_badges');
   IF v_bad IS NOT NULL THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: anon can still write RLS-less table(s): %', v_bad;
+    RAISE EXCEPTION 'HOTFIX FAILED: anon can still write RLS-less table(s): %', v_bad;
   END IF;
 
   -- (b) anon has no reach into jobs at all
-  IF has_table_privilege('anon','public.jobs','SELECT')
-     OR has_table_privilege('anon','public.jobs','INSERT')
-     OR has_table_privilege('anon','public.jobs','UPDATE')
-     OR has_table_privilege('anon','public.jobs','DELETE') THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: anon still holds a privilege on public.jobs';
+  IF to_regclass('public.jobs') IS NOT NULL
+     AND (has_table_privilege('anon','public.jobs','SELECT')
+       OR has_table_privilege('anon','public.jobs','INSERT')
+       OR has_table_privilege('anon','public.jobs','UPDATE')
+       OR has_table_privilege('anon','public.jobs','DELETE')) THEN
+    RAISE EXCEPTION 'HOTFIX FAILED: anon still holds a privilege on public.jobs';
   END IF;
 
   -- (c) GOLDEN_RULE_2 — buyer-only money columns unreadable by the marketplace
-  FOREACH v_col IN ARRAY public.nx_jobs_buyer_only_columns() LOOP
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-                WHERE table_schema='public' AND table_name='jobs' AND column_name=v_col)
-       AND has_column_privilege('authenticated','public.jobs',v_col,'SELECT') THEN
-      RAISE EXCEPTION 'DRIFT REMAINS: authenticated may SELECT jobs.%', v_col;
-    END IF;
-  END LOOP;
-
-  -- (d) the four assertions that stopped the rehearsal suites
-  IF has_table_privilege('authenticated','public.qcp_required_documents','INSERT')
-     OR has_table_privilege('authenticated','public.qcp_required_documents','UPDATE')
-     OR has_table_privilege('authenticated','public.qcp_required_documents','DELETE') THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: authenticated can write qcp_required_documents';
-  END IF;
-  IF has_function_privilege('authenticated','public.nx_qcp_scope_jobs(uuid,uuid)','EXECUTE')
-     OR has_function_privilege('authenticated','public.nx_qcp_effective_revision(uuid)','EXECUTE')
-     OR has_function_privilege('anon','public.nx_qcp_rollup(uuid)','EXECUTE')
-     OR has_function_privilege('anon','public.nx_report_qcp_rollup(uuid)','EXECUTE') THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: a QCP derivation is reachable by a public role';
-  END IF;
-  IF has_function_privilege('authenticated',
-       'public.nx_schedule_conflicts_core(date,uuid,uuid,uuid)','EXECUTE') THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: the schedule-conflict core is executable by authenticated';
+  IF to_regprocedure('public.nx_jobs_buyer_only_columns()') IS NOT NULL THEN
+    FOREACH v_col IN ARRAY public.nx_jobs_buyer_only_columns() LOOP
+      IF EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema='public' AND table_name='jobs' AND column_name=v_col)
+         AND has_column_privilege('authenticated','public.jobs',v_col,'SELECT') THEN
+        RAISE EXCEPTION 'HOTFIX FAILED: authenticated may SELECT jobs.%', v_col;
+      END IF;
+    END LOOP;
   END IF;
 
-  -- (d2) and the drift must not be able to grow back
+  -- (d) the drift must not be able to grow back
   IF EXISTS (
     SELECT 1 FROM pg_default_acl d
       JOIN pg_namespace n ON n.oid = d.defaclnamespace
@@ -706,27 +1443,40 @@ BEGIN
        AND d.defaclrole = 'postgres'::regrole
        AND array_to_string(d.defaclacl, ',') LIKE '%anon=%'
   ) THEN
-    RAISE EXCEPTION 'DRIFT REMAINS: ALTER DEFAULT PRIVILEGES for postgres still grants anon in schema public';
+    RAISE EXCEPTION 'HOTFIX FAILED: ALTER DEFAULT PRIVILEGES for postgres still grants anon in schema public';
   END IF;
 
-  -- (e) the application must NOT have been locked out. These are the grants the
-  --     product genuinely depends on; if the replay dropped them this file is
-  --     wrong and must fail loudly rather than ship a dead marketplace.
-  IF NOT has_table_privilege('authenticated','public.applications','SELECT') THEN
+  -- (e) internal derivations are not a public surface
+  IF to_regprocedure('public.nx_qcp_scope_jobs(uuid,uuid)') IS NOT NULL
+     AND has_function_privilege('authenticated','public.nx_qcp_scope_jobs(uuid,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'HOTFIX FAILED: nx_qcp_scope_jobs is reachable by authenticated';
+  END IF;
+  IF to_regprocedure('public.nx_schedule_conflicts_core(date,uuid,uuid,uuid)') IS NOT NULL
+     AND has_function_privilege('authenticated','public.nx_schedule_conflicts_core(date,uuid,uuid,uuid)','EXECUTE') THEN
+    RAISE EXCEPTION 'HOTFIX FAILED: the schedule-conflict core is executable by authenticated';
+  END IF;
+
+  -- (f) the application must NOT have been locked out. If the replay dropped
+  --     these, this file is wrong and must fail loudly rather than ship a dead
+  --     marketplace.
+  IF to_regclass('public.applications') IS NOT NULL
+     AND NOT has_table_privilege('authenticated','public.applications','SELECT') THEN
     RAISE EXCEPTION 'OVER-REVOKED: authenticated lost SELECT on applications';
   END IF;
-  IF NOT has_table_privilege('authenticated','public.profiles','SELECT') THEN
+  IF to_regclass('public.profiles') IS NOT NULL
+     AND NOT has_table_privilege('authenticated','public.profiles','SELECT') THEN
     RAISE EXCEPTION 'OVER-REVOKED: authenticated lost SELECT on profiles';
   END IF;
-  IF NOT has_column_privilege('authenticated','public.jobs','title','SELECT') THEN
+  IF to_regclass('public.jobs') IS NOT NULL
+     AND NOT has_column_privilege('authenticated','public.jobs','title','SELECT') THEN
     RAISE EXCEPTION 'OVER-REVOKED: authenticated lost SELECT on jobs.title';
   END IF;
 
-  SELECT count(*) INTO v_n
+  SELECT count(DISTINCT table_name) INTO v_n
     FROM information_schema.role_table_grants
    WHERE table_schema='public' AND grantee='anon'
      AND privilege_type IN ('INSERT','UPDATE','DELETE','TRUNCATE');
-  RAISE NOTICE '════ grant drift reconciled — anon write surface is now % table(s) ════', v_n;
+  RAISE NOTICE '════ privilege hotfix applied — anon write surface is now % table(s) ════', v_n;
 END
 $verify$;
 

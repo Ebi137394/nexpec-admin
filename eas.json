@@ -50,6 +50,21 @@
         "EXPO_PUBLIC_ENV": "production"
       },
       "autoIncrement": true
+    },
+    "sim-qa": {
+      "distribution": "internal",
+      "environment": "production",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production"
+      }
     }
   },
   "submit": {

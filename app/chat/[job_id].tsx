@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { ReportConversationButton } from '@/src/shared-ui/moderation/ReportConversationButton';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -564,6 +565,8 @@ export default function JobChatScreen() {
               : (jobInfo?.title || 'Loading...')}
           </Text>
         </View>
+        {/* UGC moderation entry point — reports route to the staffed support lane. */}
+        {!isAdminSupport && <ReportConversationButton conversationId={conversationId} />}
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

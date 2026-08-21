@@ -34,6 +34,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { ReportConversationButton } from '@/src/shared-ui/moderation/ReportConversationButton';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -484,6 +485,9 @@ export default function DirectChatScreen() {
           </Text>
           <Text style={styles.headerSub} numberOfLines={1}>{header?.jobTitle ?? ''}</Text>
         </View>
+        {/* UGC moderation (Apple 1.2 / Play UGC): every party-to-party room
+            carries an in-app report control. */}
+        <ReportConversationButton conversationId={conversation_id ?? null} />
         {header?.jobId ? (
           <TouchableOpacity
             onPress={() => router.push(`/job-details/${header.jobId}`)}

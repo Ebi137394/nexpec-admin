@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
+import { ReportConversationControl } from '@/components/messaging/ReportConversationControl';
 import { redirect } from 'next/navigation';
 import { ArrowLeft, AlertCircle, Lock, Briefcase } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -87,6 +88,7 @@ export default async function TwoPartyRoomPage({ id, expectedKind, error }: Prop
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold text-white">{room.counterpartLabel}</h1>
+          {/* UGC moderation (store compliance): in-app report on every two-party room */}
           <p className="truncate text-xs text-slate-400">
             {TWO_PARTY_LABEL[room.kind]}
             {room.jobTitle ? ` · ${room.jobTitle}` : ''}
@@ -101,6 +103,7 @@ export default async function TwoPartyRoomPage({ id, expectedKind, error }: Prop
             <Briefcase className="h-4 w-4" aria-hidden />
           </Link>
         )}
+        <ReportConversationControl conversationId={id} />
       </header>
 
       {error && (

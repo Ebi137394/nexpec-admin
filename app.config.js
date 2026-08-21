@@ -214,6 +214,10 @@ module.exports = {
           },
           android: {
             newArchEnabled: true,
+            // Google Play floor for new apps: targetSdk 35 (Android 15).
+            // The first AAB targeted 34 and would be refused at upload.
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
             // Moved here from the `android` block: this is the supported key
             // and it actually reaches AndroidManifest.xml.
             usesCleartextTraffic: false,

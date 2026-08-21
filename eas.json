@@ -40,7 +40,8 @@
       "channel": "production",
       "ios": {
         "buildConfiguration": "Release",
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "latest"
       },
       "android": {
         "buildType": "app-bundle",

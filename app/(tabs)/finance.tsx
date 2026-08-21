@@ -45,10 +45,12 @@ const DEFAULT_STATS: WalletStats = { availableBalance: 0, totalEarned: 0, pendin
 
 const PAYMENT_PROVIDERS: PaymentProviderOption[] = [
   { id: 'stripe', name: 'Credit / Debit Card', icon: 'card-outline', color: '#635BFF', description: 'Powered by Stripe', targetRole: 'client' },
-  // ★ Stripe Connect Express for inspector payouts. Stripe handles KYC,
-  //   bank verification, multi-currency, and tax forms. Replaces the
-  //   old manual 'bank' option that bounced users to the Withdraw form.
-  { id: 'stripe_connect', name: 'Bank Account (Stripe)', icon: 'business-outline', color: COLORS.green, description: 'Verified by Stripe, instant USD payouts', targetRole: 'inspector' },
+  // ★ THIS RELEASE: Stripe is NEXPEC's inbound merchant account only —
+  //   no Stripe Connect, no connected inspector accounts, no automatic
+  //   payouts (owner decision, 2026-08-21). Inspector payouts are settled
+  //   manually by the NEXPEC team (bank/Wise) via the Mark-as-Paid flow,
+  //   so the provider list stores payout DETAILS, not a Connect account.
+  { id: 'bank', name: 'Bank Account', icon: 'business-outline', color: COLORS.green, description: 'For manual payouts by NEXPEC', targetRole: 'inspector' },
   { id: 'paypal', name: 'PayPal', icon: 'logo-paypal', color: '#0070BA', description: 'Connect PayPal account', targetRole: 'all' },
   { id: 'wise', name: 'Wise', icon: 'globe-outline', color: '#00B9FF', description: 'International transfer', targetRole: 'all' },
   { id: 'payoneer', name: 'Payoneer', icon: 'cash-outline', color: '#FF4800', description: 'Global payout method', targetRole: 'inspector' }

@@ -55,36 +55,27 @@ export function SupplierPayoutCard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="flex items-center gap-2 font-semibold text-white"><Banknote size={16} className="text-accent-green" /> Withdrawable balance</h2>
-          <p className="mt-0.5 text-xs text-zinc-500">Released earnings, ready to pay out to your bank via Stripe.</p>
+          <p className="mt-0.5 text-xs text-zinc-500">Released earnings, settled manually by NEXPEC after approval.</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${verified ? 'border-accent-green/30 bg-accent-green/10 text-accent-green' : 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber'}`}>
-          <ShieldCheck size={13} /> {verified ? 'Stripe verified' : 'Setup needed'}
+          <ShieldCheck size={13} /> Manual payouts
         </span>
       </div>
 
       <p className="mt-4 font-display text-3xl font-semibold tracking-tight text-white">{formatUsd(availableCents)}</p>
 
-      {!verified ? (
-        <div className="mt-4">
-          <p className="text-sm text-zinc-400">Connect a payout account to withdraw. NEXPEC uses Stripe Connect, the same secure flow inspectors use; we never see your bank details.</p>
-          <button onClick={onboard} disabled={busy} className="mt-3 inline-flex items-center gap-2 rounded-full bg-violet px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Wallet size={15} />} Set up payouts
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-ink-950 px-3 sm:flex-1">
-              <span className="text-sm text-white/40">$</span>
-              <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="Amount (min $50)" className="h-11 w-full bg-transparent text-sm text-white placeholder-white/40 outline-none" />
-            </div>
-            <button onClick={withdraw} disabled={busy || availableCents < MIN_CENTS} className="inline-flex items-center justify-center gap-2 rounded-lg bg-violet px-5 py-2.5 text-sm font-bold text-white transition hover:bg-violet-deep disabled:opacity-60">
-              {busy ? <Loader2 size={15} className="animate-spin" /> : <ArrowUpRight size={15} />} Withdraw
-            </button>
-          </div>
-          {availableCents < MIN_CENTS && <p className="mt-2 text-xs text-zinc-500">You need at least $50.00 of released earnings to withdraw.</p>}
-        </div>
-      )}
+      {/* THIS RELEASE: Stripe is NEXPEC's inbound merchant account only.
+          Supplier payouts are settled manually by the NEXPEC team (bank/Wise)
+          after approval — no Stripe Connect onboarding, no in-app withdrawal.
+          The automated payout endpoints refuse server-side (NX-STRIPE-004);
+          this card states the real model instead of advertising a dead flow. */}
+      <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+        <p className="text-sm text-zinc-400">
+          Released earnings are paid out manually by the NEXPEC team after
+          approval — typically by bank transfer or Wise. No setup is required
+          here; keep your payout details up to date with NEXPEC support.
+        </p>
+      </div>
 
       {msg && (
         <p className={`mt-3 inline-flex items-center gap-1.5 text-sm ${msg.kind === 'ok' ? 'text-accent-green' : 'text-accent-red'}`}>

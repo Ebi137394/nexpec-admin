@@ -102,24 +102,17 @@ export default function SupplierFinance() {
               </View>
             </View>
             <Text style={s.wValue}>{formatUsd(availableCents)}</Text>
-            {!verified ? (
-              <TouchableOpacity style={s.wBtn} activeOpacity={0.85} onPress={onboard} disabled={wBusy}>
-                {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="card-outline" size={16} color="#FFF" />}
-                <Text style={s.wBtnTxt}>{t('Set up payouts')}</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={s.wInputRow}>
-                <View style={s.wInputWrap}>
-                  <Text style={s.wDollar}>$</Text>
-                  <TextInput value={amount} onChangeText={setAmount} placeholder={t('Min $50')} placeholderTextColor={T.colors.textMuted} keyboardType="decimal-pad" style={s.wInput} />
-                </View>
-                <TouchableOpacity style={[s.wBtn, s.wBtnInline]} activeOpacity={0.85} onPress={doWithdraw} disabled={wBusy || availableCents < 5000}>
-                  {wBusy ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="arrow-up-circle-outline" size={16} color="#FFF" />}
-                  <Text style={s.wBtnTxt}>{t('Withdraw')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {!!wMsg && <Text style={[s.wMsg, { color: wOk ? T.colors.success : T.colors.error }]}>{wMsg}</Text>}
+            {/* THIS RELEASE: payouts are settled manually by the NEXPEC team
+                (bank/Wise) after approval — no Stripe Connect onboarding and no
+                in-app withdrawal. The server refuses the automated payout
+                endpoints (NX-STRIPE-004); this card now says so instead of
+                advertising a flow the backend will refuse. */}
+            <View style={s.wInputRow}>
+              <Ionicons name="business-outline" size={16} color={T.colors.textMuted} />
+              <Text style={[s.wMsg, { flex: 1, color: T.colors.textMuted }]}>
+                {t('Paid out manually by NEXPEC after approval — no setup needed. Keep your payout details up to date in Profile → Payments.')}
+              </Text>
+            </View>
           </View>
 
           {/* Brokered explainer */}

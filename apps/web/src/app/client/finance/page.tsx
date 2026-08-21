@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { fetchClientFinance } from '@/lib/data/clientFinance';
 import { fetchFundingRailJobs } from './fundingRailData';
+import { SettlementSummary } from './SettlementSummary';
 import { FundingRail } from './FundingRail';
 import { PaymentOptions } from '@/components/payments/PaymentOptions';
 import type {
@@ -67,6 +68,9 @@ export default async function ClientFinancePage() {
           ledger and releases them to the inspector only on your approval.
         </p>
       </header>
+
+      {/* Manual settlement — v1's first-class payment model */}
+      <SettlementSummary />
 
       {/* Staged funding — what is waiting on money from this buyer.
           The only inbound link to /client/jobs/[id]/funding. */}

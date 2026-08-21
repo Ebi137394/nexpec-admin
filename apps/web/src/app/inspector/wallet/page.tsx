@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { formatCents } from '@nexpec/shared-core';
 import { fetchInspectorWallet } from '@/lib/data/inspectorWallet';
+import { EarningsByJob } from './EarningsByJob';
 import { requestWithdrawal } from '@/lib/actions/inspectorWallet';
 
 export const metadata: Metadata = { title: 'Wallet' };
@@ -299,6 +300,8 @@ function Banner({
     <div className={`flex items-start gap-3 rounded-2xl border p-4 ${classes}`}>
       <span className="mt-0.5 shrink-0">{icon}</span>
       <p className="text-sm">{children}</p>
+      <EarningsByJob />
+
     </div>
   );
 }

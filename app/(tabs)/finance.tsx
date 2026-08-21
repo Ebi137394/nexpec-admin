@@ -16,6 +16,8 @@ import { formatDuration } from '../../utils/currency';
 import { formatUsd, toCents } from '../../src/core/utils/money';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
 import { useOnlinePaymentsEnabled } from '@/src/core/payments/onlinePayments';
+import { SettlementDashboard } from '@/src/shared-ui/finance/SettlementDashboard';
+import { PayoutSummary } from '@/src/shared-ui/finance/PayoutSummary';
 
 // Maps a raw Edge Function / Stripe failure to a calm, user-facing line so a
 // backend hiccup (or a restricted Stripe account) degrades to an inline notice
@@ -767,7 +769,16 @@ export default function FinanceScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} onlinePayments={onlinePayments === true} />
+        {/* Buyers get a settlement dashboard, not a wallet: in the manual
+            model a buyer holds no money inside NEXPEC, so "Available funds
+            $0.00" answered a question nobody asked. Providers keep the wallet
+            hero (their earned balance is real) plus a payout summary. */}
+        {isPayer ? (
+          <SettlementDashboard t={t} />
+        ) : (
+          <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} onlinePayments={onlinePayments === true} />
+        )}
+        {userRole === 'inspector' && <PayoutSummary t={t} />}
         {userRole === 'inspector' && earningsData && (
           <>
             <SectionHeader icon="trending-up" title={t('Earnings Overview')} subtitle={t('Your performance at a glance')} color={COLORS.green} />

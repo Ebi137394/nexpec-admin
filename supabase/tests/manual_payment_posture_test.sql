@@ -128,9 +128,14 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"' || (select client_id::text from _p) || '","role":"authenticated"}', true);
+-- R1 UPDATED by the manual-settlement backbone (20260801592000, owner order):
+-- a buyer now reads their OWN client_payment rows — that is the whole point of
+-- the settlement dashboard — but the provider-payout direction stays invisible.
+-- The commercial boundary is the DIRECTION, not the table.
 select is(
-  (select count(*)::int from public.manual_payment_records),
-  0, 'R1 client still cannot read the admin settlement ledger');
+  (select count(*)::int from public.manual_payment_records
+    where direction = 'inspector_payout'),
+  0, 'R1 client cannot read provider payout rows (direction is the boundary)');
 reset role;
 
 set local role authenticated;

@@ -14,6 +14,7 @@ import {
 } from '@/lib/data/payoutsQueue';
 import { PayoutsTable } from '@/components/admin/payouts/PayoutsTable';
 import { PayoutsDrawer } from '@/components/admin/payouts/PayoutsDrawer';
+import { RecordManualPaymentForm } from '@/components/admin/RecordManualPaymentForm';
 
 export const metadata: Metadata = {
   title: 'Payouts',
@@ -36,6 +37,8 @@ export default async function PayoutsPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-8">
+      {/* The control that closes the manual settlement loop, both directions. */}
+      <RecordManualPaymentForm />
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-cyan-glow/90">
           Command Console, Live

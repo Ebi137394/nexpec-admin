@@ -15,6 +15,7 @@ import { useEarnings, formatUSD } from '../../hooks/useEarnings';
 import { formatDuration } from '../../utils/currency';
 import { formatUsd, toCents } from '../../src/core/utils/money';
 import { useLanguage } from '@/src/i18n/LanguageProvider';
+import { useOnlinePaymentsEnabled } from '@/src/core/payments/onlinePayments';
 
 // Maps a raw Edge Function / Stripe failure to a calm, user-facing line so a
 // backend hiccup (or a restricted Stripe account) degrades to an inline notice
@@ -83,7 +84,7 @@ const STRIPE_STATUS_DISPLAY: Record<string, {
   disabled: { label: 'Disconnected', color: '#94A3B8', bg: 'rgba(148,163,184,0.12)', icon: 'close-circle' },
 };
 
-const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConnect: StripeConnectState; onWithdraw: () => void; onDeposit: () => void; }> = ({ stats, userRole, stripeConnect, onWithdraw, onDeposit }) => {
+const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConnect: StripeConnectState; onWithdraw: () => void; onDeposit: () => void; onlinePayments: boolean; }> = ({ stats, userRole, stripeConnect, onWithdraw, onDeposit, onlinePayments }) => {
   const { t, isRTL, language } = useLanguage();
   const balanceAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => { Animated.spring(balanceAnim, { toValue: 1, tension: 50, friction: 8, useNativeDriver: true }).start(); }, []);
@@ -161,7 +162,10 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
           </TouchableOpacity>
         )}
         
-        {(userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') && (
+        {/* Deposit is a Stripe card charge. While online card payment is off
+            the button is not rendered at all — the edge function refuses the
+            call, so showing it would be a guaranteed dead end. */}
+        {onlinePayments && (userRole === 'client' || userRole === 'agency' || userRole === 'enterprise') && (
           <TouchableOpacity style={[s.heroBtn, s.heroBtnOutline]} onPress={onDeposit} activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
             <Text style={[s.heroBtnTextWhite, { color: COLORS.primary }]}>{t('Deposit')}</Text>
@@ -337,6 +341,7 @@ export default function FinanceScreen() {
   const [providerInputValue, setProviderInputValue] = useState('');
 
   const earnings = useEarnings();
+  const onlinePayments = useOnlinePaymentsEnabled();
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const determineUserRole = useCallback(async () => {
@@ -730,6 +735,12 @@ export default function FinanceScreen() {
   //   Payees (Inspector/Vendor) see the payout rails and never the card-deposit.
   const isPayer =
     userRole === 'client' || userRole === 'agency' || userRole === 'enterprise';
+  // A buyer's only rail is the Stripe card (SetupIntent). With online card
+  // payment off that rail cannot be added, so buyers are shown no
+  // payment-method section at all rather than an empty state whose one button
+  // fails. Payee rails (bank/PayPal/Wise/Payoneer) are payout DETAILS and stay:
+  // they are stored records used by the manual admin payout run, not charges.
+  const showPaymentMethods = isPayer ? onlinePayments === true : true;
   const availableProviders = PAYMENT_PROVIDERS.filter(p =>
     isPayer ? p.id === 'stripe' : p.id !== 'stripe'
   );
@@ -756,7 +767,7 @@ export default function FinanceScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} />
+        <BalanceHero stats={walletStats} userRole={userRole} stripeConnect={stripeConnect} onWithdraw={handleWithdraw} onDeposit={handleDeposit} onlinePayments={onlinePayments === true} />
         {userRole === 'inspector' && earningsData && (
           <>
             <SectionHeader icon="trending-up" title={t('Earnings Overview')} subtitle={t('Your performance at a glance')} color={COLORS.green} />
@@ -771,12 +782,14 @@ export default function FinanceScreen() {
             {earningsData.totalEarnings > 0 && ( <><SectionHeader icon="calculator-outline" title={t('Tax Planning')} subtitle={t('Estimated tax reserve')} color={COLORS.amber} /><TaxReserveCard totalEarned={earningsData.totalEarnings} /></> )}
           </>
         )}
+        {showPaymentMethods && (<>
         <SectionHeader icon="card-outline" title={t('Payment Methods')} subtitle={`${paymentMethods.length} ${paymentMethods.length !== 1 ? t('methods') : t('method')}`} color={COLORS.primary} rightAction={{ label: t('+ Add'), onPress: () => setShowAddPaymentModal(true), }} />
         {paymentMethods.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="card-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Payment Methods')}</Text><Text style={s.emptySub}>{
   userRole === 'inspector' || userRole === 'supplier'
     ? t('Add a payout method to receive your earnings')
     : t('Add a payment method to fund inspections')
 }</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>{t('Add Payment Method')}</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
+        </>)}
         <SectionHeader icon="receipt-outline" title={t('Recent Transactions')} subtitle={`${transactions.length} ${transactions.length !== 1 ? t('transactions') : t('transaction')}`} color={COLORS.primary} rightAction={ transactions.length > 5 ? { label: t('See All'), onPress: () => router.push('/(inspector)/wallet/statement' as any), } : undefined } />
         {transactions.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="receipt-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Transactions Yet')}</Text><Text style={s.emptySub}>{t('Your transaction history will appear here')}</Text></View> ) : ( <View style={s.card}>{transactions.slice(0, 10).map((tx, idx) => ( <React.Fragment key={tx.id}><WalletTransactionItem tx={tx} />{idx < Math.min(transactions.length, 10) - 1 && ( <View style={s.txDivider} /> )}</React.Fragment> ))}</View> )}
         <View style={{ height: 120 }} />

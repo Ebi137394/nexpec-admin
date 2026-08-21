@@ -18,6 +18,7 @@ import { BUYER_JOB_FIELDS } from '@/lib/jobsProjection';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { signedUrl } from '@/src/core/storage/signedUrls';
 import { PaymentOptions } from '@/src/shared-ui/payments/PaymentOptions';
+import { useOnlinePaymentsEnabled } from '@/src/core/payments/onlinePayments';
 
 // ============================================
 // Color Constants - Dark Theme
@@ -57,6 +58,7 @@ const buyerPriceCents = (j: any): number => {
 };
 
 export default function ApproveScreen() {
+  const onlinePayments = useOnlinePaymentsEnabled();
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
   const router = useRouter();
   const { user } = useAuth();
@@ -292,19 +294,36 @@ export default function ApproveScreen() {
         <View style={styles.actionContainer}>
           {isClient && job?.status !== 'completed' ? (
             <>
-              {/* Only Client can Pay */}
-              <TouchableOpacity
-                style={[styles.payButton, (!report || processing) && styles.disabledButton]}
-                onPress={handleApproveAndPay}
-                disabled={!report || processing}
-              >
-                {processing ? <ActivityIndicator color="#FFF" /> : (
-                  <>
-                    <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                    <Text style={styles.payButtonText}>Approve & Pay</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {/* Approve & Pay routes to the Stripe payment screen. While
+                  online card payment is off that screen cannot complete, so the
+                  control is replaced by the route that actually works: report
+                  approval itself is payment-free (approve_inspection_report),
+                  and NEXPEC settles the engagement manually afterwards. */}
+              {onlinePayments === true ? (
+                <TouchableOpacity
+                  style={[styles.payButton, (!report || processing) && styles.disabledButton]}
+                  onPress={handleApproveAndPay}
+                  disabled={!report || processing}
+                >
+                  {processing ? <ActivityIndicator color="#FFF" /> : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                      <Text style={styles.payButtonText}>Approve & Pay</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.payButton, (!report || processing) && styles.disabledButton]}
+                  onPress={() => router.push(`/(client)/jobs/${job?.id}/review-report` as any)}
+                  disabled={!report || processing}
+                  accessibilityRole="button"
+                  accessibilityLabel="Review and approve this report"
+                >
+                  <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                  <Text style={styles.payButtonText}>Review & Approve Report</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 style={styles.reviewButton}

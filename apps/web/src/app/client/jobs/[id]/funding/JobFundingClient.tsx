@@ -76,7 +76,14 @@ type LoadState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; projection: ClientFundingProjection };
 
-export function JobFundingClient({ job }: { job: FundingJobFacts }) {
+export function JobFundingClient({
+  job,
+  onlinePayments,
+}: {
+  job: FundingJobFacts;
+  /** platform_settings.online_payments_enabled, resolved server-side. */
+  onlinePayments: boolean;
+}) {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [payingStage, setPayingStage] = useState<FundingStageView | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -365,6 +372,7 @@ export function JobFundingClient({ job }: { job: FundingJobFacts }) {
                   projection={projection}
                   job={job}
                   onPay={() => setPayingStage(stage)}
+                  onlinePayments={onlinePayments}
                 />
               </li>
             ))}
@@ -404,7 +412,7 @@ export function JobFundingClient({ job }: { job: FundingJobFacts }) {
         </ol>
       </section>
 
-      {payingStage && (
+      {payingStage && onlinePayments && (
         <StagePaymentDialog
           jobId={job.jobId}
           jobTitle={job.title}
@@ -433,11 +441,13 @@ function StageCard({
   projection,
   job,
   onPay,
+  onlinePayments,
 }: {
   stage: FundingStageView;
   projection: ClientFundingProjection;
   job: FundingJobFacts;
   onPay: () => void;
+  onlinePayments: boolean;
 }) {
   const disposition = stageDisposition(stage, job);
   const amount = scheduledStageCents(projection, stage);
@@ -483,7 +493,7 @@ function StageCard({
           <p className="font-mono text-2xl font-semibold tracking-tight text-white">
             {formatCents(amount)}
           </p>
-          {disposition.kind === 'payable' && (
+          {disposition.kind === 'payable' && onlinePayments && (
             <button
               type="button"
               onClick={onPay}
@@ -492,6 +502,11 @@ function StageCard({
               <Lock className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
               Fund {formatCents(amount)}
             </button>
+          )}
+          {disposition.kind === 'payable' && !onlinePayments && (
+            <p className="max-w-[15rem] text-right text-xs leading-relaxed text-zinc-500">
+              NEXPEC will invoice this tranche and confirm it with you directly.
+            </p>
           )}
         </div>
       </div>

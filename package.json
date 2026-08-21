@@ -55,7 +55,8 @@
     "qa:password-flows": "node scripts/qa/check-password-flows.mjs",
     "qa:pgtap": "node scripts/qa/run-pgtap.mjs",
     "db:guard": "bash scripts/qa/assert-staging-target.sh",
-    "db:push:staging": "bash scripts/qa/assert-staging-target.sh && supabase db push --linked"
+    "db:push:staging": "bash scripts/qa/assert-staging-target.sh && supabase db push --linked",
+    "qa:payment-dead-ends": "node scripts/qa/check-payment-dead-ends.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",

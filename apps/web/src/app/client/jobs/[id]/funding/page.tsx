@@ -29,6 +29,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { JobFundingClient, BackToJob } from './JobFundingClient';
+import { onlinePaymentsEnabled } from '@/lib/payments/onlinePayments';
 import type { FundingJobFacts } from './fundingView';
 
 export const metadata: Metadata = {
@@ -130,7 +131,10 @@ export default async function ClientJobFundingPage({ params }: PageProps) {
         </p>
       </header>
 
-      <JobFundingClient job={job} />
+      {/* Online card payment is flag-gated. While it is off NEXPEC settles
+          manually, so the funding CTAs are not rendered at all — a button whose
+          only outcome is ONLINE_PAYMENTS_DISABLED is a dead end. */}
+      <JobFundingClient job={job} onlinePayments={await onlinePaymentsEnabled()} />
     </div>
   );
 }

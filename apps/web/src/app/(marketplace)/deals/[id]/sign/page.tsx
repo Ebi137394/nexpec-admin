@@ -16,6 +16,7 @@ import {
   type ClientAgreement, type AssignedInspector, type DealRow, type PaymentTranche, type InspectorCandidate,
 } from '@/lib/data/marketplace';
 import { CredentialCertificate, NeutralityBadge, VipDisclosureGate } from '@/components/contracts/InspectorTrust';
+import { useOnlinePayments } from '@/lib/payments/useOnlinePayments';
 import { CommercialRevision } from '@/components/contracts/CommercialRevision';
 
 const inp = 'w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2.5 text-sm text-white placeholder-white/40 outline-none focus:border-violet';
@@ -164,6 +165,10 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [vipOpen, setVipOpen] = useState(false);
+  // Named disclosure carries a card fee. While online card payment is off the
+  // whole upgrade is withheld rather than shown and refused — the engagement
+  // itself never depends on it, so nothing downstream breaks.
+  const onlinePayments = useOnlinePayments();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -235,7 +240,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
         revealed={revealed}
         legalName={insp.inspector_legal_name}
         vipUnlocked={!!insp.identity_revealed_at && !insp.report_confirmed_at}
-        onReveal={revealed ? undefined : () => setVipOpen(true)}
+        onReveal={revealed || onlinePayments !== true ? undefined : () => setVipOpen(true)}
       />
 
       <NeutralityBadge statement={indep?.statement} supplierHandle={indep?.supplier_handle} />
@@ -274,7 +279,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
           <div className="mt-2">
             <p className="text-sm text-white/90">{insp.inspector_name_masked ?? 'Identity sealed.'} <span className="text-white/50">Unlock to reveal full name, verified CV &amp; contact.</span></p>
             <p className="mt-1 text-xs text-white/50">Your engagement unlock collects the booking deposit, activates 36-month non-circumvention protection, and reveals the inspector&apos;s verified identity.</p>
-            <button onClick={() => setVipOpen(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">
+            <button onClick={() => setVipOpen(true)} hidden={onlinePayments !== true} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">
               <Crown size={14} /> Unlock &amp; book
             </button>
           </div>
@@ -282,7 +287,7 @@ function AssignedInspectorCard({ dealId }: { dealId: string }) {
       </div>
 
       <VipDisclosureGate
-        open={vipOpen}
+        open={vipOpen && onlinePayments === true}
         onClose={() => setVipOpen(false)}
         tier={insp.transparency_tier}
         handle={insp.handle}
@@ -397,6 +402,8 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [vip, setVip] = useState<{ handle: string; tier: string } | null>(null);
+  // Same gate as the main signer view: no card fee offered while payments are off.
+  const onlinePayments = useOnlinePayments();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -441,7 +448,7 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
                 verifyPath: c.certificate?.verify_path ?? null,
                 redactedCv: c.dossier?.redacted_cv ?? null,
               }}
-              onReveal={() => setVip({ handle: c.handle, tier: c.transparency_tier })}
+              onReveal={onlinePayments === true ? () => setVip({ handle: c.handle, tier: c.transparency_tier }) : undefined}
             />
             <NeutralityBadge statement={c.independence?.statement} supplierHandle={c.independence?.supplier_handle} />
             <button disabled={!!busy} onClick={() => pick(c.candidate_id)} className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-violet py-2.5 text-sm font-bold text-white hover:bg-violet-deep disabled:opacity-60">
@@ -450,7 +457,7 @@ function InspectorShortlistCard({ dealId }: { dealId: string }) {
           </div>
         ))}
       </div>
-      <VipDisclosureGate open={!!vip} onClose={() => setVip(null)} tier={vip?.tier ?? ''} handle={vip?.handle ?? ''} />
+      <VipDisclosureGate open={!!vip && onlinePayments === true} onClose={() => setVip(null)} tier={vip?.tier ?? ''} handle={vip?.handle ?? ''} />
     </div>
   );
 }

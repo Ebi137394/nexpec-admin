@@ -108,7 +108,10 @@ const BalanceHero: React.FC<{ stats: WalletStats; userRole: UserRole; stripeConn
       <LinearGradient colors={['rgba(124,58,237,0.18)', 'rgba(124,58,237,0.06)', 'transparent']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
       <View style={s.heroHeader}>
         <View>
-          <Text style={s.heroLabel}>{t('Available Balance')}</Text>
+          <Text style={s.heroLabel}>{
+  userRole === 'inspector' || userRole === 'supplier'
+    ? t('Available Balance') : t('Available Funds')
+}</Text>
           <Animated.Text style={[ s.heroBalance, { opacity: balanceAnim, transform: [ { translateY: balanceAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) } ] } ]}>
             {formatCurrency(stats.availableBalance)}
           </Animated.Text>
@@ -733,7 +736,14 @@ export default function FinanceScreen() {
     <SafeAreaView style={s.container}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
       {actionLoading && ( <View style={s.overlay}><View style={s.overlayBox}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={s.overlayText}>{t('Processing…')}</Text></View></View> )}
-      <View style={s.header}><View><Text style={s.headerTitle}>{t('Finance')}</Text><Text style={s.headerSub}>{t('Wallet & Earnings')}</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
+      {/* Role-honest header: buyers fund inspections (payments), providers earn
+          (wallet). Telling a Client they have "earnings" — or an Inspector that
+          they make "payments" — misdescribes the product. */}
+      <View style={s.header}><View><Text style={s.headerTitle}>{t('Finance')}</Text><Text style={s.headerSub}>{
+        userRole === 'inspector' ? t('Wallet & Earnings')
+        : userRole === 'supplier' ? t('Earnings & Payouts')
+        : t('Payments & Funding')
+      }</Text></View><TouchableOpacity style={s.headerBtn} onPress={() => router.push('/notifications')} activeOpacity={0.7}><Ionicons name="notifications-outline" size={22} color={COLORS.textSecondary} /></TouchableOpacity></View>
       <Animated.ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false} onScroll={Animated.event( [{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }, )} scrollEventThrottle={16} refreshControl={ <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} /> }>
         {stripeError && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.amberBg, borderColor: COLORS.amber, borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14 }}>
@@ -760,7 +770,11 @@ export default function FinanceScreen() {
           </>
         )}
         <SectionHeader icon="card-outline" title={t('Payment Methods')} subtitle={`${paymentMethods.length} ${paymentMethods.length !== 1 ? t('methods') : t('method')}`} color={COLORS.primary} rightAction={{ label: t('+ Add'), onPress: () => setShowAddPaymentModal(true), }} />
-        {paymentMethods.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="card-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Payment Methods')}</Text><Text style={s.emptySub}>{t('Add a payment method to withdraw or deposit funds')}</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>{t('Add Payment Method')}</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
+        {paymentMethods.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="card-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Payment Methods')}</Text><Text style={s.emptySub}>{
+  userRole === 'inspector' || userRole === 'supplier'
+    ? t('Add a payout method to receive your earnings')
+    : t('Add a payment method to fund inspections')
+}</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>{t('Add Payment Method')}</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
         <SectionHeader icon="receipt-outline" title={t('Recent Transactions')} subtitle={`${transactions.length} ${transactions.length !== 1 ? t('transactions') : t('transaction')}`} color={COLORS.primary} rightAction={ transactions.length > 5 ? { label: t('See All'), onPress: () => router.push('/(inspector)/wallet/statement' as any), } : undefined } />
         {transactions.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="receipt-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Transactions Yet')}</Text><Text style={s.emptySub}>{t('Your transaction history will appear here')}</Text></View> ) : ( <View style={s.card}>{transactions.slice(0, 10).map((tx, idx) => ( <React.Fragment key={tx.id}><WalletTransactionItem tx={tx} />{idx < Math.min(transactions.length, 10) - 1 && ( <View style={s.txDivider} /> )}</React.Fragment> ))}</View> )}
         <View style={{ height: 120 }} />

@@ -49,13 +49,17 @@ const GUARDED_FNS = [
   'create-setup-intent',
 ];
 
+// The posture panel is FLAG-DRIVEN (nx_online_payments_enabled): both states
+// must exist in code, manual payment is always offered, the coming-soon card
+// stays inert, and the flag read must fail CLOSED (default to the OFF state).
 const REQUIRED_COPY = [
   'Manual payment',
-  'Available now',
-  'Handled manually by NEXPEC after the required approvals.',
   'Online card payment',
-  'Coming soon',
+  'nx_online_payments_enabled',                 // server flag actually consulted
+  'payment-option-online-available',            // ON-state card exists
+  'payment-option-online-coming-soon',          // OFF-state card exists
   'Secure online payments will be added in a future update.',
+  'handled by NEXPEC after the required',       // manual copy (both platforms)
 ];
 
 console.log('manual payment posture guard');

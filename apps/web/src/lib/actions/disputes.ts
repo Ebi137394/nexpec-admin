@@ -13,21 +13,7 @@ import { revalidatePath } from 'next/cache';
 import { adminResolveDisputeInput } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface ResolveDisputeActionState {
-  ok: boolean;
-  error: string | null;
-  resolved?: {
-    job_id: string;
-    from_status: string;
-    to_status: string;
-    correlation_id: string;
-  };
-}
-
-export const resolveDisputeInitialState: ResolveDisputeActionState = {
-  ok: false,
-  error: null,
-};
+import type { ResolveDisputeActionState } from './actionStates';
 
 export async function resolveDispute(
   _prev: ResolveDisputeActionState,

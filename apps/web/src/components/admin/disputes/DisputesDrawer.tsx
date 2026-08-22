@@ -15,11 +15,11 @@ import {
   Gavel,
 } from 'lucide-react';
 import { formatCents, type DisputeResolution } from '@nexpec/shared-core';
+import { resolveDispute } from '@/lib/actions/disputes';
 import {
-  resolveDispute,
   resolveDisputeInitialState,
   type ResolveDisputeActionState,
-} from '@/lib/actions/disputes';
+} from '@/lib/actions/actionStates';
 import type { DisputeJob, DisputeTimelineEvent } from '@/lib/data/disputesQueue.types';
 import { cn } from '@/lib/cn';
 

@@ -51,7 +51,7 @@ export default async function PayoutsPage({ searchParams }: PageProps) {
           <span className="font-mono text-zinc-200">completed</span> status whose{' '}
           <span className="font-mono text-cyan-glow">payout_status</span> is not yet{' '}
           <span className="font-mono text-cyan-glow">paid</span>. Settling
-          captures the Stripe transfer reference verbatim into the audit trail.
+          captures the bank / transaction reference verbatim into the audit trail.
         </p>
       </header>
 
@@ -69,8 +69,8 @@ export default async function PayoutsPage({ searchParams }: PageProps) {
         />
         <Stat
           label="Settlement method"
-          value="Stripe + manual"
-          sub="Stripe Connect transfer or manual:<context>"
+          value="Manual"
+          sub="Bank transfer by NEXPEC, reference audit-captured"
         />
       </section>
 

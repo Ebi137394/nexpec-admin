@@ -12,21 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { adminMarkPayoutProcessedInput } from '@nexpec/shared-core';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export interface MarkPayoutActionState {
-  ok: boolean;
-  error: string | null;
-  paid?: {
-    job_id: string;
-    reference: string;
-    paid_at: string | null;
-    correlation_id: string;
-  };
-}
-
-export const markPayoutInitialState: MarkPayoutActionState = {
-  ok: false,
-  error: null,
-};
+import type { MarkPayoutActionState } from './actionStates';
 
 export async function markPayoutProcessed(
   _prev: MarkPayoutActionState,

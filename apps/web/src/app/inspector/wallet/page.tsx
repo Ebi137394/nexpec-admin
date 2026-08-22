@@ -213,6 +213,9 @@ export default async function InspectorWalletPage({ searchParams }: PageProps) {
         )}
       </section>
 
+      {/* Per-job earnings from the settlement ledger (my_earnings_view) */}
+      <EarningsByJob />
+
       {/* Recent activity */}
       <section>
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
@@ -300,8 +303,6 @@ function Banner({
     <div className={`flex items-start gap-3 rounded-2xl border p-4 ${classes}`}>
       <span className="mt-0.5 shrink-0">{icon}</span>
       <p className="text-sm">{children}</p>
-      <EarningsByJob />
-
     </div>
   );
 }

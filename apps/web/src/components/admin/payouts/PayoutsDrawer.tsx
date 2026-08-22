@@ -14,11 +14,11 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { formatCents, isLikelyStripeTransferId } from '@nexpec/shared-core';
+import { markPayoutProcessed } from '@/lib/actions/payouts';
 import {
-  markPayoutProcessed,
   markPayoutInitialState,
   type MarkPayoutActionState,
-} from '@/lib/actions/payouts';
+} from '@/lib/actions/actionStates';
 import type { PayoutJob } from '@/lib/data/payoutsQueue.types';
 import { cn } from '@/lib/cn';
 
@@ -249,15 +249,15 @@ function PayoutBody({
             onChange={(e) => setReference(e.target.value)}
             required
             maxLength={200}
-            placeholder="tr_3RkjzN2X5LpqrAB123, or, manual:cash-paid-on-site-2026-05-20"
+            placeholder="BACS-2026-0821-014, or, manual:cash-paid-on-site-2026-05-20"
             autoComplete="off"
             spellCheck={false}
             className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 font-mono text-sm text-white placeholder:text-zinc-700 transition-all focus:border-cyan-glow/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-cyan-glow/30"
           />
         </label>
         <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
-          Paste the Stripe Connect transfer id (<code className="font-mono text-zinc-400">tr_…</code>),
-          or label a non-Stripe settlement with the{' '}
+          Paste the bank / wire transaction reference, or label an offline
+          settlement with the{' '}
           <code className="font-mono text-zinc-400">manual:</code> prefix and a
           short context.
         </p>
@@ -276,7 +276,7 @@ function PayoutBody({
             onChange={(e) => setNotes(e.target.value)}
             maxLength={1000}
             rows={3}
-            placeholder="e.g., transfer to inspector via Stripe Connect after report approved; FX-locked at quote time"
+            placeholder="e.g., bank transfer to inspector after report approved; FX-locked at quote time"
             className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-violet/60 focus:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-violet/30"
           />
         </label>

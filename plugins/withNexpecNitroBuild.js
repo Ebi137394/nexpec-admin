@@ -40,7 +40,22 @@ const { withDangerousMod } = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
-const MARKER = 'nexpec-newarch-header-patch';
+// v2: fmt stays on C++17. Apple Clang 21 (Xcode 26.4/26.5 — the current EAS
+// `image: "latest"` and Apple's 2026 submission toolchain) enforces stricter
+// consteval rules that reject fmt 11.0.2's FMT_STRING call sites in
+// format-inl.h ("call to consteval function ... is not a constant expression"
+// — this killed EAS iOS store build 8, c59b97a1, on 2026-08-21). Upstream
+// fixed it by bumping fmt to 12.1.0 on RN >= 0.83.9 only; the RN 0.76 line
+// Expo SDK 52 uses was never patched. Under C++17 fmt's base.h derives
+// FMT_USE_CONSTEVAL 0 (FMT_CPLUSPLUS < 201709L), the consteval constructor is
+// never declared, and the pod compiles unchanged — fmt falls back to runtime
+// format-string checks, identical behaviour for every valid format string.
+// A -DFMT_USE_CONSTEVAL=0 does NOT work: fmt 11.0.2 has no #ifndef guard, so
+// the header's own detection re-defines the macro and the flag loses. Only
+// the language standard differs for fmt; libc++ + header paths still apply.
+// The marker is versioned so a non-clean local prebuild appends the v2 block
+// after a stale v1 block — Ruby runs both, v2 (textually later) wins.
+const MARKER = 'nexpec-newarch-header-patch-v2';
 
 // Ruby appended inside the existing `post_install do |installer| … end`.
 // `\${…}` keeps the literal Xcode macros out of JS template interpolation;
@@ -60,7 +75,11 @@ const RUBY_PATCH = `
     ]
     installer.pods_project.targets.each do |nx_t|
       nx_t.build_configurations.each do |nx_bc|
-        nx_bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+        # fmt must stay C++17: Apple Clang 21 (Xcode 26.4+) rejects fmt
+        # 11.0.2's consteval FMT_STRING call sites under C++20. See the
+        # "v2" note at the top of plugins/withNexpecNitroBuild.js.
+        nx_bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] =
+          nx_t.name == 'fmt' ? 'c++17' : 'c++20'
         nx_bc.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
 
         nx_hsp = nx_bc.build_settings['HEADER_SEARCH_PATHS']

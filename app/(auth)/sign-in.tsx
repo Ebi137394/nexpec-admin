@@ -531,37 +531,36 @@ export default function SignInScreen() {
                   disabled={socialBusy !== null && socialBusy !== 'linkedin_oidc'}
                 />
 
-                {/* ★ ENTERPRISE — SSO + Enterprise sign-in.
-                    NOT ADVERTISED AS ACTIVE: no SAML/OIDC provider is
-                    configured (auth.sso_providers is empty), so
-                    signInWithSSO() could only ever end in "No SSO configured".
-                    Offering a live-looking button for a capability that cannot
-                    succeed is a false claim, so both entries render as plain,
-                    non-interactive Views labelled "Coming soon" — exactly the
-                    treatment used for Online card payment. handleSsoLogin is
-                    retained, unreferenced by the UI, so re-enabling is a
-                    one-line change once a provider exists. */}
+                {/* ★ ENTERPRISE — SSO + Enterprise sign-in, RESTORED (owner
+                    order, 2026-08-21). These are working product features, not
+                    placeholders: the flow resolves the user's work domain via
+                    lookup_sso_for_email and starts supabase.auth.signInWithSSO
+                    for a registered domain. When no provider is registered for
+                    the domain it answers honestly ("not registered for SSO —
+                    use email + password or contact your administrator"), which
+                    is correct behaviour today and works end-to-end the moment
+                    an enterprise IdP is configured — no app update needed. */}
                 <View style={styles.socialContainer}>
-                  <View
-                    style={[styles.socialButton, styles.comingSoonButton]}
-                    accessibilityState={{ disabled: true }}
-                    testID="sso-coming-soon"
-                    pointerEvents="none"
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={() => handleSsoLogin('sso')}
+                    disabled={socialBusy !== null}
+                    testID="sso-sign-in"
+                    accessibilityRole="button"
+                    accessibilityLabel="Single sign-on"
                   >
-                    <Text style={[styles.socialButtonText, styles.comingSoonText]}>
-                      🔐 SSO · Coming soon
-                    </Text>
-                  </View>
-                  <View
-                    style={[styles.socialButton, styles.comingSoonButton]}
-                    accessibilityState={{ disabled: true }}
-                    testID="enterprise-sso-coming-soon"
-                    pointerEvents="none"
+                    <Text style={styles.socialButtonText}>🔐 SSO</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={() => handleSsoLogin('enterprise')}
+                    disabled={socialBusy !== null}
+                    testID="enterprise-sso-sign-in"
+                    accessibilityRole="button"
+                    accessibilityLabel="Enterprise sign-in"
                   >
-                    <Text style={[styles.socialButtonText, styles.comingSoonText]}>
-                      🏢 Enterprise · Coming soon
-                    </Text>
-                  </View>
+                    <Text style={styles.socialButtonText}>🏢 Enterprise</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}

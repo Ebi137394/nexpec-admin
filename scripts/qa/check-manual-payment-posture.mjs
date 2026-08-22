@@ -37,7 +37,7 @@ const POSTURE_SURFACES = [
   'app/(tabs)/enterprise-dashboard.tsx',
 ];
 
-// SSO must not be advertised as active while no provider is configured.
+// SSO must be offered as the live flow (graceful when a domain is unregistered).
 const SSO_SIGNIN = 'app/(auth)/sign-in.tsx';
 
 // Functions that could move money inbound. The payout/transfer family is
@@ -131,20 +131,22 @@ for (const p of POSTURE_SURFACES) {
   } else ok(`${p} states the payment posture`);
 }
 
-// ── 5. SSO is not advertised as active ─────────────────────────────────────
+// ── 5. SSO sign-in is a LIVE, honest flow (owner order, 2026-08-21) ────────
+//  The buttons wire handleSsoLogin: lookup_sso_for_email resolves the work
+//  domain; a registered domain starts supabase.auth.signInWithSSO, an
+//  unregistered one gets an honest "not registered for SSO" answer. Marking
+//  this "Coming soon" was a regression — the flow is complete product
+//  behaviour today and works end-to-end the moment an IdP is configured.
 {
   if (!existsSync(SSO_SIGNIN)) flag(`sign-in screen missing: ${SSO_SIGNIN}`);
   else {
     const src = readFileSync(SSO_SIGNIN, 'utf8');
-    const i = src.indexOf('sso-coming-soon');
-    if (i === -1) {
-      flag('mobile sign-in does not mark the SSO entry as coming soon');
-    } else {
-      const block = src.slice(Math.max(0, i - 700), i + 1200);
-      if (/onPress=\{\s*\(\)\s*=>\s*handleSsoLogin/.test(block)) {
-        flag('mobile sign-in still wires an ACTIVE SSO handler — no provider is configured');
-      } else ok('SSO entries are inert and labelled coming soon');
-    }
+    if (src.includes('sso-coming-soon') || src.includes('SSO · Coming soon')) {
+      flag('mobile sign-in demotes SSO to "coming soon" — restored feature regressed');
+    } else if (!/onPress=\{\s*\(\)\s*=>\s*handleSsoLogin\('sso'\)/.test(src)
+            || !/onPress=\{\s*\(\)\s*=>\s*handleSsoLogin\('enterprise'\)/.test(src)) {
+      flag('mobile sign-in does not wire the SSO/Enterprise buttons to handleSsoLogin');
+    } else ok('SSO + Enterprise sign-in are live and wired to the real flow');
   }
 }
 

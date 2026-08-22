@@ -801,8 +801,12 @@ export default function FinanceScreen() {
     : t('Add a payment method to fund inspections')
 }</Text><TouchableOpacity style={s.emptyBtn} onPress={() => setShowAddPaymentModal(true)} activeOpacity={0.8}><Ionicons name="add-circle-outline" size={18} color="#FFF" /><Text style={s.emptyBtnText}>{t('Add Payment Method')}</Text></TouchableOpacity></View> ) : ( <View style={s.methodsList}>{paymentMethods.map((m) => ( <PaymentMethodCard key={m.id} method={m} onSetDefault={handleSetDefault} onRemove={handleRemoveMethod} /> ))}</View> )}
         </>)}
+        {/* Buyers see settlement Payment History above — this legacy wallet
+            feed duplicates it, so it renders for providers only. */}
+        {!isPayer && (<>
         <SectionHeader icon="receipt-outline" title={t('Recent Transactions')} subtitle={`${transactions.length} ${transactions.length !== 1 ? t('transactions') : t('transaction')}`} color={COLORS.primary} rightAction={ transactions.length > 5 ? { label: t('See All'), onPress: () => router.push('/(inspector)/wallet/statement' as any), } : undefined } />
         {transactions.length === 0 ? ( <View style={s.emptyCard}><Ionicons name="receipt-outline" size={40} color={COLORS.textMuted} /><Text style={s.emptyTitle}>{t('No Transactions Yet')}</Text><Text style={s.emptySub}>{t('Your transaction history will appear here')}</Text></View> ) : ( <View style={s.card}>{transactions.slice(0, 10).map((tx, idx) => ( <React.Fragment key={tx.id}><WalletTransactionItem tx={tx} />{idx < Math.min(transactions.length, 10) - 1 && ( <View style={s.txDivider} /> )}</React.Fragment> ))}</View> )}
+        </>)}
         <View style={{ height: 120 }} />
       </Animated.ScrollView>
       <Modal visible={showAddPaymentModal} transparent animationType="slide" onRequestClose={() => setShowAddPaymentModal(false)}>

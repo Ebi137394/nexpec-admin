@@ -84,6 +84,26 @@ export function SettlementDashboard({ t }: { t: (s: string) => string }) {
         <SummaryCard icon="alert-circle-outline" color={outstanding > 0 ? C.amber : C.mut} label={t('Outstanding')} value={usd(outstanding)} />
       </View>
 
+      {/* ── overall settlement progress: one honest visualization ── */}
+      {total > 0 && (
+        <View style={s.progressCard}>
+          <View style={s.progressHead}>
+            <Text style={s.progressTitle}>{t('Settlement progress')}</Text>
+            <Text style={s.progressPct}>{Math.round((paid / total) * 100)}% {t('paid')}</Text>
+          </View>
+          <View style={s.progressTrack}>
+            {paid > 0 && <View style={[s.progressSeg, { flex: paid, backgroundColor: C.green }]} />}
+            {pending > 0 && <View style={[s.progressSeg, { flex: pending, backgroundColor: C.blue }]} />}
+            {outstanding > 0 && <View style={[s.progressSeg, { flex: outstanding, backgroundColor: 'rgba(245,158,11,0.35)' }]} />}
+          </View>
+          <View style={s.legendRow}>
+            <Legend color={C.green} label={t('Paid')} value={usd(paid)} />
+            {pending > 0 && <Legend color={C.blue} label={t('Confirming')} value={usd(pending)} />}
+            <Legend color={C.amber} label={t('Outstanding')} value={usd(outstanding)} />
+          </View>
+        </View>
+      )}
+
       {/* ── how settlement works: first-class, not an apology ── */}
       <View style={s.explainer}>
         <Ionicons name="business-outline" size={16} color={C.sub} />
@@ -101,7 +121,7 @@ export function SettlementDashboard({ t }: { t: (s: string) => string }) {
             return (
               <View key={r.job_id} style={s.jobCard}>
                 <View style={s.jobHead}>
-                  <Text style={s.jobTitle} numberOfLines={1}>{r.title}</Text>
+                  <Text style={s.jobTitle} numberOfLines={2}>{r.title}</Text>
                   <View style={[s.chip, { borderColor: meta.color }]}>
                     <Ionicons name={meta.icon} size={11} color={meta.color} />
                     <Text style={[s.chipText, { color: meta.color }]}>{t(meta.label)}</Text>
@@ -112,6 +132,13 @@ export function SettlementDashboard({ t }: { t: (s: string) => string }) {
                   <JobAmount label={t('Paid')} value={usd(Number(r.paid_cents))} color={C.green} />
                   <JobAmount label={t('Outstanding')} value={usd(Number(r.outstanding_cents))} color={Number(r.outstanding_cents) > 0 ? C.amber : C.mut} />
                 </View>
+                {Number(r.total_cents) > 0 && (
+                  <View style={s.jobTrack}>
+                    <View style={[s.progressSeg, { flex: Math.max(Number(r.paid_cents), 0.0001), backgroundColor: C.green }]} />
+                    {Number(r.pending_cents) > 0 && <View style={[s.progressSeg, { flex: Number(r.pending_cents), backgroundColor: C.blue }]} />}
+                    <View style={[s.progressSeg, { flex: Math.max(Number(r.outstanding_cents), 0.0001), backgroundColor: 'rgba(148,163,184,0.15)' }]} />
+                  </View>
+                )}
               </View>
             );
           })}
@@ -161,6 +188,16 @@ function SummaryCard({ icon, color, label, value }: {
   );
 }
 
+function Legend({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <View style={s.legendItem}>
+      <View style={[s.legendDot, { backgroundColor: color }]} />
+      <Text style={s.legendLabel}>{label}</Text>
+      <Text style={s.legendValue}>{value}</Text>
+    </View>
+  );
+}
+
 function JobAmount({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <View style={{ flex: 1 }}>
@@ -177,6 +214,18 @@ const s = StyleSheet.create({
   cardIcon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   cardValue: { color: C.text, fontSize: 17, fontWeight: '800' },
   cardLabel: { color: C.sub, fontSize: 11, marginTop: 2 },
+  progressCard: { backgroundColor: C.bg, borderColor: C.border, borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 10 },
+  progressHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  progressTitle: { color: C.text, fontSize: 13, fontWeight: '700' },
+  progressPct: { color: C.green, fontSize: 13, fontWeight: '800' },
+  progressTrack: { flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', backgroundColor: 'rgba(148,163,184,0.10)' },
+  progressSeg: { height: '100%' },
+  legendRow: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendLabel: { color: C.mut, fontSize: 11 },
+  legendValue: { color: C.sub, fontSize: 11, fontWeight: '700' },
+  jobTrack: { flexDirection: 'row', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(148,163,184,0.08)', marginTop: 10 },
   explainer: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', backgroundColor: 'rgba(148,163,184,0.06)', borderColor: C.border, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 6 },
   explainerText: { flex: 1, color: C.sub, fontSize: 12, lineHeight: 17 },
   section: { color: C.mut, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginTop: 18, marginBottom: 8 },

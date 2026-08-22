@@ -55,6 +55,25 @@ export async function SettlementSummary() {
         ))}
       </div>
 
+      {total > 0 && (
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">Settlement progress</p>
+            <p className="text-sm font-bold text-accent-green">{Math.round((paid / total) * 100)}% paid</p>
+          </div>
+          <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
+            {paid > 0 && <div style={{ flex: paid }} className="bg-accent-green" />}
+            {pending > 0 && <div style={{ flex: pending }} className="bg-sky-400" />}
+            {outstanding > 0 && <div style={{ flex: outstanding }} className="bg-accent-amber/40" />}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-400">
+            <span><span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-accent-green" />Paid {usd(paid)}</span>
+            {pending > 0 && <span><span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-sky-400" />Confirming {usd(pending)}</span>}
+            <span><span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-accent-amber" />Outstanding {usd(outstanding)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs leading-5 text-zinc-400">
         NEXPEC settles by bank transfer / invoice. Once your payment is received,
         our team confirms it here and your engagement continues automatically.
@@ -71,6 +90,13 @@ export async function SettlementSummary() {
                   <p className="mt-0.5 text-xs text-zinc-500">
                     Total {usd(Number(r.total_cents))} · Paid {usd(Number(r.paid_cents))} · Outstanding {usd(Number(r.outstanding_cents))}
                   </p>
+                </div>
+                <div className="hidden w-28 shrink-0 sm:block">
+                  <div className="flex h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div style={{ flex: Math.max(Number(r.paid_cents), 1) }} className="bg-accent-green" />
+                    {Number(r.pending_cents) > 0 && <div style={{ flex: Number(r.pending_cents) }} className="bg-sky-400" />}
+                    <div style={{ flex: Math.max(Number(r.outstanding_cents), 1) }} className="bg-white/[0.08]" />
+                  </div>
                 </div>
                 <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold ${meta.cls}`}>
                   {meta.label}

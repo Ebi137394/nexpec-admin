@@ -48,7 +48,8 @@
         "gradleCommand": ":app:bundleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_ENV": "production"
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_ML_RUNTIME": "1"
       },
       "autoIncrement": true
     },

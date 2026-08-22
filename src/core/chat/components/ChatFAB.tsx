@@ -1,7 +1,7 @@
 import React from "react";
 import { TouchableOpacity, StyleSheet, View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 
 // Possible room context types
 export type RoomContext = "job" | "certificate";
@@ -19,7 +19,11 @@ export default function ChatFAB({
   unreadCount = 0, 
   visible = true 
 }: ChatFABProps) {
-  if (!visible) return null;
+  const pathname = usePathname();
+  // The FAB is a shortcut INTO chat — on any chat surface (hub, a room, the
+  // inbox) it is redundant and covers content, so it hides itself there
+  // regardless of which screen mounted it.
+  if (!visible || pathname?.startsWith("/chat") || pathname?.startsWith("/inbox") || pathname?.startsWith("/messages")) return null;
 
   // Helper to build deterministic room IDs
   const buildRoomId = (context: RoomContext, contextId: string): string => {

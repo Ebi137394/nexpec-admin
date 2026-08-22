@@ -18,6 +18,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -84,8 +85,20 @@ export default function ChatHubScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <Text style={styles.title}>Conversations</Text>
-        <Text style={styles.sub}>Suppliers, buyers and inspection coordination</Text>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as any))}
+          hitSlop={8}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          testID="conversations-back"
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Conversations</Text>
+          <Text style={styles.sub}>Suppliers, buyers and inspection coordination</Text>
+        </View>
       </View>
 
       {loading ? (
@@ -178,7 +191,10 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.card,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
   },
+  backBtn: { padding: 2 },
+  headerText: { flex: 1 },
   title: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
   sub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   list: { padding: 14, paddingBottom: 28, flexGrow: 1 },

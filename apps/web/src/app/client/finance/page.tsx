@@ -10,6 +10,8 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import Link from 'next/link';
+import { portalLabelForRole } from '@/lib/portalLabel';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Metadata } from 'next';
 import {
   Wallet,
@@ -52,12 +54,18 @@ export default async function ClientFinancePage() {
     fetchClientFinance(),
     fetchFundingRailJobs(),
   ]);
+  const supabase = await createSupabaseServerClient();
+  const { data: auth } = await supabase.auth.getUser();
+  const { data: prof } = auth?.user
+    ? await supabase.from('profiles').select('role').eq('id', auth.user.id).single()
+    : { data: null };
+  const portalLabel = portalLabelForRole(prof?.role);
 
   return (
     <div className="space-y-10">
       <header>
         <p className="text-xs font-semibold uppercase tracking-industrial text-violet-glow/80">
-          Client Portal, Finance
+          {portalLabel}, Finance
         </p>
         <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Spend &amp; invoices

@@ -11,6 +11,7 @@
 'use client';
 
 import Link from 'next/link';
+import { portalLabelForRole } from '@/lib/portalLabel';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -107,20 +108,6 @@ const NAV: ReadonlyArray<{ title: string; items: NavItem[] }> = [
   },
 ];
 
-/**
- * Maps a profile role to the portal label shown under the logo. Anyone
- * routed into the /client portal layout (client/agency/enterprise) sees
- * their own role's branding — onboarding personality persists past signup.
- */
-function portalLabelForRole(role: string | null | undefined): string {
-  const normalised = (role ?? '').toString().trim().toLowerCase();
-  if (normalised === 'agency') return 'Agency Portal';
-  if (normalised === 'enterprise') return 'Enterprise Portal';
-  if (normalised === 'admin' || normalised === 'super_admin') {
-    return 'Operator Portal';
-  }
-  return 'Client Portal';
-}
 
 interface SidebarProps {
   role?: string | null;

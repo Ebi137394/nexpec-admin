@@ -384,9 +384,20 @@ export default function SignInScreen() {
           await Linking.openURL(data.url);
         }
       } catch (err: any) {
+        // GoTrue reports unprovisioned SSO as "SAML 2.0 is disabled" (or
+        // provider-not-found variants). Users must never read protocol
+        // jargon — to them it simply means their company isn't onboarded.
+        const raw = String(err?.message ?? '');
+        const unprovisioned =
+          /saml|sso/i.test(raw) &&
+          /disabled|not\s+(enabled|found|configured)|no\s+provider/i.test(raw);
         Alert.alert(
-          variant === 'enterprise' ? 'Enterprise sign-in failed' : 'SSO sign-in failed',
-          err?.message || 'Could not start the sign-in flow. Please try again.',
+          variant === 'enterprise'
+            ? 'Enterprise sign-in unavailable'
+            : 'SSO unavailable',
+          unprovisioned
+            ? 'Single sign-on is not active for this domain yet. Use email + password, or ask your administrator about NEXPEC enterprise onboarding.'
+            : 'Could not start the sign-in flow. Please try again.',
         );
       } finally {
         setIsLoading(false);

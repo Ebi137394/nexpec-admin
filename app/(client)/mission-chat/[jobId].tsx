@@ -20,6 +20,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+// Voice notes reuse the proven upload path + bucket from the shared
+// conversations hook, and the shared playback bubble. Nothing existing here
+// is replaced — text messaging behaves exactly as before.
+import { Audio } from 'expo-av';
+import { uploadChatAttachment, CHAT_BUCKET } from '@/src/hooks/useConversations';
+import { VoiceNoteBubble } from '@/src/shared-ui/chat/VoiceNoteBubble';
 
 const C = {
   bg: '#020420', bgElev: '#070A24', card: '#0B1138', border: 'rgba(255,255,255,0.06)',
@@ -28,6 +34,9 @@ const C = {
 };
 
 interface Msg {
+  // Present only on attachment messages; text messages leave these null.
+  attachment_url?: string | null;
+  attachment_type?: string | null;
   id: string;
   sender_id: string;
   content: string | null;
@@ -46,6 +55,10 @@ export default function MissionInternalChatScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<FlatList<Msg>>(null);
+  // ── Voice note state (mirrors app/inbox/[id].tsx) ──
+  const [recording, setRecording] = useState(false);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   // Resolve the shared internal conversation, then load its messages.
   const boot = useCallback(async () => {
@@ -65,7 +78,7 @@ export default function MissionInternalChatScreen() {
 
       const { data, error: qErr } = await supabase
         .from('messages')
-        .select('id, sender_id, content, created_at, sender:profiles!messages_sender_id_fkey(id, full_name)')
+        .select('id, sender_id, content, created_at, attachment_url, attachment_type, sender:profiles!messages_sender_id_fkey(id, full_name)')
         .eq('conversation_id', conversationId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true })
@@ -96,6 +109,62 @@ export default function MissionInternalChatScreen() {
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
+  }, [convId]);
+
+  // ── Voice: record → upload → insert, using the same helper and message
+  //    shape as the inspector/admin inbox. Text send below is untouched.
+  const startRecording = useCallback(async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) { setError('Allow mic access to record a voice message.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      recordingRef.current = rec;
+      setRecording(true);
+    } catch { setError('Microphone is unavailable.'); }
+  }, []);
+
+  const stopRecording = useCallback(async (cancel = false) => {
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setRecording(false);
+    if (!rec) return;
+    let uri: string | null = null;
+    try {
+      await rec.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      uri = rec.getURI();
+    } catch { return; }
+    if (cancel || !uri || !convId) return;
+
+    setUploadingVoice(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (!uid) throw new Error('Not signed in.');
+      const ext = (uri.split('.').pop() ?? 'm4a').toLowerCase();
+      const mime = ext === 'm4a' ? 'audio/m4a' : ext === 'caf' ? 'audio/x-caf' : 'audio/mpeg';
+      const { path, name } = await uploadChatAttachment(convId, {
+        uri, name: `voice-${Date.now()}.${ext}`, mime,
+      });
+      const { error: iErr } = await supabase.from('messages').insert({
+        conversation_id: convId,
+        sender_id: uid,
+        attachment_url: path,
+        attachment_type: mime,
+        attachment_name: name,
+        content: '',
+      });
+      if (iErr) throw iErr;
+    } catch (e: any) {
+      setError(e?.message?.includes('not authorised')
+        ? 'Viewers can read but not post here.'
+        : 'Could not send the voice message.');
+    } finally {
+      setUploadingVoice(false);
+    }
   }, [convId]);
 
   const send = useCallback(async () => {
@@ -154,7 +223,11 @@ export default function MissionInternalChatScreen() {
                       <Text style={s.sender}>{item.sender?.full_name || 'Teammate'}</Text>
                     )}
                     <View style={[s.bubble, mine ? s.bubbleMine : s.bubbleTheirs]}>
-                      <Text style={s.bubbleText}>{item.content}</Text>
+                      {item.attachment_url && (item.attachment_type ?? '').startsWith('audio/') ? (
+                        <VoiceNoteBubble bucket={CHAT_BUCKET} path={item.attachment_url} mine={mine} tint={C.primary} />
+                      ) : (
+                        <Text style={s.bubbleText}>{item.content}</Text>
+                      )}
                     </View>
                   </View>
                 );
@@ -179,13 +252,28 @@ export default function MissionInternalChatScreen() {
                 style={s.input}
                 multiline
               />
-              <Pressable
-                onPress={send}
-                disabled={!text.trim() || sending}
-                style={[s.sendBtn, (!text.trim() || sending) && { opacity: 0.4 }]}
-              >
-                <Ionicons name="send" size={16} color="#FFFFFF" />
-              </Pressable>
+              {text.trim() ? (
+                <Pressable
+                  onPress={send}
+                  disabled={sending}
+                  style={[s.sendBtn, sending && { opacity: 0.4 }]}
+                >
+                  <Ionicons name="send" size={16} color="#FFFFFF" />
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => (recording ? void stopRecording() : void startRecording())}
+                  onLongPress={() => recording && void stopRecording(true)}
+                  disabled={uploadingVoice}
+                  style={[s.sendBtn, uploadingVoice && { opacity: 0.4 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={recording ? 'Stop recording' : 'Record voice message'}
+                >
+                  {uploadingVoice
+                    ? <ActivityIndicator size="small" color="#FFFFFF" />
+                    : <Ionicons name={recording ? 'stop' : 'mic'} size={16} color="#FFFFFF" />}
+                </Pressable>
+              )}
             </View>
           </KeyboardAvoidingView>
         )}

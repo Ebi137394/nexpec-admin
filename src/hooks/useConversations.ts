@@ -50,7 +50,7 @@ export interface MessageRow {
 /** Columns selected for every message read/insert (incl. attachment fields). */
 const MSG_COLS =
   'id, conversation_id, sender_id, sender_role, content, attachment_url, attachment_type, attachment_name, created_at';
-const CHAT_BUCKET = 'chat_attachments';
+export const CHAT_BUCKET = 'chat_attachments';
 
 function toConv(r: any): ConversationRow {
   return {
@@ -102,7 +102,7 @@ function decodeBase64(b64: string): Uint8Array {
   throw new Error('No base64 decoder available');
 }
 export interface OutgoingAttachment { uri: string; name: string; mime: string }
-async function uploadChatAttachment(convId: string, file: OutgoingAttachment): Promise<{ path: string; name: string }> {
+export async function uploadChatAttachment(convId: string, file: OutgoingAttachment): Promise<{ path: string; name: string }> {
   const safeName = (file.name || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
   const path = `${convId}/${Date.now()}-${safeName}`;
   const b64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });

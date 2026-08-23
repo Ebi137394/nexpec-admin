@@ -13,12 +13,16 @@ import { supportChat } from '../src/lib/supportChat';
 import { supabase } from '../lib/supabase';
 import { useRealtimeSubscription } from '@/src/core/realtime/useRealtimeSubscription';
 import { signedUrl } from '@/src/core/storage/signedUrls';
+// Voice notes: same upload/insert path already used for images and documents,
+// plus the shared playback bubble. Nothing existing is replaced.
+import { Audio } from 'expo-av';
+import { VoiceNoteBubble } from '@/src/shared-ui/chat/VoiceNoteBubble';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck, FileText, ChevronDown, Headphones } from 'lucide-react-native';
+import { ArrowLeft, Paperclip, Send, Camera, Check, CheckCheck, FileText, ChevronDown, Headphones, Mic, Square } from 'lucide-react-native';
 
 const COLORS = {
   background: '#070716', surface: 'rgba(255, 255, 255, 0.03)', surfaceSolid: '#0D0D24', border: 'rgba(255, 255, 255, 0.1)',
@@ -43,8 +47,9 @@ function dateSectionLabel(iso: string): string {
   if (diffDays === 0) return 'Today'; if (diffDays === 1) return 'Yesterday'; if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
-function mimeForFile(name: string, kind: 'image' | 'document'): string {
+function mimeForFile(name: string, kind: 'image' | 'document' | 'voice'): string {
   const ext = name.split('.').pop()?.toLowerCase();
+  if (kind === 'voice') return ext === 'caf' ? 'audio/x-caf' : ext === 'mp3' ? 'audio/mpeg' : 'audio/m4a';
   if (kind === 'image') return ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
   if (ext === 'pdf') return 'application/pdf'; if (ext === 'doc' || ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   return 'application/octet-stream';
@@ -148,7 +153,7 @@ export default function SupportChatScreen() {
     } finally { setIsSending(false); }
   }, [text, isSending, myId]);
 
-  const uploadAndSendAttachment = useCallback(async (uri: string, kind: 'image' | 'document', fileName: string) => {
+  const uploadAndSendAttachment = useCallback(async (uri: string, kind: 'image' | 'document' | 'voice', fileName: string) => {
     if (!myId) return; hapticLight();
     const tempId = `optimistic_att_${Date.now()}_${Math.random()}`;
     const ghost: DisplayMessage = { id: tempId, user_id: myId, sender_id: myId, content: '', is_read: false, created_at: new Date().toISOString(), attachment_url: uri, attachment_type: kind, attachment_name: fileName, _optimistic: true, _localUri: uri };
@@ -165,6 +170,40 @@ export default function SupportChatScreen() {
       setOptimisticMsgs((prev) => prev.filter((m) => m.id !== tempId)); Alert.alert('Upload Failed', err.message ?? 'Could not upload the attachment.');
     } finally { setIsSending(false); }
   }, [myId]);
+
+  // ── Voice notes (mirrors the proven recorder in app/inbox/[id].tsx) ──
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Microphone needed', 'Allow mic access to record a voice message.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      recordingRef.current = rec;
+      setRecording(true);
+    } catch { Alert.alert('Could not record', 'Microphone is unavailable.'); }
+  }, []);
+
+  const stopRecording = useCallback(async (cancel = false) => {
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setRecording(false);
+    if (!rec) return;
+    let uri: string | null = null;
+    try {
+      await rec.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      uri = rec.getURI();
+    } catch { return; }
+    if (cancel || !uri) return;
+    const ext = (uri.split('.').pop() ?? 'm4a').toLowerCase();
+    await uploadAndSendAttachment(uri, 'voice', `voice-${Date.now()}.${ext}`);
+  }, [uploadAndSendAttachment]);
+
 
   const handlePickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (status !== 'granted') return;
@@ -226,6 +265,9 @@ export default function SupportChatScreen() {
                 {imageDisplayUri ? <Image source={{ uri: imageDisplayUri }} style={s.attachImage} resizeMode="cover" /> : <View style={s.attachImagePlaceholder}><ActivityIndicator size="small" color={COLORS.primary}/></View>}
               </View>
             )}
+            {item.attachment_type === 'voice' && item.attachment_url && (
+              <VoiceNoteBubble bucket="chat_attachments" path={item.attachment_url} mine={isMe} />
+            )}
             {item.attachment_type === 'document' && (
               <TouchableOpacity style={s.attachDocRow} activeOpacity={0.7} disabled={item._optimistic} onPress={() => item.attachment_url && handleOpenDocument(item.attachment_url)}>
                 <View style={[s.attachDocIconWrap, { backgroundColor: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(124,58,237,0.12)' }]}><FileText size={20} color={isMe ? '#FFFFFF' : COLORS.primary} /></View>
@@ -281,7 +323,20 @@ export default function SupportChatScreen() {
               {isSending ? <ActivityIndicator size={18} color={COLORS.primary} /> : <View style={s.sendCircle}><Send size={17} color="#FFFFFF" style={{ marginLeft: 2 }} /></View>}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity onPress={handleCamera} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Camera size={22} color={COLORS.textSecondary} /></TouchableOpacity>
+            <>
+              <TouchableOpacity
+                onPress={() => (recording ? void stopRecording() : void startRecording())}
+                onLongPress={() => recording && void stopRecording(true)}
+                disabled={isSending}
+                style={s.inputIconBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={recording ? 'Stop recording' : 'Record voice message'}
+              >
+                {recording ? <Square size={20} color="#EF4444" /> : <Mic size={22} color={COLORS.primary} />}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleCamera} style={s.inputIconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}><Camera size={22} color={COLORS.textSecondary} /></TouchableOpacity>
+            </>
           )}
         </View>
       </KeyboardAvoidingView>

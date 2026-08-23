@@ -49,7 +49,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── Shared-secret auth (constant-time-ish). The GPU box holds ONLY this. ──
   const secret = Deno.env.get('WORKER_SHARED_SECRET');
   const presented = req.headers.get('x-worker-secret') ?? '';
-  if (!secret || presented.length !== secret.length || presented !== secret) {
+  // Constant-time comparison (audit F-7, 2026-08-23): the previous
+  // short-circuit `presented !== secret` leaked a byte-wise timing signal.
+  const ctEq = (a: string, b: string): boolean => {
+    const ea = new TextEncoder().encode(a);
+    const eb = new TextEncoder().encode(b);
+    if (ea.length !== eb.length) return false;
+    let diff = 0;
+    for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ eb[i];
+    return diff === 0;
+  };
+  if (!secret || !ctEq(presented, secret)) {
     return json(401, { error: 'unauthorized_worker' });
   }
 

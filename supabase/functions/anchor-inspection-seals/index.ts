@@ -45,6 +45,30 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 Deno.serve(async (req: Request) => {
+  // ── Auth gate (audit F-6, 2026-08-23) ────────────────────────────────────
+  //  This endpoint drives privileged, service-role batch work. The Supabase
+  //  gateway's verify_jwt only proves *a* valid JWT — and the publishable anon
+  //  key is one — so without this check any internet caller could trigger the
+  //  batch (forced/premature anchoring, calendar spam, cost amplification).
+  //  Same Bearer idiom as dispatch-notification-emails / refresh-fx-rates.
+  //  No client and no cron job calls this function, so nothing legitimate breaks.
+  {
+    const authHeader = req.headers.get('authorization') ?? '';
+    const bearer = authHeader.toLowerCase().startsWith('bearer ')
+      ? authHeader.slice(7).trim()
+      : '';
+    const cronSecret = Deno.env.get('CRON_SECRET');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const authorised =
+      (!!serviceKey && bearer === serviceKey) ||
+      (!!cronSecret && bearer === cronSecret);
+    if (!authorised) {
+      return new Response(JSON.stringify({ error: 'unauthorised' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!SUPABASE_URL || !SERVICE_KEY) {

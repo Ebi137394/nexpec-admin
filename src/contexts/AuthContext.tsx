@@ -11,7 +11,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
-import { syncBiometricSession } from '@/src/services/BiometricAuth';
+import { syncBiometricSession, isBiometricLoginEnabled } from '@/src/services/BiometricAuth';
 import type { User, Session } from '@supabase/supabase-js';
 import {
   classifyProfileFetchError,
@@ -288,7 +288,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await supabase.from('push_tokens').delete().eq('user_id', u.user.id);
       }
     } catch { /* best-effort; never block sign-out */ }
-    await supabase.auth.signOut();
+    // Biometric re-login depends on the keystore refresh token surviving
+    // logout. supabase-js defaults signOut() to scope 'global', which revokes
+    // EVERY refresh token for the user — including the stored one — so the
+    // next unlock always failed with "session expired" and biometric login
+    // could never work. Sign out locally (this device's session only) when the
+    // user has opted into biometric login; keep the stronger global revocation
+    // for everyone else. Both paths clear the local session identically.
+    let biometricEnabled = false;
+    try { ({ enabled: biometricEnabled } = await isBiometricLoginEnabled()); } catch { /* default false */ }
+    await supabase.auth.signOut(biometricEnabled ? { scope: 'local' } : undefined);
   }, []);
 
   // Called by the TOTP challenge screen after a successful mfa.verify so the

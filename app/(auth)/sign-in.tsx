@@ -285,7 +285,14 @@ export default function SignInScreen() {
     }
   };
 
+  // The mount effect auto-prompts, and the button calls this too. Two
+  // concurrent authenticateAsync() calls make Android cancel the first one,
+  // surfacing as "app_cancel". One attempt at a time.
+  const biometricBusy = useRef(false);
+
   const handleBiometricLogin = useCallback(async () => {
+    if (biometricBusy.current) return;
+    biometricBusy.current = true;
     setBiometricLoading(true);
     try {
       const result = await attemptBiometricLogin();
@@ -306,6 +313,7 @@ export default function SignInScreen() {
         Alert.alert('Biometric sign-in failed', result.error);
       }
     } finally {
+      biometricBusy.current = false;
       setBiometricLoading(false);
     }
   }, []);

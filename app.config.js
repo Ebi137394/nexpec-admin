@@ -185,6 +185,13 @@ module.exports = {
         'android.permission.READ_CALENDAR',                // expo-calendar
         'android.permission.WRITE_CALENDAR',               // expo-calendar
         'android.permission.READ_MEDIA_IMAGES',            // Android 13+ scoped photos
+        // Both of the next two are REQUIRED for the photo picker on 13+/14+:
+        // expo-image-picker's permission request covers the whole media group,
+        // and Android auto-denies (no dialog) if any member is undeclared —
+        // shipping without them made every "attach image" attempt fail with
+        // "Permission needed" on the v16 internal build.
+        'android.permission.READ_MEDIA_VIDEO',             // media group peer
+        'android.permission.READ_MEDIA_VISUAL_USER_SELECTED', // 14+ partial access
         'android.permission.POST_NOTIFICATIONS',           // Android 13+ push
         'android.permission.RECEIVE_BOOT_COMPLETED',       // re-arm scheduled tasks
         'android.permission.VIBRATE',                      // haptics + notifications

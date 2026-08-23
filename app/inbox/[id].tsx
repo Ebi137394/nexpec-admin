@@ -72,7 +72,9 @@ export default function ThreadScreen() {
   const pickImage = useCallback(async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access to attach images.'); return; }
+      // Android 14+/iOS "Select photos" reports granted:false with
+      // accessPrivileges:'limited' — that IS usable access, not a denial.
+      if (!perm.granted && perm.accessPrivileges !== 'limited') { Alert.alert('Permission needed', 'Allow photo access to attach images.'); return; }
       const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.85 });
       if (res.canceled || !res.assets?.length) return;
       const a = res.assets[0];

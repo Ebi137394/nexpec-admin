@@ -5,6 +5,9 @@
 import LocalAuthentication from './_localAuthSafe';
 import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,6 +33,10 @@ const STORAGE_KEYS = {
   BIOMETRIC_ENABLED: '@nexpec/biometric_enabled',
   BIOMETRIC_USER_ID: '@nexpec/biometric_user_id',
 } as const;
+
+//  The refresh token lives in the OS keystore (Keychain / Android Keystore),
+//  never in AsyncStorage. SecureStore keys must be alphanumeric + ._- only.
+const SECURE_REFRESH_KEY = 'nexpec_biometric_refresh_token';
 
 // ─── Core Service ────────────────────────────────────────────────────────────
 
@@ -201,6 +208,13 @@ export async function enableBiometricLogin(userId: string): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.BIOMETRIC_ENABLED, 'true');
     await AsyncStorage.setItem(STORAGE_KEYS.BIOMETRIC_USER_ID, userId);
+    // Capture the CURRENT refresh token so a later biometric unlock has
+    // something to restore. Without this the unlock succeeds and then has no
+    // session to hand back — the defect this fixes.
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.refresh_token) {
+      await SecureStore.setItemAsync(SECURE_REFRESH_KEY, data.session.refresh_token);
+    }
   } catch (error) {
     console.error('[BiometricAuth] Failed to save preference:', error);
   }
@@ -213,6 +227,7 @@ export async function disableBiometricLogin(): Promise<void> {
   try {
     await AsyncStorage.removeItem(STORAGE_KEYS.BIOMETRIC_ENABLED);
     await AsyncStorage.removeItem(STORAGE_KEYS.BIOMETRIC_USER_ID);
+    await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY).catch(() => {});
   } catch (error) {
     console.error('[BiometricAuth] Failed to remove preference:', error);
   }
@@ -305,4 +320,60 @@ export async function attemptBiometricLogin(): Promise<{
     shouldFallback,
     error: authResult.error,
   };
+}
+
+// ─── Session restoration (the piece the unlock was missing) ──────────────────
+
+/**
+ * Keep the stored refresh token in step with Supabase's rotation.
+ *
+ * WHY THIS IS REQUIRED: the project has refresh_token_rotation enabled, so
+ * every auto-refresh issues a new token and retires the previous one. A token
+ * captured once at enrolment would go stale within the hour and the unlock
+ * would fail. Called from the single existing onAuthStateChange handler in
+ * AuthContext, so it tracks SIGNED_IN and TOKEN_REFRESHED alike.
+ *
+ * No-op unless the user has actually enabled biometric login.
+ */
+export async function syncBiometricSession(session: Session | null): Promise<void> {
+  try {
+    const { enabled } = await isBiometricLoginEnabled();
+    if (!enabled) return;
+    if (session?.refresh_token) {
+      await SecureStore.setItemAsync(SECURE_REFRESH_KEY, session.refresh_token);
+    }
+  } catch {
+    // Never let token bookkeeping break the auth state listener.
+  }
+}
+
+/**
+ * Exchange the keystore-held refresh token for a live Supabase session.
+ * Call ONLY after authenticateWithBiometrics() has succeeded.
+ *
+ * On success the normal onAuthStateChange path fires and AuthGate routes the
+ * user exactly as it does after a password sign-in — no separate navigation
+ * path, no bypass of role or MFA checks.
+ */
+export async function restoreSessionFromBiometric(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  try {
+    const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
+    if (!token) return { ok: false, error: 'no_stored_session' };
+
+    const { data, error } = await supabase.auth.refreshSession({ refresh_token: token });
+    if (error || !data.session) {
+      // Rotated, revoked or expired (e.g. signed out on another device).
+      await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY).catch(() => {});
+      return { ok: false, error: error?.message ?? 'session_expired' };
+    }
+
+    // Rotation issued a fresh token — persist it or the next unlock fails.
+    await SecureStore.setItemAsync(SECURE_REFRESH_KEY, data.session.refresh_token);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'restore_failed' };
+  }
 }

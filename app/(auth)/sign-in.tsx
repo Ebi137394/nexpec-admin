@@ -21,7 +21,7 @@ import * as Linking from 'expo-linking';
 import { Mail, Lock, Eye, EyeOff, ChevronRight, Fingerprint, Scan } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { attemptBiometricLogin, checkBiometricCapability } from '../../src/services/BiometricAuth';
+import { attemptBiometricLogin, checkBiometricCapability, restoreSessionFromBiometric } from '../../src/services/BiometricAuth';
 import { supabase } from '@/lib/supabase';
 // ★ SOCIAL-AUTH — Apple + Google via Supabase OAuth. Logic lives in
 //   src/lib/social-auth.ts and is independent of the visual layer here.
@@ -290,8 +290,20 @@ export default function SignInScreen() {
     try {
       const result = await attemptBiometricLogin();
       if (result.success && result.userId) {
-        console.log(`[Login] Biometric login success`);
-        // Add biometric context bypass here if configured in AuthProvider
+        // The unlock only proves the fingerprint/face matched — it does NOT
+        // create a session. Exchange the keystore-held refresh token for a
+        // live one; AuthGate then routes exactly as after a password sign-in.
+        const restored = await restoreSessionFromBiometric();
+        if (!restored.ok) {
+          Alert.alert(
+            'Session expired',
+            'Your saved session is no longer valid. Please sign in with your password once to re-enable biometric login.',
+          );
+        }
+        return;
+      }
+      if (!result.success && !result.shouldFallback && result.error) {
+        Alert.alert('Biometric sign-in failed', result.error);
       }
     } finally {
       setBiometricLoading(false);

@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import { syncBiometricSession } from '@/src/services/BiometricAuth';
 import type { User, Session } from '@supabase/supabase-js';
 import {
   classifyProfileFetchError,
@@ -224,6 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        // Keep the biometric refresh token in step with rotation. No-op unless
+        // the user enabled biometric login; never throws. Fire-and-forget so
+        // it cannot delay or break auth state propagation.
+        void syncBiometricSession(session);
         if (session?.user) {
           const [org, mfaRequired] = await Promise.all([
             fetchOrganization(session.user.id),

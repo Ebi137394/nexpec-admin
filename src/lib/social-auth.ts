@@ -92,8 +92,20 @@ async function oauthFlow(
       // dismiss — treat them like a cancel; surface everything else verbatim.
       const errCode = returnUrl.searchParams.get('error');
       const errDesc = returnUrl.searchParams.get('error_description');
-      if (errCode === 'access_denied' || errCode === 'user_cancelled_authorize') {
+      if (errCode === 'user_cancelled_authorize') {
         return { ok: false, needs_role: false, error: 'cancelled' };
+      }
+      // `access_denied` is ambiguous: it covers BOTH "user tapped Cancel on the
+      // consent screen" AND "the provider refused the app" (OAuth consent
+      // screen still in Testing mode, caller not on the test-user list, or the
+      // app unverified for its scopes). Treating it as a plain cancel — as this
+      // did — made a provider-side refusal look like the browser simply closing,
+      // with no message at all: the "Google sign-in never completes" report.
+      // Google sends a description only in the refusal case, so use that to
+      // tell them apart and stay silent for a genuine cancel.
+      if (errCode === 'access_denied') {
+        if (!errDesc) return { ok: false, needs_role: false, error: 'cancelled' };
+        return { ok: false, needs_role: false, error: errDesc };
       }
       return {
         ok: false,

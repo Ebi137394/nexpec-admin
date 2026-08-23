@@ -200,8 +200,13 @@ module.exports = {
       // Apple's blocklist analogue — these are explicitly NOT requested
       // even if a transitive library wants them.
       blockedPermissions: [
-        'android.permission.READ_EXTERNAL_STORAGE',        // deprecated on 33+
-        'android.permission.WRITE_EXTERNAL_STORAGE',       // deprecated on 33+
+        // READ/WRITE_EXTERNAL_STORAGE deliberately NOT blocked: on Android
+        // 7–12 (minSdk 24) expo-image-picker requests them for the gallery,
+        // and blocking them made the OS auto-deny with no dialog — image
+        // attach was hard-broken on every pre-13 device ("Permission
+        // needed" with no system prompt, no Photos entry in app Settings).
+        // Android 13+ ignores both at runtime, so declaring them costs
+        // nothing there; the OS itself retires them.
         'android.permission.BLUETOOTH',                    // no BLE features
         'android.permission.BLUETOOTH_ADMIN',
         'android.permission.BODY_SENSORS',                 // no heart-rate use

@@ -204,44 +204,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.user, state.profileSource, refreshOrganization]);
 
   useEffect(() => {
-    // Initialize with current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const [org, mfaRequired] = await Promise.all([
-          fetchOrganization(session.user.id),
-          computeMfaRequired(),
-        ]);
-        setState({
-          user: session.user,
-          session,
-          ...org,
-          mfaRequired,
-          loading: false,
-        });
-      } else {
-        setState(prev => ({ ...prev, loading: false }));
-      }
-    });
+    let cancelled = false;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        // Keep the biometric refresh token in step with rotation. No-op unless
-        // the user enabled biometric login; never throws. Fire-and-forget so
-        // it cannot delay or break auth state propagation.
-        void syncBiometricSession(session);
-        if (session?.user) {
-          const [org, mfaRequired] = await Promise.all([
-            fetchOrganization(session.user.id),
-            computeMfaRequired(),
-          ]);
-          setState({
-            user: session.user,
-            session,
-            ...org,
-            mfaRequired,
-            loading: false,
-          });
-        } else {
+    // Hydrate auth state from a session. Runs OUTSIDE supabase-js's auth lock
+    // (see the deferral note on onAuthStateChange below). Always terminates in
+    // `loading: false` — including on failure — because AuthGate gates every
+    // redirect on `!loading`, so a throw here would strand the user on the
+    // login screen with a perfectly valid session.
+    const hydrate = async (session: Session | null) => {
+      if (!session?.user) {
+        if (!cancelled) {
           setState({
             user: null,
             session: null,
@@ -254,10 +226,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             profileSource: 'none',
           });
         }
+        return;
+      }
+      try {
+        const [org, mfaRequired] = await Promise.all([
+          fetchOrganization(session.user.id),
+          computeMfaRequired(),
+        ]);
+        if (!cancelled) {
+          setState({ user: session.user, session, ...org, mfaRequired, loading: false });
+        }
+      } catch {
+        // Profile/MFA enrichment failed (offline, transient PostgREST error).
+        // Surface the session anyway so the app is usable and the guard can
+        // route; fetchOrganization already falls back to the profile cache.
+        if (!cancelled) {
+          setState(prev => ({ ...prev, user: session.user, session, loading: false }));
+        }
+      }
+    };
+
+    // Initial session (cold start, incl. cold start straight after an OAuth
+    // deep-link callback). .catch keeps `loading` from sticking on failure.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => hydrate(session))
+      .catch(() => { if (!cancelled) setState(prev => ({ ...prev, loading: false })); });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        // Keep the biometric refresh token in step with rotation. No-op unless
+        // the user enabled biometric login; never throws. Fire-and-forget so
+        // it cannot delay or break auth state propagation.
+        void syncBiometricSession(session);
+
+        // ★ This callback MUST stay synchronous and MUST NOT await any Supabase
+        //   call. supabase-js holds its internal auth lock while callbacks run;
+        //   awaiting another Supabase call here (computeMfaRequired() calls
+        //   auth.mfa.getAuthenticatorAssuranceLevel(), and fetchOrganization()
+        //   queries profiles) can deadlock against that lock. When it did, the
+        //   await never resolved, setState never ran, `loading` stayed true and
+        //   AuthGate never redirected — the OAuth session existed but the app
+        //   sat on login until a force-close, whose getSession() path runs
+        //   outside the lock. setTimeout(0) defers hydration until after this
+        //   callback returns and the lock is released.
+        //   Guarded by scripts/qa/check-auth-hydration.mjs.
+        setTimeout(() => { void hydrate(session); }, 0);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, [fetchOrganization, computeMfaRequired]);
 
   const signOut = useCallback(async () => {

@@ -52,6 +52,7 @@
     "bundle:staging:ios": "bash scripts/qa/bundle-mobile-staging.sh ios",
     "qa:role-routing": "node scripts/qa/check-role-routing.mjs",
     "qa:payments": "node scripts/qa/check-manual-payment-posture.mjs",
+    "qa:auth-hydration": "node scripts/qa/check-auth-hydration.mjs",
     "qa:password-flows": "node scripts/qa/check-password-flows.mjs",
     "qa:pgtap": "node scripts/qa/run-pgtap.mjs",
     "db:guard": "bash scripts/qa/assert-staging-target.sh",

@@ -21,6 +21,7 @@ const NAV_GROUPS = [
       { label: 'Terms', href: '/legal/terms' },
       { label: 'Privacy', href: '/legal/privacy' },
       { label: 'Compliance notices', href: '/legal/compliance-notices' },
+      { label: 'Account Deletion', href: '/account-deletion' },
       { label: 'Responsible disclosure', href: 'mailto:security@nexpecapp.com' },
     ],
   },

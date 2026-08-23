@@ -71,10 +71,25 @@ export default function ThreadScreen() {
 
   const pickImage = useCallback(async () => {
     try {
+      // Version-correct permission flow, chosen by the native module at
+      // runtime: Android 13+ needs no permission (system Photo Picker,
+      // returns granted immediately); Android 7–12 shows the real storage
+      // permission dialog; iOS unchanged.
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      // Android 14+/iOS "Select photos" reports granted:false with
-      // accessPrivileges:'limited' — that IS usable access, not a denial.
-      if (!perm.granted && perm.accessPrivileges !== 'limited') { Alert.alert('Permission needed', 'Allow photo access to attach images.'); return; }
+      // "Select photos" (Android 14+/iOS limited) IS usable access.
+      if (!perm.granted && perm.accessPrivileges !== 'limited') {
+        if (perm.canAskAgain === false) {
+          // Android ≤12 after two denials (or iOS "Never"): the OS will not
+          // show the dialog again — the only path left is app settings.
+          Alert.alert('Permission needed', 'Photo access is turned off for NEXPEC. Enable it in Settings to attach images.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => { void Linking.openSettings(); } },
+          ]);
+        } else {
+          Alert.alert('Permission needed', 'Allow photo access to attach images.');
+        }
+        return;
+      }
       const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.85 });
       if (res.canceled || !res.assets?.length) return;
       const a = res.assets[0];

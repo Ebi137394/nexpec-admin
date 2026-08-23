@@ -11,7 +11,7 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
-import { syncBiometricSession, isBiometricLoginEnabled } from '@/src/services/BiometricAuth';
+import { syncBiometricSession, isBiometricLoginEnabled, lockSessionForBiometric } from '@/src/services/BiometricAuth';
 import type { User, Session } from '@supabase/supabase-js';
 import {
   classifyProfileFetchError,
@@ -297,7 +297,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // for everyone else. Both paths clear the local session identically.
     let biometricEnabled = false;
     try { ({ enabled: biometricEnabled } = await isBiometricLoginEnabled()); } catch { /* default false */ }
-    await supabase.auth.signOut(biometricEnabled ? { scope: 'local' } : undefined);
+    if (biometricEnabled) {
+      // Biometric users: lock instead of revoking. Calling signOut() with ANY
+      // scope kills the keystore refresh token server-side, which is what made
+      // fingerprint sign-in fail. lockSessionForBiometric() drops the persisted
+      // session without a network call, so the token stays restorable.
+      await lockSessionForBiometric();
+      // No SIGNED_OUT event fires (we never called signOut), so reset here.
+      setState({
+        user: null,
+        session: null,
+        organizationId: null,
+        role: null,
+        termsAccepted: false,
+        marketplaceActivated: true,
+        mfaRequired: false,
+        loading: false,
+        profileSource: 'none',
+      });
+    } else {
+      await supabase.auth.signOut();
+    }
   }, []);
 
   // Called by the TOTP challenge screen after a successful mfa.verify so the

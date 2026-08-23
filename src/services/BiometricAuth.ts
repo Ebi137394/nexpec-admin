@@ -335,6 +335,40 @@ export async function attemptBiometricLogin(): Promise<{
  *
  * No-op unless the user has actually enabled biometric login.
  */
+/**
+ * Biometric lock (owner-approved 2026-08-23).
+ *
+ * Signing out must NOT call the server logout endpoint when biometric login is
+ * enabled: EVERY scope — 'local' included — revokes the current session's
+ * refresh token server-side. Verified against the live API, both scopes return
+ * "Invalid Refresh Token: Refresh Token Not Found". That revocation is exactly
+ * why biometric restore kept failing with "Session expired".
+ *
+ * Instead we drop the persisted session so a cold start is signed out, while
+ * the keystore token stays valid for the next fingerprint unlock — the model
+ * banking apps use. Trade-off accepted by the owner: the session remains valid
+ * server-side until it expires, so anyone holding the unlocked device AND an
+ * enrolled fingerprint can re-enter.
+ */
+export async function lockSessionForBiometric(): Promise<void> {
+  // Persist the CURRENT token first — rotation may have moved past the one
+  // captured at enrolment.
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.refresh_token) {
+      await SecureStore.setItemAsync(SECURE_REFRESH_KEY, data.session.refresh_token);
+    }
+  } catch { /* fall through: an older stored token may still be valid */ }
+
+  // Drop supabase-js's persisted session (key is `sb-<ref>-auth-token`); no
+  // network call, so nothing is revoked.
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const sessionKeys = keys.filter((k) => /^sb-.*-auth-token$/.test(k));
+    if (sessionKeys.length) await AsyncStorage.multiRemove(sessionKeys);
+  } catch { /* best effort */ }
+}
+
 export async function syncBiometricSession(session: Session | null): Promise<void> {
   try {
     const { enabled } = await isBiometricLoginEnabled();

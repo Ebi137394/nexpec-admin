@@ -23,13 +23,15 @@ const fail = [], pass = [];
 // ── 1. signOut scope ──────────────────────────────────────────────────────
 const ctx = strip(readFileSync('src/contexts/AuthContext.tsx', 'utf8'));
 if (!/supabase\.auth\.signOut\(/.test(ctx)) fail.push('signOut() call not found in AuthContext.');
-else if (/supabase\.auth\.signOut\(\s*\)/.test(ctx))
-  fail.push("signOut() called with no scope — defaults to 'global' and revokes the biometric refresh token.");
-else pass.push('signOut() passes an explicit scope');
+else pass.push('signOut() present for non-biometric users');
 
-if (!/scope:\s*'local'/.test(ctx))
-  fail.push("no scope:'local' path — biometric users' stored token would be revoked on logout.");
-else pass.push("scope:'local' used for biometric users");
+if (!/lockSessionForBiometric\(/.test(ctx))
+  fail.push('signOut does not use lockSessionForBiometric() — every signOut scope revokes the keystore token.');
+else pass.push('biometric users are locked, not signed out server-side');
+
+if (/signOut\(\s*\{\s*scope:\s*'local'\s*\}\s*\)/.test(ctx))
+  fail.push("signOut({scope:'local'}) reintroduced — it still revokes the current session's refresh token.");
+else pass.push("no signOut scope revokes the biometric token");
 
 if (!/isBiometricLoginEnabled/.test(ctx))
   fail.push('signOut does not consult isBiometricLoginEnabled — scope choice must depend on it.');

@@ -104,11 +104,19 @@ export function SettlementDashboard({ t }: { t: (s: string) => string }) {
         </View>
       )}
 
-      {/* ── how settlement works: first-class, not an apology ── */}
+      {/* ── how settlement works: first-class, not an apology ──
+           The second line was added for Apple review (2.1(b), 2026-08-26):
+           reviewers seeing currency figures assumed in-app digital purchases.
+           It states the actual model — these are records of invoiced B2B
+           industrial inspection work, and no payment is taken in the app.
+           Display-only: no calculation, settlement logic or payment behaviour
+           is touched. True on every platform, so it is not platform-scoped. ── */}
       <View style={s.explainer}>
         <Ionicons name="business-outline" size={16} color={C.sub} />
         <Text style={s.explainerText}>
           {t('NEXPEC settles by bank transfer / invoice. Once your payment is received, our team confirms it here and your engagement continues automatically.')}
+          {'\n\n'}
+          {t('Amounts shown are for real-world industrial inspection services performed at customer sites. No payments are taken in the app.')}
         </Text>
       </View>
 

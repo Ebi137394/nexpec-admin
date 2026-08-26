@@ -9,7 +9,7 @@
 
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Modal, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Modal, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,7 +67,14 @@ export default function ToolRunnerScreen() {
           <View style={s.sheet}>
             <View style={s.handle} />
             {result?.ok === false && result?.locked ? (
-              <Block icon="lock-closed" tint="#F59E0B" title="Pro tool" body="Upgrade to unlock this calculator." onClose={reset} closeText="Close" />
+              <Block icon="lock-closed" tint="#F59E0B" title={Platform.OS === 'ios' ? 'Not available' : 'Pro tool'} body={Platform.OS === 'ios'
+                // ★ APPLE 2.1(b) (rejection, 2026-08-26) — on iOS this must carry
+                //   no upgrade, pricing or purchase language: nothing here is
+                //   purchasable in-app. The gate itself is unchanged (it is
+                //   server-side, from result.locked) and Android keeps its
+                //   existing copy so the submitted build is unaffected.
+                ? "This tool isn't available for your current access level."
+                : 'Upgrade to unlock this calculator.'} onClose={reset} closeText="Close" />
             ) : result?.ok === false ? (
               <Block icon="alert-circle" tint={T.colors.error} title="Check your inputs" body={result?.detail ?? 'Could not compute.'} onClose={reset} closeText="Back" />
             ) : result ? (

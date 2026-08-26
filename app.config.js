@@ -79,6 +79,16 @@ module.exports = {
 
     // ── iOS ────────────────────────────────────────────────────────────
     ios: {
+      // ★ APPLE 2.3.8 (rejection, 2026-08-26) — the shared assets/icon.png is a
+      //   design-grid template (pale blue chevron with visible construction
+      //   guides), which Apple correctly flagged as a placeholder. This iOS-only
+      //   key points at the finalised NEXPEC mark instead. Deliberately scoped
+      //   to ios so Android keeps resolving its icon from
+      //   android.adaptiveIcon.foregroundImage (assets/adaptive-icon.png) and
+      //   assets/icon.png stays byte-identical — Android versionCode 24 is in
+      //   Play review and must not be disturbed. ios.icon is supported on the
+      //   installed SDK 52 (@expo/config-types: icon?: string | IOSIcons).
+      icon: './assets/icon-ios.png',
       supportsTablet: true,
       bundleIdentifier: 'com.nexpec.app',
       // ★ Sign in with Apple (guideline 4.8) — emits the

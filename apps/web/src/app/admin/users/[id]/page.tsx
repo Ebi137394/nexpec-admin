@@ -32,6 +32,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchAdminUserDetail } from '@/lib/data/adminUserDetail';
 import { UserRoleBadge } from '@/components/admin/users/UserRoleBadge';
 import { UserModerationPanel } from '@/components/admin/users/UserModerationPanel';
+import { UserRoleMessagePanel } from '@/components/admin/users/UserRoleMessagePanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -223,6 +224,15 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
         verificationStatus={profile.verification_status}
         currentStatus={profile.status ?? 'active'}
         suspensionReason={profile.suspension_reason}
+        returnTo={`/admin/users/${profile.id}`}
+      />
+
+      {/* Role correction + admin→user message (Command Console additions) */}
+      <UserRoleMessagePanel
+        userId={profile.id}
+        email={profile.email}
+        fullName={profile.full_name}
+        role={profile.role}
         returnTo={`/admin/users/${profile.id}`}
       />
 

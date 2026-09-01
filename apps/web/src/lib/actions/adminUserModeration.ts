@@ -255,3 +255,105 @@ export async function adminSetMarketplaceActivation(formData: FormData): Promise
   revalidatePath(returnTo);
   redirect(withQuery(returnTo, { saved: activate ? 'account-activated' : 'account-deactivated' }));
 }
+
+/* ─── Role correction ─────────────────────────────────────────────────────
+   Calls admin_change_user_role, a SECURITY DEFINER RPC that re-verifies
+   nx_is_admin() and enforces the privilege rules server-side: elevated roles
+   (admin / super_admin) may only be granted or removed by a caller who IS a
+   super_admin, and nobody may change their own role. The list below is only
+   what the UI offers — the database is the authority, so a hand-crafted
+   request cannot widen it. */
+
+const OPERATIONAL_ROLES = [
+  'client',
+  'inspector',
+  'agency',
+  'enterprise',
+  'supplier',
+  'senior',
+] as const;
+
+const ChangeRoleSchema = z.object({
+  userId: z.string().uuid(),
+  newRole: z.enum(OPERATIONAL_ROLES),
+  reason: z.string().trim().max(1000).optional().or(z.literal('')),
+  returnTo: ReturnToSchema,
+});
+
+export async function adminChangeUserRole(formData: FormData): Promise<void> {
+  const parsed = ChangeRoleSchema.safeParse({
+    userId: formData.get('userId'),
+    newRole: formData.get('newRole'),
+    reason: formData.get('reason') ?? '',
+    returnTo: formData.get('returnTo'),
+  });
+  const fallback = safeReturnTo(formData.get('returnTo'));
+  if (!parsed.success) {
+    redirect(
+      withQuery(fallback, {
+        error: parsed.error.issues[0]?.message ?? 'Invalid role selection.',
+      }),
+    );
+  }
+  const { userId, newRole, reason, returnTo } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('admin_change_user_role', {
+    p_user_id: userId,
+    p_new_role: newRole,
+    p_reason: reason || null,
+  });
+  if (error) {
+    redirect(withQuery(returnTo, { error: `Role change failed: ${error.message}` }));
+  }
+
+  revalidatePath(returnTo);
+  revalidatePath('/admin/users');
+  redirect(withQuery(returnTo, { saved: `role-changed-to-${newRole}` }));
+}
+
+/* ─── Admin → user message ────────────────────────────────────────────────
+   Calls admin_send_user_message, which appends to helpdesk_messages — the
+   existing support thread keyed by user_id. The released mobile apps already
+   read that table and subscribe to realtime INSERTs on it, so the message
+   reaches the user without any app update. It is a support channel only and
+   opens no client↔inspector path. */
+
+const SendMessageSchema = z.object({
+  userId: z.string().uuid(),
+  message: z
+    .string()
+    .trim()
+    .min(2, { message: 'Message needs at least 2 characters.' })
+    .max(4000),
+  returnTo: ReturnToSchema,
+});
+
+export async function adminSendUserMessage(formData: FormData): Promise<void> {
+  const parsed = SendMessageSchema.safeParse({
+    userId: formData.get('userId'),
+    message: formData.get('message'),
+    returnTo: formData.get('returnTo'),
+  });
+  const fallback = safeReturnTo(formData.get('returnTo'));
+  if (!parsed.success) {
+    redirect(
+      withQuery(fallback, {
+        error: parsed.error.issues[0]?.message ?? 'Invalid message.',
+      }),
+    );
+  }
+  const { userId, message, returnTo } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('admin_send_user_message', {
+    p_user_id: userId,
+    p_content: message,
+  });
+  if (error) {
+    redirect(withQuery(returnTo, { error: `Message failed to send: ${error.message}` }));
+  }
+
+  revalidatePath(returnTo);
+  redirect(withQuery(returnTo, { saved: 'message-sent' }));
+}

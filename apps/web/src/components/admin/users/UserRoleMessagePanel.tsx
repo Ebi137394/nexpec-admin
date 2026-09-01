@@ -14,9 +14,11 @@
 //
 //  Elevated roles (admin / super_admin) are deliberately absent from the role
 //  selector: promotion is super_admin-only and is rejected by the database.
-//  Messages append to the existing helpdesk_messages support thread, which the
-//  already-released mobile apps read and subscribe to, so nothing here needs a
-//  new mobile build. It is a support channel and opens no client↔inspector path.
+//  Messages post into the recipient's canonical conversations(kind='help_support')
+//  thread through send_message(), so the same thread is visible in Admin →
+//  Messages and in the released mobile inbox, and replies return to it. Posting
+//  goes through send_message() precisely because that is where per-kind
+//  authorization lives: it refuses admins on client↔inspector rooms.
 // ════════════════════════════════════════════════════════════════════════════
 
 'use client';
@@ -181,8 +183,9 @@ export function UserRoleMessagePanel({
               />
 
               <p className="text-[11px] text-zinc-500">
-                Delivered to the user&apos;s existing Help &amp; Support thread
-                in the app, where they can reply.
+                Posts into the user&apos;s Help &amp; Support thread. It appears
+                in their app inbox and in Admin &rarr; Messages, and their reply
+                comes back to that same thread.
               </p>
 
               <button

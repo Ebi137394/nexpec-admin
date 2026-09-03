@@ -62,9 +62,13 @@ printf '  5/6  Telegram confirmed the endpoint\n'
 unset BOT_TOKEN HOOK_SECRET
 
 # ── 6. Mint a one-tap pairing link ────────────────────────────────────────
+#  NOTE: this repo's own supabase link points at STAGING, so the pairing token
+#  is written through a throwaway workdir linked explicitly to Production.
+#  Pairing against the wrong project would hand you a link that answers
+#  "Not authorised", so the row is read back and verified before it is printed.
 PAIR_TOKEN="$(python3 -c 'import secrets;print(secrets.token_urlsafe(24).replace("-","").replace("_",""))')"
-SQLF="$(mktemp)"
-cat > "$SQLF" <<SQL
+WORK="$(mktemp -d)"
+cat > "$WORK/mint.sql" <<SQL
 INSERT INTO public.telegram_bootstrap (token, profile_id, expires_at)
 SELECT '${PAIR_TOKEN}', p.id, NOW() + interval '60 minutes'
   FROM public.profiles p
@@ -72,8 +76,24 @@ SELECT '${PAIR_TOKEN}', p.id, NOW() + interval '60 minutes'
  ORDER BY CASE WHEN p.role='super_admin' THEN 0 ELSE 1 END, p.created_at
  LIMIT 1;
 SQL
-WORK="$(mktemp -d)"; ( cd "$WORK" && npx supabase init --force >/dev/null 2>&1 && npx supabase link --project-ref "$PROJECT_REF" >/dev/null 2>&1 && npx supabase db query --linked --file "$SQLF" >/dev/null 2>&1 )
-rm -f "$SQLF"; rm -rf "$WORK"
+cat > "$WORK/check.sql" <<SQL
+SELECT count(*) AS minted FROM public.telegram_bootstrap
+ WHERE token = '${PAIR_TOKEN}' AND consumed_at IS NULL AND expires_at > NOW();
+SQL
+(
+  cd "$WORK"
+  npx --yes supabase init --force >/dev/null 2>&1
+  npx supabase link --project-ref "$PROJECT_REF" >/dev/null 2>&1
+  npx supabase db query --linked --file "$WORK/mint.sql" >/dev/null 2>&1
+  npx supabase db query --linked --file "$WORK/check.sql" 2>/dev/null
+) > "$WORK/out.json"
+if ! grep -q '"minted": *1' "$WORK/out.json"; then
+  echo "  Could not create the pairing token on Production."
+  echo "  The bot token and webhook ARE set up correctly — only pairing is left."
+  echo "  Re-run this script to try again."
+  rm -rf "$WORK"; exit 1
+fi
+rm -rf "$WORK"
 printf '  6/6  one-tap pairing link minted (valid 60 minutes, single use)\n\n'
 
 printf '  ▶ Final step — open this link and press START:\n\n'

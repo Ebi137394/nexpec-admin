@@ -318,7 +318,7 @@ export async function fetchModerationJob(
     const supabase = await createSupabaseServerClient();
 
     const WIDE =
-      'id, title, location, location_city, description, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, budget_cents, budget_min_cents, budget_max_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, moderation_reviewed_at, moderation_reviewed_by, moderation_notes';
+      'id, title, location, location_city, description, status, created_at, updated_at, client_id, inspector_id, hired_inspector_id, client_price_cents, budget_cents, budget_min_cents, budget_max_cents, inspector_payout_cents, payout_amount_cents, payout_status, moderation_status, moderation_reviewed_at, moderation_reviewed_by, moderation_notes, inspection_type, job_type, domain, specialty_slugs, scope_template_id, urgency, requires_cci, scheduled_date, estimated_duration, claimed_address_text, job_country, currency, budget_type, required_certifications, identity_mode, payment_mode, applications_count, accepts_remote_inspectors, sponsorship_offered, is_senior_review, source_rfq_id, latitude, longitude';
     const MID =
       'id, title, location, location_city, description, status, created_at, updated_at, client_id, hired_inspector_id, client_price_cents, budget_cents, payout_amount_cents, moderation_status, moderation_notes';
     const NARROW =
@@ -382,7 +382,158 @@ export async function fetchModerationJob(
       ? profileMap.get(String(inspectorAny)) ?? null
       : null;
 
+    // ── Scope of work ────────────────────────────────────────────────────────
+    //  jobs stores only scope_template_id; the discipline, standards and
+    //  narrative live on inspection_scope_templates. Best-effort: a missing
+    //  template must not blank out the rest of the drawer.
+    type ScopeRow = {
+      name: string | null; category: string | null; description_md: string | null;
+      domain: string | null; requires_credential_tier: string | null;
+    };
+    let scope: ScopeRow | null = null;
+    if (j.scope_template_id) {
+      try {
+        const { data } = await supabase
+          .from('inspection_scope_templates')
+          .select('name, category, description_md, domain, requires_credential_tier')
+          .eq('id', String(j.scope_template_id))
+          .maybeSingle();
+        if (data) scope = data as unknown as ScopeRow;
+      } catch { /* leave scope null; the drawer renders "Not provided" */ }
+    }
+
+    // ── Client context ───────────────────────────────────────────────────────
+    //  So an admin can judge the submitter without leaving moderation.
+    let clientCompany: string | null = null;
+    let clientPhone: string | null = null;
+    let clientLocation: string | null = null;
+    let clientVerification: string | null = null;
+    let clientJoined: string | null = null;
+    let clientJobCount: number | null = null;
+    let clientMissing: string[] = [];
+    if (j.client_id) {
+      const cid = String(j.client_id);
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('company_name, phone, location, verification_status, created_at')
+          .eq('id', cid)
+          .maybeSingle();
+        if (data) {
+          clientCompany = (data.company_name as string | null) ?? null;
+          clientPhone = (data.phone as string | null) ?? null;
+          clientLocation = (data.location as string | null) ?? null;
+          clientVerification = (data.verification_status as string | null) ?? null;
+          clientJoined = (data.created_at as string | null) ?? null;
+        }
+      } catch { /* non-fatal */ }
+      try {
+        const { count } = await supabase
+          .from('jobs_secure_view')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_id', cid);
+        clientJobCount = count ?? null;
+      } catch { /* non-fatal */ }
+      try {
+        // Single source of truth for completeness — the same RPC the automatic
+        // nudge and the Incomplete Profiles view use, so they can never disagree.
+        const { data } = await supabase.rpc('nx_profile_missing_fields', { p_user_id: cid });
+        if (Array.isArray(data)) clientMissing = data as string[];
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Standards & required evidence ───────────────────────────────────────
+    //  jobs has NO column for codes/standards or deliverables. For compliance
+    //  work the real scope is structured one level down: itp_points carries
+    //  reference_document (the applicable code/standard) and acceptance
+    //  criteria, and inspection_evidence_requirements lists the deliverables.
+    //  Surfacing them here is the only way an admin can judge the job.
+    let standards: string[] = [];
+    let evidenceCount: number | null = null;
+    let itpCount: number | null = null;
+    if (j.scope_template_id) {
+      const tid = String(j.scope_template_id);
+      try {
+        const { data, count } = await supabase
+          .from('itp_points')
+          .select('reference_document', { count: 'exact' })
+          .eq('template_id', tid)
+          .limit(200);
+        itpCount = count ?? null;
+        standards = Array.from(
+          new Set(
+            (data ?? [])
+              .map((r) => (r as { reference_document: string | null }).reference_document)
+              .filter((v): v is string => !!v && v.trim() !== ''),
+          ),
+        );
+      } catch { /* non-fatal */ }
+      try {
+        const { count } = await supabase
+          .from('inspection_evidence_requirements')
+          .select('id', { count: 'exact', head: true })
+          .eq('template_id', tid);
+        evidenceCount = count ?? null;
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Attachments ─────────────────────────────────────────────────────────
+    //  Job-linked documents live in separate tables; count what is attached so
+    //  the admin knows whether supporting paperwork exists.
+    let documentCount = 0;
+    for (const t of ['project_documents', 'client_documents', 'compliance_documents'] as const) {
+      try {
+        const { count } = await supabase
+          .from(t)
+          .select('id', { count: 'exact', head: true })
+          .eq('job_id', String(j.id));
+        documentCount += count ?? 0;
+      } catch { /* table may not carry job_id; skip */ }
+    }
+
+    const asStrArray = (v: unknown): string[] | null =>
+      Array.isArray(v) ? (v as string[]) : null;
+
     return {
+      inspection_type: (j.inspection_type as string | null) ?? null,
+      job_type: (j.job_type as string | null) ?? null,
+      domain: (j.domain as string | null) ?? null,
+      specialty_slugs: asStrArray(j.specialty_slugs),
+      scope_template_id: (j.scope_template_id as string | null) ?? null,
+      urgency: (j.urgency as string | null) ?? null,
+      requires_cci: (j.requires_cci as boolean | null) ?? null,
+      scheduled_date: (j.scheduled_date as string | null) ?? null,
+      estimated_duration: (j.estimated_duration as string | null) ?? null,
+      claimed_address_text: (j.claimed_address_text as string | null) ?? null,
+      job_country: (j.job_country as string | null) ?? null,
+      currency: (j.currency as string | null) ?? null,
+      budget_type: (j.budget_type as string | null) ?? null,
+      required_certifications: asStrArray(j.required_certifications),
+      identity_mode: (j.identity_mode as string | null) ?? null,
+      payment_mode: (j.payment_mode as string | null) ?? null,
+      applications_count: (j.applications_count as number | null) ?? null,
+      accepts_remote_inspectors: (j.accepts_remote_inspectors as boolean | null) ?? null,
+      sponsorship_offered: (j.sponsorship_offered as boolean | null) ?? null,
+      is_senior_review: (j.is_senior_review as boolean | null) ?? null,
+      source_rfq_id: (j.source_rfq_id as string | null) ?? null,
+      latitude: (j.latitude as number | null) ?? null,
+      longitude: (j.longitude as number | null) ?? null,
+      scope_name: scope?.name ?? null,
+      scope_category: scope?.category ?? null,
+      scope_description_md: scope?.description_md ?? null,
+      scope_domain: scope?.domain ?? null,
+      scope_required_tier: scope?.requires_credential_tier ?? null,
+      scope_standards: standards,
+      scope_evidence_count: evidenceCount,
+      scope_itp_count: itpCount,
+      document_count: documentCount,
+      client_company: clientCompany,
+      client_phone: clientPhone,
+      client_location: clientLocation,
+      client_verification_status: clientVerification,
+      client_joined_at: clientJoined,
+      client_job_count: clientJobCount,
+      client_missing_fields: clientMissing,
       id: String(j.id),
       title: (j.title as string | null) ?? null,
       location: ((j.location_city as string | null) ?? (j.location as string | null)) ?? null,

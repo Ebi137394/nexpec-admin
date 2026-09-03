@@ -81,6 +81,45 @@ const DECISIONS: DecisionOption[] = [
   },
 ];
 
+
+/* ── Intake rendering helpers (Apple-style "Not provided" honesty) ─────────
+   A blank cell reads like a real value. Every intake field renders through
+   Field(), which prints an explicit muted "Not provided" when the client did
+   not supply it, so an admin can tell a missing answer from an empty one. */
+
+const FIELD_LABELS: Record<string, string> = {
+  full_name: 'full name',
+  company_name: 'company',
+  phone: 'phone',
+  location: 'location',
+};
+
+function fmtDate(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  const provided = value !== null && value !== undefined && String(value).trim() !== '';
+  return (
+    <div>
+      <dt className="text-zinc-500">{label}</dt>
+      <dd
+        className={
+          provided
+            ? 'mt-0.5 break-words font-medium text-zinc-200'
+            : 'mt-0.5 italic text-zinc-600'
+        }
+      >
+        {provided ? String(value) : 'Not provided'}
+      </dd>
+    </div>
+  );
+}
+
 export function JobModerationDrawer({ job, timeline }: JobModerationDrawerProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -262,14 +301,42 @@ function Body({
         />
       )}
 
+      {/* ── Client profile completeness warning ──────────────────────────
+           Advisory only: the submission is never blocked, and nothing here
+           marks anyone verified. It just tells the admin what the client has
+           not supplied yet, using the same nx_profile_missing_fields() the
+           automatic nudge uses so the two can never disagree. */}
+      {job.client_missing_fields.length > 0 && (
+        <section className="rounded-xl border border-accent-amber/30 bg-accent-amber/[0.07] p-4">
+          <p className="text-xs font-semibold text-accent-amber">
+            Client profile incomplete
+          </p>
+          <p className="mt-1 text-[11px] text-accent-amber/90">
+            Missing:{' '}
+            <span className="font-medium">
+              {job.client_missing_fields
+                .map((f) => FIELD_LABELS[f] ?? f.replace(/_/g, ' '))
+                .join(', ')}
+            </span>
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-400">
+            The client was asked once, automatically, to complete these.
+          </p>
+        </section>
+      )}
+
       {/* Job summary */}
       <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
         <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
           Job summary
         </p>
-        {job.description && (
+        {job.description ? (
           <p className="mt-2 line-clamp-6 text-xs leading-relaxed text-zinc-300">
             {job.description}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs italic text-zinc-600">
+            No description provided
           </p>
         )}
         <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-3 text-xs">
@@ -298,6 +365,128 @@ function Body({
             </dd>
           </div>
         </dl>
+
+        {/* ── Scope of work ────────────────────────────────────────────────
+             jobs stores only scope_template_id; the discipline, standards and
+             narrative live on inspection_scope_templates. */}
+        {(job.scope_name || job.scope_description_md || job.inspection_type) && (
+          <div className="mt-3 border-t border-white/[0.06] pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+              Scope of work
+            </p>
+            {job.scope_name && (
+              <p className="mt-1 text-xs font-medium text-zinc-200">{job.scope_name}</p>
+            )}
+            {job.scope_description_md && (
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                {job.scope_description_md}
+              </p>
+            )}
+            <dl className="mt-2 grid grid-cols-2 gap-3 text-xs">
+              <Field label="Inspection type" value={job.inspection_type} />
+              <Field label="Discipline" value={job.scope_domain ?? job.domain} />
+              <Field label="Category" value={job.scope_category} />
+              <Field label="Job type" value={job.job_type} />
+              <Field
+                label="Credential required"
+                value={job.scope_required_tier ?? (job.requires_cci ? 'CCI required' : null)}
+              />
+              <Field
+                label="Specialties"
+                value={job.specialty_slugs?.length ? job.specialty_slugs.join(', ') : null}
+              />
+              <Field
+                label="Certifications"
+                value={
+                  job.required_certifications?.length
+                    ? job.required_certifications.join(', ')
+                    : null
+                }
+              />
+              <Field
+                label="Codes & standards"
+                value={job.scope_standards.length ? job.scope_standards.join(', ') : null}
+              />
+              <Field
+                label="Inspection points"
+                value={job.scope_itp_count ? `${job.scope_itp_count} ITP points` : null}
+              />
+              <Field
+                label="Required evidence"
+                value={job.scope_evidence_count ? `${job.scope_evidence_count} items` : null}
+              />
+              <Field
+                label="Attachments"
+                value={job.document_count > 0 ? `${job.document_count} document(s)` : null}
+              />
+            </dl>
+          </div>
+        )}
+
+        {/* ── Location & schedule ─────────────────────────────────────────── */}
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Location &amp; schedule
+          </p>
+          <dl className="mt-2 grid grid-cols-2 gap-3 text-xs">
+            <Field label="Location" value={job.location} />
+            <Field label="Site address" value={job.claimed_address_text} />
+            <Field label="Country" value={job.job_country} />
+            <Field label="Requested date" value={fmtDate(job.scheduled_date)} />
+            <Field label="Duration" value={job.estimated_duration} />
+            <Field label="Urgency" value={job.urgency} />
+            <Field
+              label="Remote inspectors"
+              value={job.accepts_remote_inspectors === null ? null : job.accepts_remote_inspectors ? 'Accepted' : 'Not accepted'}
+            />
+            <Field label="Applications" value={job.applications_count?.toString() ?? null} />
+          </dl>
+        </div>
+
+        {/* ── Commercial & governance ─────────────────────────────────────── */}
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+            Commercial &amp; governance
+          </p>
+          <dl className="mt-2 grid grid-cols-2 gap-3 text-xs">
+            <Field label="Currency" value={job.currency} />
+            <Field label="Budget type" value={job.budget_type} />
+            <Field label="Payment mode" value={job.payment_mode} />
+            <Field label="Identity mode" value={job.identity_mode} />
+            <Field label="Senior review" value={job.is_senior_review ? 'Yes' : null} />
+            <Field label="Sponsorship" value={job.sponsorship_offered ? 'Offered' : null} />
+            <Field label="Source RFQ" value={job.source_rfq_id} />
+            <Field label="Created" value={fmtDate(job.created_at)} />
+            <Field label="Last updated" value={fmtDate(job.updated_at)} />
+          </dl>
+        </div>
+
+        {/* ── Client context ──────────────────────────────────────────────── */}
+        <div className="mt-3 border-t border-white/[0.06] pt-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-industrial text-zinc-500">
+              Client
+            </p>
+            {job.client_id && (
+              <a
+                href={`/admin/users/${job.client_id}`}
+                className="text-[11px] font-semibold text-violet-glow hover:underline"
+              >
+                View client profile →
+              </a>
+            )}
+          </div>
+          <dl className="mt-2 grid grid-cols-2 gap-3 text-xs">
+            <Field label="Name" value={job.client_name} />
+            <Field label="Email" value={job.client_email} />
+            <Field label="Company" value={job.client_company} />
+            <Field label="Phone" value={job.client_phone} />
+            <Field label="Location" value={job.client_location} />
+            <Field label="Verification" value={job.client_verification_status} />
+            <Field label="Joined" value={fmtDate(job.client_joined_at)} />
+            <Field label="Previous jobs" value={job.client_job_count?.toString() ?? null} />
+          </dl>
+        </div>
       </section>
 
       {/* Timeline */}

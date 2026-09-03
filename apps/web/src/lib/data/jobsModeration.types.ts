@@ -58,6 +58,59 @@ export interface ModerationJobDetail extends ModerationJob {
   moderation_notes: string | null;
   client_email: string | null;
   contractor_email: string | null;
+
+  // ── Intake detail ────────────────────────────────────────────────────────
+  //  Every field below already existed on jobs_secure_view (79 of the 81 job
+  //  columns) and was simply never selected, so moderation showed price and
+  //  little else. Nothing here required a schema change. `null` means the
+  //  client genuinely did not supply it — the UI must render "Not provided"
+  //  rather than an empty cell that reads like a real value.
+  inspection_type: string | null;
+  job_type: string | null;
+  domain: string | null;
+  specialty_slugs: string[] | null;
+  scope_template_id: string | null;
+  urgency: string | null;
+  requires_cci: boolean | null;
+  scheduled_date: string | null;
+  estimated_duration: string | null;
+  claimed_address_text: string | null;
+  job_country: string | null;
+  currency: string | null;
+  budget_type: string | null;
+  required_certifications: string[] | null;
+  identity_mode: string | null;
+  payment_mode: string | null;
+  applications_count: number | null;
+  accepts_remote_inspectors: boolean | null;
+  sponsorship_offered: boolean | null;
+  is_senior_review: boolean | null;
+  source_rfq_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+
+  // Scope of work, resolved from inspection_scope_templates via
+  // scope_template_id. This is where the standards/discipline detail lives.
+  scope_name: string | null;
+  scope_category: string | null;
+  scope_description_md: string | null;
+  scope_domain: string | null;
+  scope_required_tier: string | null;
+  // Applicable codes/standards, read from itp_points.reference_document.
+  // jobs itself has no standards column — this is the only source.
+  scope_standards: string[];
+  scope_evidence_count: number | null;
+  scope_itp_count: number | null;
+  document_count: number;
+
+  // Client context, so moderation does not require leaving the drawer.
+  client_company: string | null;
+  client_phone: string | null;
+  client_location: string | null;
+  client_verification_status: string | null;
+  client_joined_at: string | null;
+  client_job_count: number | null;
+  client_missing_fields: string[];
 }
 
 export interface ModerationTimelineEvent {

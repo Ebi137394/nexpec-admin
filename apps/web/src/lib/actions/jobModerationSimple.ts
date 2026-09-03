@@ -77,6 +77,24 @@ export async function reviewJobSimple(formData: FormData): Promise<void> {
   // header note; a redirect thrown here would be caught as a fake error.
   let failure: string | null = null;
   try {
+    // ★ CLOSEOUT — "Request edits" must actually reach the client.
+    //   admin_review_job_with_pricing() writes jobs.moderation_notes and
+    //   nothing else: no notification, no message, no audit row, so the reason
+    //   was stored where only an admin could read it. For this ONE decision we
+    //   call admin_request_job_edits(), which sets the same
+    //   moderation_status='edits_requested' AND posts the reason into the
+    //   client's canonical Help & Support thread, with a duplicate guard and an
+    //   audit event. Approve and Reject deliberately keep the original path so
+    //   their behaviour is untouched.
+    if (rawDecision === 'edits_requested') {
+      const { error: editsErr } = await supabase.rpc('admin_request_job_edits', {
+        p_job_id: rawJobId,
+        p_notes: rawNotes,
+      });
+      failure = editsErr ? `Could not request edits: ${editsErr.message}` : null;
+      return;
+    }
+
     const { error } = await supabase.rpc('admin_review_job_with_pricing', {
       p_job_id: rawJobId,
       p_decision: rawDecision,

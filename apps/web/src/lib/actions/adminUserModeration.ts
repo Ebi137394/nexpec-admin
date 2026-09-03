@@ -357,3 +357,20 @@ export async function adminSendUserMessage(formData: FormData): Promise<void> {
   revalidatePath(returnTo);
   redirect(withQuery(returnTo, { saved: 'message-sent' }));
 }
+
+/* ─── Request profile completion (Incomplete Profiles view) ────────────────
+   Thin wrapper over admin_request_profile_completion, which re-verifies
+   nx_is_admin() and posts through the same canonical Help & Support thread the
+   automatic nudge uses — so an admin reminder and an automatic one land in one
+   conversation rather than two. */
+export async function requestProfileCompletion(userId: string): Promise<void> {
+  const parsed = z.string().uuid().safeParse(userId);
+  if (!parsed.success) return;
+
+  const supabase = await createSupabaseServerClient();
+  await supabase.rpc('admin_request_profile_completion', {
+    p_user_id: parsed.data,
+    p_note: null,
+  });
+  revalidatePath('/admin/users/incomplete');
+}

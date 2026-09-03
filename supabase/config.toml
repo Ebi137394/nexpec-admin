@@ -117,3 +117,10 @@ entrypoint = "./functions/generate-dispute-report/mod.ts"   # entrypoint is mod.
 [functions.tool-document]
 enabled = true
 verify_jwt = true    # a signed-in professional generates the document
+
+[functions.telegram-dispatch]
+verify_jwt = false   # invoked by pg_cron; authenticates with CRON_SECRET / service-role bearer
+
+[functions.telegram-webhook]
+verify_jwt = false   # Telegram cannot present a user JWT; authenticates with
+                     # X-Telegram-Bot-Api-Secret-Token plus the chat allowlist

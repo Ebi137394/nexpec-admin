@@ -59,6 +59,8 @@ Deno.serve(async (req: Request) => {
     }).catch(() => {});
   };
 
+  const link = (p: string) => `${appBase}${p}`;
+
   // Gate 2 — allowlist, by numeric id only.
   const { data: chat } = await db
     .from('telegram_admin_chats')
@@ -67,13 +69,32 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (!chat || !chat.is_active || Number(chat.telegram_user_id) !== Number(fromId)) {
+    // ── One-tap owner pairing ────────────────────────────────────────────
+    //  The ONLY way an unknown chat can gain access. It requires a single-use,
+    //  expiring token that arrives via a t.me deep link, so a stranger sending
+    //  a bare /start matches nothing. There is never an open enrolment window.
+    const startArg = String(msg?.text ?? '').trim().match(/^\/start\s+(\S+)$/)?.[1];
+    if (startArg) {
+      const { data: paired } = await db.rpc('tg_consume_bootstrap', {
+        p_token: startArg,
+        p_chat_id: chatId,
+        p_user_id: fromId,
+        p_username: msg?.from?.username ?? null,
+      });
+      if (paired === true) {
+        await send(
+          '<b>✅ NEXPEC Admin Control Center paired</b>\n\n' +
+          'This chat is now linked to your admin account and the pairing link is ' +
+          'spent.\n\nSend /help to see what I can do.',
+          { inline_keyboard: [[{ text: 'Open Admin', url: link('/admin') }]] });
+        return ok();
+      }
+    }
     await send('Not authorised.');   // no detail, no hint, no data
     return ok();
   }
   await db.from('telegram_admin_chats')
     .update({ last_seen_at: new Date().toISOString() }).eq('chat_id', chatId);
-
-  const link = (p: string) => `${appBase}${p}`;
 
   // ── Callback (button) handling ──────────────────────────────────────────
   if (cb) {
@@ -151,7 +172,35 @@ Deno.serve(async (req: Request) => {
     return ok();
   }
 
-  if (cmd === '/status' || cmd === '/today' || cmd === '/pending') {
+  if (cmd === '/pending') {
+    const { data: q } = await db.rpc('tg_attention_queue');
+    if (!q) { await send('Attention queue unavailable.'); return ok(); }
+    const mod = q.moderation_aging ?? [], zero = q.zero_applicants ?? [];
+    const sup = q.support_waiting ?? [], inc = q.incomplete_profiles ?? [];
+    if (!mod.length && !zero.length && !sup.length && !inc.length) {
+      await send('<b>Nothing needs your attention.</b> ✅'); return ok();
+    }
+    const part = (t: string, arr: any[], fmt: (x: any) => string) =>
+      arr.length ? `\n<b>${t}</b>\n` + arr.map(fmt).join('\n') + '\n' : '';
+    await send(
+      '<b>Needs your attention</b>\n' +
+      part('Awaiting moderation', mod, (j: any) =>
+        `• ${esc(j.title)} — <i>${Math.round(j.hours_waiting)}h</i>`) +
+      part('Open, no applicants', zero, (j: any) =>
+        `• ${esc(j.title)} — <i>${Math.round(j.days_open)}d</i>`) +
+      part('Support waiting', sup, (c: any) =>
+        `• ${esc(c.preview)} — <i>${Math.round(c.hours_waiting)}h</i>`) +
+      part('Incomplete profiles', inc, (p: any) =>
+        `• ${esc(p.name)} (${esc(p.role)}) — missing ${esc((p.missing ?? []).join(', '))}`),
+      { inline_keyboard: [
+        [{ text: 'Moderation queue', url: link('/admin/jobs') }],
+        [{ text: 'Support', url: link('/admin/messages') }],
+        [{ text: 'Incomplete profiles', url: link('/admin/users/incomplete') }],
+      ] });
+    return ok();
+  }
+
+  if (cmd === '/status' || cmd === '/today') {
     const { data: s } = await db.rpc('tg_admin_status');
     if (!s) { await send('Status unavailable.'); return ok(); }
     await send(

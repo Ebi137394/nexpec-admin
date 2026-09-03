@@ -68,3 +68,25 @@ Rules:
 - When a task warrants the ultracode session switch, say so and explain why, then keep working
   at `xhigh` unless the owner turns it on. Never claim to have switched it yourself.
 
+## Destructive operations on Production
+
+A failed backup aborts the operation. There is no "proceed anyway".
+
+When a destructive statement (DELETE / UPDATE / DROP / TRUNCATE) targets
+Production **and a backup is part of the plan**, the export must run first and
+be *verified* (file exists, non-empty, no query error, at least one row) before
+the destructive statement is issued. If verification fails, stop and report —
+never let the destructive step run because the two were separate commands.
+
+Use `scripts/ops/safe-destructive.sh`, which enforces this ordering; the
+destructive statement is unreachable unless the backup is proven. Never create
+the backup directory as part of the run — that masks the failure the rule
+exists to catch. The select and the destructive statement must share one
+predicate.
+
+Afterwards, write an append-only `audit_events` row recording the exact count,
+scope predicate, what was preserved, verification results and the backup
+status — including when a backup was NOT captured. Never reconstruct deleted
+rows to make a record look complete.
+
+Full runbook and the incident that prompted it: `docs/runbooks/PRODUCTION-DESTRUCTIVE-OPS.md`

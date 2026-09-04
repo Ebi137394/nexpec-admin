@@ -118,13 +118,20 @@ Deno.serve(async (req: Request) => {
 
     let result = 'failed';
     try {
+      // These go through tg_do_* rather than the admin_* RPCs directly. The
+      // service-role JWT has no `sub`, so auth.uid() is NULL and nx_is_admin()
+      // is FALSE for this client — calling the admin RPCs from here always
+      // failed. The wrappers derive the acting admin from THIS chat's
+      // allowlist row, so the canonical RPC still runs with a real admin actor
+      // and keeps every check it already had.
       if (row.action === 'request_profile_completion') {
-        const { error } = await db.rpc('admin_request_profile_completion',
-          { p_user_id: row.subject_id, p_note: null });
+        const { error } = await db.rpc('tg_do_request_profile_completion',
+          { p_chat_id: chatId, p_user_id: row.subject_id, p_note: null });
         result = error ? `error: ${error.message}` : 'sent';
       } else if (row.action === 'request_job_edits') {
-        const { error } = await db.rpc('admin_request_job_edits',
-          { p_job_id: row.subject_id, p_notes: String(row.payload?.notes ?? 'Please review and complete the job details.') });
+        const { error } = await db.rpc('tg_do_request_job_edits',
+          { p_chat_id: chatId, p_job_id: row.subject_id,
+            p_note: String(row.payload?.notes ?? 'Please review and complete the job details so it can be approved.') });
         result = error ? `error: ${error.message}` : 'sent';
       } else {
         result = 'unsupported action';
@@ -157,11 +164,23 @@ Deno.serve(async (req: Request) => {
   const text = String(msg?.text ?? '').trim();
   const cmd = text.split(/\s+/)[0]?.toLowerCase().replace(/@.*$/, '');
 
+  // "3h" under a day, "12d" beyond it — an owner reads elapsed time, not a float.
+  const age = (h: number) => {
+    const n = Number(h) || 0;
+    return n < 48 ? `${Math.round(n)}h` : `${Math.round(n / 24)}d`;
+  };
+  const TIER = {
+    urgent:       { icon: '🔴', name: 'Urgent' },
+    needs_action: { icon: '🟠', name: 'Needs action' },
+    follow_up:    { icon: '🔵', name: 'Follow-up' },
+  } as const;
+
   if (cmd === '/start' || cmd === '/help') {
     await send(
       '<b>NEXPEC Admin Control Center</b>\n\n' +
-      '/status — operational summary\n' +
-      '/pending — what needs attention now\n' +
+      '/pending — ranked attention queue\n' +
+      '/status — operational counts\n' +
+      '/today — last 24 hours\n' +
       '/jobs — jobs awaiting moderation\n' +
       '/users — recent registrations\n' +
       '/incomplete — profiles missing details\n' +
@@ -172,37 +191,63 @@ Deno.serve(async (req: Request) => {
     return ok();
   }
 
+  // ── /pending — one ranked queue, not four independent dumps ─────────────
   if (cmd === '/pending') {
-    const { data: q } = await db.rpc('tg_attention_queue');
-    if (!q) { await send('Attention queue unavailable.'); return ok(); }
-    const mod = q.moderation_aging ?? [], zero = q.zero_applicants ?? [];
-    const sup = q.support_waiting ?? [], inc = q.incomplete_profiles ?? [];
-    if (!mod.length && !zero.length && !sup.length && !inc.length) {
-      await send('<b>Nothing needs your attention.</b> ✅'); return ok();
-    }
-    const part = (t: string, arr: any[], fmt: (x: any) => string) =>
-      arr.length ? `\n<b>${t}</b>\n` + arr.map(fmt).join('\n') + '\n' : '';
+    const { data: q, error } = await db.rpc('tg_attention_queue');
+    if (error || !q) { await send('Attention queue unavailable.'); return ok(); }
+    const t = q.totals ?? {};
+    const sup = q.suppressed ?? {};
+
+    const section = (key: 'urgent' | 'needs_action' | 'follow_up') => {
+      const rows = q[key] ?? [];
+      if (!rows.length) return '';
+      const shown = rows.length;
+      const total = Number(t[key] ?? shown);
+      const more = total > shown ? `  <i>(+${total - shown} more)</i>` : '';
+      return `\n${TIER[key].icon} <b>${TIER[key].name} — ${total}</b>${more}\n` +
+        rows.map((r: any) => `• ${esc(String(r.label))} — <i>${age(r.age_hours)}</i>`).join('\n') + '\n';
+    };
+
+    const body = section('urgent') + section('needs_action') + section('follow_up');
+
+    // A filtered queue must never read as a clean database, so what was held
+    // back is always reported — and nothing was deleted to produce it.
+    const held = [
+      Number(sup.test_account_moderation ?? 0) && `${sup.test_account_moderation} QA-account jobs`,
+      Number(sup.stale_moderation_job_not_open ?? 0) && `${sup.stale_moderation_job_not_open} stale moderation records`,
+      Number(sup.test_account_support ?? 0) && `${sup.test_account_support} QA support threads`,
+      Number(sup.dormant_incomplete_profiles ?? 0) && `${sup.dormant_incomplete_profiles} dormant profiles`,
+    ].filter(Boolean).join(', ');
+    const footer = held
+      ? `\n<i>Not shown: ${esc(held)}. Nothing was deleted — all of it is still in Admin.</i>`
+      : '';
+
     await send(
-      '<b>Needs your attention</b>\n' +
-      part('Awaiting moderation', mod, (j: any) =>
-        `• ${esc(j.title)} — <i>${Math.round(j.hours_waiting)}h</i>`) +
-      part('Open, no applicants', zero, (j: any) =>
-        `• ${esc(j.title)} — <i>${Math.round(j.days_open)}d</i>`) +
-      part('Support waiting', sup, (c: any) =>
-        `• ${esc(c.preview)} — <i>${Math.round(c.hours_waiting)}h</i>`) +
-      part('Incomplete profiles', inc, (p: any) =>
-        `• ${esc(p.name)} (${esc(p.role)}) — missing ${esc((p.missing ?? []).join(', '))}`),
+      body
+        ? `<b>Needs your attention</b>\n${body}${footer}`
+        : `<b>Nothing needs your attention.</b> ✅${footer}`,
       { inline_keyboard: [
-        [{ text: 'Moderation queue', url: link('/admin/jobs') }],
-        [{ text: 'Support', url: link('/admin/messages') }],
-        [{ text: 'Incomplete profiles', url: link('/admin/users/incomplete') }],
+        [{ text: 'View all — moderation', url: link('/admin/jobs') }],
+        [{ text: 'View all — support', url: link('/admin/messages') }],
+        [{ text: 'View all — incomplete profiles', url: link('/admin/users/incomplete') }],
       ] });
     return ok();
   }
 
-  if (cmd === '/status' || cmd === '/today') {
-    const { data: s } = await db.rpc('tg_admin_status');
-    if (!s) { await send('Status unavailable.'); return ok(); }
+  // ── /status — counts, with the non-actionable ones shown separately ─────
+  if (cmd === '/status') {
+    const { data: s, error } = await db.rpc('tg_admin_status');
+    if (error || !s) { await send('Status unavailable.'); return ok(); }
+    const aside: string[] = [];
+    if (Number(s.jobs_moderation_stale ?? 0))
+      aside.push(`${s.jobs_moderation_stale} pending on jobs already completed or in progress`);
+    if (Number(s.jobs_moderation_test ?? 0))
+      aside.push(`${s.jobs_moderation_test} on QA accounts`);
+    if (Number(s.incomplete_profiles_all_real ?? 0) > Number(s.incomplete_profiles ?? 0))
+      aside.push(`${Number(s.incomplete_profiles_all_real) - Number(s.incomplete_profiles)} dormant incomplete profiles`);
+    if (Number(s.support_unread_test ?? 0))
+      aside.push(`${s.support_unread_test} QA support threads`);
+
     await send(
       '<b>NEXPEC — Operational Status</b>\n\n' +
       `🟠 Awaiting moderation: <b>${s.jobs_awaiting_moderation}</b>\n` +
@@ -210,10 +255,11 @@ Deno.serve(async (req: Request) => {
       `⚠️ Open 48h, no applicants: <b>${s.jobs_zero_applicants_48h}</b>\n` +
       `📥 Applications (24h): <b>${s.applications_24h}</b>\n` +
       `👤 New users (24h): <b>${s.users_24h}</b>\n` +
-      `📝 Incomplete profiles: <b>${s.incomplete_profiles}</b>\n` +
+      `📝 Incomplete, actively using: <b>${s.incomplete_profiles}</b>\n` +
       `💬 Support awaiting reply: <b>${s.support_unread}</b>\n` +
-      `📄 Reports awaiting review: <b>${s.reports_awaiting_review}</b>\n` +
-      `🔴 Critical alerts (24h): <b>${s.critical_alerts_24h}</b>`,
+      `📄 Reports awaiting QA: <b>${s.reports_awaiting_review}</b>\n` +
+      `🔴 Critical alerts (24h): <b>${s.critical_alerts_24h}</b>` +
+      (aside.length ? `\n\n<i>Excluded as not actionable: ${esc(aside.join('; '))}.</i>` : ''),
       { inline_keyboard: [
         [{ text: 'Moderation queue', url: link('/admin/jobs') }],
         [{ text: 'Incomplete profiles', url: link('/admin/users/incomplete') }],
@@ -222,65 +268,106 @@ Deno.serve(async (req: Request) => {
     return ok();
   }
 
+  // ── /today — deterministic 24h rollup, no model in the loop ─────────────
+  if (cmd === '/today') {
+    const { data: d, error } = await db.rpc('tg_today_summary', { p_hours: 24 });
+    if (error || !d) { await send('Summary unavailable.'); return ok(); }
+    const byRole = Object.entries(d.new_users_by_role ?? {})
+      .map(([r, n]) => `${esc(r)} ${n}`).join(' · ');
+    await send(
+      '<b>NEXPEC — Last 24 hours</b>\n\n' +
+      `👤 New users: <b>${d.new_users}</b>${byRole ? ` <i>(${byRole})</i>` : ''}\n` +
+      `🆕 Jobs created: <b>${d.jobs_created}</b>\n` +
+      `✅ Jobs approved: <b>${d.jobs_approved}</b>\n` +
+      `↩️ Jobs sent back: <b>${d.jobs_rejected}</b>\n` +
+      `📥 Applications: <b>${d.applications}</b>\n` +
+      `💬 Support messages: <b>${d.support_messages}</b>\n` +
+      `📄 Reports submitted: <b>${d.reports_submitted}</b>\n` +
+      `🔴 Critical alerts: <b>${d.critical_alerts}</b>\n` +
+      `📡 Delivery failures: <b>${d.delivery_failures}</b>`,
+      { inline_keyboard: [[{ text: 'Open Admin', url: link('/admin') }]] });
+    return ok();
+  }
+
+  // ── /jobs — the actionable moderation queue only ────────────────────────
   if (cmd === '/jobs') {
-    const { data: jobs } = await db
-      .from('jobs').select('id, title, created_at, moderation_status')
-      .eq('moderation_status', 'pending_review').is('deleted_at', null)
-      .order('created_at', { ascending: false }).limit(8);
-    if (!jobs?.length) { await send('No jobs awaiting moderation. ✅'); return ok(); }
+    const { data: q } = await db.rpc('tg_attention_queue');
+    const rows = [...(q?.urgent ?? []), ...(q?.needs_action ?? [])]
+      .filter((r: any) => r.kind === 'moderation');
+    const heldBack = Number(q?.suppressed?.test_account_moderation ?? 0)
+                   + Number(q?.suppressed?.stale_moderation_job_not_open ?? 0);
+    if (!rows.length) {
+      await send('No jobs awaiting moderation. ✅' +
+        (heldBack ? `\n\n<i>${heldBack} pending records are QA-account or already-closed jobs; they are untouched in Admin.</i>` : ''),
+        { inline_keyboard: [[{ text: 'Open moderation queue', url: link('/admin/jobs') }]] });
+      return ok();
+    }
     // Titles only — no client price or payout is ever put into a chat transcript.
     await send(
-      `<b>Awaiting moderation (${jobs.length})</b>\n\n` +
-      jobs.map((j: any) => `• ${esc(j.title)}`).join('\n'),
-      { inline_keyboard: jobs.slice(0, 5).map((j: any) =>
-          [{ text: esc(String(j.title)).slice(0, 40), url: link(`/admin/jobs/${j.id}`) }]) });
+      `<b>Awaiting moderation (${rows.length})</b>\n\n` +
+      rows.map((j: any) => `• ${esc(String(j.label))} — <i>${age(j.age_hours)}</i>`).join('\n'),
+      { inline_keyboard: rows.slice(0, 5).map((j: any) =>
+          [{ text: String(j.label).slice(0, 40), url: link(`/admin/jobs/${j.id}`) }]) });
     return ok();
   }
 
   if (cmd === '/users') {
-    const { data: users } = await db
-      .from('profiles').select('id, full_name, email, role, created_at')
-      .not('email', 'ilike', '%@nexpec.test')
-      .order('created_at', { ascending: false }).limit(8);
+    const { data: users, error } = await db.rpc('tg_recent_users', { p_chat_id: chatId, p_limit: 8 });
+    if (error) { await send('Registrations unavailable.'); return ok(); }
+    const rows = users ?? [];
+    if (!rows.length) { await send('No recent registrations.'); return ok(); }
     await send(
-      `<b>Recent registrations</b>\n\n` +
-      (users ?? []).map((u: any) =>
-        `• ${esc(u.full_name ?? 'Unnamed')} — <i>${esc(u.role)}</i>`).join('\n'),
-      { inline_keyboard: (users ?? []).slice(0, 5).map((u: any) =>
-          [{ text: esc(u.full_name ?? u.email ?? 'user').slice(0, 40), url: link(`/admin/users/${u.id}`) }]) });
+      '<b>Recent registrations</b>\n\n' +
+      rows.map((u: any) =>
+        `• ${esc(String(u.name))} — <i>${esc(String(u.role))}</i>, ${age(u.age_hours)}` +
+        (u.missing ? `\n  <i>missing: ${esc(String(u.missing))}</i>` : '')).join('\n'),
+      { inline_keyboard: rows.slice(0, 5).map((u: any) =>
+          [{ text: String(u.name).slice(0, 40), url: link(`/admin/users/${u.id}`) }]) });
     return ok();
   }
 
   if (cmd === '/incomplete') {
-    const { data: rows } = await db.rpc('admin_list_incomplete_profiles', { p_role: null, p_limit: 8 });
-    if (!rows?.length) { await send('No incomplete profiles. ✅'); return ok(); }
-    const lines = rows.map((r: any) =>
-      `• ${esc(r.full_name ?? 'Unnamed')} (${esc(r.role)}) — missing ${esc((r.missing_fields ?? []).join(', '))}`);
-    // Offer the safe, reversible action with an explicit confirmation step.
-    const first = rows[0];
+    const { data: rows, error } = await db.rpc('tg_incomplete_profiles', { p_chat_id: chatId, p_limit: 8 });
+    if (error) { await send('Incomplete list unavailable.'); return ok(); }
+    const list = rows ?? [];
+    if (!list.length) { await send('No incomplete profiles. ✅'); return ok(); }
+    const label = (r: any) =>
+      (r.missing_fields ?? []).map((f: string) => f
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c: string) => c.toUpperCase())
+        .replace(/^Company Name$/, 'Company')
+        .replace(/^Full Name$/, 'Name')).join(', ');
+    const lines = list.map((r: any) =>
+      `• ${esc(String(r.full_name ?? 'Unnamed'))} (${esc(String(r.role))}) — missing: ${esc(label(r))}`);
+    const first = list[0];
     const token = crypto.randomUUID().replace(/-/g, '');
     await db.from('telegram_action_tokens').insert({
       token, chat_id: chatId, action: 'request_profile_completion', subject_id: first.id, payload: {},
     });
     await send(
-      `<b>Incomplete profiles (${rows.length})</b>\n\n${lines.join('\n')}`,
+      `<b>Incomplete profiles (${list.length})</b>\n\n${lines.join('\n')}`,
       { inline_keyboard: [
         [{ text: `Request completion — ${String(first.full_name ?? 'first').slice(0, 24)}`, callback_data: `act:${token}` }],
-        [{ text: 'Open list in Admin', url: link('/admin/users/incomplete') }],
+        [{ text: 'View all in Admin', url: link('/admin/users/incomplete') }],
       ] });
     return ok();
   }
 
   if (cmd === '/support') {
-    const { data: convs } = await db
-      .from('conversations').select('id, user_id, last_message_preview, unread_for_admin')
-      .eq('kind', 'help_support').gt('unread_for_admin', 0)
-      .order('last_message_at', { ascending: false }).limit(6);
-    if (!convs?.length) { await send('No support threads awaiting reply. ✅'); return ok(); }
+    const { data: q } = await db.rpc('tg_attention_queue');
+    const rows = [...(q?.urgent ?? []), ...(q?.needs_action ?? [])]
+      .filter((r: any) => r.kind === 'support');
+    const qa = Number(q?.suppressed?.test_account_support ?? 0);
+    if (!rows.length) {
+      await send('No support threads awaiting reply. ✅' +
+        (qa ? `\n\n<i>${qa} waiting threads belong to QA accounts; they are untouched in Admin.</i>` : ''),
+        { inline_keyboard: [[{ text: 'Open support', url: link('/admin/messages') }]] });
+      return ok();
+    }
     await send(
-      `<b>Support awaiting reply (${convs.length})</b>\n\n` +
-      convs.map((c: any) => `• ${esc(String(c.last_message_preview ?? '').slice(0, 60))}`).join('\n'),
-      { inline_keyboard: convs.slice(0, 5).map((c: any) =>
+      `<b>Support awaiting reply (${rows.length})</b>\n\n` +
+      rows.map((c: any) => `• ${esc(String(c.label))} — <i>${age(c.age_hours)}</i>`).join('\n'),
+      { inline_keyboard: rows.slice(0, 5).map((c: any) =>
           [{ text: 'Open thread', url: link(`/admin/messages/${c.id}`) }]) });
     return ok();
   }
@@ -289,8 +376,9 @@ Deno.serve(async (req: Request) => {
     const { data: s } = await db.rpc('tg_admin_status');
     await send(
       '<b>Delivery health</b>\n\n' +
-      `Telegram send failures (24h): <b>${s?.telegram_delivery_failures_24h ?? '?'}</b>\n` +
-      `Critical alerts (24h): <b>${s?.critical_alerts_24h ?? '?'}</b>`);
+      `📡 Telegram send failures (24h): <b>${s?.telegram_delivery_failures_24h ?? '?'}</b>\n` +
+      `✉️ Email send failures (24h): <b>${s?.email_delivery_failures_24h ?? '?'}</b>\n` +
+      `🔴 Critical alerts (24h): <b>${s?.critical_alerts_24h ?? '?'}</b>`);
     return ok();
   }
 

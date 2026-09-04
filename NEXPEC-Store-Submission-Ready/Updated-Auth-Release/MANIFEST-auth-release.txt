@@ -1,0 +1,188 @@
+NEXPEC 1.0.0 — AUTH FIX RELEASE (additive; previous artifacts untouched)
+========================================================================
+Both artifacts built by EAS from the SAME commit 185c7a5
+("fix(auth): restore session on biometric unlock; stop masking OAuth
+refusals") on branch release/identity-replacement, 2026-08-23.
+Verified from the binaries, not from config.
+
+iOS  (build 12)
+  file      : iOS/NEXPEC-1.0.0-build12-AppStore.ipa
+  build id  : 70ffa86a-dfb2-4b78-b816-3922bcd89c51
+  sha256    : 20aa238c783ae291ead583f97199cf9fa03bea33ddea4741b261292b65a4eaf0
+  stamps    : v1.0.0 build 12 · DTXcode 2660 · DTSDKName iphoneos26.5
+              · MinimumOSVersion 15.1 · codesigned
+  Face ID   : NSFaceIDUsageDescription present
+
+Android  (versionCode 19)
+  file      : Android/NEXPEC-1.0.0-versionCode19-production.aab
+  build id  : fbbf361a-37a3-430e-9d5f-9bac1ea8752b
+  sha256    : 809b6a86994b1c78b51ce4f6792e0b44a14b04c253a8311eda8f7bb78011ad23
+  manifest  : permission set BYTE-IDENTICAL to v18 (diff empty) — this
+              release changes no Android permission
+  signing   : 2 signature entries (same as v18)
+
+CONTENT VERIFICATION (both binaries)
+  production Supabase ref only ... 1   (staging refs: 0)
+  service-role JWTs ............. 0
+  settlement view ............... present   (Finance intact)
+  AI seg-qa-gate marker ......... present   (AI intact)
+  SSO honest-copy fix ........... present
+  photo-permission hatch ........ present   (Android)
+  NEW: biometric keystore key ... present
+  NEW: restore-failure message .. present
+
+SUPERSEDES NOTHING. Previous artifacts remain in ../01-Release-Artifacts/:
+  · iOS build 11 (currently submitted to App Store) — untouched
+  · Android versionCode 18 (Internal Testing) — untouched
+  · all previous manifests and checksums — untouched
+
+────────────────────────────────────────────────────────────────────────
+ANDROID versionCode 20 — biometric + client-chat-voice test build
+  added 2026-08-23; supersedes NOTHING (v19 and iOS build 12 retained)
+
+  file      : Android/NEXPEC-1.0.0-versionCode20-production.aab
+  build id  : fa6a4d91-3568-4a71-a98c-0b472428b72c
+  commit    : c239422  (range 185c7a5..c239422)
+  sha256    : 527df44830df930c5a8c603d3b46d53b3455f50d035713f8ada5182602e9cdc6
+  size      : 266M
+
+  COMMITS INCLUDED
+    c239422  client mission-chat voice + biometric regression tests
+    5061765  biometric signOut scope + app_cancel re-entrancy guard
+    bf364f9  OAuth auth-state hydration (parent of 5061765; could not be
+             excluded without cherry-picking onto a divergent base)
+
+  VERIFIED FROM THE BINARY
+    package ID com.nexpec.app (26 refs, unchanged) · signed, 2 entries
+    permission set BYTE-IDENTICAL to v19 (diff empty)
+    nexpec deep-link scheme + USE_BIOMETRIC retained
+    fixes present : biometric keystore key, restore-failure message,
+                    voice bubble, mission-chat mic
+    retained      : settlement view, AI marker, SSO copy, photo hatch
+    security      : production ref only (staging 0), 0 service-role JWTs
+    no files deleted; no Supabase/DB/RLS/auth-provider changes in range
+
+────────────────────────────────────────────────────────────────────────
+ANDROID versionCode 21 — biometric LOCK flow + all client voice surfaces
+  added 2026-08-23; supersedes NOTHING (v19, v20, iOS build 12 all retained)
+
+  file      : Android/NEXPEC-1.0.0-versionCode21-production.aab
+  build id  : 86235dff-1ffc-40f6-97d4-dd9007df7767
+  commit    : 8b29e22  (range c239422..8b29e22)
+  sha256    : 1fa97261902ba5add906e56c5d302967d0d548ac2ac675dcf730a2a3ad3508fa
+  size      : 266M
+
+  COMMITS INCLUDED (exactly two)
+    8b29e22  biometric: lock instead of sign out (every signOut scope,
+             'local' included, revokes the keystore refresh token — proven
+             against the live API; that was the "Session expired" cause)
+    e2dc7fc  voice in Help & Support chat (helpdesk_messages surface)
+
+  VERIFIED FROM THE BINARY
+    package ID com.nexpec.app ×26 (unchanged) · signed, 2 entries
+    permission set BYTE-IDENTICAL to v20 (diff empty)
+    nexpec scheme ×27 · USE_BIOMETRIC present
+    fixes present : lockSessionForBiometric, keystore key,
+                    support-chat mic, voice bubble
+    retained      : settlement view, AI marker, SSO copy, photo hatch
+    security      : production ref only (staging 0), 0 service-role JWTs
+    zero deletions; no Supabase/DB/RLS/provider/config changes in range
+
+────────────────────────────────────────────────────────────────────────
+iOS build 13 — same release state as Android versionCode 21
+  added 2026-08-23; supersedes NOTHING. iOS build 12 (the binary currently
+  SUBMITTED to App Store review) is retained untouched alongside this file.
+
+  file      : iOS/NEXPEC-1.0.0-build13-AppStore.ipa
+  build id  : ee7fd059-d35b-4cec-9881-51a83d063281
+  commit    : 8b29e22  — identical commit to Android versionCode 21
+  sha256    : a5749d652417e7389fb9b6384bc21c03fdf5899bb013a7edae616128a049a9ec
+  size      : 143M
+
+  COMMITS SINCE BUILD 12
+    8b29e22  biometric: lock instead of sign out
+    e2dc7fc  voice in Help & Support chat
+    c239422  voice in Team Missions chat + biometric tests
+    5061765  biometric app_cancel re-entrancy guard
+    bf364f9  OAuth auth-state hydration
+
+  VERIFIED FROM THE BINARY
+    CFBundleIdentifier com.nexpec.app · v1.0.0 build 13 · MinimumOS 15.1
+    DTXcode 2660 / DTSDKName iphoneos26.5 (meets Apple's 2026 floor)
+    codesigned (6 _CodeSignature entries) · 1 embedded.mobileprovision
+    permission keys IDENTICAL to build 12 (diff empty, 14 keys)
+    capability keys IDENTICAL to build 12 (diff empty)
+    Face ID + Microphone usage strings present
+    fixes present : lockSessionForBiometric, keystore key,
+                    support-chat mic, voice bubble
+    retained      : settlement view, AI marker, SSO copy
+    security      : production ref only (staging 0), 0 service-role JWTs
+    zero deletions; no iOS/native/capability/signing config changed
+
+────────────────────────────────────────────────────────────────────────
+ANDROID versionCode 24 — resubmission build (Play rejected 21 as reused)
+  added 2026-08-23; supersedes NOTHING. v19, v20, v21 and both IPAs kept.
+
+  file      : Android/NEXPEC-1.0.0-versionCode24-production.aab
+  built     : LOCALLY (eas build --local) — EAS free-plan Android cloud
+              quota exhausted until 2026-09-01. Signing credentials were
+              fetched from the EAS server, NOT exported: the log confirms
+              "Using Keystore from configuration: Build Credentials
+              euHbHmVpHS (default)" — the same key as builds 17-21, so
+              Play upload-key verification is unaffected.
+  commit    : aa09306 (mobile code byte-identical to build 21; the only
+              commits since touch apps/web/ only, which never enters the
+              React Native bundle)
+  sha256    : 88e90dad835fd6d94c25dfea45b5713aa5fe5ba8fb0d3b54b856a3f8a912ebd0
+
+  WHY 24 AND NOT 22
+    eas.json uses appVersionSource "remote", so EAS increments a
+    server-side counter. Two cloud build attempts were rejected at the
+    quota gate AFTER incrementing it (21 -> 22 -> 23), so the next value
+    was 24. Play only requires a code higher than 21; gaps are harmless.
+
+  VERIFIED FROM THE BINARY
+    versionCode 24 · package com.nexpec.app (26 refs) · signed, 2 entries
+    permission set IDENTICAL to v21 (diff empty)
+    fixes present : lockSessionForBiometric, keystore key,
+                    voice mic, voice bubble
+    retained      : settlement view, AI marker, SSO copy
+    security      : production ref only (staging 0), 0 service-role JWTs
+    no source, config, package-name or signing changes
+
+────────────────────────────────────────────────────────────────────────
+iOS BUILD 14 — Apple 2.3.8 + 2.1(b) remediation (App Review, 2026-08-26)
+  added 2026-08-26; supersedes NOTHING. Builds 11/12/13 and all Android
+  artifacts (incl. versionCode 24, in Play review) retained untouched.
+
+  file      : iOS/NEXPEC-1.0.0-build14-AppStore.ipa
+  build id  : 3c51103c-8d2f-4d9b-88dd-18aa7b14d103
+  commit    : 3932aad
+  sha256    : 47ddb1507431d0621d1a0fc688a17015ab194367eb9f29c1bee7633fad8e5c79
+  stamps    : v1.0.0 build 14 · com.nexpec.app · DTXcode 2660 /
+              DTSDKName iphoneos26.5
+
+  2.3.8 ICON — build 13 shipped a design-grid TEMPLATE (pale blue chevron
+  with visible construction guides). Build 14 embeds the finalised NEXPEC
+  mark (purple/cyan crossed-cone X) in both variants, visually confirmed:
+    AppIcon60x60@2x.png     120x120  iPhone
+    AppIcon76x76@2x~ipad.png 152x152 iPad  (the device Apple reviewed)
+    iPad icon sha 53255627... (b13) -> 0216d60d... (b14) = CHANGED
+
+  2.1(b) LANGUAGE — iOS bundle now contains ZERO purchase language:
+    Upgrade to unlock 0 · Pro tool 0 · 2,499 0 · inspectai.com 0
+    Current Plan 0 · Contact sales 0 · Subscribe now 0 · Restore Purchase 0
+    StoreKit/IAP symbols 0
+  New copy present: "isn't available for your current access level",
+  "No payments are taken in the app", "real-world industrial inspection".
+
+  ANDROID ISOLATION (verified before and after)
+    assets/icon.png + adaptive-icon.png byte-identical (untouched)
+    app.config.js diff = ONE code line: ios.icon (iOS-only key, SDK 52)
+    tools copy Platform.OS-guarded; Metro strips the Android branch from
+      the iOS bundle, so Android copy is unaffected in its own builds
+    no Production DB write · no access_tier change · no flag/RPC change
+    submitted versionCode 24 AAB untouched
+
+  SECURITY : production Supabase ref only (staging 0), 0 service-role JWTs
+  RETAINED : settlement view, AI marker, biometric keystore, voice

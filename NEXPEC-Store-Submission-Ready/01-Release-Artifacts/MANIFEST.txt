@@ -1,0 +1,54 @@
+NEXPEC 1.0.0 — FINAL store artifacts (owner-approved UI + AI ON, HEAD 2aee2ec)
+==============================================================================
+Both artifacts were built by EAS from the SAME final commit 2aee2ec
+("fix(nav): Conversations gets a real way back; chat FAB never covers
+chat") on branch release/identity-replacement, 2026-08-22. That HEAD is
+the approved 02d5e62 product plus exactly two corrections:
+  1. EXPO_PUBLIC_ML_RUNTIME=1  — on-device AI Co-Inspector enabled (668fd81)
+  2. Conversations back-navigation + chat-FAB scoping fix       (2aee2ec)
+Verified from the binaries themselves, not from config.
+
+Android  (versionCode 18)
+  file        : Android/NEXPEC-1.0.0-versionCode18-production.aab
+  build id    : 86fe2e62 (EAS)  ·  commit 3d2f386
+  sha256      : 94587ad76d10097a13013406cd69390271dbfcd0b4c3d1d8e110a5e27434e0bf
+  verified    : manifest permission diff vs v17 is EXACTLY
+                +READ_EXTERNAL_STORAGE +WRITE_EXTERNAL_STORAGE (restores the
+                Android 7-12 gallery permission dialog that blockedPermissions
+                had stripped); all three READ_MEDIA_* retained (13+ unchanged)
+                · targetSdk 35 · signed (2 entries, same as v17) · production
+                ref only · zero service-role JWTs · settlement + AI markers
+                present · new Open-Settings denial hatch confirmed in bundle
+  supersedes  : versionCode 17 and 16 (kept at Android/superseded/)
+
+iOS  (build 11)
+  file        : iOS/NEXPEC-1.0.0-build11-AppStore.ipa
+  build id    : b4a2d1b2-b611-49e3-ad53-1058a9a894f4
+  commit      : 2aee2ec
+  sha256      : de9d57b6fdfffe2cd125dffe70e1aee6100bfa89676e53d0b4135b181321ed44
+  verified    : DTXcode 2660 / DTSDKName iphoneos26.5 — meets Apple's
+                2026 submission floor (fmt/C++17 fix holding) · codesign
+                valid · production Supabase ref only (staging 0) · zero
+                service-role JWTs · settlement view present · AI ON
+                (seg-qa-gate + universal-detector in shipped JS bundle;
+                TensorFlowLiteC + 3 bundled .tflite models present) ·
+                CFBundleVersion 11, v1.0.0, MinimumOSVersion 15.1
+
+Version numbering: iOS build 10 and Android versionCode 15 were consumed
+by the canceled ML-only pair (Android 921c3a2d canceled mid-build; the
+iOS twin was never created — its upload was interrupted). autoIncrement
+therefore produced 11/16 for the final pair. Nothing shipped as 10/15.
+
+AI behavioral proof: the identical JS code path (SegModelManager.analyze)
+was exercised on the local Release simulator build with the same flag —
+real detections on the controlled industrial set, zero false positives on
+the negative control. Evidence: 07-Owner-Review/screens/ml-proof/.
+
+History: b7 (stale toolchain), b8 (ERRORED, fmt consteval), b9/v14
+(approved UI but AI compiled off, superseded) — files removed. v13
+superseded earlier.
+
+Both artifacts represent identical application code and the same
+Production behavior: flag-off manual settlement, restored SSO/Enterprise
+sign-in, live AI Co-Inspector in the inspector capture flow, fixed
+Conversations navigation, no payment CTAs, no TEST MODE, no dead ends.

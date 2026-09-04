@@ -178,6 +178,18 @@ Deno.serve(async (req: Request) => {
     const n = Number(h) || 0;
     return n < 48 ? `${Math.round(n)}h` : `${Math.round(n / 24)}d`;
   };
+  // Production database time, rendered in the owner's zone, so the footer can
+  // never show this function's clock or a cached value.
+  const dbTime = (iso: string | undefined) => {
+    if (!iso) return 'unknown';
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto', hour: '2-digit', minute: '2-digit',
+        month: 'short', day: 'numeric', hour12: false,
+      }).format(new Date(iso));
+    } catch { return 'unknown'; }
+  };
+
   const TIER = {
     urgent:       { icon: '🔴', name: 'Urgent' },
     needs_action: { icon: '🟠', name: 'Needs action' },
@@ -268,7 +280,8 @@ Deno.serve(async (req: Request) => {
       `💬 Support awaiting reply: <b>${s.support_unread}</b>\n` +
       `📄 Reports awaiting QA: <b>${s.reports_awaiting_review}</b>\n` +
       `🔴 Critical alerts (24h): <b>${s.critical_alerts_24h}</b>` +
-      (aside.length ? `\n\n<i>Excluded as not actionable: ${esc(aside.join('; '))}.</i>` : ''),
+      (aside.length ? `\n\n<i>Excluded as not actionable: ${esc(aside.join('; '))}.</i>` : '') +
+      `\n<i>Data refreshed: ${esc(dbTime(s.generated_at))} (America/Toronto)</i>`,
       { inline_keyboard: [
         [{ text: 'Moderation queue', url: link('/admin/jobs') }],
         [{ text: 'Incomplete profiles', url: link('/admin/users/incomplete') }],
@@ -293,7 +306,14 @@ Deno.serve(async (req: Request) => {
       `💬 Support messages: <b>${d.support_messages}</b>\n` +
       `📄 Reports submitted: <b>${d.reports_submitted}</b>\n` +
       `🔴 Critical alerts: <b>${d.critical_alerts}</b>\n` +
-      `📡 Delivery failures: <b>${d.delivery_failures}</b>`,
+      `📡 Delivery failures: <b>${d.delivery_failures}</b>` +
+      (Array.isArray(d.newest_users) && d.newest_users.length
+        ? '\n\n<b>Newest users</b>\n' + d.newest_users
+            .map((u: any) => `• ${esc(String(u.name))} — ${esc(String(u.role))} — ${age(u.age_hours)} ago` +
+                             (u.incomplete ? ' <i>(incomplete)</i>' : ''))
+            .join('\n')
+        : '') +
+      `\n\n<i>Data refreshed: ${esc(dbTime(d.generated_at))} (America/Toronto)</i>`,
       { inline_keyboard: [[{ text: 'Open Admin', url: link('/admin') }]] });
     return ok();
   }

@@ -140,21 +140,30 @@ Deno.serve(async (req: Request) => {
 
     await db.from('telegram_action_tokens').update({ result }).eq('token', token);
 
-    // §7 — every Telegram-triggered state change is audited in the canonical table.
-    await db.from('audit_events').insert({
-      event_type: 'telegram.admin_action',
-      severity: 'warning',
-      actor_id: chat.profile_id,
-      actor_label: `Telegram Admin Control Center (chat ${chatId})`,
-      subject_table: row.action === 'request_job_edits' ? 'jobs' : 'profiles',
-      subject_id: row.subject_id,
-      summary: `Telegram action ${row.action} → ${result}`,
-      metadata: {
-        source: 'telegram_admin_control_center',
-        action: row.action, telegram_chat_id: chatId, telegram_user_id: fromId,
-        confirmed: true, token_single_use: true, result,
-      },
-    });
+    // A SUCCESSFUL action is audited inside tg_do_* , in the SAME transaction
+    // as the mutation, so the record cannot be lost if this function dies here.
+    // What that in-transaction row cannot capture is an attempt that FAILED —
+    // the wrapper rolled back, taking its own audit with it — so only failures
+    // are recorded from out here. Success is never double-logged.
+    if (result !== 'sent') {
+      await db.from('audit_events').insert({
+        event_type: 'telegram.admin_action_failed',
+        severity: 'warning',
+        actor_id: chat.profile_id,
+        actor_label: `Telegram Admin Control Center (chat ${chatId})`,
+        subject_table: row.action === 'request_job_edits' ? 'jobs' : 'profiles',
+        subject_id: row.subject_id,
+        summary: `Telegram action ${row.action} → ${result}`,
+        metadata: {
+          source: 'telegram_admin_control_center',
+          action: row.action,
+          telegram_chat_id: chatId,
+          telegram_user_id: fromId,
+          nexpec_admin_id: chat.profile_id,
+          confirmed: true, token_single_use: true, result,
+        },
+      });
+    }
 
     await send(result === 'sent' ? '✅ Done.' : `⚠️ ${esc(result)}`);
     return ok();

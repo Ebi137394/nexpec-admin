@@ -11,6 +11,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { assertProductionAuthOrigin } from './assertProductionOrigin';
 import { resolveOAuthOrigin } from './oauthOrigin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { z } from 'zod';
@@ -221,11 +222,13 @@ export async function signInWithOAuth(formData: FormData) {
   // D27: previews must return to THEIR OWN host, production to the canonical
   // domain. The old unconditional NEXT_PUBLIC_SITE_URL-first order sent
   // Preview OAuth users back to production. See lib/auth/oauthOrigin.ts.
-  const origin = resolveOAuthOrigin({
-    VERCEL_ENV: process.env.VERCEL_ENV,
-    VERCEL_URL: process.env.VERCEL_URL,
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-  });
+  const origin = assertProductionAuthOrigin(
+    resolveOAuthOrigin({
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      VERCEL_URL: process.env.VERCEL_URL,
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    }),
+  );
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider as 'google' | 'apple' | 'linkedin_oidc',

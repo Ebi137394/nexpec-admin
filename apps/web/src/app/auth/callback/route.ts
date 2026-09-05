@@ -79,7 +79,12 @@ export async function GET(request: NextRequest) {
   //      the wizard — pure sign-in OAuth)
   //   4. marketing root as last resort
   let dest = '/';
-  if (next && next.startsWith('/')) {
+  // `next.startsWith('/')` alone is NOT enough: `//evil.example.com` also
+  // starts with a slash, and `new URL('//evil.example.com', origin)` resolves
+  // to https://evil.example.com — a protocol-relative open redirect that
+  // would hand an attacker a freshly authenticated user. `/auth/callback` is
+  // allowlisted with /** , so the crafted `next` survives the allowlist.
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
     dest = next;
   } else if (appliedRole) {
     dest = pathForRole(appliedRole);

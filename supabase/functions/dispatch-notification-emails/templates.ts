@@ -151,21 +151,62 @@ function shell(opts: {
 </html>`;
 }
 
-const APP_STORE_URL = 'https://apps.apple.com/us/app/nexpec/id6804268926';
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.nexpec.app';
 
-// Tasteful text buttons rather than reproduced store badges: the official
-// badge artwork is not in this repo, and inventing a lookalike would breach
-// both stores' brand guidelines.
+// OFFICIAL badge artwork, unmodified.
+//   Apple : fetched from Apple's own marketing tools API (the "white" RGB
+//           badge), rasterised to PNG only because email clients do not render
+//           SVG. The artwork itself is untouched.
+//   Google: Google's own hosted badge PNG, byte-for-byte.
+// Neither is a lookalike, and neither is restyled — both stores' guidelines
+// forbid altering the artwork.
+//
+// Hosted on Supabase public storage rather than /brand on the web app, because
+// a new file under apps/web/public only becomes reachable after a web deploy,
+// and these had to be live for this email immediately.
+const APP_STORE_URL  = 'https://apps.apple.com/us/app/nexpec/id6804268926';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.nexpec.app';
+const BADGE_BASE = 'https://sxqpjxhslzzcdrdctatm.supabase.co/storage/v1/object/public/email-assets';
+
+// Sizes chosen so the two badges look OPTICALLY equal: Apple's artwork is
+// edge-to-edge at 119.66x40, while Google's carries ~12% built-in padding, so
+// it needs a slightly larger box to render the same visual height.
+// Combined width (120 + 121 + gap) stays under 280px, so the row still fits a
+// 320px viewport without a media query — many email clients drop those.
 function nexpecLinks(): string {
   return `
-    <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto 18px auto;">
+    <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto 16px auto;">
       <tr>
-        <td style="padding:0 6px;">
-          <a href="${APP_STORE_URL}" style="display:inline-block;padding:9px 16px;border:1px solid #334155;border-radius:8px;color:#CBD5E1;font-size:12px;text-decoration:none;">Download on the App Store</a>
+        <td align="center" style="padding-bottom:10px;">
+          <span style="color:#64748B;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;font-weight:600;">Get NEXPEC</span>
         </td>
-        <td style="padding:0 6px;">
-          <a href="${PLAY_STORE_URL}" style="display:inline-block;padding:9px 16px;border:1px solid #334155;border-radius:8px;color:#CBD5E1;font-size:12px;text-decoration:none;">Get it on Google Play</a>
+      </tr>
+      <tr>
+        <td align="center">
+          <table role="presentation" cellspacing="0" cellpadding="0" align="center">
+            <tr>
+              <td style="padding:0 5px;" valign="middle">
+                <a href="${APP_STORE_URL}" style="text-decoration:none;">
+                  <img src="${BADGE_BASE}/apple-badge.png" width="120" height="40"
+                       alt="Download on the App Store"
+                       style="display:block;border:0;outline:none;width:120px;height:40px;" />
+                </a>
+              </td>
+              <td style="padding:0 5px;" valign="middle">
+                <a href="${PLAY_STORE_URL}" style="text-decoration:none;">
+                  <img src="${BADGE_BASE}/google-badge.png" width="121" height="47"
+                       alt="Get it on Google Play"
+                       style="display:block;border:0;outline:none;width:121px;height:47px;" />
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="padding-top:10px;">
+          <span style="color:#475569;font-size:11px;">Also available at
+            <a href="https://www.nexpecapp.com" style="color:#64748B;text-decoration:none;">www.nexpecapp.com</a>
+          </span>
         </td>
       </tr>
     </table>`;

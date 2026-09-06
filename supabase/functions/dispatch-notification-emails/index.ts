@@ -100,7 +100,13 @@ serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   const cronSecret = Deno.env.get('CRON_SECRET');
-  const fromAddress = Deno.env.get('EMAIL_FROM') || 'NEXPEC <notifications@nexpec.com>';
+  // The old default pointed at nexpec.com — the WRONG domain. Only
+  // nexpecapp.com is verified in Resend, so that fallback could only ever be
+  // rejected. The default is now a verified sender, and replies are routed to
+  // the address the team actually receives (info@ is forwarded via ImprovMX;
+  // notifications@ is send-only).
+  const fromAddress = Deno.env.get('EMAIL_FROM') || 'NEXPEC <notifications@nexpecapp.com>';
+  const replyTo = Deno.env.get('REPLY_TO') || 'info@nexpecapp.com';
   const appBaseUrl = (Deno.env.get('APP_BASE_URL') || 'https://app.nexpec.com').replace(/\/+$/, '');
 
   if (!supabaseUrl || !serviceRoleKey) {
@@ -229,6 +235,7 @@ serve(async (req: Request): Promise<Response> => {
           },
           body: JSON.stringify({
             from: fromAddress,
+            reply_to: replyTo,
             to: [deliveryTo],
             subject: rendered.subject,
             html: rendered.html,

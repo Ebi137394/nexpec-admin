@@ -55,6 +55,8 @@ export function renderEmail(
       return renderBridgeInvitation(row, data, appBaseUrl);
     case 'coordination_bridge.document_requested':
       return renderBridgeDocumentRequested(row, data, appBaseUrl);
+    case 'user.onboarding':
+      return renderUserOnboarding(row, data, appBaseUrl);
     case 'coordination_bridge.schedule_proposed_to_vendor':
       return renderBridgeSchedulePropose(row, data, appBaseUrl);
     default:
@@ -762,4 +764,104 @@ function humanRole(role: string): string {
     case 'member':             return 'Member';
     default: return role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  user.onboarding — role-aware welcome + profile completion.
+//
+//  Every value here comes from the SAME canonical onboarding state the
+//  in-app Help & Support message uses (nx_role_missing_fields via
+//  nx_send_role_onboarding), passed through email_template_data. There is
+//  deliberately no business logic in this file: if the two ever disagree,
+//  it is a bug in the caller, not a second source of truth.
+//
+//  Transactional, not marketing: no promotional copy, no tracking pixel,
+//  no unsubscribe-to-a-list — it is an account-service message about the
+//  recipient's own incomplete account.
+// ─────────────────────────────────────────────────────────────────────
+function renderUserOnboarding(
+  row: NotificationRow,
+  data: Record<string, unknown>,
+  appBaseUrl: string,
+): RenderedEmail {
+  const name = String(data.name ?? row.recipient_name ?? row.recipient_email ?? 'there');
+  const roleLabel = String(data.role_label ?? 'NEXPEC user');
+  const roleBlurb = String(data.role_blurb ?? 'you intend to use NEXPEC for professional industrial inspection work');
+  const missingRaw = data.missing_labels;
+  const missing = Array.isArray(missingRaw)
+    ? (missingRaw as unknown[]).map(String)
+    : String(missingRaw ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+  const isInspector = /inspector/i.test(roleLabel);
+
+  // Always an absolute production URL — never a bare path, and never a
+  // localhost origin, which the 2026-09-05 OAuth incident made expensive.
+  const profileUrl = absoluteUrl(appBaseUrl, String(data.profile_path ?? '/account/profile'));
+
+  const subject = `Complete your NEXPEC ${roleLabel.toLowerCase()} profile`;
+
+  const missingHtml = missing.length
+    ? `<p style="margin:0 0 6px 0;color:#F1F5F9;font-size:14px;">Missing information:</p>
+       <ul style="margin:0 0 16px 18px;padding:0;color:#94A3B8;font-size:14px;line-height:1.8;">
+         ${missing.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}
+       </ul>`
+    : '';
+
+  const credLine = isInspector
+    ? `<p style="margin:0 0 14px 0;color:#94A3B8;font-size:14px;line-height:1.7;">
+         Relevant qualifications and certifications may be required before you can
+         access or apply for certain inspection work.
+       </p>`
+    : '';
+
+  const inner = `
+    <p style="margin:0 0 14px 0;color:#F1F5F9;font-size:16px;line-height:1.6;">
+      Hi <strong>${escapeHtml(name)}</strong>,
+    </p>
+    <p style="margin:0 0 14px 0;color:#94A3B8;font-size:14px;line-height:1.7;">
+      Welcome to NEXPEC. You registered as a <strong style="color:#F1F5F9;">${escapeHtml(roleLabel)}</strong>,
+      ${escapeHtml(roleBlurb)}.
+    </p>
+    ${missing.length
+      ? `<p style="margin:0 0 8px 0;color:#94A3B8;font-size:14px;line-height:1.7;">Your profile is not complete yet.</p>`
+      : ''}
+    ${missingHtml}
+    <p style="margin:0 0 14px 0;color:#94A3B8;font-size:14px;line-height:1.7;">
+      Please complete your NEXPEC profile so we can properly review and process your activity.
+    </p>
+    ${credLine}
+    ${ctaButton(profileUrl, 'Complete your profile')}
+    <p style="margin:18px 0 0 0;color:#64748B;font-size:13px;line-height:1.7;">
+      If <strong>${escapeHtml(roleLabel)}</strong> is not the correct account type, just reply to this
+      email and our team will correct it for you.
+    </p>`;
+
+  const html = shell({
+    preheader: missing.length
+      ? `Your NEXPEC ${roleLabel.toLowerCase()} profile is missing ${missing.join(', ')}.`
+      : `Confirm your NEXPEC ${roleLabel.toLowerCase()} account.`,
+    bannerLabel: 'Welcome to NEXPEC',
+    bannerColor: 'linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%)',
+    bannerIcon: '\u2713',
+    innerHtml: inner,
+  });
+
+  const text =
+`Hi ${name},
+
+Welcome to NEXPEC. You registered as a ${roleLabel}, ${roleBlurb}.
+${missing.length ? `
+Your profile is not complete yet.
+Missing information:
+${missing.map((m) => `  - ${m}`).join('\n')}
+` : ''}
+Please complete your NEXPEC profile so we can properly review and process your activity.
+${isInspector ? '\nRelevant qualifications and certifications may be required before you can access or apply for certain inspection work.\n' : ''}
+Complete your profile: ${profileUrl}
+
+If ${roleLabel} is not the correct account type, reply to this email and our team will correct it.
+
+NEXPEC
+Industrial Inspection. Engineered for Trust.`;
+
+  return { subject, html, text };
 }

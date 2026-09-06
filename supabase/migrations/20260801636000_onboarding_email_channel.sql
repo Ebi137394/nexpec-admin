@@ -163,7 +163,7 @@ BEGIN
              'role_blurb',    public.nx_role_blurb(p.role),
              'missing_labels', COALESCE(to_jsonb(v_labels), '[]'::jsonb),
              'profile_path',  public.nx_profile_path(p.role),
-             'template_version','onboarding.v1'),
+             'template_version','onboarding.v2'),
            body = CASE WHEN COALESCE(v_pretty,'') = '' THEN 'Please confirm your account type.'
                        ELSE 'Please confirm your account type and add: ' || v_pretty || '.' END,
            email_required = NOT public.nx_email_suppressed(p_user_id)
@@ -189,7 +189,7 @@ BEGIN
         'role_blurb',    public.nx_role_blurb(p.role),
         'missing_labels', COALESCE(to_jsonb(v_labels), '[]'::jsonb),
         'profile_path',  public.nx_profile_path(p.role),
-        'template_version', 'onboarding.v1'));
+        'template_version', 'onboarding.v2'));
   EXCEPTION WHEN OTHERS THEN NULL; END;
 
   BEGIN
@@ -201,7 +201,7 @@ BEGIN
             jsonb_build_object('role', p.role, 'missing_fields', v_missing,
                                'conversation_id', v_conv,
                                'email_requested', NOT public.nx_email_suppressed(p_user_id),
-                               'template_version', 'onboarding.v1'));
+                               'template_version', 'onboarding.v2'));
   EXCEPTION WHEN OTHERS THEN NULL; END;
 
   RETURN true;

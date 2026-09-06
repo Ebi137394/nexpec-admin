@@ -74,6 +74,7 @@ function shell(opts: {
   bannerIcon: string;
   innerHtml: string;
   footerNote?: string;
+  linksHtml?: string;   // optional "Get NEXPEC" block — onboarding only
 }): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -91,13 +92,16 @@ function shell(opts: {
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;">
           <tr>
             <td align="center" style="padding-bottom:24px;">
-              <table role="presentation" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td style="background:linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%);padding:14px 28px;border-radius:12px;">
-                    <span style="font-size:24px;font-weight:700;color:#FFFFFF;letter-spacing:2px;">NEXPEC</span>
-                  </td>
-                </tr>
-              </table>
+              <!-- The real product brand mark, served from the canonical
+                   production host. Absolute HTTPS is mandatory: email clients
+                   will not resolve a relative path. Width/height are set so a
+                   client that blocks images still reserves the right space,
+                   and the alt text carries the brand when it does. -->
+              <a href="https://www.nexpecapp.com" style="text-decoration:none;">
+                <img src="https://www.nexpecapp.com/brand/logo-mark.png"
+                     width="56" height="56" alt="NEXPEC"
+                     style="display:block;border:0;outline:none;text-decoration:none;width:56px;height:56px;border-radius:12px;" />
+              </a>
             </td>
           </tr>
           <tr>
@@ -120,8 +124,11 @@ function shell(opts: {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="background-color:#1E293B;padding:18px 30px;border-top:1px solid #334155;text-align:center;">
+                    <!-- The old line claimed organisation membership, which is
+                         simply untrue for an independent inspector or an
+                         individual client. -->
                     <p style="margin:0;color:#94A3B8;font-size:12px;">
-                      ${escapeHtml(opts.footerNote ?? 'You are receiving this because you are an active member of an organization on NEXPEC.')}
+                      ${escapeHtml(opts.footerNote ?? 'You are receiving this account-service email because you created a NEXPEC account.')}
                     </p>
                   </td>
                 </tr>
@@ -130,8 +137,10 @@ function shell(opts: {
           </tr>
           <tr>
             <td style="padding:24px 20px;text-align:center;">
-              <p style="margin:0 0 6px 0;color:#64748B;font-size:12px;">Automated message from NEXPEC.</p>
-              <p style="margin:0;color:#475569;font-size:11px;">© ${new Date().getUTCFullYear()} NEXPEC. All rights reserved.</p>
+              ${opts.linksHtml ?? ''}
+              <p style="margin:0 0 4px 0;color:#94A3B8;font-size:12px;font-weight:600;">NEXPEC — Industrial Inspection. Engineered for Trust.</p>
+              <p style="margin:0 0 6px 0;"><a href="https://www.nexpecapp.com" style="color:#A78BFA;font-size:12px;text-decoration:none;">www.nexpecapp.com</a></p>
+              <p style="margin:0;color:#475569;font-size:11px;">© ${new Date().getUTCFullYear()} NEXPEC</p>
             </td>
           </tr>
         </table>
@@ -140,6 +149,26 @@ function shell(opts: {
   </table>
 </body>
 </html>`;
+}
+
+const APP_STORE_URL = 'https://apps.apple.com/us/app/nexpec/id6804268926';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.nexpec.app';
+
+// Tasteful text buttons rather than reproduced store badges: the official
+// badge artwork is not in this repo, and inventing a lookalike would breach
+// both stores' brand guidelines.
+function nexpecLinks(): string {
+  return `
+    <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto 18px auto;">
+      <tr>
+        <td style="padding:0 6px;">
+          <a href="${APP_STORE_URL}" style="display:inline-block;padding:9px 16px;border:1px solid #334155;border-radius:8px;color:#CBD5E1;font-size:12px;text-decoration:none;">Download on the App Store</a>
+        </td>
+        <td style="padding:0 6px;">
+          <a href="${PLAY_STORE_URL}" style="display:inline-block;padding:9px 16px;border:1px solid #334155;border-radius:8px;color:#CBD5E1;font-size:12px;text-decoration:none;">Get it on Google Play</a>
+        </td>
+      </tr>
+    </table>`;
 }
 
 function ctaButton(href: string, label: string): string {
@@ -836,6 +865,7 @@ function renderUserOnboarding(
     </p>`;
 
   const html = shell({
+    linksHtml: nexpecLinks(),
     preheader: missing.length
       ? `Your NEXPEC ${roleLabel.toLowerCase()} profile is missing ${missing.join(', ')}.`
       : `Confirm your NEXPEC ${roleLabel.toLowerCase()} account.`,
@@ -860,8 +890,12 @@ Complete your profile: ${profileUrl}
 
 If ${roleLabel} is not the correct account type, reply to this email and our team will correct it.
 
-NEXPEC
-Industrial Inspection. Engineered for Trust.`;
+Visit NEXPEC:  https://www.nexpecapp.com
+App Store:     ${APP_STORE_URL}
+Google Play:   ${PLAY_STORE_URL}
+
+NEXPEC — Industrial Inspection. Engineered for Trust.
+You are receiving this account-service email because you created a NEXPEC account.`;
 
   return { subject, html, text };
 }

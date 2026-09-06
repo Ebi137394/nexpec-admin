@@ -59,7 +59,7 @@ BEGIN
             'role_blurb', public.nx_role_blurb(u.role),
             'missing_labels', COALESCE(to_jsonb(v_labels),'[]'::jsonb),
             'profile_path', public.nx_profile_path(u.role),
-            'template_version','onboarding.v1'));
+            'template_version','onboarding.v2'));
       EXCEPTION WHEN OTHERS THEN NULL; END;
 
       UPDATE public.profile_completion_reminders

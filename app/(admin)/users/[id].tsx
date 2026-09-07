@@ -66,9 +66,22 @@ export default function UserProfileDetail() {
         // ★ 20260801318000 — payout revoked on the base table. Admin surface:
         //   jobs_secure_view unmasks the payout when nx_is_admin().
         let jobQuery = supabase.from('jobs_secure_view').select('id, title, status, inspector_payout_cents, created_at').order('created_at', { ascending: false });
-        if (p.role === 'inspector') jobQuery = jobQuery.eq('contractor_id', id);
-        else if (p.role === 'client') jobQuery = jobQuery.eq('client_id', id);
-        else if (p.role === 'agency' || p.role === 'enterprise') jobQuery = jobQuery.eq('agency_id', id);
+        // ★ Ownership is COALESCE(client_id, agency_id): jobs_owner_xor allows
+        //   exactly one, and every main job-post path writes client_id even for
+        //   an agency. Filtering on agency_id alone showed an agency ZERO jobs
+        //   and zero money. Match either column.
+        if (p.role === 'inspector' || p.role === 'senior') {
+          jobQuery = jobQuery.eq('contractor_id', id);
+        } else if (p.role === 'client' || p.role === 'agency' || p.role === 'enterprise') {
+          jobQuery = jobQuery.or(`client_id.eq.${id},agency_id.eq.${id}`);
+        } else {
+          // ★ There was NO else branch, so for a supplier (or any other role)
+          //   the query ran UNFILTERED and attributed every job on the platform
+          //   — and the platform's total inspector payouts — to that one user.
+          //   No column links a job to a supplier, so the correct answer is
+          //   none.
+          jobQuery = jobQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
         
         const { data: jobsData } = await jobQuery;
         const jobs = (jobsData as JobRow[]) ?? [];

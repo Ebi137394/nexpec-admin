@@ -93,6 +93,7 @@ const Schema = z.object({
   locationProvince: optionalText(120),
   countryOfResidence: optionalText(2),
   companyName: optionalText(160),
+  contactPersonName: optionalText(200),
 
   // professional
   professionalTitle: optionalText(120),
@@ -142,6 +143,10 @@ function buildUpdate(
       put('location_province', d.locationProvince);
       put('country_of_residence', d.countryOfResidence?.toUpperCase());
       put('company_name', d.companyName);
+      // Captured at signup and read by the onboarding checklist, but with NO
+      // post-signup write surface anywhere — so a client whose contact name was
+      // missing could never clear that checklist step. Admin can now set it.
+      put('contact_person_name', d.contactPersonName);
       break;
 
     case 'professional':

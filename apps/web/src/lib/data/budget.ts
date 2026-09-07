@@ -135,13 +135,37 @@ export async function fetchBudgetScopeMeta(): Promise<BudgetScopeMeta> {
 
     const { data } = await supabase
       .from('profiles')
-      .select('role, organization_id')
+      .select('role, organization_id, active_org_id')
       .eq('id', user.id)
       .maybeSingle();
 
     const role = ((data as { role?: string | null } | null)?.role ?? '').toLowerCase();
-    const orgId =
+
+    // Membership lives in org_members; profiles.organization_id is a legacy
+    // denormalisation that disagrees with it on Production. Ask the database
+    // for the authoritative set rather than trusting the stale column.
+    const { data: orgIdsRaw } = await supabase.rpc('nx_user_org_ids', {
+      p_uid: user.id,
+    } as never);
+    const orgIds: string[] = Array.isArray(orgIdsRaw) ? (orgIdsRaw as string[]) : [];
+
+    const activeOrg =
+      ((data as { active_org_id?: string | null } | null)?.active_org_id ?? null);
+    const legacyOrg =
       ((data as { organization_id?: string | null } | null)?.organization_id ?? null);
+
+    // Multi-org is real, so an organisation is only chosen when it is
+    // unambiguous: the user's explicitly selected active org, or their single
+    // membership. With several memberships and no active selection we fall
+    // back to self-scope rather than silently picking one.
+    const orgId =
+      activeOrg && orgIds.includes(activeOrg)
+        ? activeOrg
+        : orgIds.length === 1
+          ? orgIds[0]
+          : orgIds.length === 0 && legacyOrg
+            ? legacyOrg
+            : null;
 
     if (role === 'admin' || role === 'super_admin') {
       return { scope: 'platform', scopeLabel: 'Platform-wide', roleLabel: 'Admin' };

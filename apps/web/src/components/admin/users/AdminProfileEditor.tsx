@@ -175,6 +175,11 @@ export function AdminProfileEditor({
             placeholder="CA"
           />
           <Field
+            name="contactPersonName"
+            label="Contact person"
+            defaultValue={profile.contact_person_name}
+          />
+          <Field
             name="companyName"
             label="Company"
             defaultValue={profile.company_name}

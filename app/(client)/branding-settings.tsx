@@ -69,11 +69,20 @@ export default function BrandingSettings() {
 
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       const fileBytes = decode(base64);
-      const filename = `company-logo-${user.id}-${Date.now()}.png`;
+      // ★ The bucket was 'company-logos', which DOES NOT EXIST in Production —
+      //   the upload threw every time and no logo was ever saved. The real
+      //   bucket is 'branding_assets', shared with the web uploader.
+      //
+      // ★ branding_assets is PRIVATE, so getPublicUrl() produced a dead link.
+      //   Store the object PATH in company_logo_path; readers mint a
+      //   short-lived signed URL at render time. A signed URL is never
+      //   persisted: it expires, and a stored expired URL is
+      //   indistinguishable from a broken one.
+      const objectPath = `${user.id}/company-logo-${Date.now()}.png`;
 
       const { error: uploadError } = await supabase.storage
-        .from('company-logos')
-        .upload(filename, fileBytes, {
+        .from('branding_assets')
+        .upload(objectPath, fileBytes, {
           contentType: 'image/png',
           cacheControl: '3600',
           upsert: false
@@ -81,11 +90,7 @@ export default function BrandingSettings() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('company-logos')
-        .getPublicUrl(filename);
-
-      await updateBranding({ company_logo_url: publicUrl });
+      await updateBranding({ company_logo_path: objectPath, company_logo_url: null });
       Alert.alert('Success', 'Logo uploaded successfully');
     } catch (error) {
       console.error('Error uploading image:', error);

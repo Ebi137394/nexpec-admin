@@ -22,6 +22,7 @@ export interface AdminUserDetail {
   bio: string | null;
   headline: string | null;
   professional_title: string | null;
+  contact_person_name: string | null;
   /**
    * `profiles` carries TWO professional-title columns. Web writes
    * `professional_title`; the mobile profile editor writes `title`. Read both
@@ -164,6 +165,7 @@ export async function fetchAdminUserDetail(
       'bio',
       'headline',
       'professional_title',
+      'contact_person_name',
       'title',
       'company_name',
       'location_city',
@@ -307,6 +309,7 @@ export async function fetchAdminUserDetail(
       bio: (r.bio as string | null) ?? null,
       headline: (r.headline as string | null) ?? null,
       professional_title: (r.professional_title as string | null) ?? null,
+      contact_person_name: (r.contact_person_name as string | null) ?? null,
       title: (r.title as string | null) ?? null,
       professional_title_effective:
         (r.professional_title as string | null) || (r.title as string | null) || null,

@@ -204,20 +204,24 @@ export default function ProfileScreen() {
         //   the OR'd columns doesn't exist on the table — that's what
         //   was making the profile show "Jobs Posted: 0" for clients
         //   even when they had many jobs.
-        const filterColumn = userRole === 'agency' ? 'agency_id' : 'client_id';
+        // ★ Ownership is COALESCE(client_id, agency_id) — jobs_owner_xor allows
+        //   exactly one — and every main job-post path writes client_id even
+        //   for an agency, so agency_id alone counted ZERO. Both columns DO
+        //   exist on public.jobs, so the .or() caveat above (which is about a
+        //   MISSING column) does not apply here.
         const { count: jobsCount, error: jobsCountErr } = await supabase
           .from('jobs')
           .select('id', { count: 'exact', head: true })
-          .eq(filterColumn, userId);
+          .or(`client_id.eq.${userId},agency_id.eq.${userId}`);
 
         if (jobsCountErr) {
           console.warn(
-            `[profile] jobs count error (filterCol=${filterColumn}) →`,
+            '[profile] jobs count error (client_id OR agency_id) →',
             jobsCountErr.message
           );
         } else {
           console.log(
-            `[profile] jobs count for ${userRole} → ${jobsCount ?? 0} (filterCol=${filterColumn})`
+            `[profile] jobs count for ${userRole} → ${jobsCount ?? 0} (client_id OR agency_id)`
           );
         }
 

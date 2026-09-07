@@ -75,22 +75,24 @@ export async function uploadCompanyLogo(formData: FormData): Promise<void> {
     redirect(withQuery(returnTo, { error: 'Logo upload failed. Try again.' }));
   }
 
-  // branding_assets policy is unclear from the storage list; if the
-  // bucket is private, getPublicUrl returns a URL that will only resolve
-  // for callers with read access. The reports renderer is server-side
-  // so it can use the path + signed-URL pattern if needed. For now we
-  // persist the public URL form.
-  const { data: pub } = supabase.storage
-    .from(LOGO_BUCKET)
-    .getPublicUrl(uploaded.path);
-
-  const { error: updateErr } = await supabase
+  // branding_assets is PRIVATE (verified on Production: buckets.public = false),
+  // so getPublicUrl() produced a link that could never resolve. Persist the
+  // storage PATH; readers mint a short-lived signed URL at render time.
+  //
+  // A signed URL is deliberately NOT stored: it expires, and a stored expired
+  // URL is indistinguishable from a broken one.
+  //
+  // company_logo_url is cleared so a previously saved dead public URL cannot
+  // keep being rendered in preference to the working path.
+  const { data: saved, error: updateErr } = await supabase
     .from('profiles')
     .update({
-      company_logo_url: pub.publicUrl,
+      company_logo_path: uploaded.path,
+      company_logo_url: null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
 
   if (updateErr) {
     if (typeof console !== 'undefined') {
@@ -104,6 +106,14 @@ export async function uploadCompanyLogo(formData: FormData): Promise<void> {
         error: 'Logo uploaded but profile save failed.',
       }),
     );
+  }
+
+  // A zero-row UPDATE is a PostgREST success. Without this the logo would be
+  // in storage while the profile still pointed at nothing, and the user would
+  // be told it saved. The uploaded object is removed so no orphan is left.
+  if (!saved || saved.length === 0) {
+    await supabase.storage.from(LOGO_BUCKET).remove([uploaded.path]);
+    redirect(withQuery(returnTo, { error: 'Logo was not saved. Sign in again and retry.' }));
   }
 
   revalidatePath(returnTo);

@@ -123,9 +123,15 @@ export async function fetchOrgStructure(orgId: string): Promise<DepartmentTreeRe
     const msg = rpcRes.error?.message ?? '';
     if (TABLE_MISSING_RE.test(msg)) {
       // Fall through to a direct table query — also handles "RPC missing".
+      // org_departments is canonical: it is what jobs.department_id FOREIGN
+      // KEYs, so a department created in the legacy `departments` table could
+      // never be attached to a job. Its cost-centre column is named
+      // cost_center_code; it is aliased so the shape below is unchanged.
       const direct = await supabase
-        .from('departments')
-        .select('id, org_id, parent_department_id, name, cost_center, created_at, updated_at')
+        .from('org_departments')
+        .select(
+          'id, org_id, parent_department_id, name, cost_center:cost_center_code, created_at, updated_at',
+        )
         .eq('org_id', orgId);
       if (direct.error) {
         if (TABLE_MISSING_RE.test(direct.error.message ?? '')) {
@@ -225,7 +231,7 @@ export async function fetchDepartmentMembers(departmentId: string): Promise<Depa
   // Get it from the parent department.
   let orgId: string | null = null;
   const { data: deptRow } = await supabase
-    .from('departments')
+    .from('org_departments')
     .select('org_id')
     .eq('id', departmentId)
     .maybeSingle();
@@ -297,7 +303,7 @@ export async function fetchAssignableOrgMembers(
   // Hydrate existing department assignments — scope to this org's
   // departments via inner join in JS land.
   const { data: orgDepts } = await supabase
-    .from('departments')
+    .from('org_departments')
     .select('id')
     .eq('org_id', orgId);
   const orgDeptIds = (orgDepts ?? []).map((d) => d.id as string);
@@ -876,7 +882,7 @@ export async function fetchOrgPickerContextForInvoice(
   const deptId = invRow.department_id as string | null;
   if (deptId) {
     const { data: deptRow } = await supabase
-      .from('departments')
+      .from('org_departments')
       .select('org_id')
       .eq('id', deptId)
       .maybeSingle();

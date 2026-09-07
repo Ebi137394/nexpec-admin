@@ -177,6 +177,12 @@ const MOBILE_GAP = new Set([
   // Added by this change: /talent/submissions now resolves on web (it used to
   // 404 on BOTH platforms), but expo-router still has no talent screen.
   '/talent/submissions',
+  // Partner-agency functionality is deliberately WEB-ONLY for the pilot: there
+  // is no partner surface in the published mobile binary and none can be added
+  // without a store release. A partner tapping this notification on their phone
+  // gets nothing today and must open it on the web — a real limitation, tracked
+  // here rather than hidden by pointing the link somewhere less correct.
+  '/partner/opportunities',
 ]);
 
 /** Recipient-facing paths that legitimately resolve on web only. */

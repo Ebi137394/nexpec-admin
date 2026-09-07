@@ -45,6 +45,7 @@ import { UserRoleBadge } from '@/components/admin/users/UserRoleBadge';
 import { UserModerationPanel } from '@/components/admin/users/UserModerationPanel';
 import { UserRoleMessagePanel } from '@/components/admin/users/UserRoleMessagePanel';
 import { AdminProfileEditor } from '@/components/admin/users/AdminProfileEditor';
+import { CvReviewPanel } from '@/components/admin/users/CvReviewPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -712,6 +713,11 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
 
               {/* ── CV ─────────────────────────────────────────────────── */}
               <Section title="Inspector, CV / resume">
+                {dossier.resume.path && (
+                  <div className="mb-4">
+                    <CvReviewPanel userId={id} />
+                  </div>
+                )}
                 {dossier.resume.signedUrl ? (
                   <>
                     <ul className="flex flex-wrap gap-2">

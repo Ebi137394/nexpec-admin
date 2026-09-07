@@ -18,7 +18,7 @@ WITH items AS (
   SELECT 'urgent'::text AS tier, 1 AS rank, 'critical_alert'::text AS kind,
          n.id::text AS id, left(COALESCE(n.title,'Critical alert'), 70) AS label,
          EXTRACT(epoch FROM (NOW() - n.created_at))/3600 AS age_hours,
-         EXTRACT(epoch FROM (NOW() - n.created_at))/3600 AS order_val, '/admin' AS link
+         EXTRACT(epoch FROM (NOW() - n.created_at))/3600 AS order_val, '/admin/dashboard' AS link
     FROM public.notifications n
    WHERE n.severity = 'critical' AND n.created_at > NOW() - interval '24 hours'
   UNION ALL
@@ -27,7 +27,7 @@ WITH items AS (
          'Notification delivery failing',
          EXTRACT(epoch FROM (NOW() - COALESCE(n.telegram_last_attempt_at, n.email_last_attempt_at)))/3600,
          EXTRACT(epoch FROM (NOW() - COALESCE(n.telegram_last_attempt_at, n.email_last_attempt_at)))/3600,
-         '/admin'
+         '/admin/dashboard'
     FROM public.notifications n
    WHERE (n.telegram_send_error IS NOT NULL OR n.email_send_error IS NOT NULL)
      AND COALESCE(n.telegram_last_attempt_at, n.email_last_attempt_at) > NOW() - interval '24 hours'
@@ -57,7 +57,7 @@ WITH items AS (
          'support', c.id::text,
          left(COALESCE(NULLIF(c.last_message_preview,''), 'Support message'), 70),
          EXTRACT(epoch FROM (NOW() - c.last_message_at))/3600,
-         EXTRACT(epoch FROM (NOW() - c.last_message_at))/3600, '/admin/support'
+         EXTRACT(epoch FROM (NOW() - c.last_message_at))/3600, '/admin/messages'
     FROM public.conversations c LEFT JOIN public.profiles p ON p.id = COALESCE(c.user_id, c.client_id)
    WHERE c.kind = 'help_support' AND COALESCE(c.unread_for_admin, 0) > 0
      AND NOT public.nx_is_test_account(p.email)

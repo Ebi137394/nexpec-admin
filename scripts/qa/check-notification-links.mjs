@@ -31,6 +31,12 @@
  *
  *  Routes come from the FILESYSTEM rather than a hand-maintained list, which
  *  would drift exactly the way the original constant did.
+ *
+ *  THIRD EXTENSION: the producer filter originally matched only notify_safe and
+ *  nx_notify, so client_sign_job_contract — which emits through
+ *  create_system_notification — was never scanned at all, and its
+ *  '/contracts/job/<id>' link went unnoticed. A guard that inspects only some
+ *  producers gives false assurance about all of them.
  * ════════════════════════════════════════════════════════════════════════════ */
 import { readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,45 +47,62 @@ const APP = 'apps/web/src/app';
 const MOBILE = 'app';
 const PROJECT = process.env.NEXPEC_PROD_PROJECT_REF ?? 'sxqpjxhslzzcdrdctatm';
 
-/** Next.js App Router: a directory with page.tsx/route.ts is a route.
- *  '(groups)' contribute no URL segment. */
-function webRoutes(dir, prefix = '', acc = new Set()) {
+/** Next.js App Router. Two DIFFERENT facts are collected, because a producer
+ *  literal means two different things depending on its trailing slash:
+ *
+ *    exact          this path is itself a page      ('/contracts')
+ *    dynamicParent  this path has an [id] child     ('/contracts/' || id)
+ *
+ *  Conflating them is what made an earlier version of this guard both miss
+ *  '/client/messages/' (no such route, but '/client' existed) and later flag
+ *  '/client/contracts/job/' as broken (no page.tsx of its own, but its
+ *  '[id]/page.tsx' child resolves perfectly). '(groups)' add no URL segment. */
+function webRoutes(dir, prefix = '', exact = new Set(), dynamicParent = new Set()) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (!statSync(p).isDirectory()) continue;
-    if (e.startsWith('_') || e.startsWith('[')) continue;
+    if (e.startsWith('_')) continue;
+    if (e.startsWith('[')) {
+      // A dynamic segment: its parent can serve `<parent>/<anything>`.
+      if (existsSync(join(p, 'page.tsx')) || existsSync(join(p, 'route.ts'))) {
+        dynamicParent.add(prefix || '/');
+      }
+      continue;
+    }
     const seg = e.startsWith('(') && e.endsWith(')') ? '' : `/${e}`;
     const here = `${prefix}${seg}`;
-    if (existsSync(join(p, 'page.tsx')) || existsSync(join(p, 'route.ts'))) acc.add(here || '/');
-    webRoutes(p, here, acc);
+    if (existsSync(join(p, 'page.tsx')) || existsSync(join(p, 'route.ts'))) exact.add(here || '/');
+    webRoutes(p, here, exact, dynamicParent);
   }
-  return acc;
+  return { exact, dynamicParent };
 }
 
-/** expo-router: every .tsx file is a route. '(groups)' contribute no segment,
- *  '_layout' is not a route, and 'index' collapses to its parent. */
-function mobileRoutes(dir, prefix = '', acc = new Set()) {
+/** expo-router, same two facts. '_layout' is not a route and 'index'
+ *  collapses to its parent. */
+function mobileRoutes(dir, prefix = '', exact = new Set(), dynamicParent = new Set()) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    const isDir = statSync(p).isDirectory();
-    if (isDir) {
+    if (statSync(p).isDirectory()) {
       if (e.startsWith('_')) continue;
+      if (e.startsWith('[')) { dynamicParent.add(prefix || '/'); continue; }
       const seg = e.startsWith('(') && e.endsWith(')') ? '' : `/${e}`;
-      mobileRoutes(p, `${prefix}${seg}`, acc);
+      mobileRoutes(p, `${prefix}${seg}`, exact, dynamicParent);
       continue;
     }
     if (!e.endsWith('.tsx') && !e.endsWith('.ts')) continue;
     const base = e.replace(/\.(tsx|ts)$/, '');
     if (base === '_layout' || base.startsWith('+')) continue;
-    if (base.startsWith('[')) { acc.add(prefix || '/'); continue; } // dynamic child ⇒ parent resolves
+    if (base.startsWith('[')) { dynamicParent.add(prefix || '/'); continue; }
     const seg = base === 'index' ? '' : `/${base}`;
-    acc.add(`${prefix}${seg}` || '/');
+    exact.add(`${prefix}${seg}` || '/');
   }
-  return acc;
+  return { exact, dynamicParent };
 }
 
 const web = webRoutes(APP);
-const mobile = existsSync(MOBILE) ? mobileRoutes(MOBILE) : new Set();
+const mobile = existsSync(MOBILE)
+  ? mobileRoutes(MOBILE)
+  : { exact: new Set(), dynamicParent: new Set() };
 
 /* Capture the two characters BEFORE each path literal so concatenation tails
  * can be discarded. In
@@ -96,7 +119,8 @@ const SQL = `
                  '(..)\\s*''(/[a-z0-9/_-]+)''', 'g') AS m
    WHERE n.nspname = 'public' AND p.prokind = 'f'
      AND p.prolang <> (SELECT oid FROM pg_language WHERE lanname = 'c')
-     AND pg_get_functiondef(p.oid) ~ '(link_href|profile_path|notify_safe|nx_notify)'`;
+     AND pg_get_functiondef(p.oid) ~
+         '(link_href|profile_path|notify_safe|nx_notify|create_system_notification|notify_admins)'`;
 
 /** Read live function bodies. Prefer the Management API token; fall back to the
  *  Supabase CLI, which is how a developer is normally authenticated locally.
@@ -183,6 +207,11 @@ const MOBILE_GAP = new Set([
   // gets nothing today and must open it on the web — a real limitation, tracked
   // here rather than hidden by pointing the link somewhere less correct.
   '/partner/opportunities',
+  // Web has /client/contracts/job/[id] and /inspector/contracts/job/[id];
+  // mobile has only the un-prefixed app/contracts/job/[id].tsx, so these two
+  // role-scoped forms 404 on the phone.
+  '/client/contracts/job',
+  '/inspector/contracts/job',
 ]);
 
 /** Recipient-facing paths that legitimately resolve on web only. */
@@ -196,7 +225,11 @@ const WEB_ONLY_OK = (p) => p === '/admin' || p.startsWith('/admin/');
  *  Matching a bare parent for BOTH shapes — the original heuristic — is what
  *  let '/client/messages/' pass: mobile has an unrelated '/client', so the
  *  parent test succeeded and the missing '/client/messages' went unnoticed. */
-const resolves = (set, base) => set.has(base);
+/** `isPrefix` is true when the producer literal ended in '/', i.e. an id is
+ *  concatenated onto it. Then the requirement is a dynamic child, not a page
+ *  of its own. */
+const resolves = (routes, base, isPrefix) =>
+  isPrefix ? routes.dynamicParent.has(base) || routes.exact.has(base) : routes.exact.has(base);
 
 const failWeb = [];
 const failMobile = [];
@@ -209,21 +242,25 @@ for (const raw of paths) {
   // Both shapes reduce to the same requirement: this exact route must exist.
   // For a prefix the trailing slash is simply dropped, because the dynamic
   // child is registered against its parent by both route builders.
+  const isPrefix = literal.endsWith('/');
   const base = literal.replace(/\/$/, '');
   if (base === '') continue;
 
-  if (!resolves(web, base)) {
+  if (!resolves(web, base, isPrefix)) {
     if (LEGACY.has(base)) legacy.push(`${base}  (${LEGACY.get(base)})`);
     else failWeb.push(base);
     continue;
   }
-  if (!WEB_ONLY_OK(base) && !resolves(mobile, base)) {
+  if (!WEB_ONLY_OK(base) && !resolves(mobile, base, isPrefix)) {
     if (MOBILE_GAP.has(base)) mobileGap.push(base);
     else failMobile.push(base);
   }
 }
 
-console.log(`  routes known: web ${web.size}, mobile ${mobile.size}`);
+console.log(
+  `  routes known: web ${web.exact.size} pages + ${web.dynamicParent.size} dynamic parents, ` +
+    `mobile ${mobile.exact.size} + ${mobile.dynamicParent.size}`,
+);
 
 for (const l of [...new Set(legacy)]) {
   console.warn(`  WARN  legacy producer emits '${l}' — route has never shipped on web`);

@@ -79,6 +79,15 @@ const TABLE = {
     supplier: { base: '/suppliers/support', item: false },
     admin: { base: '/admin/disputes', item: false },
   },
+  // Contract-for-a-job detail. client_sign_job_contract emits
+  // '/contracts/job/<id>' (a mobile-shaped path) to the inspector; web has the
+  // role-scoped equivalents. Suppliers use their own contract detail.
+  contractJob: {
+    client: { base: '/client/contracts/job', item: true },
+    inspector: { base: '/inspector/contracts/job', item: true },
+    supplier: { base: '/suppliers/contracts', item: true },
+    admin: { base: '/admin/contracts', item: false },
+  },
   // No role has a per-submission page; the submission is listed on the panel.
   talent: {
     client: { base: '/client/talent', item: false },

@@ -1,14 +1,18 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  EngagementPanel — Admin's view of one engagement's commercials.
 //
+//  A SERVER component. The first version was a client component whose forms
+//  called inline async functions; it never hydrated in Production — the
+//  rendered <select> carried no React props at all — so every control was
+//  inert. Everything here now submits natively to a server action, and the
+//  settlement-model choice is a plain GET form that round-trips through
+//  ?model=, so the panel works with no client JavaScript whatsoever.
+//
 //  The residual is displayed, never stored: storing it would let it drift from
-//  the three amounts it is derived from. It is computed on the SAME pricing
-//  basis as its inputs, which is why a per-unit basis requires scope units —
-//  a day rate and a fixed total cannot be subtracted from one another.
+//  the amounts it derives from. It is computed on the SAME pricing basis as
+//  its inputs, which is why a per-unit basis requires scope units — a day rate
+//  and a fixed total cannot be subtracted from one another.
 // ════════════════════════════════════════════════════════════════════════════
-'use client';
-
-import { useState } from 'react';
 import {
   priceEngagement,
   presentEngagement,
@@ -37,7 +41,61 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-export function EngagementPanel(props: {
+function Amount({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+      <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p
+        className={
+          'mt-1 font-display text-lg ' +
+          (tone === 'bad' ? 'text-rose-300' : tone === 'good' ? 'text-emerald-300' : 'text-zinc-100')
+        }
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function Field({
+  name,
+  label,
+  placeholder,
+  required,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+}) {
+  return (
+    <label className="text-[11px] uppercase tracking-wide text-zinc-500">
+      {label}
+      <input
+        name={name}
+        placeholder={placeholder}
+        required={required}
+        defaultValue={defaultValue}
+        className="mt-1 w-full rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm text-zinc-100"
+      />
+    </label>
+  );
+}
+
+export function EngagementPanel({
+  jobId,
+  policy,
+  versions,
+  live,
+  acceptances,
+  obligations,
+  opportunities,
+  nominations,
+  approvedPartners,
+  draftModel,
+}: {
   jobId: string;
   job: Row;
   policy: Row | null;
@@ -48,62 +106,31 @@ export function EngagementPanel(props: {
   opportunities: Row[];
   nominations: Row[];
   approvedPartners: Row[];
+  /** Which model the pricing form should offer. Round-trips through ?model=. */
+  draftModel: 'split' | 'agency_total';
 }) {
-  const {
-    jobId, policy, versions, live, acceptances, obligations,
-    opportunities, nominations, approvedPartners,
-  } = props;
-
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // The draft's settlement model. Switching it changes WHICH amount fields
-  // exist, not merely which are visible: the hidden ones are not submitted and
-  // the action zeroes them anyway, so a stale value cannot smuggle in an
-  // obligation the model forbids.
-  const [model, setModel] = useState<'split' | 'agency_total'>(
-    (live?.settlement_model as 'split' | 'agency_total') ?? 'split',
-  );
-
-  async function run(fn: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, fd: FormData) {
-    setNotice(null);
-    setError(null);
-    const r = await fn(fd);
-    if (r.ok) setNotice(r.message ?? 'Done.');
-    else setError(r.error ?? 'Failed.');
-  }
-
   const currency = (live?.currency as string) ?? 'USD';
   const cust = Number(live?.customer_amount_cents ?? 0);
   const insp = Number(live?.inspector_payout_cents ?? 0);
   const part = Number(live?.partner_commission_cents ?? 0);
   const agencyTotal = Number(live?.agency_total_cents ?? 0);
-  const liveModel = (live?.settlement_model as string) ?? 'split';
-  const isLiveB = liveModel === 'agency_total';
-  // NEXPEC's cost is the sum of what NEXPEC actually owes under THIS model.
-  // In Model B the inspector's compensation is Agency B's cost, not NEXPEC's,
-  // so adding it here would double-count the same work.
+  const isLiveB = (live?.settlement_model as string) === 'agency_total';
+
+  // NEXPEC's cost is what NEXPEC actually owes under THIS model. In Model B the
+  // inspector's compensation is Agency B's cost, not NEXPEC's, so including it
+  // would count the same work twice.
   const nexpecCost = isLiveB ? agencyTotal : insp + part;
   const residual = cust - nexpecCost;
-  const isB = model === 'agency_total';
+
   const basis = (live?.pricing_basis as string) ?? 'fixed_engagement';
   const perUnit = basis !== 'fixed_engagement';
+  const isB = draftModel === 'agency_total';
 
   const consented = Boolean(policy?.customer_consented);
   const approved = Boolean(policy?.admin_approved);
 
   return (
     <div className="space-y-6">
-      {notice && (
-        <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-          {notice}
-        </p>
-      )}
-      {error && (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </p>
-      )}
-
       <Card title="Partner participation">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className={consented ? 'text-emerald-300' : 'text-zinc-400'}>
@@ -115,17 +142,12 @@ export function EngagementPanel(props: {
           </span>
         </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Both are required before any partner can see this job. Consent belongs to the
-          customer; approval belongs to NEXPEC. Neither implies the other.
+          Both are required before any partner can see this job. Consent belongs to the customer;
+          approval belongs to NEXPEC. Neither implies the other.
         </p>
-        <form
-          className="mt-3"
-          action={async (fd) => {
-            fd.set('jobId', jobId);
-            fd.set('approve', approved ? 'false' : 'true');
-            await run(setPartnerPolicy, fd);
-          }}
-        >
+        <form className="mt-3" action={setPartnerPolicy}>
+          <input type="hidden" name="jobId" value={jobId} />
+          <input type="hidden" name="approve" value={approved ? 'false' : 'true'} />
           <button
             type="submit"
             disabled={!consented && !approved}
@@ -134,9 +156,7 @@ export function EngagementPanel(props: {
             {approved ? 'Withdraw partner distribution' : 'Approve partner distribution'}
           </button>
           {!consented && !approved && (
-            <span className="ml-3 text-xs text-zinc-500">
-              The customer has not consented yet.
-            </span>
+            <span className="ml-3 text-xs text-zinc-500">The customer has not consented yet.</span>
           )}
         </form>
       </Card>
@@ -153,13 +173,8 @@ export function EngagementPanel(props: {
             ))}
           </ul>
         )}
-        <form
-          className="mt-3 flex flex-wrap gap-2"
-          action={async (fd) => {
-            fd.set('jobId', jobId);
-            await run(invitePartner, fd);
-          }}
-        >
+        <form className="mt-3 flex flex-wrap gap-2" action={invitePartner}>
+          <input type="hidden" name="jobId" value={jobId} />
           <select
             name="partnerId"
             required
@@ -236,12 +251,13 @@ export function EngagementPanel(props: {
               value={money(residual, currency)}
               tone={residual < 0 ? 'bad' : 'good'}
             />
-            <p className="col-span-2 sm:col-span-4 rounded-xl border border-violet/25 bg-violet/5 px-3 py-2 text-xs text-zinc-200">
+            <p className="col-span-2 rounded-xl border border-violet/25 bg-violet/5 px-3 py-2 text-xs text-zinc-200 sm:col-span-4">
               {isLiveB ? (
                 <>
                   NEXPEC will pay <strong>Agency B {money(agencyTotal, currency)}</strong>. Agency B
                   is responsible for paying the inspector. NEXPEC will not create a separate
-                  inspector payable, and paying Agency B is not evidence the inspector has been paid.
+                  inspector payable, and paying Agency B is not evidence the inspector has been
+                  paid.
                 </>
               ) : (
                 <>
@@ -250,38 +266,27 @@ export function EngagementPanel(props: {
                 </>
               )}
             </p>
-            <div className="col-span-2 sm:col-span-4 text-[11px] text-zinc-500">
-              v{String(live.version)} · {String(live.status)} · basis {basis}
+            <div className="col-span-2 text-[11px] text-zinc-500 sm:col-span-4">
+              v{String(live.version)} · {String(live.status)} ·{' '}
+              {String(live.settlement_model ?? 'split')} · basis {basis}
               {perUnit ? ` × ${String(live.scope_units ?? '?')} units — amounts are PER UNIT` : ''}
               {live.margin_override_reason
                 ? ` · override: ${String(live.margin_override_reason)}`
                 : ''}
             </div>
-            {perUnit && (
-              <p className="col-span-2 sm:col-span-4 text-[11px] text-amber-300/80">
-                Amounts above are per {basis.replace('per_', '')}. Engagement totals are
-                these figures × {String(live.scope_units ?? '?')}.
-              </p>
-            )}
           </div>
         ) : (
           <p className="mb-4 text-xs text-zinc-400">No pricing drafted yet.</p>
         )}
 
-        <form
-          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-          action={async (fd) => {
-            fd.set('jobId', jobId);
-            await run(priceEngagement, fd);
-          }}
-        >
-          <label className="text-[11px] uppercase tracking-wide text-zinc-500 sm:col-span-3">
+        {/* Model choice is a GET round-trip, so it works without JavaScript. */}
+        <form method="GET" className="mb-4 flex flex-wrap items-end gap-2">
+          <label className="text-[11px] uppercase tracking-wide text-zinc-500">
             Settlement model
             <select
-              name="settlementModel"
-              value={model}
-              onChange={(e) => setModel(e.target.value as 'split' | 'agency_total')}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm text-zinc-100"
+              name="model"
+              defaultValue={draftModel}
+              className="mt-1 w-full min-w-[26rem] rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm text-zinc-100"
             >
               <option value="split">
                 A — Pay the inspector directly, and pay Agency B a commission
@@ -291,10 +296,25 @@ export function EngagementPanel(props: {
               </option>
             </select>
           </label>
+          <button
+            type="submit"
+            className="rounded-full border border-white/20 px-4 py-2 text-xs text-zinc-200"
+          >
+            Switch model
+          </button>
+        </form>
+
+        <form className="grid grid-cols-1 gap-3 sm:grid-cols-3" action={priceEngagement}>
+          <input type="hidden" name="jobId" value={jobId} />
+          <input type="hidden" name="settlementModel" value={draftModel} />
           <Field name="customerAmount" label="Customer amount" placeholder="2000.00" required />
           {isB ? (
             <>
-              <Field name="agencyTotal" label="Agency B total service amount" placeholder="1800.00" />
+              <Field
+                name="agencyTotal"
+                label="Agency B total service amount"
+                placeholder="1800.00"
+              />
               <Field
                 name="inspectorAgencyComp"
                 label="Inspector compensation (AGENCY-payable, optional)"
@@ -303,7 +323,11 @@ export function EngagementPanel(props: {
             </>
           ) : (
             <>
-              <Field name="inspectorPayout" label="Inspector payout (NEXPEC pays)" placeholder="1500.00" />
+              <Field
+                name="inspectorPayout"
+                label="Inspector payout (NEXPEC pays)"
+                placeholder="1500.00"
+              />
               <Field
                 name="partnerCommission"
                 label="Partner commission (their own fee, NEXPEC pays)"
@@ -327,7 +351,7 @@ export function EngagementPanel(props: {
               <option value="per_visit">Per visit</option>
             </select>
           </label>
-          <Field name="scopeUnits" label="Scope units (if per-unit)" placeholder="5" />
+          <Field name="scopeUnits" label="Scope units (if per-unit)" />
           <Field name="scopeNote" label="Scope note" />
           <div className="sm:col-span-3">
             <Field
@@ -342,7 +366,7 @@ export function EngagementPanel(props: {
             />
           </div>
           {isB && (
-            <p className="sm:col-span-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90">
+            <p className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90 sm:col-span-3">
               Model B creates ONE obligation to Agency B. No NEXPEC inspector payout and no separate
               commission are created. The inspector compensation above, if given, is what Agency B
               told us it pays — it is agency-payable, never a NEXPEC payable, and is shown to the
@@ -370,15 +394,16 @@ export function EngagementPanel(props: {
               const a = acceptances.find((x) => String(x.party_role) === role);
               const applicable =
                 role === 'customer' ||
-                (role === 'inspector' && insp > 0) ||
-                (role === 'partner' && part > 0);
+                (role === 'inspector' && live.inspector_id) ||
+                (role === 'partner' && live.partner_id);
               if (!applicable) return null;
               return (
                 <li key={role}>
                   {role}:{' '}
                   {a ? (
                     <span className="text-emerald-300">
-                      accepted {String(a.accepted_at).slice(0, 19)} (terms {String(a.terms_version)})
+                      accepted {String(a.accepted_at).slice(0, 19)} (terms{' '}
+                      {String(a.terms_version)})
                     </span>
                   ) : (
                     <span className="text-zinc-500">awaiting</span>
@@ -388,13 +413,9 @@ export function EngagementPanel(props: {
             })}
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
-            <form
-              action={async (fd) => {
-                fd.set('commercialId', String(live.id));
-                fd.set('jobId', jobId);
-                await run(presentEngagement, fd);
-              }}
-            >
+            <form action={presentEngagement}>
+              <input type="hidden" name="commercialId" value={String(live.id)} />
+              <input type="hidden" name="jobId" value={jobId} />
               <button
                 type="submit"
                 disabled={String(live.status) !== 'draft'}
@@ -403,13 +424,9 @@ export function EngagementPanel(props: {
                 Present to parties
               </button>
             </form>
-            <form
-              action={async (fd) => {
-                fd.set('commercialId', String(live.id));
-                fd.set('jobId', jobId);
-                await run(confirmEngagement, fd);
-              }}
-            >
+            <form action={confirmEngagement}>
+              <input type="hidden" name="commercialId" value={String(live.id)} />
+              <input type="hidden" name="jobId" value={jobId} />
               <button
                 type="submit"
                 className="rounded-full border border-emerald-500/40 px-4 py-1.5 text-xs text-emerald-300"
@@ -436,17 +453,13 @@ export function EngagementPanel(props: {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    {String(o.beneficiary_role)} · {money(o.amount_cents, String(o.currency))} ·{' '}
+                    {String(o.obligation_kind ?? o.beneficiary_role)} ·{' '}
+                    {money(o.amount_cents, String(o.currency))} ·{' '}
                     <span className="uppercase tracking-wide">{String(o.status)}</span>
                   </span>
-                  <form
-                    className="flex flex-wrap items-center gap-2"
-                    action={async (fd) => {
-                      fd.set('obligationId', String(o.id));
-                      fd.set('jobId', jobId);
-                      await run(settleObligation, fd);
-                    }}
-                  >
+                  <form className="flex flex-wrap items-center gap-2" action={settleObligation}>
+                    <input type="hidden" name="obligationId" value={String(o.id)} />
+                    <input type="hidden" name="jobId" value={jobId} />
                     <select
                       name="status"
                       className="rounded-lg border border-white/10 bg-ink-900 px-2 py-1 text-[11px]"
@@ -461,7 +474,10 @@ export function EngagementPanel(props: {
                       placeholder="bank reference"
                       className="w-36 rounded-lg border border-white/10 bg-ink-900 px-2 py-1 text-[11px]"
                     />
-                    <button type="submit" className="rounded-full border border-white/15 px-3 py-1 text-[11px]">
+                    <button
+                      type="submit"
+                      className="rounded-full border border-white/15 px-3 py-1 text-[11px]"
+                    >
                       Record
                     </button>
                   </form>
@@ -470,6 +486,7 @@ export function EngagementPanel(props: {
                   beneficiary {String(o.beneficiary_id)}
                   {o.paid_reference ? ` · ref ${String(o.paid_reference)}` : ''}
                 </p>
+                {o.notes ? <p className="mt-1 text-[11px] text-zinc-500">{String(o.notes)}</p> : null}
               </li>
             ))}
           </ul>
@@ -485,7 +502,7 @@ export function EngagementPanel(props: {
           <ul className="space-y-1 text-[11px] text-zinc-400">
             {versions.map((v) => (
               <li key={String(v.id)}>
-                v{String(v.version)} · {String(v.status)} ·{' '}
+                v{String(v.version)} · {String(v.status)} · {String(v.settlement_model ?? 'split')} ·{' '}
                 {money(v.customer_amount_cents, String(v.currency))} customer ·{' '}
                 {String(v.created_at).slice(0, 19)}
               </li>
@@ -494,48 +511,5 @@ export function EngagementPanel(props: {
         </Card>
       )}
     </div>
-  );
-}
-
-function Amount({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-      <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p
-        className={
-          'mt-1 font-display text-lg ' +
-          (tone === 'bad' ? 'text-rose-300' : tone === 'good' ? 'text-emerald-300' : 'text-zinc-100')
-        }
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Field({
-  name,
-  label,
-  placeholder,
-  required,
-  defaultValue,
-}: {
-  name: string;
-  label: string;
-  placeholder?: string;
-  required?: boolean;
-  defaultValue?: string;
-}) {
-  return (
-    <label className="text-[11px] uppercase tracking-wide text-zinc-500">
-      {label}
-      <input
-        name={name}
-        placeholder={placeholder}
-        required={required}
-        defaultValue={defaultValue}
-        className="mt-1 w-full rounded-lg border border-white/10 bg-ink-900 px-3 py-2 text-sm text-zinc-100"
-      />
-    </label>
   );
 }

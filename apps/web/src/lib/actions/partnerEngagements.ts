@@ -12,8 +12,23 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+/**
+ * These actions REDIRECT rather than return a value.
+ *
+ * The first version of this panel was a client component whose forms called
+ * inline async functions. It never hydrated in Production — the rendered
+ * <select> carried no React props at all — so every button was inert. Server
+ * actions invoked directly by a <form action={...}> submit natively, with no
+ * JavaScript required, which is the right shape for an admin tool.
+ */
+function back(jobId: string, params: Record<string, string>): never {
+  const qs = new URLSearchParams(params).toString();
+  redirect(`/admin/engagements/${jobId}${qs ? `?${qs}` : ''}`);
+}
 
 export interface Result {
   ok: boolean;
@@ -59,10 +74,11 @@ const PriceSchema = z.object({
   marginOverrideReason: z.string().max(500).optional().or(z.literal('')),
 });
 
-export async function priceEngagement(formData: FormData): Promise<Result> {
+export async function priceEngagement(formData: FormData): Promise<void> {
+  const jobId = String(formData.get('jobId') ?? '');
   const parsed = PriceSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input.' };
+    back(jobId, { error: parsed.error.issues[0]?.message ?? 'Invalid input.' });
   }
   const d = parsed.data;
 
@@ -81,11 +97,11 @@ export async function priceEngagement(formData: FormData): Promise<Result> {
       inspectorAgencyComp = toCents(d.inspectorAgencyComp, 'Inspector compensation');
     }
   } catch (e) {
-    return fail(e, 'Invalid amount.');
+    back(jobId, { error: fail(e, 'Invalid amount.').error ?? 'Invalid amount.', model: d.settlementModel });
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc('nx_admin_price_engagement', {
+  const { error } = await supabase.rpc('nx_admin_price_engagement', {
     p_job_id: d.jobId,
     p_customer_amount_cents: customer,
     p_settlement_model: d.settlementModel,
@@ -103,36 +119,38 @@ export async function priceEngagement(formData: FormData): Promise<Result> {
     p_amendment_reason: d.amendmentReason || null,
   } as never);
 
-  if (error) return fail(error, 'Could not save the pricing.');
+  if (error) {
+    back(d.jobId, { error: error.message ?? 'Could not save the pricing.', model: d.settlementModel });
+  }
   revalidatePath(`/admin/engagements/${d.jobId}`);
-  return { ok: true, message: `Version saved (${String(data ?? '')}).` };
+  back(d.jobId, { saved: 'New version saved as a draft.' });
 }
 
-export async function presentEngagement(formData: FormData): Promise<Result> {
+export async function presentEngagement(formData: FormData): Promise<void> {
   const id = String(formData.get('commercialId') ?? '');
   const jobId = String(formData.get('jobId') ?? '');
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc('nx_admin_present_engagement', {
     p_commercial_id: id,
   } as never);
-  if (error) return fail(error, 'Could not present these terms.');
+  if (error) back(jobId, { error: error.message ?? 'Could not present these terms.' });
   revalidatePath(`/admin/engagements/${jobId}`);
-  return { ok: true, message: 'Presented to the parties. Each sees only their own amount.' };
+  back(jobId, { saved: 'Presented to the parties. Each sees only their own amount.' });
 }
 
-export async function confirmEngagement(formData: FormData): Promise<Result> {
+export async function confirmEngagement(formData: FormData): Promise<void> {
   const id = String(formData.get('commercialId') ?? '');
   const jobId = String(formData.get('jobId') ?? '');
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.rpc('nx_admin_confirm_engagement', {
     p_commercial_id: id,
   } as never);
-  if (error) return fail(error, 'Could not confirm.');
+  if (error) back(jobId, { error: error.message ?? 'Could not confirm.' });
   revalidatePath(`/admin/engagements/${jobId}`);
-  return { ok: true, message: 'Confirmed. Settlement obligations recorded, no money moved.' };
+  back(jobId, { saved: 'Confirmed. Settlement obligations recorded, no money moved.' });
 }
 
-export async function setPartnerPolicy(formData: FormData): Promise<Result> {
+export async function setPartnerPolicy(formData: FormData): Promise<void> {
   const jobId = String(formData.get('jobId') ?? '');
   const approve = String(formData.get('approve') ?? '') === 'true';
   const supabase = await createSupabaseServerClient();
@@ -140,15 +158,14 @@ export async function setPartnerPolicy(formData: FormData): Promise<Result> {
     p_job_id: jobId,
     p_approve: approve,
   } as never);
-  if (error) return fail(error, 'Could not change partner distribution.');
+  if (error) back(jobId, { error: error.message ?? 'Could not change partner distribution.' });
   revalidatePath(`/admin/engagements/${jobId}`);
-  return {
-    ok: true,
-    message: approve ? 'Partner distribution approved.' : 'Partner distribution withdrawn.',
-  };
+  back(jobId, {
+    saved: approve ? 'Partner distribution approved.' : 'Partner distribution withdrawn.',
+  });
 }
 
-export async function invitePartner(formData: FormData): Promise<Result> {
+export async function invitePartner(formData: FormData): Promise<void> {
   const jobId = String(formData.get('jobId') ?? '');
   const partnerId = String(formData.get('partnerId') ?? '');
   const supabase = await createSupabaseServerClient();
@@ -156,12 +173,12 @@ export async function invitePartner(formData: FormData): Promise<Result> {
     p_job_id: jobId,
     p_partner_id: partnerId,
   } as never);
-  if (error) return fail(error, 'Could not invite that partner.');
+  if (error) back(jobId, { error: error.message ?? 'Could not invite that partner.' });
   revalidatePath(`/admin/engagements/${jobId}`);
-  return { ok: true, message: 'Partner invited to this engagement only.' };
+  back(jobId, { saved: 'Partner invited to this engagement only.' });
 }
 
-export async function settleObligation(formData: FormData): Promise<Result> {
+export async function settleObligation(formData: FormData): Promise<void> {
   const id = String(formData.get('obligationId') ?? '');
   const jobId = String(formData.get('jobId') ?? '');
   const status = String(formData.get('status') ?? '');
@@ -172,15 +189,14 @@ export async function settleObligation(formData: FormData): Promise<Result> {
     p_status: status,
     p_reference: reference || null,
   } as never);
-  if (error) return fail(error, 'Could not update the obligation.');
+  if (error) back(jobId, { error: error.message ?? 'Could not update the obligation.' });
   revalidatePath(`/admin/engagements/${jobId}`);
-  return {
-    ok: true,
-    message:
+  back(jobId, {
+    saved:
       status === 'paid'
         ? 'Recorded as paid. This is a record of an external transfer, not a payment.'
         : `Obligation moved to ${status}.`,
-  };
+  });
 }
 
 // ── Partner-side ──────────────────────────────────────────────────────────

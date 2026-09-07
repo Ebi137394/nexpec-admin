@@ -23,7 +23,7 @@ export default async function AdminEngagementPage({
   searchParams,
 }: {
   params: Promise<{ jobId: string }>;
-  searchParams?: Promise<{ error?: string; saved?: string }>;
+  searchParams?: Promise<{ error?: string; saved?: string; model?: string }>;
 }) {
   const { jobId } = await params;
   const sp = (await searchParams) ?? {};
@@ -116,6 +116,13 @@ export default async function AdminEngagementPage({
       )}
 
       <EngagementPanel
+        draftModel={
+          sp.model === 'agency_total'
+            ? 'agency_total'
+            : sp.model === 'split'
+              ? 'split'
+              : ((live?.settlement_model as 'split' | 'agency_total') ?? 'split')
+        }
         jobId={jobId}
         job={job as never}
         policy={(policy ?? null) as never}

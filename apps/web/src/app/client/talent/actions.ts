@@ -30,6 +30,21 @@ export interface ActionResult {
   error?: string;
 }
 
+/**
+ * PostgREST reports an UPDATE or INSERT that RLS filtered to ZERO rows as a
+ * success. Every write here is org-scoped by RLS, so "no error" alone proved
+ * nothing — an employer touching another org's candidate got { ok: true } and
+ * a green "Candidate moved to shortlisted." notice while the row was untouched.
+ * Each write now asks for the affected ids back and treats an empty result as
+ * a refusal.
+ */
+function notPermitted(what: string): ActionResult {
+  return {
+    ok: false,
+    error: `Nothing was saved. You may not have access to ${what}, or it no longer exists.`,
+  };
+}
+
 function fail(e: unknown, fallback: string): ActionResult {
   const msg =
     typeof e === 'object' && e !== null && 'message' in e
@@ -44,11 +59,13 @@ export async function setSubmissionStatus(
   status: 'shortlisted' | 'interviewing' | 'offered' | 'rejected',
 ): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('talent_submissions')
     .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', submissionId);
+    .eq('id', submissionId)
+    .select('id');
   if (error) return fail(error, 'Could not update this candidate.');
+  if (!data || data.length === 0) return notPermitted('this candidate');
   revalidatePath('/client/talent');
   return { ok: true };
 }
@@ -59,10 +76,12 @@ export async function scheduleInterview(
   mode: 'video' | 'onsite' | 'phone',
 ): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('talent_interviews')
-    .insert({ submission_id: submissionId, scheduled_at: scheduledAt, mode });
+    .insert({ submission_id: submissionId, scheduled_at: scheduledAt, mode })
+    .select('id');
   if (error) return fail(error, 'Could not schedule the interview.');
+  if (!data || data.length === 0) return notPermitted('this candidate');
   revalidatePath('/client/talent');
   return { ok: true };
 }
@@ -73,11 +92,13 @@ export async function recordInterviewOutcome(
   notes?: string | null,
 ): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('talent_interviews')
     .update({ outcome, notes: notes ?? null })
-    .eq('id', interviewId);
+    .eq('id', interviewId)
+    .select('id');
   if (error) return fail(error, 'Could not record the outcome.');
+  if (!data || data.length === 0) return notPermitted('this interview');
   revalidatePath('/client/talent');
   return { ok: true };
 }
@@ -96,27 +117,45 @@ export async function extendOffer(
     return { ok: false, error: 'Enter a compensation amount above zero.' };
   }
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('talent_offers').insert({
-    submission_id: submissionId,
-    comp_cents: Math.round(compCents),
-    start_date: startDate,
-  });
+  const { data, error } = await supabase
+    .from('talent_offers')
+    .insert({
+      submission_id: submissionId,
+      comp_cents: Math.round(compCents),
+      start_date: startDate,
+    })
+    .select('id');
   if (error) return fail(error, 'Could not extend the offer.');
-  await supabase
+  if (!data || data.length === 0) return notPermitted('this candidate');
+
+  // The follow-up status move was previously fire-and-forget: its result was
+  // discarded entirely, so an offer could exist against a submission still
+  // showing its old status.
+  const { data: moved, error: moveErr } = await supabase
     .from('talent_submissions')
     .update({ status: 'offered', updated_at: new Date().toISOString() })
-    .eq('id', submissionId);
+    .eq('id', submissionId)
+    .select('id');
+  if (moveErr) return fail(moveErr, 'Offer saved, but the candidate status did not move.');
+  if (!moved || moved.length === 0) {
+    return {
+      ok: false,
+      error: 'Offer saved, but the candidate status did not move. Refresh and check.',
+    };
+  }
   revalidatePath('/client/talent');
   return { ok: true };
 }
 
 export async function withdrawOffer(offerId: string): Promise<ActionResult> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('talent_offers')
     .update({ status: 'withdrawn', responded_at: new Date().toISOString() })
-    .eq('id', offerId);
+    .eq('id', offerId)
+    .select('id');
   if (error) return fail(error, 'Could not withdraw the offer.');
+  if (!data || data.length === 0) return notPermitted('this offer');
   revalidatePath('/client/talent');
   return { ok: true };
 }

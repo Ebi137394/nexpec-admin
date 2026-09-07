@@ -35,7 +35,7 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
     const { data, error } = await supabase
       .from('jobs_secure_view')
       .select(
-        'id, title, status, moderation_status, created_at, budget_cents, applications_count, location_city, urgency',
+        'id, title, status, moderation_status, created_at, budget_cents, applications_count, location_city, location, urgency',
       )
       .eq('client_id', user.id)
       .is('deleted_at', null)
@@ -84,7 +84,15 @@ export async function fetchClientJobs(): Promise<ClientJobRow[]> {
             ? Number(row.budget_cents)
             : (row.budget_cents as number | null) ?? null,
         applicationsCount: forwardedByJob.get(String(row.id)) ?? 0,
-        locationCity: (row.location_city as string | null) ?? null,
+        // Mobile job posting writes `location` (free text) and never
+        // location_city; web writes location_city. 21 of 24 Production jobs —
+        // including both jobs posted by real users — have only `location`, so
+        // reading location_city alone showed no location at all. Fall back
+        // rather than deriving a city: the stored values are things like
+        // "Ghala PO Box.2385 PC:130" and "Los angles", which cannot be parsed
+        // into a city without inventing data.
+        locationCity:
+          (row.location_city as string | null) ?? (row.location as string | null) ?? null,
         urgency: (row.urgency as JobUrgency | null) ?? null,
       }),
     );

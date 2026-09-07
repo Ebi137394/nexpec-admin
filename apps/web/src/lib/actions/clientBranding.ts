@@ -68,10 +68,14 @@ export async function updateClientBranding(formData: FormData): Promise<void> {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  // A zero-row UPDATE is a PostgREST success, so without .select() this
+  // redirected with saved=1 even when RLS wrote nothing. Its sibling
+  // updateClientSettings already had this guard; branding did not.
+  const { data: saved, error } = await supabase
     .from('profiles')
     .update(update)
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
 
   if (error) {
     if (typeof console !== 'undefined') {
@@ -83,6 +87,14 @@ export async function updateClientBranding(formData: FormData): Promise<void> {
     redirect(
       buildRedirect({
         error: 'Could not save branding. Try again or contact support.',
+      }),
+    );
+  }
+
+  if (!saved || saved.length === 0) {
+    redirect(
+      buildRedirect({
+        error: 'Nothing was saved. Sign in again and retry.',
       }),
     );
   }

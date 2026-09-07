@@ -118,18 +118,29 @@ export async function approveInvoiceAction(
     return { ok: false, error: `Invoice is ${inv.status}, not awaiting review.` };
   }
 
-  const { error } = await supabase
+  // Invoice writes are admin-scoped by RLS. A client hitting this action gets a
+  // zero-row UPDATE, which PostgREST reports as success — so the panel showed a
+  // green "Invoice approved." while the invoice stayed awaiting review. Ask for
+  // the row back and treat an empty result as a refusal.
+  const { data: approved, error } = await supabase
     .from('invoices')
     .update({
       status: 'approved',
       approved_at: new Date().toISOString(),
       approved_by: user.id,
     })
-    .eq('id', parsed.data.invoiceId);
+    .eq('id', parsed.data.invoiceId)
+    .select('id');
 
   if (error) {
     console.error('[approveInvoiceAction] failed:', error.message);
     return { ok: false, error: friendlyError(error.message) };
+  }
+  if (!approved || approved.length === 0) {
+    return {
+      ok: false,
+      error: 'Nothing was saved. You may not be authorised to approve this invoice.',
+    };
   }
 
   revalidateInvoicePaths(parsed.data.invoiceId);
@@ -166,7 +177,7 @@ export async function disputeInvoiceAction(
     return { ok: false, error: `Cannot dispute a ${inv.status} invoice.` };
   }
 
-  const { error } = await supabase
+  const { data: disputed, error } = await supabase
     .from('invoices')
     .update({
       status: 'disputed',
@@ -174,11 +185,18 @@ export async function disputeInvoiceAction(
       disputed_by: user.id,
       dispute_reason: parsed.data.reason,
     })
-    .eq('id', parsed.data.invoiceId);
+    .eq('id', parsed.data.invoiceId)
+    .select('id');
 
   if (error) {
     console.error('[disputeInvoiceAction] failed:', error.message);
     return { ok: false, error: friendlyError(error.message) };
+  }
+  if (!disputed || disputed.length === 0) {
+    return {
+      ok: false,
+      error: 'Nothing was saved. You may not be authorised to dispute this invoice.',
+    };
   }
 
   revalidateInvoicePaths(parsed.data.invoiceId);

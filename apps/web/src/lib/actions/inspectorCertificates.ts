@@ -153,12 +153,30 @@ export async function deleteInspectorCertificate(
       ? (row as { file_path: string }).file_path
       : null;
 
-  await supabase
+  // The delete result used to be discarded entirely and the storage object was
+  // then removed UNCONDITIONALLY. If RLS refused the delete, the certificate
+  // row survived while its file was destroyed — the row pointed at nothing and
+  // the user was told "deleted". Confirm the row actually went first, and only
+  // then remove the object it referenced.
+  const { data: removed, error: delErr } = await supabase
     .from('inspector_certificates')
     .delete()
     .eq('id', parsed.data.id)
-    .eq('inspector_id', user.id);
+    .eq('inspector_id', user.id)
+    .select('id');
 
+  if (delErr) {
+    redirect(withQuery(RETURN_TO, { error: 'Could not delete that certificate.' }));
+  }
+  if (!removed || removed.length === 0) {
+    redirect(
+      withQuery(RETURN_TO, {
+        error: 'Nothing was deleted. That certificate may not be yours.',
+      }),
+    );
+  }
+
+  // Only now is the file safe to remove: the row that referenced it is gone.
   if (filePath) {
     await supabase.storage.from(BUCKET).remove([filePath]);
   }

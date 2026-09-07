@@ -35,6 +35,12 @@ import {
   fetchCanonicalCompleteness,
   type InspectorDossier,
 } from '@/lib/data/adminInspector360';
+import {
+  fetchSupplierDossier,
+  fetchOrgContext,
+  type SupplierDossier,
+  type OrgContext,
+} from '@/lib/data/adminSupplierAndOrg';
 import { UserRoleBadge } from '@/components/admin/users/UserRoleBadge';
 import { UserModerationPanel } from '@/components/admin/users/UserModerationPanel';
 import { UserRoleMessagePanel } from '@/components/admin/users/UserRoleMessagePanel';
@@ -104,6 +110,18 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
   const completeness = await fetchCanonicalCompleteness(id);
   const isClientSide =
     role === 'client' || role === 'agency' || role === 'enterprise';
+  const isSupplier = role === 'supplier';
+
+  // Supplier had NO role-specific section at all: it matches neither
+  // isInspector nor isClientSide, so its business identity was invisible here.
+  const supplier: SupplierDossier | null = isSupplier
+    ? await fetchSupplierDossier(id)
+    : null;
+
+  // Organisation membership lives in org_members; profiles.organization_id is a
+  // single-org denormalisation that disagrees with it on Production. Fetched
+  // for EVERY role, because inspectors and suppliers can belong to one too.
+  const org: OrgContext = await fetchOrgContext(id, profile.organization_id ?? null);
 
   // Build display name in two steps so we don't mix ?? and || in one
   // expression (JS spec forbids it without parens).
@@ -301,14 +319,9 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
           <KV label="Status" value={profile.verification_status} />
           <KV label="Verified at" value={formatDateTime(profile.verified_at)} />
           <KV label="Terms accepted" value={profile.terms_accepted ? 'Yes' : 'No'} />
-          {/* Organisation membership used to be rendered ONLY inside the
-              client-side block, so it was invisible for every other role. Two
-              inspectors on Production have an organization_id today, and a
-              supplier gets no role-specific section at all — for them this was
-              the only place it could ever appear. Role-independent here. */}
-          {profile.organization_id && (
-            <KV label="Organization" value={profile.organization_id} mono />
-          )}
+          {/* Organisation membership is rendered in its own section below,
+              from org_members — the authoritative model — rather than from the
+              profiles.organization_id denormalisation alone. */}
           {profile.rejection_reason && (
             <KV
               label="Rejection reason"
@@ -320,6 +333,170 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
       </Section>
 
       {/* Aggregate stats */}
+      {/* ── Organisation membership, every role ──────────────────────────
+          org_members is authoritative and multi-org capable;
+          profiles.organization_id is a single-org denormalisation that
+          disagrees with it on Production. Both are shown, and a disagreement
+          is called out rather than silently resolved in favour of one. */}
+      <Section title="Organisation membership">
+        {org.memberships.length === 0 ? (
+          <p className="text-xs text-zinc-400">
+            Not provided, no rows in <code>org_members</code> for this user.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {org.memberships.map((m) => (
+              <li
+                key={m.orgId}
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-zinc-100">
+                    {m.orgName ?? 'Unnamed organisation'}
+                  </span>
+                  {m.orgKind && (
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-400">
+                      {m.orgKind}
+                    </span>
+                  )}
+                  {m.role && (
+                    <span className="rounded-full border border-violet/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet">
+                      {m.role}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 font-mono text-[10px] text-zinc-600">{m.orgId}</p>
+                {m.joinedAt && (
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    Member since {formatDate(m.joinedAt)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <KV
+            label="profiles.organization_id"
+            value={org.profileOrganizationId}
+            mono
+          />
+          <KV
+            label="Models agree"
+            value={org.disagrees ? 'No, see note' : 'Yes'}
+          />
+        </dl>
+        {org.disagrees && (
+          <p className="mt-2 text-[11px] text-amber-300/80">
+            <code>profiles.organization_id</code> does not match this user&apos;s{' '}
+            <code>org_members</code> rows. Membership in <code>org_members</code> is
+            what org-scoped access is granted from; treat the profile column as a
+            stale denormalisation.
+          </p>
+        )}
+        {org.unreadable.length > 0 && (
+          <p className="mt-2 text-[11px] text-rose-300/80">
+            Could not read: {org.unreadable.join('; ')}
+          </p>
+        )}
+      </Section>
+
+      {/* ── Supplier, business identity ───────────────────────────────────
+          'supplier' matches neither isInspector nor isClientSide, so before
+          this section a supplier's admin page showed only the generic
+          identity block and none of their vendor record. */}
+      {isSupplier && supplier && (
+        <>
+          <Section title="Supplier, business identity">
+            {!supplier.hasProfile ? (
+              <p className="text-xs text-zinc-400">
+                Not provided, no <code>supplier_profiles</code> row, the vendor has
+                not completed onboarding.
+              </p>
+            ) : (
+              <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <KV label="Legal name" value={supplier.legalName} />
+                <KV label="Headline" value={supplier.headline} />
+                <KV label="Country" value={supplier.countryCode} />
+                <KV
+                  label="Rating"
+                  value={
+                    supplier.ratingCount
+                      ? `${(supplier.ratingAvg ?? 0).toFixed(2)} from ${supplier.ratingCount}`
+                      : null
+                  }
+                />
+                <KV
+                  label="Listed"
+                  value={supplier.isActive === null ? null : supplier.isActive ? 'Yes' : 'No'}
+                />
+                <KV
+                  label="Vendor verification"
+                  value={
+                    supplier.verifiedAt
+                      ? `Verified ${formatDate(supplier.verifiedAt)}`
+                      : 'Not verified'
+                  }
+                />
+                <KV
+                  label="Capabilities"
+                  value={supplier.capabilities.length ? supplier.capabilities.join(', ') : null}
+                  colSpan
+                />
+              </dl>
+            )}
+            {!supplier.verifiedAt && supplier.hasProfile && (
+              <p className="mt-2 text-[11px] text-zinc-500">
+                No application code writes <code>supplier_profiles.verification</code>{' '}
+                today, so every vendor reads as unverified. This is the stored
+                state, not a review decision.
+              </p>
+            )}
+          </Section>
+
+          <Section title={`Supplier, sealed documents (${supplier.documents.length})`}>
+            {supplier.documents.length === 0 ? (
+              <p className="text-xs text-zinc-400">
+                Not provided, no <code>vendor_documents</code> rows for this vendor.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {supplier.documents.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-zinc-100">
+                        {d.title ?? d.kind ?? 'Untitled document'}
+                      </p>
+                      <p className="mt-0.5 font-mono text-[10px] text-zinc-600">
+                        {d.storagePath}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-zinc-500">
+                        {[d.kind, d.status, d.expiresAt ? `expires ${formatDate(d.expiresAt)}` : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    {d.signedUrl ? (
+                      <LinkChip href={d.signedUrl} label="Open (signed, 5 min)" />
+                    ) : (
+                      <span className="text-[11px] text-zinc-500">Could not sign</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {supplier.unreadable.length > 0 && (
+              <p className="mt-2 text-[11px] text-rose-300/80">
+                Could not read: {supplier.unreadable.join('; ')}
+              </p>
+            )}
+          </Section>
+        </>
+      )}
+
       <Section title="Marketplace stats">
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KV

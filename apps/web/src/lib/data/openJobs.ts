@@ -87,6 +87,7 @@ export async function fetchOpenJobs(
           'title',
           'description',
           'location_city',
+          'location',
           'job_type',
           'urgency',
           'inspection_type',
@@ -122,7 +123,11 @@ export async function fetchOpenJobs(
       q = q.overlaps('specialty_slugs', f.specialties);
     }
     if (f.city && f.city.trim().length > 0) {
-      q = q.ilike('location_city', `%${f.city.trim()}%`);
+      // Match either column. Mobile-posted jobs carry free text in `location`
+      // and nothing in location_city, so a location_city-only filter hid every
+      // one of them from the marketplace.
+      const city = f.city.trim().replace(/[,()]/g, ' ').trim();
+      q = q.or(`location_city.ilike.%${city}%,location.ilike.%${city}%`);
     }
     if (f.urgency) {
       q = q.eq('urgency', f.urgency);
@@ -247,7 +252,8 @@ export async function fetchOpenJobs(
         descriptionPreview: description
           ? description.slice(0, 240) + (description.length > 240 ? '…' : '')
           : null,
-        locationCity: (j.location_city as string | null) ?? null,
+        locationCity:
+          (j.location_city as string | null) ?? (j.location as string | null) ?? null,
         jobType: (j.job_type as string | null) ?? null,
         urgency: (j.urgency as JobUrgency | null) ?? null,
         inspectionType: (j.inspection_type as string | null) ?? null,

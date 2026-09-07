@@ -301,6 +301,14 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
           <KV label="Status" value={profile.verification_status} />
           <KV label="Verified at" value={formatDateTime(profile.verified_at)} />
           <KV label="Terms accepted" value={profile.terms_accepted ? 'Yes' : 'No'} />
+          {/* Organisation membership used to be rendered ONLY inside the
+              client-side block, so it was invisible for every other role. Two
+              inspectors on Production have an organization_id today, and a
+              supplier gets no role-specific section at all — for them this was
+              the only place it could ever appear. Role-independent here. */}
+          {profile.organization_id && (
+            <KV label="Organization" value={profile.organization_id} mono />
+          )}
           {profile.rejection_reason && (
             <KV
               label="Rejection reason"
@@ -852,7 +860,8 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
                 profile.company_logo_url ? 'Uploaded' : 'Default NEXPEC mark'
               }
             />
-            <KV label="Organization" value={profile.organization_id} mono />
+            {/* Organization moved to "Verification & audit" so it renders for
+                every role, not just client-side ones. */}
             <KV
               label="Report header text"
               value={profile.report_header_text}

@@ -13,17 +13,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { baseFor } from '@/lib/routing/roleRoutes';
 
 export const dynamic = 'force-dynamic';
-
-/** Role → the route that actually exists today. Verified against src/app. */
-function profilePathForRole(role: string | null | undefined): string {
-  const r = (role ?? '').trim().toLowerCase();
-  if (r === 'inspector' || r === 'senior') return '/inspector/settings';
-  if (r === 'supplier') return '/suppliers/profile';
-  if (r === 'admin' || r === 'super_admin') return '/admin/dashboard';
-  return '/client/settings'; // client, agency, enterprise
-}
 
 export default async function ProfileRedirectPage({
   searchParams,
@@ -56,5 +48,5 @@ export default async function ProfileRedirectPage({
     .eq('id', user.id)
     .maybeSingle();
 
-  redirect(profilePathForRole((profile as { role?: string } | null)?.role));
+  redirect(baseFor('profile', (profile as { role?: string } | null)?.role));
 }

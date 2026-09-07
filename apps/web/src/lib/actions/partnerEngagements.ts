@@ -40,9 +40,14 @@ function toCents(input: unknown, field: string): number {
 
 const PriceSchema = z.object({
   jobId: z.string().uuid(),
+  settlementModel: z.enum(['split', 'agency_total']).default('split'),
   customerAmount: z.string().min(1),
   inspectorPayout: z.string().default('0'),
   partnerCommission: z.string().default('0'),
+  agencyTotal: z.string().default('0'),
+  // Model B only: what Agency B says it pays its inspector. AGENCY-payable.
+  inspectorAgencyComp: z.string().optional().or(z.literal('')),
+  amendmentReason: z.string().max(500).optional().or(z.literal('')),
   partnerId: z.string().uuid().optional().or(z.literal('')),
   inspectorId: z.string().uuid().optional().or(z.literal('')),
   currency: z.string().trim().length(3).default('USD'),
@@ -61,11 +66,20 @@ export async function priceEngagement(formData: FormData): Promise<Result> {
   }
   const d = parsed.data;
 
-  let customer: number, inspector: number, partner: number;
+  const isB = d.settlementModel === 'agency_total';
+  let customer: number, inspector: number, partner: number, agencyTotal: number;
+  let inspectorAgencyComp: number | null = null;
   try {
     customer = toCents(d.customerAmount, 'Customer amount');
-    inspector = toCents(d.inspectorPayout || '0', 'Inspector payout');
-    partner = toCents(d.partnerCommission || '0', 'Partner commission');
+    // Model B carries NO NEXPEC inspector payout and NO separate commission.
+    // Zeroing here means a stale hidden field can never smuggle one through;
+    // the database CHECK rejects it too.
+    inspector = isB ? 0 : toCents(d.inspectorPayout || '0', 'Inspector payout');
+    partner = isB ? 0 : toCents(d.partnerCommission || '0', 'Partner commission');
+    agencyTotal = isB ? toCents(d.agencyTotal || '0', 'Agency total') : 0;
+    if (isB && d.inspectorAgencyComp) {
+      inspectorAgencyComp = toCents(d.inspectorAgencyComp, 'Inspector compensation');
+    }
   } catch (e) {
     return fail(e, 'Invalid amount.');
   }
@@ -74,8 +88,11 @@ export async function priceEngagement(formData: FormData): Promise<Result> {
   const { data, error } = await supabase.rpc('nx_admin_price_engagement', {
     p_job_id: d.jobId,
     p_customer_amount_cents: customer,
+    p_settlement_model: d.settlementModel,
     p_inspector_payout_cents: inspector,
     p_partner_commission_cents: partner,
+    p_agency_total_cents: agencyTotal,
+    p_inspector_agency_comp_cents: inspectorAgencyComp,
     p_partner_id: d.partnerId || null,
     p_inspector_id: d.inspectorId || null,
     p_currency: d.currency.toUpperCase(),
@@ -83,6 +100,7 @@ export async function priceEngagement(formData: FormData): Promise<Result> {
     p_scope_units: d.scopeUnits ? Number(d.scopeUnits) : null,
     p_scope_note: d.scopeNote || null,
     p_margin_override_reason: d.marginOverrideReason || null,
+    p_amendment_reason: d.amendmentReason || null,
   } as never);
 
   if (error) return fail(error, 'Could not save the pricing.');

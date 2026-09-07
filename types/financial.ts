@@ -31,7 +31,12 @@ export const CURRENCIES: CurrencyConfig[] = [
 ];
 
 /**
- * Financial settings from the database
+ * @deprecated DOES NOT MATCH public.profiles. daily_rate, travel_rate, tax_id,
+ * minimum_hours and payment_terms_days are not columns; the real ones are
+ * daily_rate_cents, travel_rate_cents, minimum_engagement_hours and
+ * payment_terms, and there is no tax_id column at all. Nothing reads this
+ * interface today — it is kept only so the stale names are not silently
+ * reintroduced. Use FinancialUpdatePayload, which is schema-accurate.
  */
 export interface FinancialSettings {
   hourly_rate_cents: number | null;     // ★ Task 4
@@ -64,7 +69,6 @@ export interface FinancialFormData {
   travel_rate: string;
   travel_rate_unit: TravelRateUnit;
   currency: Currency;
-  tax_id: string;
   overtime_multiplier: string;
   // Mobile parity 2026-05-20 — web schema additions (Sprint 11):
   //   profiles.weekend_multiplier NUMERIC(4,2) default 1.50 (1.00–5.00)
@@ -83,19 +87,29 @@ export interface FinancialFormData {
 /**
  * Payload for updating financial settings
  */
+/**
+ * Payload for updating financial settings.
+ *
+ * ★ These are REAL public.profiles column names. The previous shape named
+ *   daily_rate / travel_rate / tax_id / minimum_hours / payment_terms_days,
+ *   none of which exist, so every save returned 400 and the mobile rates
+ *   screen could neither load nor persist anything. Money is stored in minor
+ *   units; `payment_terms` is a text enum, not a day count.
+ */
 export interface FinancialUpdatePayload {
-  hourly_rate_cents: number | null;     // ★ Task 4
-  daily_rate: number | null;
-  travel_rate: number | null;
+  hourly_rate_cents: number | null;
+  daily_rate_cents: number | null;
+  travel_rate_cents: number | null;
   travel_rate_unit: TravelRateUnit;
   currency: Currency;
-  tax_id: string | null;
   overtime_multiplier: number;
   // Mobile parity 2026-05-20 — CHECK 1.00–5.00 enforced at DB layer.
   weekend_multiplier: number;
   holiday_multiplier: number;
-  minimum_hours: number;
-  payment_terms_days: number;
+  /** profiles.minimum_engagement_hours, CHECK 1–240. */
+  minimum_engagement_hours: number | null;
+  /** profiles.payment_terms, CHECK net7|net15|net30|net45|net60|on_completion. */
+  payment_terms: string | null;
   accepts_credit_card: boolean;
   accepts_bank_transfer: boolean;
   accepts_check: boolean;
@@ -122,7 +136,6 @@ export const DEFAULT_FINANCIAL_SETTINGS: FinancialFormData = {
   travel_rate: '',
   travel_rate_unit: 'km',
   currency: 'USD',
-  tax_id: '',
   overtime_multiplier: '1.5',
   // Defaults mirror web schema (Sprint 11):
   //   weekend_multiplier default 1.50, holiday_multiplier default 2.00.

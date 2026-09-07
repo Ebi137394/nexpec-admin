@@ -164,8 +164,14 @@ export default function EditProfileScreen() {
 
       return publicUrl;
     } catch (error) {
+      // Do NOT swallow this. Returning null here used to mean a failed photo
+      // upload still reached "Profile updated!", so the user believed their
+      // photo was saved. `null` is reserved for "there was nothing to upload";
+      // a real failure has to reach handleSave and abort the save.
       console.error('Avatar upload failed:', error);
-      return null;
+      throw error instanceof Error
+        ? error
+        : new Error('Your photo could not be uploaded. Nothing was saved.');
     }
   };
 
@@ -185,12 +191,16 @@ export default function EditProfileScreen() {
         updates.avatar_url = publicUrl;
       }
 
-      // Update title (Professional Title) column
-      if (title.trim()) {
-        updates.title = title.trim();
-      } else {
-        updates.title = null;
-      }
+      // Professional Title. `profiles` carries TWO columns for this —
+      // `title` (what this screen has always written) and
+      // `professional_title` (what the web app, the admin console and
+      // lib/data/inspectorProfile.ts read). Writing only `title` meant an
+      // inspector's title was invisible on every other surface. Write both.
+      // Migration 20260801656000 also mirrors them with a trigger so already-
+      // published builds are covered; this keeps the client honest on its own.
+      const trimmedTitle = title.trim() || null;
+      updates.title = trimmedTitle;
+      updates.professional_title = trimmedTitle;
 
       // Update headline (Bio/Headline) column
       if (headline.trim()) {
@@ -223,13 +233,23 @@ export default function EditProfileScreen() {
           : [];
       }
 
-      const { error } = await supabase
+      // `.select('id')` is required, not cosmetic. PostgREST reports an
+      // UPDATE that matched ZERO rows as a SUCCESS, so an RLS refusal (or a
+      // stale session id) used to fall straight through to "Profile updated!"
+      // while nothing was written. Require a returned row before saying so.
+      const { data: updatedRows, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', user?.id);
+        .eq('id', user?.id)
+        .select('id');
 
       if (error) throw error;
-      
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(
+          'Your profile could not be saved — no record was updated. Nothing was changed.',
+        );
+      }
+
       Alert.alert('Success', 'Profile updated!');
       router.back();
     } catch (error: any) {

@@ -24,7 +24,6 @@ import {
   DollarSign,
   Briefcase,
   Car,
-  Receipt,
   Save,
   Clock,
   CreditCard,
@@ -60,6 +59,61 @@ import {
 // ============================================
 // Theme Constants
 // ============================================
+/* ─── DB ↔ form adapters ──────────────────────────────────────────────────
+   The form speaks dollars and day counts; public.profiles stores minor units
+   and a payment-terms enum. Keeping the translation here — rather than
+   inventing columns to match the form — is what makes this screen able to
+   save at all. */
+
+/** Minor units → a dollar string for a CurrencyInput. */
+const centsToInput = (cents: unknown): string => {
+  const dollars = fromCents(typeof cents === 'number' ? cents : Number(cents));
+  return Number.isFinite(dollars) && dollars > 0 ? dollars.toString() : '';
+};
+
+/** profiles.minimum_engagement_hours is INTEGER with CHECK 1–240. */
+const clampHours = (raw: string): number | null => {
+  const n = Math.round(parseFloat(raw));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(240, Math.max(1, n));
+};
+
+/** Day count → profiles.payment_terms enum. Unmapped values fall back to net30. */
+const daysToPaymentTerms = (raw: string): string => {
+  switch (parseInt(raw, 10)) {
+    case 7:
+      return 'net7';
+    case 15:
+      return 'net15';
+    case 45:
+      return 'net45';
+    case 60:
+      return 'net60';
+    case 0:
+      return 'on_completion';
+    default:
+      return 'net30';
+  }
+};
+
+/** profiles.payment_terms enum → the day count the picker uses. */
+const paymentTermsToDays = (terms: unknown): string => {
+  switch (terms) {
+    case 'net7':
+      return '7';
+    case 'net15':
+      return '15';
+    case 'net45':
+      return '45';
+    case 'net60':
+      return '60';
+    case 'on_completion':
+      return '0';
+    default:
+      return '30';
+  }
+};
+
 const COLORS = {
   background: '#020617',
   card: '#1E293B',
@@ -459,18 +513,24 @@ export default function RatesScreen(): React.JSX.Element {
 
       const { data, error } = await supabase
         .from('profiles')
+        // ★ Every column here must EXIST. This SELECT previously named nine
+        //   columns that do not exist on profiles (daily_rate, travel_rate,
+        //   travel_rate_unit, tax_id, minimum_hours, payment_terms_days,
+        //   accepts_*), so PostgREST returned 400 and this screen failed to
+        //   load at all — the rates feature was completely dead on mobile.
+        //   Money is stored in minor units, and the two mismatched names map
+        //   to travel_rate_cents / minimum_engagement_hours / payment_terms.
         .select(`
           hourly_rate_cents,
-          daily_rate,
-          travel_rate,
+          daily_rate_cents,
+          travel_rate_cents,
           travel_rate_unit,
           currency,
-          tax_id,
           overtime_multiplier,
           weekend_multiplier,
           holiday_multiplier,
-          minimum_hours,
-          payment_terms_days,
+          minimum_engagement_hours,
+          payment_terms,
           accepts_credit_card,
           accepts_bank_transfer,
           accepts_check
@@ -485,17 +545,16 @@ export default function RatesScreen(): React.JSX.Element {
         const hourlyDollars = fromCents((data as any).hourly_rate_cents);
         const settings: FinancialFormData = {
           hourly_rate: hourlyDollars > 0 ? hourlyDollars.toString() : '',
-          daily_rate: data.daily_rate?.toString() || '',
-          travel_rate: data.travel_rate?.toString() || '',
-          travel_rate_unit: (data.travel_rate_unit as TravelRateUnit) || 'km',
+          daily_rate: centsToInput((data as any).daily_rate_cents),
+          travel_rate: centsToInput((data as any).travel_rate_cents),
+          travel_rate_unit: ((data as any).travel_rate_unit as TravelRateUnit) || 'km',
           currency: (data.currency as Currency) || 'USD',
-          tax_id: data.tax_id || '',
           overtime_multiplier: data.overtime_multiplier?.toString() || '1.5',
           // Mobile parity 2026-05-20 — Sprint 11 schema columns.
           weekend_multiplier: (data as any).weekend_multiplier?.toString() || '1.5',
           holiday_multiplier: (data as any).holiday_multiplier?.toString() || '2.0',
-          minimum_hours: data.minimum_hours?.toString() || '4',
-          payment_terms_days: data.payment_terms_days?.toString() || '30',
+          minimum_hours: (data as any).minimum_engagement_hours?.toString() || '4',
+          payment_terms_days: paymentTermsToDays((data as any).payment_terms),
           accepts_credit_card: data.accepts_credit_card || false,
           accepts_bank_transfer: data.accepts_bank_transfer ?? true,
           accepts_check: data.accepts_check ?? true,
@@ -592,30 +651,39 @@ export default function RatesScreen(): React.JSX.Element {
 
       const updates: FinancialUpdatePayload = {
         // ★ Task 4: hourly_rate column is now hourly_rate_cents (bigint).
+        //   Every money field is stored in minor units for the same reason.
         hourly_rate_cents: toCents(parseCurrencyInput(formData.hourly_rate)),
-        daily_rate: parseCurrencyInput(formData.daily_rate),
-        travel_rate: parseCurrencyInput(formData.travel_rate),
+        daily_rate_cents: toCents(parseCurrencyInput(formData.daily_rate)),
+        travel_rate_cents: toCents(parseCurrencyInput(formData.travel_rate)),
         travel_rate_unit: formData.travel_rate_unit,
         currency: formData.currency,
-        tax_id: formData.tax_id.trim() || null,
         overtime_multiplier: clampMul(formData.overtime_multiplier, 1.5),
         // Mobile parity 2026-05-20 — Sprint 11 schema columns.
         weekend_multiplier: clampMul(formData.weekend_multiplier, 1.5),
         holiday_multiplier: clampMul(formData.holiday_multiplier, 2.0),
-        minimum_hours: parseFloat(formData.minimum_hours) || 4,
-        payment_terms_days: parseInt(formData.payment_terms_days, 10) || 30,
+        // profiles.minimum_engagement_hours is an INTEGER with CHECK 1–240.
+        // Clamp rather than round-trip a constraint violation.
+        minimum_engagement_hours: clampHours(formData.minimum_hours),
+        payment_terms: daysToPaymentTerms(formData.payment_terms_days),
         accepts_credit_card: formData.accepts_credit_card,
         accepts_bank_transfer: formData.accepts_bank_transfer,
         accepts_check: formData.accepts_check,
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
+      // `.select('id')` is required: PostgREST reports a zero-row UPDATE as a
+      // success, so an RLS refusal would otherwise show "rates updated
+      // successfully" over an unchanged row.
+      const { data: updatedRows, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('id');
 
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('Your rates could not be saved. Nothing was changed.');
+      }
 
       setOriginalData(formData);
       Alert.alert('Success', 'Your rates have been updated successfully!', [
@@ -879,29 +947,15 @@ export default function RatesScreen(): React.JSX.Element {
             />
           </View>
 
-          {/* Tax Information Section */}
-          <View style={styles.card}>
-            <SectionHeader
-              icon={<Receipt size={20} color={COLORS.primary} />}
-              title="Tax Information"
-              subtitle="For invoicing purposes"
-            />
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tax ID / VAT Number</Text>
-              <TextInput
-                style={styles.textInput}
-                value={formData.tax_id}
-                onChangeText={(value) => updateFormField('tax_id', value)}
-                placeholder="e.g., XX-XXXXXXX"
-                placeholderTextColor={COLORS.textMuted}
-                autoCapitalize="characters"
-              />
-              <Text style={styles.inputHint}>
-                This will appear on invoices generated through NEXPEC
-              </Text>
-            </View>
-          </View>
+          {/* Tax ID / VAT was removed here on purpose.
+              There is no column for it on public.profiles, and it must not be
+              added to that table: profiles rows are readable by other users
+              through the profiles_read_related policy (nx_can_read_profile),
+              so a tax identifier stored there would be exposed to every reader
+              of the row. Collecting it into a field that cannot be saved is
+              worse than not offering it — the user would believe NEXPEC held
+              their tax number when nothing was stored. It comes back when it
+              has a restricted store of its own. */}
 
           {/* Rate Preview */}
           <RatePreview formData={formData} />

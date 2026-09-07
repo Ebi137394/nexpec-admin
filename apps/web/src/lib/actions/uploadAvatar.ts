@@ -93,13 +93,25 @@ export async function uploadAvatar(formData: FormData): Promise<void> {
     .getPublicUrl(uploaded.path);
 
   // Persist to profiles row
-  const { error: updateErr } = await supabase
+  // A zero-row UPDATE is a PostgREST success; require a returned row before
+  // claiming the avatar was saved.
+  const { data: updatedRows, error: updateErr } = await supabase
     .from('profiles')
     .update({
       avatar_url: pub.publicUrl,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+
+  if (!updateErr && (!updatedRows || updatedRows.length === 0)) {
+    if (typeof console !== 'undefined') {
+      console.error('[uploadAvatar] wrote 0 rows', { userId: user.id });
+    }
+    redirect(
+      withQuery(returnTo, { error: 'Avatar could not be saved to your profile.' }),
+    );
+  }
 
   if (updateErr) {
     if (typeof console !== 'undefined') {

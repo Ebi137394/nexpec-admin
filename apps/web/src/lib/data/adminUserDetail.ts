@@ -22,6 +22,14 @@ export interface AdminUserDetail {
   bio: string | null;
   headline: string | null;
   professional_title: string | null;
+  /**
+   * `profiles` carries TWO professional-title columns. Web writes
+   * `professional_title`; the mobile profile editor writes `title`. Read both
+   * or half the population looks blank — see professional_title_effective.
+   */
+  title: string | null;
+  /** professional_title, falling back to the mobile-written `title`. */
+  professional_title_effective: string | null;
   company_name: string | null;
   location_city: string | null;
   location_province: string | null;
@@ -33,6 +41,7 @@ export interface AdminUserDetail {
 
   // Verification
   verification_status: string | null;
+  is_verified: boolean | null;
   verified_at: string | null;
   rejection_reason: string | null;
   terms_accepted: boolean | null;
@@ -61,11 +70,17 @@ export interface AdminUserDetail {
 
   // Inspector specifics
   years_of_experience: string | null;
+  experience_years: number | null;
   hourly_rate_cents: number | null;
   response_time_hours: number | null;
   specialty_slugs: string[];
   ndt_methods: string[];
   certifications: string[];
+  // `specialties` is a free-text legacy column, distinct from specialty_slugs.
+  specialties: string | null;
+  custom_specialties: string[];
+  custom_ndt_methods: string[];
+  skills: string[];
   travel_radius_km: number | null;
   home_base_label: string | null;
   country_of_residence: string | null;
@@ -81,6 +96,16 @@ export interface AdminUserDetail {
   minimum_engagement_hours: number | null;
   resume_url: string | null;
   cv_url: string | null;
+  // The LIVE CV column. `resumes` is a private bucket, so this is an object
+  // path that must be signed at read time — resume_url/cv_url are legacy
+  // public URLs and are dead links today.
+  resume_path: string | null;
+
+  // Availability / marketplace
+  is_available: boolean | null;
+  availability_status: string | null;
+  marketplace_activated: boolean | null;
+  onboarding_completed_at: string | null;
 
   // Client specifics
   company_logo_url: string | null;
@@ -139,6 +164,7 @@ export async function fetchAdminUserDetail(
       'bio',
       'headline',
       'professional_title',
+      'title',
       'company_name',
       'location_city',
       'location_province',
@@ -147,6 +173,7 @@ export async function fetchAdminUserDetail(
       'updated_at',
       'last_active',
       'verification_status',
+      'is_verified',
       'verified_at',
       'rejection_reason',
       'terms_accepted',
@@ -167,11 +194,16 @@ export async function fetchAdminUserDetail(
       'completed_jobs_count',
       'total_jobs',
       'years_of_experience',
+      'experience_years',
       'hourly_rate_cents',
       'response_time_hours',
       'specialty_slugs',
       'ndt_methods',
       'certifications',
+      'specialties',
+      'custom_specialties',
+      'custom_ndt_methods',
+      'skills',
       'travel_radius_km',
       'home_base_label',
       'country_of_residence',
@@ -187,6 +219,11 @@ export async function fetchAdminUserDetail(
       'minimum_engagement_hours',
       'resume_url',
       'cv_url',
+      'resume_path',
+      'is_available',
+      'availability_status',
+      'marketplace_activated',
+      'onboarding_completed_at',
       'company_logo_url',
       'report_header_text',
       'report_footer_text',
@@ -264,6 +301,9 @@ export async function fetchAdminUserDetail(
       bio: (r.bio as string | null) ?? null,
       headline: (r.headline as string | null) ?? null,
       professional_title: (r.professional_title as string | null) ?? null,
+      title: (r.title as string | null) ?? null,
+      professional_title_effective:
+        (r.professional_title as string | null) || (r.title as string | null) || null,
       company_name: (r.company_name as string | null) ?? null,
       location_city: (r.location_city as string | null) ?? null,
       location_province: (r.location_province as string | null) ?? null,
@@ -272,6 +312,7 @@ export async function fetchAdminUserDetail(
       updated_at: (r.updated_at as string | null) ?? null,
       last_active: (r.last_active as string | null) ?? null,
       verification_status: (r.verification_status as string | null) ?? null,
+      is_verified: (r.is_verified as boolean | null) ?? null,
       verified_at: (r.verified_at as string | null) ?? null,
       rejection_reason: (r.rejection_reason as string | null) ?? null,
       terms_accepted: (r.terms_accepted as boolean | null) ?? null,
@@ -294,11 +335,16 @@ export async function fetchAdminUserDetail(
       completed_jobs_count: numOrNull(r.completed_jobs_count),
       total_jobs: numOrNull(r.total_jobs),
       years_of_experience: (r.years_of_experience as string | null) ?? null,
+      experience_years: numOrNull(r.experience_years),
       hourly_rate_cents: numOrNull(r.hourly_rate_cents),
       response_time_hours: numOrNull(r.response_time_hours),
       specialty_slugs: arr(r.specialty_slugs),
       ndt_methods: arr(r.ndt_methods),
       certifications: arr(r.certifications),
+      specialties: (r.specialties as string | null) ?? null,
+      custom_specialties: arr(r.custom_specialties),
+      custom_ndt_methods: arr(r.custom_ndt_methods),
+      skills: arr(r.skills),
       travel_radius_km: numOrNull(r.travel_radius_km),
       home_base_label: (r.home_base_label as string | null) ?? null,
       country_of_residence: (r.country_of_residence as string | null) ?? null,
@@ -314,6 +360,11 @@ export async function fetchAdminUserDetail(
       minimum_engagement_hours: numOrNull(r.minimum_engagement_hours),
       resume_url: (r.resume_url as string | null) ?? null,
       cv_url: (r.cv_url as string | null) ?? null,
+      resume_path: (r.resume_path as string | null) ?? null,
+      is_available: (r.is_available as boolean | null) ?? null,
+      availability_status: (r.availability_status as string | null) ?? null,
+      marketplace_activated: (r.marketplace_activated as boolean | null) ?? null,
+      onboarding_completed_at: (r.onboarding_completed_at as string | null) ?? null,
       company_logo_url: (r.company_logo_url as string | null) ?? null,
       report_header_text: (r.report_header_text as string | null) ?? null,
       report_footer_text: (r.report_footer_text as string | null) ?? null,

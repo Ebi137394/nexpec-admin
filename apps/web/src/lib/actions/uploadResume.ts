@@ -80,13 +80,30 @@ export async function uploadResume(formData: FormData): Promise<void> {
     redirect(withQuery(RETURN_TO, { error: 'Upload failed. Try again.' }));
   }
 
-  const { error: updateErr } = await supabase
+  // `.select('id')` makes persistence authoritative: PostgREST calls a
+  // zero-row UPDATE a success, so without it an RLS refusal would leave the
+  // uploaded object orphaned in the bucket AND tell the user their CV was
+  // saved. Treat "no row came back" exactly like an error, rollback included.
+  const { data: updatedRows, error: updateErr } = await supabase
     .from('profiles')
     .update({
       resume_path: path,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+
+  if (!updateErr && (!updatedRows || updatedRows.length === 0)) {
+    await supabase.storage.from(BUCKET).remove([path]);
+    if (typeof console !== 'undefined') {
+      console.error('[uploadResume] wrote 0 rows, rolled back', { userId: user.id });
+    }
+    redirect(
+      withQuery(RETURN_TO, {
+        error: 'Resume could not be saved to your profile. Nothing was stored.',
+      }),
+    );
+  }
 
   if (updateErr) {
     // Roll back the storage object so we don't leak.
@@ -130,10 +147,30 @@ export async function deleteResume(): Promise<void> {
       ? (existing as { resume_path: string }).resume_path
       : null;
 
-  await supabase
+  // The result was previously discarded entirely, and the file was then
+  // removed unconditionally. If the row update failed or matched no rows that
+  // destroyed the user's CV while profiles.resume_path still pointed at it —
+  // irreversible data loss behind a dead link. Clear the pointer FIRST, prove
+  // it cleared, and only then delete the bytes.
+  const { data: clearedRows, error: clearErr } = await supabase
     .from('profiles')
     .update({ resume_path: null, updated_at: new Date().toISOString() })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+
+  if (clearErr || !clearedRows || clearedRows.length === 0) {
+    if (typeof console !== 'undefined') {
+      console.error('[uploadResume] delete: profile not cleared, file kept', {
+        userId: user.id,
+        message: clearErr?.message,
+      });
+    }
+    redirect(
+      withQuery(RETURN_TO, {
+        error: 'Could not remove your CV. Nothing was deleted.',
+      }),
+    );
+  }
 
   if (prevPath) {
     await supabase.storage.from(BUCKET).remove([prevPath]);

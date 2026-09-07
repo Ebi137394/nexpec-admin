@@ -147,12 +147,19 @@ export default function SkillsScreen() {
         updatedSkills = [...skills, skill];
       }
 
-      const { error } = await supabase
+      // `.select('id')` is required: a zero-row UPDATE is a PostgREST
+      // success, so an RLS refusal would otherwise leave the toggle looking
+      // saved while the row was untouched.
+      const { data: updatedRows, error } = await supabase
         .from('profiles')
         .update({ skills: updatedSkills })
-        .eq('id', currentUser.id);
+        .eq('id', currentUser.id)
+        .select('id');
 
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('That change could not be saved. Nothing was updated.');
+      }
 
       setSkills(updatedSkills);
     } catch (error: any) {

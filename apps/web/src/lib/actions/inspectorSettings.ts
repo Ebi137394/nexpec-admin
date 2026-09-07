@@ -304,10 +304,29 @@ export async function updateInspectorSettings(
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  // `.select('id')` is load-bearing, not decoration. PostgREST reports an
+  // UPDATE that matched ZERO rows as a success, so an RLS refusal (or an id
+  // that no longer resolves) would otherwise fall straight through to the
+  // "saved" redirect and tell the inspector their profile was stored when
+  // nothing was written. Requiring a returned row makes persistence
+  // authoritative before we claim it.
+  const { data: updatedRows, error } = await supabase
     .from('profiles')
     .update(update)
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+
+  if (!error && (!updatedRows || updatedRows.length === 0)) {
+    if (typeof console !== 'undefined') {
+      console.error('[updateInspectorSettings] wrote 0 rows', { userId: user.id });
+    }
+    redirect(
+      buildRedirect({
+        error:
+          'Your profile could not be saved (no record was updated). Nothing was changed, please try again or contact support.',
+      }),
+    );
+  }
 
   if (error) {
     if (typeof console !== 'undefined') {

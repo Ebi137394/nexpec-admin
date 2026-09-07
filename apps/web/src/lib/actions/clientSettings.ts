@@ -69,10 +69,25 @@ export async function updateClientSettings(formData: FormData): Promise<void> {
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  // A zero-row UPDATE is a PostgREST success; require a returned row before
+  // redirecting with saved=1.
+  const { data: updatedRows, error } = await supabase
     .from('profiles')
     .update(update)
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .select('id');
+
+  if (!error && (!updatedRows || updatedRows.length === 0)) {
+    if (typeof console !== 'undefined') {
+      console.error('[updateClientSettings] wrote 0 rows', { userId: user.id });
+    }
+    redirect(
+      buildRedirect({
+        error:
+          'Your profile could not be saved (no record was updated). Nothing was changed.',
+      }),
+    );
+  }
 
   if (error) {
     if (typeof console !== 'undefined') {

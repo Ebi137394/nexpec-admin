@@ -67,3 +67,6 @@ jobs:
 
       - name: God-mode RLS coverage (no admin-excluded table)
         run: node scripts/qa/check-rls-admin-coverage.mjs
+
+      - name: Profile write contracts (client writes what the reader reads)
+        run: node scripts/qa/check-profile-write-contracts.mjs

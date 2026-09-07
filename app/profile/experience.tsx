@@ -112,9 +112,11 @@ export default function ExperienceScreen() {
 
   const fetchResumeUrl = async (userId: string) => {
     try {
+      // resume_path is the live column; resume_url is only read as a fallback
+      // for rows written before the path/url split was fixed.
       const { data, error } = await supabase
         .from('profiles')
-        .select('resume_url')
+        .select('resume_path, resume_url')
         .eq('id', userId)
         .maybeSingle();
 
@@ -122,7 +124,7 @@ export default function ExperienceScreen() {
         throw error;
       }
 
-      setResumeUrl(data?.resume_url || null);
+      setResumeUrl(data?.resume_path || data?.resume_url || null);
     } catch (error) {
       console.error('Error fetching resume URL:', error);
     }
@@ -159,15 +161,29 @@ export default function ExperienceScreen() {
 
       if (uploadError) throw uploadError;
 
-      // The `resumes` bucket is private (owner+admin only). Store the storage
-      // PATH and mint a signed URL at view time.
-      const { error: updateError } = await supabase
+      // The `resumes` bucket is private (owner+admin only), so we store the
+      // storage PATH and mint a signed URL at view time.
+      //
+      // The path belongs in `resume_path`, NOT `resume_url`. resume_url is a
+      // legacy PUBLIC-url column; putting a private object path there left the
+      // CV invisible to the web profile and to the admin console, both of
+      // which read resume_path and sign it. resume_url is cleared so a stale
+      // dead link cannot outlive the real one.
+      const { data: updatedRows, error: updateError } = await supabase
         .from('profiles')
         // outbox-exempt: profile settings write (resume storage path), not a field-capture op; retried on next save
-        .update({ resume_url: filePath })
-        .eq('id', user.id);
+        .update({ resume_path: filePath, resume_url: null })
+        .eq('id', user.id)
+        .select('id');
 
       if (updateError) throw updateError;
+      // A zero-row UPDATE is a PostgREST success. Without this check a failed
+      // save would still say "CV uploaded successfully!" while the file sat
+      // orphaned in the bucket with nothing pointing at it.
+      if (!updatedRows || updatedRows.length === 0) {
+        await supabase.storage.from('resumes').remove([filePath]);
+        throw new Error('Your CV could not be saved to your profile. Nothing was stored.');
+      }
 
       setResumeUrl(filePath);
       Alert.alert(t('Success'), t('CV uploaded successfully!'));

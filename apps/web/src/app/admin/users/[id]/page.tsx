@@ -30,9 +30,15 @@ import {
 } from 'lucide-react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { fetchAdminUserDetail } from '@/lib/data/adminUserDetail';
+import {
+  fetchInspectorDossier,
+  fetchCanonicalCompleteness,
+  type InspectorDossier,
+} from '@/lib/data/adminInspector360';
 import { UserRoleBadge } from '@/components/admin/users/UserRoleBadge';
 import { UserModerationPanel } from '@/components/admin/users/UserModerationPanel';
 import { UserRoleMessagePanel } from '@/components/admin/users/UserRoleMessagePanel';
+import { AdminProfileEditor } from '@/components/admin/users/AdminProfileEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,7 +89,19 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
   }
 
   const role = (profile.role ?? '').toLowerCase();
-  const isInspector = role === 'inspector' || role === 'contractor';
+  const isInspector =
+    role === 'inspector' || role === 'contractor' || role === 'senior';
+
+  // Inspector 360 — the professional evidence lives in tables and private
+  // buckets outside `profiles`. Without this the page renders an empty
+  // profile for an inspector who has actually submitted a CV and documents.
+  const dossier: InspectorDossier | null = isInspector
+    ? await fetchInspectorDossier(id, profile)
+    : null;
+
+  // Completeness comes from the SAME SQL rule onboarding and Telegram
+  // /pending use, so the three can never disagree.
+  const completeness = await fetchCanonicalCompleteness(id);
   const isClientSide =
     role === 'client' || role === 'agency' || role === 'enterprise';
 
@@ -227,6 +245,40 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
         returnTo={`/admin/users/${profile.id}`}
       />
 
+      {/* Profile readiness — the canonical rule, shared with onboarding,
+          the reminder sweep and Telegram /pending. */}
+      <Section title="Profile readiness">
+        {!completeness.available ? (
+          <p className="text-sm text-accent-red">
+            Completeness could not be evaluated — the canonical rule
+            (<code className="font-mono">nx_role_missing_fields</code>) did not
+            respond. This is not the same as &ldquo;nothing is missing&rdquo;.
+          </p>
+        ) : completeness.complete ? (
+          <p className="flex items-center gap-2 text-sm text-accent-green">
+            <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />
+            Profile complete for the {profile.role ?? 'user'} role.
+          </p>
+        ) : (
+          <>
+            <p className="flex items-center gap-2 text-sm text-zinc-300">
+              <AlertTriangle className="h-4 w-4 text-accent-amber" strokeWidth={1.75} />
+              Missing: {completeness.humanLabel ?? completeness.missingFields.join(', ')}
+            </p>
+            <p className="mt-2 text-[11px] text-zinc-500">
+              Filling any of these below removes it here, from onboarding
+              reminders and from the Telegram incomplete-profiles queue at the
+              same time — all three read this one rule.
+            </p>
+          </>
+        )}
+      </Section>
+
+      {/* Admin-assisted profile completion (details sent by email / phone /
+          Help & Support) + document filing. Cannot verify, suspend or
+          re-role anyone — those stay in the moderation card above. */}
+      <AdminProfileEditor profile={profile} isInspector={isInspector} />
+
       {/* Role correction + admin→user message (Command Console additions) */}
       <UserRoleMessagePanel
         userId={profile.id}
@@ -333,7 +385,21 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             </dl>
           </Section>
 
-          <Section title="Inspector, skills">
+          <Section title="Inspector, professional profile">
+            <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <KV
+                label="Professional title"
+                value={profile.professional_title_effective}
+              />
+              <KV
+                label="Years of experience"
+                value={
+                  profile.years_of_experience ??
+                  (profile.experience_years ? `${profile.experience_years}` : null)
+                }
+              />
+              <KV label="Specialties (free text)" value={profile.specialties} />
+            </dl>
             <ChipGroup label="Specialties" items={profile.specialty_slugs} />
             <ChipGroup label="NDT methods" items={profile.ndt_methods} upper />
             <ChipGroup
@@ -400,23 +466,374 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
             </dl>
           </Section>
 
-          {(profile.resume_url || profile.cv_url) && (
-            <Section title="Inspector, resume / CV">
-              <ul className="flex flex-wrap gap-2">
-                {profile.resume_url && (
-                  <LinkChip href={profile.resume_url} label="Resume (legacy URL)" />
+          {dossier && (
+            <>
+              {/* ── Verification, split into the four facts it actually is ── */}
+              <Section title="Inspector, verification">
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <KV
+                    label="Account status"
+                    value={dossier.verification.accountStatus ?? 'unknown'}
+                  />
+                  <KV
+                    label="Account verification (admin decision)"
+                    value={
+                      dossier.verification.accountVerification
+                        ? `${dossier.verification.accountVerification}${
+                            dossier.verification.accountVerifiedAt
+                              ? ` — ${formatDateTime(dossier.verification.accountVerifiedAt)}`
+                              : ''
+                          }`
+                        : 'Not provided'
+                    }
+                  />
+                  <KV
+                    label="Identity verification (government ID)"
+                    value={
+                      dossier.verification.identityVerified
+                        ? `Verified via ${dossier.verification.identitySource}`
+                        : dossier.credential
+                          ? 'Not verified — CCI application on file'
+                          : 'Not submitted'
+                    }
+                  />
+                  <KV
+                    label="Professional credential verification"
+                    value={
+                      dossier.verification.credentialsTotal === 0
+                        ? 'No credentials submitted'
+                        : `${dossier.verification.credentialsVerified} of ${dossier.verification.credentialsTotal} reviewed and verified`
+                    }
+                  />
+                  <KV
+                    label="Marketplace readiness"
+                    value={
+                      dossier.verification.marketplaceActivated
+                        ? 'Activated'
+                        : 'Not activated'
+                    }
+                  />
+                  <KV
+                    label="Onboarding completed"
+                    value={formatDateTime(profile.onboarding_completed_at)}
+                  />
+                </dl>
+                <p className="mt-3 text-[11px] text-zinc-500">
+                  These are independent. An admin marking the account verified
+                  does not review any certificate, and a submitted certificate
+                  is not verified until someone reviews it.
+                </p>
+              </Section>
+
+              {/* ── CV ─────────────────────────────────────────────────── */}
+              <Section title="Inspector, CV / resume">
+                {dossier.resume.signedUrl ? (
+                  <>
+                    <ul className="flex flex-wrap gap-2">
+                      <LinkChip
+                        href={dossier.resume.signedUrl}
+                        label="Open CV (signed, 5 min)"
+                        external
+                      />
+                    </ul>
+                    <p className="mt-2 font-mono text-[11px] break-all text-zinc-500">
+                      {dossier.resume.path}
+                    </p>
+                  </>
+                ) : dossier.resume.path ? (
+                  <p className="text-sm text-accent-red">
+                    A CV is recorded at{' '}
+                    <code className="font-mono">{dossier.resume.path}</code> but
+                    the signed URL could not be minted. The object may have been
+                    removed from the <code>resumes</code> bucket.
+                  </p>
+                ) : dossier.resume.legacyUrl ? (
+                  <>
+                    <ul className="flex flex-wrap gap-2">
+                      <LinkChip
+                        href={dossier.resume.legacyUrl}
+                        label="CV (legacy public URL)"
+                        external
+                      />
+                    </ul>
+                    <p className="mt-2 text-[11px] text-zinc-500">
+                      Legacy column. The <code>resumes</code> bucket is private,
+                      so this link is likely dead.
+                    </p>
+                  </>
+                ) : (
+                  <EmptyNote>Not provided — no CV has been uploaded.</EmptyNote>
                 )}
-                {profile.cv_url && profile.cv_url !== profile.resume_url && (
-                  <LinkChip href={profile.cv_url} label="CV" />
+              </Section>
+
+              {/* ── Certifications ─────────────────────────────────────── */}
+              <Section title={`Inspector, certifications (${dossier.certifications.length})`}>
+                {dossier.certifications.length === 0 ? (
+                  <EmptyNote>
+                    Not provided — no certification records exist for this user.
+                  </EmptyNote>
+                ) : (
+                  <ul className="space-y-3">
+                    {dossier.certifications.map((c) => (
+                      <li
+                        key={c.id}
+                        className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-white">
+                            {c.title ?? 'Untitled certification'}
+                          </span>
+                          <CredentialStateChip
+                            verified={c.isVerified}
+                            status={c.status}
+                          />
+                        </div>
+                        <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <KV label="Issuing body" value={c.issuingOrganization} />
+                          <KV label="Certificate no." value={c.credentialId} mono />
+                          <KV label="Issued" value={formatDate(c.issueDate)} />
+                          <KV label="Expires" value={formatDate(c.expiryDate)} />
+                          {c.isVerified && (
+                            <>
+                              <KV label="Reviewed by" value={c.verifiedBy} mono />
+                              <KV
+                                label="Reviewed at"
+                                value={formatDateTime(c.verifiedAt)}
+                              />
+                            </>
+                          )}
+                          {c.rejectionReason && (
+                            <KV
+                              label="Rejection reason"
+                              value={c.rejectionReason}
+                              colSpan
+                            />
+                          )}
+                        </dl>
+                        {c.fileUrl ? (
+                          <ul className="mt-3 flex flex-wrap gap-2">
+                            <LinkChip
+                              href={c.fileUrl}
+                              label="Open evidence (signed, 5 min)"
+                              external
+                            />
+                          </ul>
+                        ) : c.filePath ? (
+                          <p className="mt-3 text-[11px] text-accent-red">
+                            Evidence recorded at{' '}
+                            <code className="font-mono">{c.filePath}</code> but
+                            it could not be signed.
+                          </p>
+                        ) : (
+                          <p className="mt-3 text-[11px] text-zinc-500">
+                            No evidence file attached.
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </ul>
-              <p className="mt-2 text-[11px] text-zinc-500">
-                Newer uploads land in the private <code>resumes</code> bucket
-                via <code>resume_path</code>. This view shows the legacy public
-                URLs only, open the user&apos;s settings page on their portal
-                to see the signed-URL version.
-              </p>
-            </Section>
+              </Section>
+
+              {/* ── Documents ──────────────────────────────────────────── */}
+              <Section title={`Inspector, documents (${dossier.documents.length})`}>
+                {dossier.documents.length === 0 ? (
+                  <EmptyNote>
+                    Not provided — no document records exist for this user.
+                  </EmptyNote>
+                ) : (
+                  <ul className="space-y-3">
+                    {dossier.documents.map((d) => (
+                      <li
+                        key={d.id}
+                        className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-white">
+                            {d.name ?? 'Untitled document'}
+                          </span>
+                          <CredentialStateChip
+                            verified={d.status === 'approved' || d.status === 'verified'}
+                            status={d.status}
+                          />
+                        </div>
+                        <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <KV label="Kind" value={d.kind} />
+                          <KV label="Expires" value={formatDate(d.expiryDate)} />
+                          <KV label="Uploaded" value={formatDateTime(d.createdAt)} />
+                          <KV label="Reviewed" value={formatDateTime(d.reviewedAt)} />
+                          {d.notes && <KV label="Notes" value={d.notes} colSpan />}
+                        </dl>
+                        {d.fileUrl ? (
+                          <ul className="mt-3 flex flex-wrap gap-2">
+                            <LinkChip
+                              href={d.fileUrl}
+                              label="Open document (signed, 5 min)"
+                              external
+                            />
+                          </ul>
+                        ) : (
+                          <p className="mt-3 text-[11px] text-accent-red">
+                            File could not be signed
+                            {d.filePath ? (
+                              <>
+                                {' '}
+                                (<code className="font-mono">{d.filePath}</code>)
+                              </>
+                            ) : null}
+                            .
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+
+              {/* ── Work history ───────────────────────────────────────── */}
+              <Section title={`Inspector, work history (${dossier.experience.length})`}>
+                {dossier.experience.length === 0 ? (
+                  <EmptyNote>
+                    Not provided — no structured work-experience rows exist.
+                    Employment history may still be described in the CV above.
+                  </EmptyNote>
+                ) : (
+                  <ul className="space-y-3">
+                    {dossier.experience.map((w) => (
+                      <li
+                        key={`${w.source}:${w.id}`}
+                        className="rounded-2xl border border-white/[0.06] bg-white/[0.01] p-4"
+                      >
+                        <p className="text-sm font-semibold text-white">
+                          {w.jobTitle ?? 'Role not stated'}
+                          {w.companyName ? ` — ${w.companyName}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          {formatDate(w.startDate) ?? '?'} →{' '}
+                          {formatDate(w.endDate) ?? 'present'}
+                        </p>
+                        {w.description && (
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-300">
+                            {w.description}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+
+              {/* ── Declared capability + equipment ────────────────────── */}
+              <Section title="Inspector, declared capability">
+                <ChipGroup label="Skills (profile)" items={profile.skills} />
+                <ChipGroup
+                  label="Custom specialties"
+                  items={profile.custom_specialties}
+                />
+                <ChipGroup
+                  label="Custom NDT methods"
+                  items={profile.custom_ndt_methods}
+                  upper
+                />
+                {dossier.skills.length > 0 && (
+                  <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {dossier.skills.map((s) => (
+                      <KV
+                        key={s.id}
+                        label={s.category ?? 'Skill'}
+                        value={[s.brandName, s.model, s.yearsExperience ? `${s.yearsExperience} yr` : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      />
+                    ))}
+                  </dl>
+                )}
+                {dossier.equipment.length > 0 && (
+                  <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {dossier.equipment.map((e) => (
+                      <KV
+                        key={e.id}
+                        label={e.name ?? 'Equipment'}
+                        value={[
+                          e.serialNumber ? `S/N ${e.serialNumber}` : null,
+                          e.calibrationExpiry
+                            ? `cal. expires ${formatDate(e.calibrationExpiry)}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      />
+                    ))}
+                  </dl>
+                )}
+                {profile.skills.length === 0 &&
+                  profile.custom_specialties.length === 0 &&
+                  profile.custom_ndt_methods.length === 0 &&
+                  dossier.skills.length === 0 &&
+                  dossier.equipment.length === 0 && (
+                    <EmptyNote>Not provided.</EmptyNote>
+                  )}
+              </Section>
+
+              {/* ── CCI credential application ─────────────────────────── */}
+              {dossier.credential && (
+                <Section title="Inspector, CCI credential application">
+                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <KV label="Tier" value={dossier.credential.tier} />
+                    <KV label="Status" value={dossier.credential.status} />
+                    <KV
+                      label="Government ID verified"
+                      value={dossier.credential.govIdVerified ? 'Yes' : 'No'}
+                    />
+                    <KV
+                      label="ID issuing country"
+                      value={dossier.credential.govIdIssuingCountry}
+                    />
+                    <KV
+                      label="Documented experience"
+                      value={
+                        dossier.credential.experienceYearsDocumented !== null
+                          ? `${dossier.credential.experienceYearsDocumented} yr`
+                          : null
+                      }
+                    />
+                    <KV
+                      label="Applied"
+                      value={formatDateTime(dossier.credential.appliedAt)}
+                    />
+                    <KV
+                      label="Decided"
+                      value={formatDateTime(dossier.credential.decidedAt)}
+                    />
+                    <KV
+                      label="Expires"
+                      value={formatDateTime(dossier.credential.expiresAt)}
+                    />
+                    {dossier.credential.decisionNotes && (
+                      <KV
+                        label="Decision notes"
+                        value={dossier.credential.decisionNotes}
+                        colSpan
+                      />
+                    )}
+                  </dl>
+                </Section>
+              )}
+
+              {/* An unreadable source must never look like an empty one. */}
+              {dossier.unreadable.length > 0 && (
+                <Section title="Inspector, unreadable sources">
+                  <p className="text-sm text-accent-red">
+                    These tables could not be read, so the sections above may be
+                    incomplete:{' '}
+                    <code className="font-mono">
+                      {dossier.unreadable.join(', ')}
+                    </code>
+                    .
+                  </p>
+                </Section>
+              )}
+            </>
           )}
         </>
       )}
@@ -593,12 +1010,70 @@ function Tile({
   );
 }
 
+/**
+ * "Not provided" is a claim about the data, so say it only where the canonical
+ * source really is empty. Anything we failed to READ is reported separately.
+ */
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-zinc-500">{children}</p>;
+}
+
+/**
+ * Review state for one credential or document. Verified is rendered ONLY from
+ * the row's own review columns — never inferred from a file being attached.
+ */
+function CredentialStateChip({
+  verified,
+  status,
+}: {
+  verified: boolean;
+  status: string | null;
+}) {
+  if (verified) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-accent-green/30 bg-accent-green/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+        <CheckCircle2 className="h-3 w-3" strokeWidth={1.75} />
+        Verified
+      </span>
+    );
+  }
+  const label = status && status.length > 0 ? status : 'unreviewed';
+  const rejected = label === 'rejected';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial ${
+        rejected
+          ? 'border border-accent-red/30 bg-accent-red/10 text-accent-red'
+          : 'bg-white/[0.04] text-zinc-400'
+      }`}
+    >
+      {rejected ? (
+        <AlertCircle className="h-3 w-3" strokeWidth={1.75} />
+      ) : (
+        <Clock className="h-3 w-3" strokeWidth={1.75} />
+      )}
+      {label}
+    </span>
+  );
+}
+
+/**
+ * `profiles.verification_status` is an ADMIN decision about the ACCOUNT. It
+ * carries no claim about professional credentials — an admin can set it in
+ * one click without a single certificate having been reviewed. The chip
+ * therefore says "Account verified", never a bare "Verified", which reads as
+ * "this inspector's qualifications are confirmed". The credential facts live
+ * in the "Inspector, verification" section.
+ */
 function VerificationChip({ status }: { status: string | null }) {
   if (status === 'verified') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-accent-green/30 bg-accent-green/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-green">
+      <span
+        title="Account verified by an admin. This says nothing about professional credentials."
+        className="inline-flex items-center gap-1 rounded-full border border-accent-green/30 bg-accent-green/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-industrial text-accent-green"
+      >
         <ShieldCheck className="h-3 w-3" strokeWidth={1.75} />
-        Verified
+        Account verified
       </span>
     );
   }

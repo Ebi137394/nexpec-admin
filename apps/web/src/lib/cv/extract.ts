@@ -87,11 +87,59 @@ const CERT_HINTS = [
 
 /** Phone numbers only in an unambiguous international/long form. */
 const PHONE_RE = /(\+\d[\d\s().-]{7,}\d)/;
-const YEARS_RE = /(\d{1,2})\+?\s*(?:years?|yrs?)\b[^.\n]{0,30}(?:experience|exp\b)/i;
+const YEARS_RE = /(\d{1,2})\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:experience|exp\b|in\b)/i;
 const LOCATION_RE = /^(?:location|address|based\s*(?:in|at)|city)\s*[:\-]\s*(.+)$/i;
 
 function tidy(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/** Max characters of a segment, and of the evidence window around a match. */
+const SEGMENT_MAX = 220;
+const EVIDENCE_PAD = 90;
+
+/**
+ * Split extracted text into SEGMENTS.
+ *
+ * Found by testing against a real CV: many PDFs extract as ONE long line with
+ * no newlines at all. Matching per raw line then silently became matching per
+ * DOCUMENT — every method "matched", and the evidence shown was simply the
+ * first 300 characters, which did not contain the match. A suggestion whose
+ * evidence does not support it is worse than no suggestion.
+ *
+ * So: split on newlines, then on the separators PDFs actually leave behind
+ * (bullets, pipes, tabs, runs of spaces), then hard-wrap anything still long.
+ */
+function segment(text: string): { text: string; line: number }[] {
+  const out: { text: string; line: number }[] = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const n = i + 1;
+    const parts = raw
+      .split(/\s*[•·▪‣|]\s*|\t+|\s{3,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    for (const part of parts) {
+      if (part.length <= SEGMENT_MAX) {
+        out.push({ text: part, line: n });
+        continue;
+      }
+      // Still long: break on sentence ends, then hard-wrap the remainder.
+      for (const sent of part.split(/(?<=[.!?])\s+/)) {
+        for (let k = 0; k < sent.length; k += SEGMENT_MAX) {
+          const chunk = sent.slice(k, k + SEGMENT_MAX).trim();
+          if (chunk) out.push({ text: chunk, line: n });
+        }
+      }
+    }
+  });
+  return out;
+}
+
+/** A window of text AROUND the match, so the evidence always contains it. */
+function evidenceAround(hay: string, index: number, len: number): string {
+  const start = Math.max(0, index - EVIDENCE_PAD);
+  const end = Math.min(hay.length, index + len + EVIDENCE_PAD);
+  return (start > 0 ? '…' : '') + tidy(hay.slice(start, end)) + (end < hay.length ? '…' : '');
 }
 
 /**
@@ -121,21 +169,21 @@ export function deriveSuggestions(text: string): CvExtraction {
     // rarely a better source than the first.
     if (seenFields.has(field)) return;
     seenFields.add(field);
-    suggestions.push({ field, value, evidence: tidy(evidence).slice(0, 300), line });
+    suggestions.push({ field, value, evidence: tidy(evidence).slice(0, 260), line });
   };
 
-  lines.forEach((raw, i) => {
-    const line = raw.trim();
+  segment(body).forEach(({ text: line, line: n }) => {
     if (!line) return;
     const lower = line.toLowerCase();
-    const n = i + 1;
 
     // Phone — international form only.
     const phone = line.match(PHONE_RE);
     const phoneRaw = phone?.[1];
     if (phoneRaw) {
       const digits = phoneRaw.replace(/\D/g, '');
-      if (digits.length >= 8 && digits.length <= 15) push('phone', tidy(phoneRaw), line, n);
+      if (digits.length >= 8 && digits.length <= 15) {
+        push('phone', tidy(phoneRaw), evidenceAround(line, phone!.index ?? 0, phoneRaw.length), n);
+      }
     }
 
     // Location — only from an explicitly labelled line. A bare city name in
@@ -146,8 +194,10 @@ export function deriveSuggestions(text: string): CvExtraction {
     }
 
     // Years of experience.
-    const yrsRaw = line.match(YEARS_RE)?.[1];
-    if (yrsRaw) push('years_of_experience', yrsRaw, line, n);
+    const yrs = line.match(YEARS_RE);
+    if (yrs?.[1]) {
+      push('years_of_experience', yrs[1], evidenceAround(line, yrs.index ?? 0, yrs[0].length), n);
+    }
 
     // Professional title — a short line that IS a title, not a sentence
     // mentioning one.
@@ -159,8 +209,14 @@ export function deriveSuggestions(text: string): CvExtraction {
     // NDT methods — whole-word only.
     for (const [needle, slug] of Object.entries(NDT_METHODS)) {
       if (methods.has(slug)) continue;
-      const re = new RegExp(`(?:^|[^A-Za-z])${needle.replace(/ /g, '\\s+')}(?:[^A-Za-z]|$)`, 'i');
-      if (re.test(line)) methods.set(slug, { evidence: line, line: n });
+      const re = new RegExp(`(?:^|[^A-Za-z])(${needle.replace(/ /g, '\\s+')})(?:[^A-Za-z]|$)`, 'i');
+      const m = line.match(re);
+      if (m) {
+        methods.set(slug, {
+          evidence: evidenceAround(line, m.index ?? 0, m[0].length),
+          line: n,
+        });
+      }
     }
 
     // Certification-shaped lines: EVIDENCE ONLY.
@@ -175,7 +231,7 @@ export function deriveSuggestions(text: string): CvExtraction {
     suggestions.push({
       field: 'ndt_methods',
       value: [...methods.keys()],
-      evidence: tidy(first.evidence).slice(0, 300),
+      evidence: tidy(first.evidence).slice(0, 260),
       line: first.line,
     });
   }

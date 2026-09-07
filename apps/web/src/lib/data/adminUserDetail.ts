@@ -276,8 +276,14 @@ export async function fetchAdminUserDetail(
       jobsAsInspector: await countRows(supabase, 'jobs', {
         contractor_id: userId,
       }),
+      // public.applications has NO inspector_id column (verified against
+      // Production: information_schema returns 0 for inspector_id, 1 for
+      // applicant_id). The tile therefore counted a non-existent column and
+      // rendered 0 for EVERY user, including inspectors with real
+      // applications. The writers agree on applicant_id:
+      // lib/actions/inspectorApply.ts:142 and app/jobs/[id]/submit-proposal.tsx:70.
       applications: await countRows(supabase, 'applications', {
-        inspector_id: userId,
+        applicant_id: userId,
       }),
       reviewsReceived: await countRows(supabase, 'reviews', {
         reviewee_id: userId,

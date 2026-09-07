@@ -65,15 +65,39 @@ export async function submitReview(formData: FormData): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=' + encodeURIComponent(returnTo));
 
-  const { error } = await supabase.from('reviews').insert({
-    job_id: jobId,
-    reviewer_id: user.id,
-    reviewee_id: revieweeId,
-    direction,
-    rating,
-    would_recommend: wouldRecommend,
-    body: body && body.length > 0 ? body : null,
-  });
+  // `direction` and `body` are NOT columns on public.reviews — verified against
+  // Production (information_schema: direction 0, body 0, comment 1). Inserting
+  // them made EVERY web review submission fail, in BOTH directions: one
+  // ReviewForm feeds this action from /client/jobs/[id]/review AND
+  // /inspector/jobs/[id]/review. Production holds zero review rows.
+  //
+  // The read side already knew the real shape: lib/data/reviews.ts:174 maps
+  // `comment` -> `body`, and :169 DERIVES direction from reviewer_role_snap.
+  //
+  // That derivation is why `direction` cannot simply be dropped. The snapshot
+  // columns are NOT NULL with defaults 'client' / 'inspector', so an
+  // inspector-to-client review inserted without them would be stored as
+  // reviewer_role_snap='client' and read back as client_to_inspector — an
+  // inspector's review OF a client would display as a review of the inspector.
+  // The validated direction is therefore written THROUGH to the snapshots.
+  //
+  // inspector_id / client_id are NOT NULL with no default; the BEFORE INSERT
+  // trigger reviews_populate_generalized() derives them from these very
+  // snapshots, so getting the snapshots right fixes those columns too.
+  const reviewerIsInspector = direction === 'inspector_to_client';
+  const { data: inserted, error } = await supabase
+    .from('reviews')
+    .insert({
+      job_id: jobId,
+      reviewer_id: user.id,
+      reviewee_id: revieweeId,
+      reviewer_role_snap: reviewerIsInspector ? 'inspector' : 'client',
+      reviewee_role_snap: reviewerIsInspector ? 'client' : 'inspector',
+      rating,
+      would_recommend: wouldRecommend,
+      comment: body && body.length > 0 ? body : null,
+    })
+    .select('id');
 
   if (error) {
     if (typeof console !== 'undefined') {
@@ -89,6 +113,18 @@ export async function submitReview(formData: FormData): Promise<void> {
           ? "You can't review this job, it may not be completed yet, or you're not a party to it."
           : 'Could not save your review. Try again or contact support.';
     redirect(withQuery(returnTo, { error: friendly }));
+  }
+
+  // An INSERT that RLS filters to zero rows is reported as a success by
+  // PostgREST. Without this the user would be told their review was saved when
+  // nothing was written — the same false-success class fixed across the
+  // profile write paths.
+  if (!inserted || inserted.length === 0) {
+    redirect(
+      withQuery(returnTo, {
+        error: 'Your review was not saved. You may not be a party to this job.',
+      }),
+    );
   }
 
   // Bust caches that read aggregate or list data

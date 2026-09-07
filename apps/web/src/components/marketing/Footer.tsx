@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Logo } from '@/components/Logo';
+import { StoreBadges } from '@/components/marketing/StoreBadges';
 
 // NAV_GROUPS — every entry must resolve to a 200 (or be a working mailto/anchor).
 // Stub pages (About / Careers / Pricing / Status / Security) were dropped on
@@ -38,6 +39,16 @@ export function Footer() {
               Industrial inspection, engineered for trust. Vetted inspectors,
               protected payments, audit-grade reports.
             </p>
+
+            {/* Store links live in the shared footer, so every public page
+                surfaces mobile availability without repeating the homepage
+                section. Small size keeps them subordinate to the nav CTAs. */}
+            <div className="mt-6">
+              <h4 className="text-xs font-semibold uppercase tracking-industrial text-zinc-500">
+                Get NEXPEC
+              </h4>
+              <StoreBadges size="sm" className="mt-3" />
+            </div>
           </div>
 
           {NAV_GROUPS.map((group) => (

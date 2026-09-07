@@ -20,6 +20,7 @@ import { PlatformScale } from '@/components/marketing/PlatformScale';
 import { Industries } from '@/components/marketing/Industries';
 import { TeaserMarketplaceSection } from '@/components/teaser/TeaserMarketplaceSection';
 import { CTASection } from '@/components/marketing/CTASection';
+import { MobileApps } from '@/components/marketing/MobileApps';
 import { Footer } from '@/components/marketing/Footer';
 // ── NEW · additive cinematic deep-tech sections + scroll glue ──────────────
 import { SectionTransition } from '@/components/marketing/SectionTransition';
@@ -115,6 +116,7 @@ export default async function LandingPage() {
             anon feed views; links to the dedicated ISR /discover surface. */}
         <TeaserMarketplaceSection />
 
+        <MobileApps />
         <CTASection />
       </main>
       <Footer />

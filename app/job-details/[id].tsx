@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { jobFieldsForRole, jobsRelationForRole } from '@/lib/jobsProjection';
+import { formatUsd } from '@/lib/money';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 // ============================================
@@ -40,6 +41,9 @@ export default function JobDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [approvalData, setApprovalData] = useState<any>(null);
+  // Which commercial side this viewer is on. GR2 gives buyers and inspectors
+  // DIFFERENT columns, so the amount cannot be rendered without knowing which.
+  const [viewerSide, setViewerSide] = useState<'buyer' | 'inspector' | 'admin' | null>(null);
 
   useEffect(() => {
     if (jobId) fetchJob();
@@ -81,6 +85,14 @@ export default function JobDetailsScreen() {
           .from('profiles').select('role').eq('id', _u.id).maybeSingle();
         _role = (_p as { role?: string } | null)?.role ?? null;
       }
+      const _r = (_role ?? '').toLowerCase();
+      setViewerSide(
+        _r === 'admin' || _r === 'super_admin'
+          ? 'admin'
+          : _r === 'client' || _r === 'agency' || _r === 'enterprise'
+            ? 'buyer'
+            : 'inspector',
+      );
       const { data, error } = await supabase
         // ★ PRIVILEGE FIX (20260801312000): see jobsRelationForRole().
         .from(jobsRelationForRole(_role))
@@ -111,6 +123,35 @@ export default function JobDetailsScreen() {
       setProcessing(false);
     }
   };
+
+  // ── The amount to show ────────────────────────────────────────────────
+  // `job.price` DOES NOT EXIST in any projection (see lib/jobsProjection.ts):
+  // buyers receive client_price_cents / price_cents, inspectors receive
+  // inspector_payout_cents / payout_amount_cents. Reading `price` therefore
+  // rendered a bare "$" with no number on every job, on the notification
+  // deep-link path included.
+  //
+  // Amounts are stored in MINOR UNITS, so they are formatted with formatUsd
+  // rather than printed raw — `${cents}` would show 150000 for $1,500.00.
+  //
+  // A missing amount is shown as TBD. It is never rendered as $0: an
+  // inspector must not be told a job pays nothing when the payout is simply
+  // not set yet. GR2 also means the two sides can never be substituted for
+  // one another, so a buyer's price is never shown as an inspector's payout.
+  const firstNumber = (...vals: unknown[]): number | null => {
+    for (const v of vals) {
+      if (v === null || v === undefined) continue;
+      const n = typeof v === 'string' ? Number(v) : (v as number);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  };
+
+  const isInspectorSide = viewerSide === 'inspector';
+  const amountCents = isInspectorSide
+    ? firstNumber(job?.inspector_payout_cents, job?.payout_amount_cents)
+    : firstNumber(job?.client_price_cents, job?.price_cents, job?.budget_cents);
+  const amountLabel = isInspectorSide ? 'Your payout' : 'Price';
 
   if (loading) {
     return (
@@ -164,7 +205,12 @@ export default function JobDetailsScreen() {
               <Ionicons name="location-outline" size={18} color={COLORS.textSecondary} />
               <Text style={styles.locationText}>{job?.location}</Text>
             </View>
-            <Text style={styles.priceText}>${job?.price?.toLocaleString()}</Text>
+            <View style={styles.amountBlock}>
+              <Text style={styles.amountLabel}>{amountLabel}</Text>
+              <Text style={[styles.priceText, amountCents == null && styles.priceUnknown]}>
+                {amountCents == null ? 'TBD' : formatUsd(amountCents)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -299,6 +345,9 @@ const styles = StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   locationText: { color: COLORS.textSecondary, fontSize: 15 },
   priceText: { color: COLORS.success, fontSize: 24, fontWeight: 'bold' },
+  priceUnknown: { color: COLORS.textSecondary, fontSize: 18 },
+  amountBlock: { alignItems: 'flex-end' },
+  amountLabel: { color: COLORS.textSecondary, fontSize: 11, marginBottom: 2 },
 
   sectionTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
   descriptionText: { color: COLORS.textSecondary, fontSize: 15, lineHeight: 24, padding: 20 },

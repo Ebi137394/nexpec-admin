@@ -174,6 +174,9 @@ const MOBILE_GAP = new Set([
   '/inspector/contracts',
   '/suppliers/profile',
   '/contact',
+  // Added by this change: /talent/submissions now resolves on web (it used to
+  // 404 on BOTH platforms), but expo-router still has no talent screen.
+  '/talent/submissions',
 ]);
 
 /** Recipient-facing paths that legitimately resolve on web only. */
@@ -233,4 +236,8 @@ if (failWeb.length || failMobile.length) {
   process.exit(1);
 }
 
-console.log('  notification links OK — every live producer resolves on every platform that receives it');
+console.log(
+  mobileGap.length
+    ? `  notification links OK on web — ${new Set(mobileGap).size} tracked mobile gap(s) above, no NEW breakage`
+    : '  notification links OK — every live producer resolves on every platform that receives it',
+);

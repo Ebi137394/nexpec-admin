@@ -91,14 +91,16 @@ SELECT
   (SELECT public.nx_profile_path('inspector'))               AS probe_profile_path,
   (SELECT count(*) FROM public.notifications
     WHERE link_href IN ('/client/profile','/inspector/profile')) AS stale_profile_rows,
-  -- the triggers that call them must still be attached and enabled
+  -- tg_notify_messages is the one actually wired to public.messages; it must
+  -- still be attached and enabled after the replace. notify_on_new_message is
+  -- a superseded copy with NO trigger — fixed too, so it cannot resurrect the
+  -- bug if it is ever reattached, but it is not expected to be live.
   (SELECT count(*) FROM pg_trigger t
-    WHERE NOT t.tgisinternal
-      AND t.tgfoid IN (
-        SELECT p.oid FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-         WHERE n.nspname='public'
-           AND p.proname IN ('notify_on_new_message','tg_notify_messages'))
-      AND t.tgenabled <> 'D')                                AS triggers_live;
+     JOIN pg_proc p ON p.oid = t.tgfoid
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE NOT t.tgisinternal AND n.nspname='public'
+      AND p.proname = 'tg_notify_messages'
+      AND t.tgenabled <> 'D')                                AS live_trigger;
 SQL
 )"
 echo "$VERIFY_OUT" | tail -16
@@ -108,7 +110,7 @@ fail() { echo "  ✗ $1 — ABORTING before the ledger is touched." >&2; exit 1;
 echo "$VERIFY_OUT" | grep -q '"stale_rows": 0'          || fail "stale role-scoped rows remain"
 echo "$VERIFY_OUT" | grep -q '"producers_still_bad": 0' || fail "a producer still writes a role-scoped recipient link"
 echo "$VERIFY_OUT" | grep -q '"producers_fixed": 2'     || fail "both producers should emit /messages/"
-echo "$VERIFY_OUT" | grep -q '"triggers_live": 2'       || fail "message triggers are not both live"
+echo "$VERIFY_OUT" | grep -q '"live_trigger": 1'        || fail "the messages trigger is not live"
 echo "$VERIFY_OUT" | grep -q '"profile_path_delegates": 1' || fail "nx_profile_path still hard-codes a role path"
 echo "$VERIFY_OUT" | grep -q '"probe_profile_path": "/profile"' || fail "nx_profile_path does not resolve to /profile"
 echo "$VERIFY_OUT" | grep -q '"stale_profile_rows": 0' || fail "stale /client|/inspector profile rows remain"

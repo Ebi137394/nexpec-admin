@@ -91,7 +91,7 @@ const Schema = z.object({
   location: optionalText(200),
   locationCity: optionalText(120),
   locationProvince: optionalText(120),
-  countryOfResidence: optionalText(2),
+  countryOfResidence: optionalText(60),
   companyName: optionalText(160),
   contactPersonName: optionalText(200),
 
@@ -193,6 +193,65 @@ function buildUpdate(
 }
 
 /** Human label for the audit summary and the user-facing notice. */
+// A human label for every input, so an error can NAME the field. The old
+// message was zod's bare "Invalid input", which told an admin nothing about
+// which of twenty boxes to fix.
+const FIELD_LABEL: Record<string, string> = {
+  userId: 'user', section: 'section', reason: 'Reason / source',
+  fullName: 'Full name', phone: 'Phone', location: 'Location',
+  locationCity: 'City', locationProvince: 'Province / state',
+  countryOfResidence: 'Country', companyName: 'Company',
+  contactPersonName: 'Contact person',
+  professionalTitle: 'Professional title', headline: 'Headline', bio: 'Biography',
+  yearsOfExperience: 'Years of experience', homeBaseLabel: 'Home base',
+  specialtySlugs: 'Specialties', ndtMethods: 'NDT methods',
+  customSpecialties: 'Custom specialties', skills: 'Skills',
+  hourlyRateDollars: 'Hourly rate', travelRateDollars: 'Travel rate',
+  currency: 'Currency', minimumEngagementHours: 'Minimum engagement',
+  travelRadiusKm: 'Travel radius', availabilityStatus: 'Availability',
+  workAuthorizedCountries: 'Work-authorised countries',
+};
+
+// Enough of ISO 3166-1 to cover where NEXPEC actually operates, plus every
+// 2-letter code passes through. An admin typing "Canada" into a box whose
+// placeholder said "CA" was the exact rejection the owner hit: the field
+// capped silently at 2 characters and the banner did not name it.
+const COUNTRY_ALIASES: Record<string, string> = {
+  canada: 'CA', 'united states': 'US', usa: 'US', 'united states of america': 'US',
+  'united kingdom': 'GB', uk: 'GB', 'great britain': 'GB', england: 'GB',
+  australia: 'AU', 'new zealand': 'NZ', ireland: 'IE', germany: 'DE',
+  france: 'FR', spain: 'ES', italy: 'IT', netherlands: 'NL', belgium: 'BE',
+  norway: 'NO', sweden: 'SE', denmark: 'DK', finland: 'FI', poland: 'PL',
+  portugal: 'PT', switzerland: 'CH', austria: 'AT',
+  'united arab emirates': 'AE', uae: 'AE', 'saudi arabia': 'SA', qatar: 'QA',
+  kuwait: 'KW', bahrain: 'BH', oman: 'OM', iran: 'IR', iraq: 'IQ',
+  turkey: 'TR', turkiye: 'TR', egypt: 'EG', 'south africa': 'ZA',
+  nigeria: 'NG', kenya: 'KE', india: 'IN', pakistan: 'PK', china: 'CN',
+  japan: 'JP', 'south korea': 'KR', singapore: 'SG', malaysia: 'MY',
+  indonesia: 'ID', philippines: 'PH', thailand: 'TH', vietnam: 'VN',
+  brazil: 'BR', mexico: 'MX', argentina: 'AR', chile: 'CL', colombia: 'CO',
+  peru: 'PE', kazakhstan: 'KZ', azerbaijan: 'AZ', russia: 'RU', ukraine: 'UA',
+};
+
+/**
+ * Accept what an admin actually types. A 2-letter code passes through; a
+ * country NAME is normalised; anything else is rejected with a message that
+ * says so, instead of a silent length failure.
+ */
+function normaliseCountry(raw: string | undefined): { value?: string; error?: string } {
+  if (raw === undefined) return {};
+  const t = raw.trim();
+  if (!t) return { value: '' };
+  if (/^[A-Za-z]{2}$/.test(t)) return { value: t.toUpperCase() };
+  const hit = COUNTRY_ALIASES[t.toLowerCase()];
+  if (hit) return { value: hit };
+  return {
+    error:
+      `Country: use a two-letter code such as CA or AE, or a country name we ` +
+      `recognise. "${t.slice(0, 40)}" was not recognised.`,
+  };
+}
+
 const SECTION_LABEL: Record<AdminEditSection, string> = {
   contact: 'contact details',
   professional: 'professional profile',
@@ -201,18 +260,43 @@ const SECTION_LABEL: Record<AdminEditSection, string> = {
   work_auth: 'work authorisation',
 };
 
-export async function adminUpdateUserProfile(formData: FormData): Promise<void> {
+export interface AdminEditState {
+  ok?: boolean;
+  error?: string;
+  /** Which input to highlight, so the admin is taken to the actual problem. */
+  field?: string;
+  section?: string;
+}
+
+export async function adminUpdateUserProfile(
+  _prev: AdminEditState,
+  formData: FormData,
+): Promise<AdminEditState> {
   const raw = Object.fromEntries(formData.entries());
+  const sectionRaw = typeof raw.section === 'string' ? raw.section : undefined;
+
+  // Country is normalised BEFORE validation so "Canada" is accepted rather
+  // than failing a length check the admin cannot see.
+  const country = normaliseCountry(
+    typeof raw.countryOfResidence === 'string' ? raw.countryOfResidence : undefined,
+  );
+  if (country.error) {
+    return { error: country.error, field: 'countryOfResidence', section: sectionRaw };
+  }
+  if (country.value !== undefined) raw.countryOfResidence = country.value;
+
   const parsed = Schema.safeParse(raw);
 
-  const userIdRaw = typeof raw.userId === 'string' ? raw.userId : '';
-  const back = (q: Record<string, string>) => {
-    const sp = new URLSearchParams(q);
-    return `/admin/users/${userIdRaw}?${sp.toString()}`;
-  };
-
   if (!parsed.success) {
-    redirect(back({ error: parsed.error.issues[0]?.message ?? 'Invalid input.' }));
+    const issue = parsed.error.issues[0];
+    const key = typeof issue?.path?.[0] === 'string' ? (issue.path[0] as string) : '';
+    const label = FIELD_LABEL[key] ?? key;
+    // Name the field. "Invalid input" on a twenty-field form is unactionable.
+    return {
+      error: label ? `${label}: ${issue?.message ?? 'is not valid.'}` : 'Could not save.',
+      field: key,
+      section: sectionRaw,
+    };
   }
   const d = parsed.data;
 
@@ -227,7 +311,10 @@ export async function adminUpdateUserProfile(formData: FormData): Promise<void> 
 
   const update = buildUpdate(d.section, d);
   if (Object.keys(update).length === 0) {
-    redirect(back({ error: 'Nothing to change in that section.' }));
+    return {
+      error: 'Nothing was filled in for that section, so there is nothing to save.',
+      section: d.section,
+    };
   }
 
   // Read the current values so the audit row can carry a real before/after.
@@ -239,7 +326,7 @@ export async function adminUpdateUserProfile(formData: FormData): Promise<void> 
     .maybeSingle();
 
   if (!before) {
-    redirect(back({ error: 'That user no longer exists.' }));
+    return { error: 'That user no longer exists.', section: d.section };
   }
 
   update.updated_at = new Date().toISOString();
@@ -260,12 +347,20 @@ export async function adminUpdateUserProfile(formData: FormData): Promise<void> 
         message: error.message,
       });
     }
-    redirect(back({ error: `Could not save: ${error.message}` }));
+    // The database message can carry SQL and column detail, so it is logged
+    // server-side and NOT shown to the browser.
+    return {
+      error: `Could not save (reference ${error.code ?? 'db'}). Nothing was changed.`,
+      section: d.section,
+    };
   }
   if (!updatedRows || updatedRows.length === 0) {
-    redirect(
-      back({ error: 'No record was updated. Nothing was changed.' }),
-    );
+    // A zero-row UPDATE is a PostgREST success. Reporting it as saved is the
+    // exact false-success this guard exists to prevent.
+    return {
+      error: 'No record was updated — permission denied. Nothing was changed.',
+      section: d.section,
+    };
   }
 
   // ── Provenance ──────────────────────────────────────────────────────────
@@ -312,5 +407,5 @@ export async function adminUpdateUserProfile(formData: FormData): Promise<void> 
   revalidatePath(`/admin/users/${d.userId}`);
   revalidatePath('/inspector/settings');
   revalidatePath('/client/settings');
-  redirect(back({ saved: '1' }));
+  return { ok: true, section: d.section };
 }

@@ -46,6 +46,7 @@ import { UserModerationPanel } from '@/components/admin/users/UserModerationPane
 import { UserRoleMessagePanel } from '@/components/admin/users/UserRoleMessagePanel';
 import { AdminProfileEditor } from '@/components/admin/users/AdminProfileEditor';
 import { CvReviewPanel } from '@/components/admin/users/CvReviewPanel';
+import { AdminIdentityActions } from '@/components/admin/users/AdminIdentityActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,6 +203,12 @@ export default async function AdminUserDetailPage({ params, searchParams }: Page
               value={formatDateTime(profile.last_active)}
             />
           </dl>
+          {/* Editing lives HERE, at the top, not below moderation, payouts and
+              audit. Finding it was the owner's actual blocker. */}
+          <AdminIdentityActions
+            userId={profile.id}
+            displayName={profile.full_name ?? profile.email ?? 'this user'}
+          />
           <p className="mt-4 font-mono text-[10px] text-zinc-600">
             user.id  {profile.id}
           </p>

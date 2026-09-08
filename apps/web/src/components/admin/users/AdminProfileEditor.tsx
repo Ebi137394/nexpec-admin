@@ -17,8 +17,14 @@
 //  Those live in the separate Admin actions card.
 // ════════════════════════════════════════════════════════════════════════════
 
-import { Pencil, Upload, Info } from 'lucide-react';
-import { adminUpdateUserProfile } from '@/lib/actions/adminEditProfile';
+'use client';
+
+import { useActionState } from 'react';
+import { Pencil, Upload, Info, Check, AlertCircle } from 'lucide-react';
+import {
+  adminUpdateUserProfile,
+  type AdminEditState,
+} from '@/lib/actions/adminEditProfile';
 import { adminUploadUserDocument } from '@/lib/actions/adminUploadUserDocument';
 import type { AdminUserDetail } from '@/lib/data/adminUserDetail';
 
@@ -63,7 +69,7 @@ function Field({
  * Shared trailer for every section: why the change is being made, and whether
  * to tell the user. The reason lands in the audit row.
  */
-function SectionFooter({ section }: { section: string }) {
+function SectionFooter({ section, state }: { section: string; state: AdminEditState }) {
   return (
     <>
       <div className="mt-4">
@@ -76,6 +82,9 @@ function SectionFooter({ section }: { section: string }) {
           className={inputClass}
           placeholder="e.g. supplied by the user over email, 7 Sep"
         />
+        <p className="mt-1 text-[11px] text-zinc-500">
+          Optional, but it is what the audit trail shows later.
+        </p>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-xs text-zinc-400">
@@ -93,6 +102,25 @@ function SectionFooter({ section }: { section: string }) {
           Save this section
         </button>
       </div>
+
+      {/* Feedback stays INSIDE the section, beside the inputs that caused it.
+          The form is no longer navigated away from on error, so everything the
+          admin typed is still on screen to correct. */}
+      {state.error && (
+        <p
+          role="alert"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-950/30 p-2 text-xs text-red-300"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+          <span>{state.error}</span>
+        </p>
+      )}
+      {state.ok && (
+        <p className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-2 text-xs text-emerald-300">
+          <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+          Saved. The summary above now shows these values.
+        </p>
+      )}
     </>
   );
 }
@@ -108,16 +136,28 @@ function EditSection({
   title: string;
   children: React.ReactNode;
 }) {
+  const [state, formAction] = useActionState<AdminEditState, FormData>(
+    adminUpdateUserProfile,
+    {},
+  );
+  // Keep the section expanded whenever it has something to say, so an error is
+  // never hidden behind a collapsed summary the admin has to reopen.
+  const open = Boolean(state.error || state.ok);
   return (
-    <details className="rounded-2xl border border-white/[0.06] bg-black/20 p-4">
+    <details
+      className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"
+      open={open || undefined}
+      id={`admin-edit-section-${section}`}
+    >
       <summary className="cursor-pointer text-sm font-semibold text-zinc-200">
         {title}
+        {state.error && <span className="ml-2 text-xs text-red-400">needs attention</span>}
       </summary>
-      <form action={adminUpdateUserProfile} className="mt-4">
+      <form action={formAction} className="mt-4">
         <input type="hidden" name="userId" value={userId} />
         <input type="hidden" name="section" value={section} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
-        <SectionFooter section={section} />
+        <SectionFooter section={section} state={state} />
       </form>
     </details>
   );
@@ -135,7 +175,10 @@ export function AdminProfileEditor({
     cents === null || cents === undefined ? '' : (cents / 100).toString();
 
   return (
-    <section className="rounded-3xl border border-violet/30 bg-violet/[0.04] p-6 sm:p-8">
+    <section
+      id="admin-profile-editor"
+      className="scroll-mt-24 rounded-3xl border border-violet/30 bg-violet/[0.04] p-6 sm:p-8"
+    >
       <header className="mb-5">
         <h2 className="font-display text-lg font-semibold tracking-tight text-white">
           Edit profile on the user&apos;s behalf
